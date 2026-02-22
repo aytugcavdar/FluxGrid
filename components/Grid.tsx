@@ -87,25 +87,25 @@ export const Grid: React.FC = () => {
         dirLight.position = new BABYLON.Vector3(20, 40, 20);
         dirLight.intensity = 0.6;
 
-        // Cyberpunk Glow (Bloom) - Toned down for clarity
+        // Subtle Glow Layer
         const glowLayer = new BABYLON.GlowLayer("glow", scene, {
             mainTextureSamples: 4,
-            blurKernelSize: 64 // Softer blur
+            blurKernelSize: 48
         });
-        glowLayer.intensity = 0.6; // Reduced from 1.5 to prevent "whiteout"
+        glowLayer.intensity = 0.3; // Subtle glow — not cyberpunk
         glowLayerRef.current = glowLayer;
 
         // --- The Board ---
         const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 20, height: 20 }, scene);
         ground.visibility = 0;
 
-        // Grid Base (Visual Floor) - Dark Blue/Black
+        // Grid Base — dark slate
         const baseSize = (GRID_SIZE * TOTAL_CELL_SIZE) + 1.5;
         const gridBase = BABYLON.MeshBuilder.CreateBox("gridBase", { width: baseSize, height: 0.1, depth: baseSize }, scene);
         gridBase.position.y = -0.6;
         const gridMat = new BABYLON.StandardMaterial("gridMat", scene);
-        gridMat.diffuseColor = BABYLON.Color3.FromHexString("#0f172a");
-        gridMat.emissiveColor = BABYLON.Color3.FromHexString("#020617");
+        gridMat.diffuseColor = BABYLON.Color3.FromHexString("#1f2937");
+        gridMat.emissiveColor = BABYLON.Color3.FromHexString("#111827");
         gridBase.material = gridMat;
         gridBase.isPickable = false;
 
@@ -123,39 +123,40 @@ export const Grid: React.FC = () => {
                 slotMat.alpha = 0; // Invisible body
                 slot.material = slotMat;
 
-                // The Blue Lines
+                // Soft grid lines
                 slot.enableEdgesRendering();
-                slot.edgesWidth = 2.0;
-                slot.edgesColor = new BABYLON.Color4(0.2, 0.4, 0.8, 0.3); // Faint blue grid lines
+                slot.edgesWidth = 1.5;
+                slot.edgesColor = new BABYLON.Color4(0.3, 0.35, 0.45, 0.2);
             }
         }
 
-        // --- Ambient Particles (Floating Neon Bits) — reduced on mobile ---
-        const particleCount = isMobile ? 30 : 80;
+        // --- Ambient Particles — subtle floating dust ---
+        const particleCount = isMobile ? 15 : 40;
         for (let i = 0; i < particleCount; i++) {
-            const p = BABYLON.MeshBuilder.CreateBox("p", { size: Math.random() * 0.15 + 0.02 }, scene);
+            const p = BABYLON.MeshBuilder.CreateBox("p", { size: Math.random() * 0.1 + 0.02 }, scene);
             p.position = new BABYLON.Vector3(
-                (Math.random() - 0.5) * 22, // Wider spread
+                (Math.random() - 0.5) * 22,
                 (Math.random() * 10) - 5,
                 (Math.random() - 0.5) * 22
             );
             p.rotation = new BABYLON.Vector3(Math.random(), Math.random(), Math.random());
 
             const pMat = new BABYLON.StandardMaterial("pMat", scene);
-            // More color variety: Cyan, Pink, Yellow, Violet
+            // Soft muted colors
             const rand = Math.random();
-            if (rand > 0.75) pMat.emissiveColor = BABYLON.Color3.FromHexString("#06b6d4"); // Cyan
-            else if (rand > 0.5) pMat.emissiveColor = BABYLON.Color3.FromHexString("#e879f9"); // Pink
-            else if (rand > 0.25) pMat.emissiveColor = BABYLON.Color3.FromHexString("#facc15"); // Yellow
-            else pMat.emissiveColor = BABYLON.Color3.FromHexString("#8b5cf6"); // Violet
+            if (rand > 0.75) pMat.emissiveColor = BABYLON.Color3.FromHexString("#64748b");
+            else if (rand > 0.5) pMat.emissiveColor = BABYLON.Color3.FromHexString("#6366f1");
+            else if (rand > 0.25) pMat.emissiveColor = BABYLON.Color3.FromHexString("#3b82f6");
+            else pMat.emissiveColor = BABYLON.Color3.FromHexString("#8b5cf6");
 
             pMat.disableLighting = true;
+            pMat.alpha = 0.4;
             p.material = pMat;
             p.isPickable = false;
 
             p.metadata = {
-                velY: (Math.random() * 0.02) + 0.005, // Slightly faster variation
-                rot: Math.random() * 0.03
+                velY: (Math.random() * 0.015) + 0.003,
+                rot: Math.random() * 0.02
             };
             ambientParticlesRef.current.push(p);
         }

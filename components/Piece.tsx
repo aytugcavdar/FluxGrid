@@ -47,7 +47,7 @@ export const Piece: React.FC<Props> = ({ piece }) => {
                 ? (p.type === CellType.ICE ? '#a5f3fc' : p.type === CellType.BOMB ? '#ef4444' : p.color)
                 : 'transparent',
               boxShadow: filled
-                ? `0 0 ${isMobile ? 4 : 6}px ${p.type === CellType.ICE ? '#a5f3fc' : p.type === CellType.BOMB ? '#ef4444' : p.color}`
+                ? `0 0 ${isMobile ? 3 : 4}px ${p.type === CellType.ICE ? '#93c5fd' : p.type === CellType.BOMB ? '#f87171' : p.color}40`
                 : 'none',
               opacity: filled ? 1 : 0,
             }}
@@ -72,7 +72,7 @@ export const Piece: React.FC<Props> = ({ piece }) => {
     >
       {/* Special Icon Badge */}
       {piece.type === CellType.ICE && (
-        <div className="absolute -top-0.5 -right-0.5 w-4 h-4 md:w-5 md:h-5 bg-cyan-500 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-black shadow-lg z-10">
+        <div className="absolute -top-0.5 -right-0.5 w-4 h-4 md:w-5 md:h-5 bg-blue-400 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white shadow z-10">
           ❄️
         </div>
       )}

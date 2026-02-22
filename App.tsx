@@ -97,19 +97,18 @@ const App: React.FC = () => {
   return (
     <div className="game-container">
 
-      {/* Cinematic Background — lighter on mobile */}
+      {/* Ambient Background — subtle gradient */}
       <div className="absolute inset-0 pointer-events-none z-0">
-        <div className="absolute top-[-20%] left-[20%] w-[60%] h-[60%] rounded-full bg-cyan-900/15 blur-[100px] md:bg-cyan-900/20 md:blur-[120px]" />
-        <div className="absolute bottom-[-20%] right-[20%] w-[60%] h-[60%] rounded-full bg-fuchsia-900/15 blur-[100px] md:bg-fuchsia-900/20 md:blur-[120px]" />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px] opacity-20 md:opacity-30" />
+        <div className="absolute top-[-30%] left-[10%] w-[60%] h-[60%] rounded-full bg-blue-900/10 blur-[120px]" />
+        <div className="absolute bottom-[-20%] right-[10%] w-[50%] h-[50%] rounded-full bg-purple-900/8 blur-[100px]" />
       </div>
 
       {/* Top Bar: Title & Stats */}
       <div className="game-hud">
         <div className="max-w-2xl mx-auto flex justify-between items-start md:items-center h-full">
           <div className="text-left opacity-80 hidden md:block">
-            <h1 className="text-xl font-black font-display tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-white to-fuchsia-400 drop-shadow-[0_0_10px_rgba(6,182,212,0.8)]">
-              FLUX<span className="font-light text-white/90">GRID</span>
+            <h1 className="text-lg font-bold tracking-wide text-white/90">
+              Flux<span className="font-normal text-white/50">Grid</span>
             </h1>
           </div>
           <div className="flex-1 md:ml-4 w-full">
@@ -124,10 +123,10 @@ const App: React.FC = () => {
       </div>
 
       {/* Bottom Bar: Piece Tray */}
-      <div className="game-tray bg-gradient-to-t from-black/90 via-black/60 to-transparent">
+      <div className="game-tray bg-gradient-to-t from-gray-900/90 via-gray-900/50 to-transparent">
         <div className="max-w-2xl mx-auto px-3 md:px-4 h-full flex flex-col">
           <div className="flex justify-between items-end mb-1 px-1">
-            <span className="text-[9px] md:text-[10px] uppercase tracking-widest text-white/40 font-mono">Kuantum Tepsisi</span>
+            <span className="text-[9px] md:text-[10px] uppercase tracking-widest text-white/30 font-medium">Parça Tepsisi</span>
           </div>
 
           <div className="grid grid-cols-3 gap-2 flex-1 min-h-0">
@@ -144,9 +143,9 @@ const App: React.FC = () => {
                   transition={{ type: 'spring', bounce: 0.4, duration: 0.5 }}
                   className={clsx(
                     "piece-slot border transition-colors",
-                    piece.type === 'ICE' ? "bg-cyan-900/20 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.1)]" :
-                      piece.type === 'BOMB' ? "bg-red-900/20 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.1)]" :
-                        "bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20"
+                    piece.type === 'ICE' ? "bg-blue-900/15 border-blue-400/20" :
+                      piece.type === 'BOMB' ? "bg-red-900/15 border-red-400/20" :
+                        "bg-white/[0.03] border-white/[0.04] hover:bg-white/[0.06] hover:border-white/[0.08]"
                   )}
                 >
                   <Piece piece={piece} />
@@ -173,30 +172,27 @@ const App: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           >
             <motion.div
-              initial={{ scale: 0.8, y: 50 }}
+              initial={{ scale: 0.9, y: 30 }}
               animate={{ scale: 1, y: 0 }}
-              transition={{ type: 'spring', bounce: 0.3 }}
-              className="bg-[#0f172a] border border-white/10 p-6 md:p-8 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.8)] max-w-xs md:max-w-sm w-full text-center relative overflow-hidden"
+              transition={{ type: 'spring', bounce: 0.25 }}
+              className="bg-gray-800 border border-white/8 p-6 md:p-8 rounded-2xl shadow-2xl max-w-xs md:max-w-sm w-full text-center relative overflow-hidden"
             >
-              <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 to-transparent pointer-events-none" />
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">Oyun Bitti</h2>
+              <div className="w-12 h-0.5 bg-blue-500/60 mx-auto mb-5 rounded-full" />
 
-              <h2 className="text-3xl md:text-4xl font-display font-black text-white mb-2 tracking-tighter">KRİTİK<br />HATA</h2>
-              <div className="w-16 h-1 bg-red-500 mx-auto mb-5 rounded-full shadow-[0_0_10px_red]" />
-
-              <p className="text-slate-400 text-xs md:text-sm uppercase tracking-widest mb-2">Son Skor</p>
-              <div className="text-4xl md:text-5xl font-mono font-bold text-cyan-400 mb-6 md:mb-8 drop-shadow-[0_0_15px_rgba(6,182,212,0.5)]">
+              <p className="text-gray-400 text-xs md:text-sm uppercase tracking-wider mb-2">Son Skor</p>
+              <div className="text-4xl md:text-5xl font-bold text-white mb-6 md:mb-8">
                 {score.toLocaleString()}
               </div>
 
               <button
                 onClick={resetGame}
-                className="group relative w-full py-3.5 md:py-4 rounded-xl bg-white text-black font-bold tracking-wider overflow-hidden transition-transform active:scale-95"
+                className="w-full py-3.5 md:py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold tracking-wide transition-all active:scale-95"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-fuchsia-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                <span className="relative z-10 group-hover:text-white transition-colors text-sm md:text-base">SİSTEMİ YENİLE</span>
+                Tekrar Oyna
               </button>
             </motion.div>
           </motion.div>

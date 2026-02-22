@@ -8,13 +8,13 @@ interface TutorialProps {
 
 const STEPS = [
     {
-        icon: <Move size={40} className="text-cyan-400" />,
+        icon: <Move size={40} className="text-blue-400" />,
         title: 'Parçaları Sürükle',
         desc: 'Alttaki tepsiden parçaları sürükleyip ızgaraya yerleştir. Her parça uygun boşluğa oturmalı.',
         emoji: '👆',
     },
     {
-        icon: <Target size={40} className="text-fuchsia-400" />,
+        icon: <Target size={40} className="text-indigo-400" />,
         title: 'Satır & Sütun Tamamla',
         desc: 'Bir satır veya sütunu tamamen doldurduğunda otomatik silinir ve puan kazanırsın. Ardarda silersen kombo yaparsın!',
         emoji: '✨',
@@ -70,8 +70,8 @@ export const Tutorial: React.FC<TutorialProps> = ({ onComplete }) => {
                         {STEPS.map((_, i) => (
                             <div
                                 key={i}
-                                className={`h-1.5 rounded-full transition-all duration-300 ${i === step ? 'w-8 bg-cyan-400 shadow-[0_0_8px_#06b6d4]' :
-                                        i < step ? 'w-4 bg-cyan-600' : 'w-4 bg-white/10'
+                                className={`h-1.5 rounded-full transition-all duration-300 ${i === step ? 'w-8 bg-blue-500' :
+                                    i < step ? 'w-4 bg-blue-700' : 'w-4 bg-white/10'
                                     }`}
                             />
                         ))}
@@ -102,7 +102,7 @@ export const Tutorial: React.FC<TutorialProps> = ({ onComplete }) => {
                         onClick={handleNext}
                         className="w-full py-3.5 rounded-xl font-bold tracking-wider text-sm overflow-hidden relative group transition-all active:scale-95"
                         style={{
-                            background: 'linear-gradient(135deg, #06b6d4, #8b5cf6)',
+                            background: '#3b82f6',
                         }}
                     >
                         <span className="relative z-10 text-white flex items-center justify-center gap-2">

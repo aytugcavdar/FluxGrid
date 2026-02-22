@@ -1,13 +1,13 @@
 import { PieceShape } from './types';
 
-// Cyberpunk Palette - Matched to the reference image
+// Modern Soft Palette — muted, warm tones
 export const COLORS = [
-  '#facc15', // Neon Yellow (Solar)
-  '#06b6d4', // Cyan (Electric)
-  '#e879f9', // Fuchsia/Pink (Plasma)
-  '#34d399', // Emerald Green (Toxic)
-  '#f43f5e', // Rose Red (Laser)
-  '#8b5cf6', // Violet (Void)
+  '#f59e0b', // Amber
+  '#3b82f6', // Blue
+  '#a78bfa', // Lavender
+  '#10b981', // Teal Green
+  '#f472b6', // Pink
+  '#6366f1', // Indigo
 ];
 
 // 1010! style shapes
@@ -19,7 +19,7 @@ export const SHAPES: PieceShape[] = [
   { id: 'v3', shape: [[1], [1], [1]], color: COLORS[2] },
   { id: 'h4', shape: [[1, 1, 1, 1]], color: COLORS[3] },
   { id: 'v4', shape: [[1], [1], [1], [1]], color: COLORS[3] },
-  { id: 'square', shape: [[1, 1], [1, 1]], color: COLORS[0] }, // Yellow Squares usually
+  { id: 'square', shape: [[1, 1], [1, 1]], color: COLORS[0] },
   { id: 'l_shape', shape: [[1, 0], [1, 0], [1, 1]], color: COLORS[4] },
   { id: 'j_shape', shape: [[0, 1], [0, 1], [1, 1]], color: COLORS[4] },
   { id: 't_shape', shape: [[1, 1, 1], [0, 1, 0]], color: COLORS[5] },
@@ -30,13 +30,13 @@ export const SHAPES: PieceShape[] = [
 ];
 
 export const FLUX_COST = {
-  REROLL: 20, // Cheaper reroll
-  SHATTER: 40, // Cheaper shatter
-  BOMB: 75, // Expensive but powerful
+  REROLL: 20,
+  SHATTER: 40,
+  BOMB: 75,
 };
 
 export const POINTS = {
-  BLOCK_PLACED: 15, // More points for placing
-  LINE_CLEARED: 150, // Big reward for lines
-  COMBO_MULTIPLIER: 75, // Huge combo bonus
+  BLOCK_PLACED: 15,
+  LINE_CLEARED: 150,
+  COMBO_MULTIPLIER: 75,
 };

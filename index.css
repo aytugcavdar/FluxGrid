@@ -1,16 +1,15 @@
 /* ═══════════════════════════════════════════════
-   FluxGrid: Design System & Responsive Layout
+   FluxGrid: Modern Clean Design System
    ═══════════════════════════════════════════════ */
 
 /* ─── Design Tokens ─── */
 :root {
-  --color-bg: #050b14;
-  --color-surface: #0f172a;
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-text: #e2e8f0;
-  --color-accent-cyan: #06b6d4;
-  --color-accent-fuchsia: #e879f9;
-  --color-accent-yellow: #facc15;
+  --color-bg: #111827;
+  --color-surface: #1f2937;
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-text: #e5e7eb;
+  --color-accent: #3b82f6;
+  --color-accent-secondary: #8b5cf6;
 
   /* Layout — mobile-first (smallest screens) */
   --grid-cell: 36px;
@@ -67,7 +66,7 @@ body {
 }
 
 body {
-  font-family: 'Rajdhani', sans-serif;
+  font-family: 'Inter', 'Rajdhani', system-ui, sans-serif;
   background-color: var(--color-bg);
   color: var(--color-text);
   touch-action: none;
@@ -86,7 +85,8 @@ body {
 
 /* ─── Font Classes ─── */
 .font-display {
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 700;
 }
 
 /* ─── Safe Area Utilities ─── */
@@ -108,12 +108,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #374151;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #4b5563;
 }
 
 /* ─── Canvas ─── */
@@ -123,40 +123,16 @@ canvas {
   touch-action: none;
 }
 
-/* ─── Animations ─── */
-@keyframes pulse-glow {
-
-  0%,
-  100% {
-    opacity: 0.6;
-    filter: brightness(1);
-  }
-
-  50% {
-    opacity: 1;
-    filter: brightness(1.3);
-  }
-}
-
-@keyframes float-in {
+/* ─── Animations (subtle) ─── */
+@keyframes fade-in {
   from {
     opacity: 0;
-    transform: translateY(20px) scale(0.9);
+    transform: translateY(8px);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% center;
-  }
-
-  100% {
-    background-position: 200% center;
+    transform: translateY(0);
   }
 }
 
@@ -174,12 +150,8 @@ canvas {
 
 @keyframes pop-in {
   0% {
-    transform: scale(0.5);
+    transform: scale(0.8);
     opacity: 0;
-  }
-
-  70% {
-    transform: scale(1.1);
   }
 
   100% {
@@ -188,21 +160,28 @@ canvas {
   }
 }
 
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+@keyframes gentle-pulse {
+
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
-.animate-float-in {
-  animation: float-in 0.4s ease-out forwards;
-}
-
-.animate-shimmer {
-  background-size: 200% 100%;
-  animation: shimmer 3s linear infinite;
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
 }
 
 .animate-pop-in {
-  animation: pop-in 0.3s ease-out forwards;
+  animation: pop-in 0.25s ease-out forwards;
+}
+
+.animate-gentle-pulse {
+  animation: gentle-pulse 2s ease-in-out infinite;
 }
 
 /* ─── Game Layout ─── */
@@ -213,6 +192,7 @@ canvas {
   width: 100%;
   position: relative;
   overflow: hidden;
+  background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
 }
 
 .game-hud {
@@ -242,10 +222,10 @@ canvas {
   z-index: 20;
 }
 
-/* ─── Skill Button Feedback ─── */
+/* ─── Skill Button ─── */
 .skill-btn {
   position: relative;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   min-width: 40px;
   min-height: 40px;
 }
@@ -258,15 +238,7 @@ canvas {
 }
 
 .skill-btn:active {
-  transform: scale(0.9);
-}
-
-.skill-btn::after {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: inherit;
-  pointer-events: none;
+  transform: scale(0.92);
 }
 
 /* ─── Tutorial Overlay ─── */
@@ -277,46 +249,24 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .tutorial-card {
   max-width: 340px;
   width: 90%;
-  background: linear-gradient(145deg, #0f172a, #1e293b);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 24px;
-  padding: 32px 24px;
+  background: #1f2937;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 28px 24px;
   text-align: center;
-  animation: pop-in 0.4s ease-out;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+  animation: pop-in 0.3s ease-out;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
 }
 
-/* ─── Toast / Notification ─── */
-.toast {
-  position: fixed;
-  top: max(16px, var(--safe-top));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 100;
-  animation: slide-down 0.3s ease-out;
-}
-
-@keyframes slide-down {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-/* ─── Piece Tray Responsiveness ─── */
+/* ─── Piece Tray ─── */
 .piece-slot {
   display: flex;
   align-items: center;
@@ -351,15 +301,15 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.4);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
 }
 
 .mute-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
 }
