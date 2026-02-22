@@ -60,9 +60,9 @@ export const Grid: React.FC = () => {
                 const isSmallPhone = window.innerWidth < 400;
                 const updateIsMobile = window.innerWidth < 768;
                 camera.fovMode = BABYLON.Camera.FOVMODE_HORIZONTAL_FIXED;
-                camera.fov = isSmallPhone ? 0.85 : 0.92;
-                camera.radius = isSmallPhone ? 13.5 : updateIsMobile ? 14.0 : 14.5;
-                camera.target = new BABYLON.Vector3(0, -0.1, 0);
+                camera.fov = isSmallPhone ? 0.78 : updateIsMobile ? 0.82 : 0.92;
+                camera.radius = isSmallPhone ? 11.5 : updateIsMobile ? 12.0 : 14.5;
+                camera.target = new BABYLON.Vector3(0, -0.05, 0);
             } else {
                 camera.fovMode = BABYLON.Camera.FOVMODE_VERTICAL_FIXED;
                 camera.fov = 0.7;
@@ -92,7 +92,7 @@ export const Grid: React.FC = () => {
             mainTextureSamples: 4,
             blurKernelSize: 48
         });
-        glowLayer.intensity = 0.3; // Subtle glow — not cyberpunk
+        glowLayer.intensity = 0.15; // Very subtle glow
         glowLayerRef.current = glowLayer;
 
         // --- The Board ---
@@ -180,32 +180,31 @@ export const Grid: React.FC = () => {
 
             // Special Visuals
             if (type === CellType.ICE) {
-                col = BABYLON.Color3.FromHexString("#a5f3fc"); // Cyan-ish Ice
+                col = BABYLON.Color3.FromHexString("#93c5fd");
                 if (health === 1) {
-                    // Cracked Ice Visual (Darker or more transparent)
                     mat.alpha = 0.6;
-                    mat.wireframe = true; // Simple crack effect
+                    mat.wireframe = true;
                 } else {
                     mat.alpha = 0.8;
                 }
-                mat.emissiveColor = col.scale(0.6);
+                mat.emissiveColor = col.scale(0.15);
             } else if (type === CellType.BOMB) {
-                col = BABYLON.Color3.FromHexString("#ef4444"); // Red Bomb
-                mat.emissiveColor = new BABYLON.Color3(1, 0, 0); // Glowing Red
+                col = BABYLON.Color3.FromHexString("#ef4444");
+                mat.emissiveColor = col.scale(0.2);
                 mat.alpha = 1.0;
             } else {
-                mat.emissiveColor = col.scale(0.4);
+                mat.emissiveColor = col.scale(0.1);
                 mat.alpha = 0.9;
             }
 
             mat.diffuseColor = col;
-            mat.specularColor = new BABYLON.Color3(0.8, 0.8, 0.8);
+            mat.specularColor = new BABYLON.Color3(0.3, 0.3, 0.3);
             box.material = mat;
 
             // Clean Edges
             box.enableEdgesRendering();
-            box.edgesWidth = 2.0; // Thinner, sharper edges
-            box.edgesColor = new BABYLON.Color4(1, 1, 1, 0.3); // Subtle edge highlight
+            box.edgesWidth = 1.5;
+            box.edgesColor = new BABYLON.Color4(1, 1, 1, 0.12);
 
             box.isPickable = false;
             return box;
