@@ -1,0 +1,365 @@
+/* ═══════════════════════════════════════════════
+   FluxGrid: Design System & Responsive Layout
+   ═══════════════════════════════════════════════ */
+
+/* ─── Design Tokens ─── */
+:root {
+  --color-bg: #050b14;
+  --color-surface: #0f172a;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-text: #e2e8f0;
+  --color-accent-cyan: #06b6d4;
+  --color-accent-fuchsia: #e879f9;
+  --color-accent-yellow: #facc15;
+
+  /* Layout — mobile-first (smallest screens) */
+  --grid-cell: 36px;
+  --tray-height: 100px;
+  --hud-height: 42px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* Medium phones (411px+) */
+@media (min-width: 411px) {
+  :root {
+    --grid-cell: 40px;
+    --tray-height: 108px;
+    --hud-height: 44px;
+  }
+}
+
+/* Tablet / Desktop */
+@media (min-width: 768px) {
+  :root {
+    --grid-cell: 48px;
+    --tray-height: 120px;
+    --hud-height: 52px;
+  }
+}
+
+/* Large desktop */
+@media (min-width: 1200px) {
+  :root {
+    --grid-cell: 56px;
+    --tray-height: 130px;
+  }
+}
+
+/* ─── Reset & Base ─── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'Rajdhani', sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  inset: 0;
+}
+
+/* ─── Font Classes ─── */
+.font-display {
+  font-family: 'Orbitron', sans-serif;
+}
+
+/* ─── Safe Area Utilities ─── */
+.pb-safe {
+  padding-bottom: max(8px, var(--safe-bottom));
+}
+
+.pt-safe {
+  padding-top: max(4px, var(--safe-top));
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* ─── Canvas ─── */
+canvas {
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+/* ─── Animations ─── */
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    opacity: 0.6;
+    filter: brightness(1);
+  }
+
+  50% {
+    opacity: 1;
+    filter: brightness(1.3);
+  }
+}
+
+@keyframes float-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop-in {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+
+  70% {
+    transform: scale(1.1);
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-float-in {
+  animation: float-in 0.4s ease-out forwards;
+}
+
+.animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+}
+
+.animate-pop-in {
+  animation: pop-in 0.3s ease-out forwards;
+}
+
+/* ─── Game Layout ─── */
+.game-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.game-hud {
+  flex: none;
+  height: var(--hud-height);
+  padding: 4px 12px;
+  padding-top: max(4px, var(--safe-top));
+  position: relative;
+  z-index: 10;
+}
+
+.game-grid {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.game-tray {
+  flex: none;
+  height: var(--tray-height);
+  padding-bottom: max(8px, var(--safe-bottom));
+  position: relative;
+  z-index: 20;
+}
+
+/* ─── Skill Button Feedback ─── */
+.skill-btn {
+  position: relative;
+  transition: all 0.2s ease;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+@media (min-width: 768px) {
+  .skill-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+.skill-btn:active {
+  transform: scale(0.9);
+}
+
+.skill-btn::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* ─── Tutorial Overlay ─── */
+.tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.tutorial-card {
+  max-width: 340px;
+  width: 90%;
+  background: linear-gradient(145deg, #0f172a, #1e293b);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 32px 24px;
+  text-align: center;
+  animation: pop-in 0.4s ease-out;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+}
+
+/* ─── Toast / Notification ─── */
+.toast {
+  position: fixed;
+  top: max(16px, var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  animation: slide-down 0.3s ease-out;
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ─── Piece Tray Responsiveness ─── */
+.piece-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  cursor: grab;
+  min-height: 60px;
+  touch-action: none;
+}
+
+@media (min-width: 411px) {
+  .piece-slot {
+    min-height: 70px;
+    border-radius: 16px;
+  }
+}
+
+@media (min-width: 768px) {
+  .piece-slot {
+    min-height: 80px;
+  }
+}
+
+.piece-slot:active {
+  cursor: grabbing;
+}
+
+/* ─── Mute Toggle ─── */
+.mute-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mute-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
