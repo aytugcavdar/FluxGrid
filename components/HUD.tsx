@@ -32,9 +32,16 @@ export const HUD: React.FC = () => {
                 </div>
 
                 {/* High Score */}
-                <div className="hidden sm:flex items-center gap-1 text-amber-400/50 ml-2">
+                <div className="flex items-center gap-1 text-amber-400/60 ml-2 flex-shrink-0">
                     <Trophy size={10} />
                     <span className="text-[9px] font-medium">{highScore.toLocaleString()}</span>
+                    {score > 0 && score >= highScore && (
+                        <motion.span
+                            initial={{ scale: 0, rotate: -20 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            className="text-[10px] animate-gentle-pulse"
+                        >⭐</motion.span>
+                    )}
                 </div>
 
                 {/* Combo */}
@@ -43,12 +50,15 @@ export const HUD: React.FC = () => {
                         {combo > 1 && (
                             <motion.div
                                 key={combo}
-                                initial={{ scale: 0.5, opacity: 0 }}
-                                animate={{ scale: 1.1, opacity: 1 }}
-                                exit={{ scale: 0.5, opacity: 0 }}
+                                initial={{ scale: 0.5, opacity: 0, y: 5 }}
+                                animate={{ scale: 1.1, opacity: 1, y: 0 }}
+                                exit={{ scale: 0.5, opacity: 0, y: -5 }}
                                 className="flex flex-col items-center"
                             >
-                                <span className="text-amber-400 font-bold text-base md:text-xl">x{combo}</span>
+                                <span className={clsx(
+                                    "font-bold text-base md:text-xl",
+                                    combo >= 5 ? "text-amber-300" : combo >= 3 ? "text-amber-400" : "text-blue-400"
+                                )}>x{combo}</span>
                             </motion.div>
                         )}
                     </AnimatePresence>
