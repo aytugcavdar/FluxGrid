@@ -60,9 +60,9 @@ export const Grid: React.FC = () => {
                 const isSmallPhone = window.innerWidth < 400;
                 const updateIsMobile = window.innerWidth < 768;
                 camera.fovMode = BABYLON.Camera.FOVMODE_HORIZONTAL_FIXED;
-                camera.fov = isSmallPhone ? 0.75 : updateIsMobile ? 0.78 : 0.92;
-                camera.radius = isSmallPhone ? 10.5 : updateIsMobile ? 11.0 : 14.5;
-                camera.target = new BABYLON.Vector3(0, 0, 0);
+                camera.fov = isSmallPhone ? 0.82 : updateIsMobile ? 0.86 : 0.92;
+                camera.radius = isSmallPhone ? 13.0 : updateIsMobile ? 13.5 : 14.5;
+                camera.target = new BABYLON.Vector3(0, -0.1, 0);
             } else {
                 camera.fovMode = BABYLON.Camera.FOVMODE_VERTICAL_FIXED;
                 camera.fov = 0.7;
