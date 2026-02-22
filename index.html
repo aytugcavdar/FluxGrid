@@ -10,12 +10,12 @@
     content="Cyberpunk tarzı blok bulmaca oyunu — yerçekimi mekanikleri, aktif yetenekler ve neon estetiği ile." />
 
   <!-- PWA -->
-  <link rel="manifest" href="/manifest.json" />
+  <link rel="manifest" href="./manifest.json" />
   <meta name="theme-color" content="#06b6d4" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="FluxGrid" />
-  <link rel="apple-touch-icon" href="/icon-192.svg" />
+  <link rel="apple-touch-icon" href="./icon-192.svg" />
 
   <!-- Fonts -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -53,7 +53,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(() => { });
+        navigator.serviceWorker.register('./sw.js').catch(() => { });
       });
     }
   </script>
