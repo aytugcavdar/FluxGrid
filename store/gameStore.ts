@@ -12,9 +12,17 @@ interface GameStore {
   flux: number;
   combo: number;
   isGameOver: boolean;
+  isSurgeActive: boolean;          // Flux dolunca tetiklenir, aşağıdaki temizlemede x2
   activeSkill: SkillType | null;
   draggedPiece: Piece | null;
-  lastAction: { type: 'PLACE' | 'CLEAR', lines?: number, combo?: number } | null;
+  lastAction: {
+    type: 'PLACE' | 'CLEAR';
+    lines?: number;
+    combo?: number;
+    chainCount?: number;            // Kaç zincir dalgası oluştu
+    colorBonus?: boolean;           // Tek renkli temizleme bonusu mu?
+    surgeBonus?: boolean;           // Surge modu aktif miydi?
+  } | null;
 
   // Actions
   initGame: () => void;
@@ -53,10 +61,17 @@ const getRandomPieces = (count: number): Piece[] => {
   return newPieces;
 };
 
-const processGrid = (initialGrid: GridState): { grid: GridState, totalLinesCleared: number } => {
+const processGrid = (initialGrid: GridState): {
+  grid: GridState;
+  totalLinesCleared: number;
+  chainCount: number;
+  colorBonus: boolean;
+} => {
   let currentGrid = initialGrid.map(row => row.map(cell => ({ ...cell })));
   let totalLinesCleared = 0;
   let linesClearedInPass = 0;
+  let chainCount = 0;      // Kaç dalga (do-while iteration) oluştu
+  let colorBonus = false;  // Herhangi bir dalga tek renkli miydi?
 
   do {
     linesClearedInPass = 0;
@@ -84,6 +99,24 @@ const processGrid = (initialGrid: GridState): { grid: GridState, totalLinesClear
     totalLinesCleared += linesClearedInPass;
 
     if (linesClearedInPass > 0) {
+      chainCount++;
+
+      // Renk Bonusu: Temizlenen satır/sütunların tamamı aynı renkte mi?
+      const checkColorBonus = () => {
+        for (const y of fullRows) {
+          const rowColors = new Set(currentGrid[y].filter(c => c.filled).map(c => c.color));
+          if (rowColors.size === 1) return true;
+        }
+        for (const x of fullCols) {
+          const colColors = new Set<string>();
+          for (let y = 0; y < GRID_SIZE; y++) {
+            if (currentGrid[y][x].filled) colColors.add(currentGrid[y][x].color);
+          }
+          if (colColors.size === 1) return true;
+        }
+        return false;
+      };
+      if (checkColorBonus()) colorBonus = true;
       // Identify cells to clear (Set to avoid duplicates)
       const cellsToClear = new Set<string>(); // "x,y"
       const bombsTriggered: {x: number, y: number}[] = [];
@@ -252,7 +285,7 @@ const processGrid = (initialGrid: GridState): { grid: GridState, totalLinesClear
     }
   } while (linesClearedInPass > 0);
 
-  return { grid: currentGrid, totalLinesCleared };
+  return { grid: currentGrid, totalLinesCleared, chainCount, colorBonus };
 };
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -260,9 +293,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   pieces: [],
   score: 0,
   highScore: parseInt(localStorage.getItem('flux_highscore') || '0'),
-  flux: 100, // Start with some flux for fun
+  flux: 100,
   combo: 0,
   isGameOver: false,
+  isSurgeActive: false,
   activeSkill: null,
   draggedPiece: null,
   lastAction: null,
@@ -275,6 +309,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       flux: 50,
       combo: 0,
       isGameOver: false,
+      isSurgeActive: false,
       activeSkill: null,
       lastAction: null,
     });
@@ -436,7 +471,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   placePiece: (piece, startX, startY) => {
-    const { grid, score, combo, flux, highScore } = get();
+    const { grid, score, combo, flux, highScore, isSurgeActive } = get();
     
     // 1. Validate placement
     if (!get().canPlacePiece(grid, piece, startX, startY)) return false;
@@ -451,7 +486,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           tempGrid[startY + row][startX + col] = {
             filled: true,
             color: piece.color,
-            id: uuidv4(), // Unique ID for animation tracking
+            id: uuidv4(),
             type: piece.type || CellType.NORMAL,
             health: piece.type === CellType.ICE ? 2 : undefined
           };
@@ -461,34 +496,53 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     // 3. Process Grid (Check Lines & Gravity recursively)
-    const { grid: newGrid, totalLinesCleared: linesCleared } = processGrid(tempGrid);
+    const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus } = processGrid(tempGrid);
 
-    // 4. Update Score & Stats
+    // 4. Puan hesaplama
     const comboMultiplier = linesCleared > 0 ? combo + 1 : 0;
-    
-    // Trigger screen shake if lines cleared (we can use a transient state or event)
-    // For now, we'll let the Grid component detect the score change or just add a 'shake' flag
+
+    // Renk bonusu: tek renk satır/sütun temizleme
+    const colorBonusMultiplier = (linesCleared > 0 && colorBonus) ? POINTS.COLOR_BONUS_MULTIPLIER : 1;
+    // Surge bonusu: flux=100 iken aktif
+    const surgeMultiplier = (linesCleared > 0 && isSurgeActive) ? POINTS.SURGE_MULTIPLIER : 1;
+
+    const basePoints = (blocksPlaced * POINTS.BLOCK_PLACED) +
+                       (linesCleared * POINTS.LINE_CLEARED) +
+                       (comboMultiplier * POINTS.COMBO_MULTIPLIER);
+    const pointsGained = Math.round(basePoints * colorBonusMultiplier * surgeMultiplier);
+
+    // lastAction güncelle
     if (linesCleared > 0) {
-        set({ lastAction: { type: 'CLEAR', lines: linesCleared, combo: comboMultiplier } });
+      set({ lastAction: {
+        type: 'CLEAR',
+        lines: linesCleared,
+        combo: comboMultiplier,
+        chainCount,
+        colorBonus,
+        surgeBonus: isSurgeActive,
+      }});
     } else {
-        set({ lastAction: { type: 'PLACE' } });
+      set({ lastAction: { type: 'PLACE' } });
     }
 
-    const pointsGained = (blocksPlaced * POINTS.BLOCK_PLACED) + 
-                         (linesCleared * POINTS.LINE_CLEARED) + 
-                         (comboMultiplier * POINTS.COMBO_MULTIPLIER);
-    
-    // Flux gain: 2 per block placed, 10 per line cleared
+    // Flux hesaplama
     const fluxGained = (blocksPlaced * 2) + (linesCleared * 10);
-    const newFlux = Math.min(100, flux + fluxGained);
+    const rawFlux = flux + fluxGained;
+    const newFlux = Math.min(100, rawFlux);
 
-    // 5. Remove placed piece from tray and refill if empty
+    // Surge: flux 100'e ulaşırsa aktif et; eğer surge kullanıldıysa sıfırla
+    const surgeWasUsed = isSurgeActive && linesCleared > 0;
+    const surgeJustFilled = !isSurgeActive && rawFlux >= 100;
+    const newIsSurgeActive = surgeJustFilled ? true : (surgeWasUsed ? false : isSurgeActive);
+    const finalFlux = surgeWasUsed ? 0 : newFlux; // Surge kullanılınca flux sıfırlanır
+
+    // 5. Tepsi güncelle
     let currentPieces = get().pieces.filter(p => p.instanceId !== piece.instanceId);
     if (currentPieces.length === 0) {
       currentPieces = getRandomPieces(3);
     }
 
-    // Audio + Haptic Feedback
+    // Ses + Titresim
     if (linesCleared > 0) {
         playClear(linesCleared);
         if (comboMultiplier > 1) playCombo(comboMultiplier);
@@ -508,7 +562,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       score: newScore,
       highScore: Math.max(newScore, highScore),
       combo: comboMultiplier,
-      flux: newFlux,
+      flux: finalFlux,
+      isSurgeActive: newIsSurgeActive,
       pieces: currentPieces
     });
 

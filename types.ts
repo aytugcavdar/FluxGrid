@@ -4,7 +4,7 @@ export enum SkillType {
   REROLL = 'REROLL',
   SHATTER = 'SHATTER', // Destroy single block
   BOMB = 'BOMB', // Destroy 3x3
-  GRAVITY_FLUSH = 'GRAVITY_FLUSH' // Force gravity immediately (if needed, or maybe something else)
+  GRAVITY_FLUSH = 'GRAVITY_FLUSH'
 }
 
 export enum CellType {
@@ -15,11 +15,11 @@ export enum CellType {
 
 export interface GridCell {
   filled: boolean;
-  color: string; // Hex or tailwind class reference
-  id?: string; // Unique ID for Framer Motion layoutId
-  isClearing?: boolean; // For animation state
+  color: string;
+  id?: string;
+  isClearing?: boolean;
   type?: CellType;
-  health?: number; // For ICE (starts at 2)
+  health?: number;
 }
 
 export type GridState = GridCell[][];
@@ -31,13 +31,13 @@ export interface Coord {
 
 export interface PieceShape {
   id: string;
-  shape: number[][]; // 0/1 matrix
+  shape: number[][];
   color: string;
 }
 
 export interface Piece extends PieceShape {
-  instanceId: string; // Unique ID for this specific instance in the tray
-  type?: CellType; // If the whole piece is special
+  instanceId: string;
+  type?: CellType;
 }
 
 export const GRID_SIZE = 10;

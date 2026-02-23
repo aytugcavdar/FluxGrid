@@ -41,6 +41,68 @@ const ScorePopups: React.FC<{ popups: ScorePopup[] }> = ({ popups }) => (
   </div>
 );
 
+/* ─── Chain Counter ─── */
+const ChainCounter: React.FC<{ chain: number }> = ({ chain }) => {
+  if (chain < 2) return null;
+  return (
+    <motion.div
+      key={`chain-${chain}-${Date.now()}`}
+      initial={{ opacity: 0, scale: 0.5, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 1.3, y: -40 }}
+      transition={{ duration: 0.35, ease: 'backOut' }}
+      className="flex flex-col items-center"
+    >
+      <span className="text-2xl md:text-4xl font-black tracking-tight"
+        style={{
+          color: chain >= 4 ? '#f59e0b' : chain >= 3 ? '#a78bfa' : '#60a5fa',
+          textShadow: '0 0 20px currentColor'
+        }}>
+        x{chain} ZİNCİR
+      </span>
+      <span className="text-[10px] tracking-widest text-white/40 uppercase">Zincir Reaksiyon</span>
+    </motion.div>
+  );
+};
+
+/* ─── Perfect Bonus ─── */
+const PerfectBonus: React.FC<{ show: boolean }> = ({ show }) => {
+  if (!show) return null;
+  return (
+    <motion.div
+      key={`perfect-${Date.now()}`}
+      initial={{ opacity: 0, scale: 0.6, y: 10 }}
+      animate={{ opacity: 1, scale: 1.1, y: -10 }}
+      exit={{ opacity: 0, scale: 0.8, y: -40 }}
+      transition={{ duration: 0.4, ease: 'backOut' }}
+      className="flex flex-col items-center"
+    >
+      <span className="text-3xl md:text-5xl font-black tracking-tight"
+        style={{ color: '#fbbf24', textShadow: '0 0 30px #fbbf2480, 0 0 60px #f59e0b40' }}>
+        ✦ PERFECT!
+      </span>
+      <span className="text-[10px] tracking-widest text-amber-400/60 uppercase">+%50 Renk Bonusu</span>
+    </motion.div>
+  );
+};
+
+/* ─── Surge Flash ─── */
+const SurgeFlash: React.FC<{ active: boolean }> = ({ active }) => (
+  <AnimatePresence>
+    {active && (
+      <motion.div
+        key="surge-flash"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0, 0.18, 0.05] }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 1.2, times: [0, 0.15, 1] }}
+        className="fixed inset-0 pointer-events-none z-40"
+        style={{ background: 'radial-gradient(circle at center, rgba(251,191,36,0.25) 0%, transparent 70%)' }}
+      />
+    )}
+  </AnimatePresence>
+);
+
 /* ─── Combo Flash ─── */
 const ComboFlash: React.FC<{ combo: number }> = ({ combo }) => {
   if (combo <= 1) return null;
@@ -122,12 +184,17 @@ const DragOverlay = () => {
 
 /* ─── Main App ─── */
 const App: React.FC = () => {
-  const { initGame, pieces, isGameOver, resetGame, score, combo } = useGameStore();
+  const { initGame, pieces, isGameOver, resetGame, score, combo, lastAction, isSurgeActive } = useGameStore();
   const [showTutorial, setShowTutorial] = useState(shouldShowTutorial);
   const [prevGameOver, setPrevGameOver] = useState(false);
   const [scorePopups, setScorePopups] = useState<ScorePopup[]>([]);
   const prevScoreRef = useRef(0);
   const popupIdRef = useRef(0);
+  const [shownChain, setShownChain] = useState(0);
+  const [showPerfect, setShowPerfect] = useState(false);
+  const [showSurgeFlash, setShowSurgeFlash] = useState(false);
+  const lastActionRef = useRef<typeof lastAction>(null);
+  const prevSurgeRef = useRef(false);
 
   useEffect(() => {
     initGame();
@@ -153,13 +220,38 @@ const App: React.FC = () => {
       const diff = score - prevScoreRef.current;
       const id = popupIdRef.current++;
       setScorePopups(prev => [...prev.slice(-3), { id, value: diff, combo }]);
-      // Remove after animation
       setTimeout(() => {
         setScorePopups(prev => prev.filter(p => p.id !== id));
       }, 1200);
     }
     prevScoreRef.current = score;
   }, [score, combo]);
+
+  // Zincir + Renk bonusu
+  useEffect(() => {
+    if (!lastAction || lastAction === lastActionRef.current) return;
+    lastActionRef.current = lastAction;
+    if (lastAction.type !== 'CLEAR') return;
+
+    const chain = lastAction.chainCount ?? 0;
+    if (chain >= 2) {
+      setShownChain(chain);
+      setTimeout(() => setShownChain(0), 1400);
+    }
+    if (lastAction.colorBonus) {
+      setShowPerfect(true);
+      setTimeout(() => setShowPerfect(false), 1600);
+    }
+  }, [lastAction]);
+
+  // Surge flash
+  useEffect(() => {
+    if (isSurgeActive && !prevSurgeRef.current) {
+      setShowSurgeFlash(true);
+      setTimeout(() => setShowSurgeFlash(false), 1200);
+    }
+    prevSurgeRef.current = isSurgeActive;
+  }, [isSurgeActive]);
 
   return (
     <div className="game-container" onPointerDown={unlockAudio}>
@@ -175,6 +267,17 @@ const App: React.FC = () => {
 
       {/* Combo Flash */}
       <ComboFlash combo={combo} />
+
+      {/* Surge ekran flaşı */}
+      <SurgeFlash active={showSurgeFlash} />
+
+      {/* Zincir + Perfect overlay */}
+      <div className="fixed top-20 left-0 right-0 flex flex-col items-center gap-2 pointer-events-none z-50">
+        <AnimatePresence mode="popLayout">
+          {shownChain >= 2 && <ChainCounter key={`c${shownChain}`} chain={shownChain} />}
+          {showPerfect && <PerfectBonus key="perfect" show={showPerfect} />}
+        </AnimatePresence>
+      </div>
 
       {/* Top Bar */}
       <div className="game-hud">

@@ -39,4 +39,6 @@ export const POINTS = {
   BLOCK_PLACED: 15,
   LINE_CLEARED: 150,
   COMBO_MULTIPLIER: 75,
+  COLOR_BONUS_MULTIPLIER: 1.5, // %50 bonus for single-color line clear
+  SURGE_MULTIPLIER: 2.0,       // x2 during Surge mode
 };

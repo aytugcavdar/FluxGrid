@@ -8,7 +8,7 @@ import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const HUD: React.FC = () => {
-    const { score, highScore, flux, combo, activateSkill, activeSkill } = useGameStore();
+    const { score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive } = useGameStore();
     const [muted, setMuted] = useState(getMuted);
 
     const handleMute = () => {
@@ -69,20 +69,52 @@ export const HUD: React.FC = () => {
             <div className="flex gap-1 md:gap-1.5 h-full flex-shrink-0">
 
                 {/* Flux Meter */}
-                <div className="w-16 md:w-28 relative bg-white/[0.03] rounded-lg border border-white/[0.05] overflow-hidden flex flex-col justify-center px-1.5 md:px-2.5">
-                    <div className="flex justify-between items-center z-10 relative mb-0.5">
-                        <span className="text-[8px] md:text-[10px] font-semibold text-blue-400 flex items-center gap-0.5">
-                            <Zap size={8} className={clsx("transition-all", flux >= 100 ? "fill-blue-400" : "fill-transparent")} />
+                <div className={clsx(
+                    "w-16 md:w-28 relative rounded-lg border overflow-hidden flex flex-col justify-center px-1.5 md:px-2.5 transition-all duration-300",
+                    isSurgeActive
+                        ? "bg-amber-900/25 border-amber-500/40"
+                        : "bg-white/[0.03] border-white/[0.05]"
+                )}>
+                    {/* SURGE! rozeti */}
+                    <AnimatePresence>
+                        {isSurgeActive && (
+                            <motion.div
+                                key="surge-badge"
+                                initial={{ scale: 0, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0, opacity: 0 }}
+                                className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
+                            >
+                                <motion.span
+                                    animate={{ opacity: [1, 0.6, 1] }}
+                                    transition={{ duration: 0.8, repeat: Infinity }}
+                                    className="text-[9px] md:text-[10px] font-black tracking-widest text-amber-300 drop-shadow-lg"
+                                >
+                                    ⚡SURGE
+                                </motion.span>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    <div className={clsx("flex justify-between items-center z-10 relative mb-0.5", isSurgeActive && "opacity-20")}>
+                        <span className={clsx(
+                            "text-[8px] md:text-[10px] font-semibold flex items-center gap-0.5 transition-colors",
+                            isSurgeActive ? "text-amber-400" : "text-blue-400"
+                        )}>
+                            <Zap size={8} className={clsx("transition-all", flux >= 100 || isSurgeActive ? "fill-current" : "fill-transparent")} />
                             <span className="hidden md:inline">FLUX</span>
                         </span>
-                        <span className="text-[8px] md:text-[9px] text-white/40">{Math.floor(flux)}%</span>
+                        <span className="text-[8px] md:text-[9px] text-white/40">{Math.floor(isSurgeActive ? 100 : flux)}%</span>
                     </div>
 
-                    <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden">
+                    <div className={clsx("w-full h-1 bg-white/[0.06] rounded-full overflow-hidden", isSurgeActive && "opacity-20")}>
                         <motion.div
-                            className="h-full bg-blue-500 rounded-full"
+                            className={clsx(
+                                "h-full rounded-full transition-colors duration-300",
+                                isSurgeActive ? "bg-amber-400" : (flux >= 80 ? "bg-amber-500" : "bg-blue-500")
+                            )}
                             initial={{ width: 0 }}
-                            animate={{ width: `${Math.min(flux, 100)}%` }}
+                            animate={{ width: `${Math.min(isSurgeActive ? 100 : flux, 100)}%` }}
                             transition={{ type: "spring", stiffness: 40, damping: 15 }}
                         />
                     </div>
