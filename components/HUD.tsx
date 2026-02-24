@@ -4,11 +4,15 @@ import { Zap, RefreshCw, Hammer, Trophy, Bomb, Volume2, VolumeX } from 'lucide-r
 import { FLUX_COST } from '../constants';
 import { SkillType } from '../types';
 import { getMuted, toggleMute, playClick, playSkill } from '../utils/audio';
+import { LEVELS } from '../constants';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const HUD: React.FC = () => {
-    const { score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive } = useGameStore();
+    const {
+        score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive,
+        currentLevelIndex, movesLeft, levelObjectives
+    } = useGameStore();
     const [muted, setMuted] = useState(getMuted);
 
     const handleMute = () => {
@@ -24,44 +28,52 @@ export const HUD: React.FC = () => {
     return (
         <div className="w-full flex items-center gap-1.5 md:gap-3 justify-between h-full">
 
-            {/* Score */}
-            <div className="flex-1 flex items-center justify-between bg-white/[0.04] px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl border border-white/[0.06] min-w-0 h-full">
-                <div className="flex flex-col overflow-hidden min-w-0">
-                    <span className="text-[8px] md:text-[9px] text-white/40 uppercase tracking-wider truncate font-medium">Skor</span>
-                    <span className="text-lg md:text-2xl font-bold text-white leading-none truncate">{score.toLocaleString()}</span>
+            {/* Level & Objectives */}
+            <div className="flex-1 flex flex-col bg-white/[0.04] px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl border border-white/[0.06] min-w-0 h-full overflow-hidden">
+                <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5 overflow-hidden">
+                        <span className="text-[9px] md:text-[10px] font-bold text-blue-400 uppercase tracking-wider truncate">
+                            Seviye {currentLevelIndex + 1}
+                        </span>
+                        <span className="text-[10px] md:text-xs text-white/60 truncate font-medium">-{LEVELS[currentLevelIndex].name}</span>
+                    </div>
+                    <div className={clsx(
+                        "flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold",
+                        movesLeft <= 5 ? "bg-rose-500/20 text-rose-400 animate-pulse" : "bg-white/5 text-white/40"
+                    )}>
+                        <span>{movesLeft} Hamle</span>
+                    </div>
                 </div>
 
-                {/* High Score */}
-                <div className="flex items-center gap-1 text-amber-400/60 ml-2 flex-shrink-0">
-                    <Trophy size={10} />
-                    <span className="text-[9px] font-medium">{highScore.toLocaleString()}</span>
-                    {score > 0 && score >= highScore && (
-                        <motion.span
-                            initial={{ scale: 0, rotate: -20 }}
-                            animate={{ scale: 1, rotate: 0 }}
-                            className="text-[10px] animate-gentle-pulse"
-                        >⭐</motion.span>
-                    )}
-                </div>
-
-                {/* Combo */}
-                <div className="flex justify-center w-7 md:w-8 flex-shrink-0">
-                    <AnimatePresence mode='wait'>
-                        {combo > 1 && (
-                            <motion.div
-                                key={combo}
-                                initial={{ scale: 0.5, opacity: 0, y: 5 }}
-                                animate={{ scale: 1.1, opacity: 1, y: 0 }}
-                                exit={{ scale: 0.5, opacity: 0, y: -5 }}
-                                className="flex flex-col items-center"
-                            >
+                <div className="flex gap-2 md:gap-4 overflow-x-auto no-scrollbar scroll-smooth">
+                    {levelObjectives.map((obj, i) => (
+                        <div key={i} className="flex flex-col flex-shrink-0 min-w-[60px]">
+                            <div className="flex justify-between items-end mb-0.5">
+                                <span className="text-[7px] md:text-[8px] uppercase text-white/30 truncate mr-2">
+                                    {obj.type === 'SCORE' ? 'Puan' :
+                                        obj.type === 'CLEAR_LINES' ? 'Satır' :
+                                            obj.type === 'BREAK_ICE' ? 'Buz' :
+                                                obj.type === 'CHAIN_REACTION' ? 'Zincir' : obj.type}
+                                </span>
                                 <span className={clsx(
-                                    "font-bold text-base md:text-xl",
-                                    combo >= 5 ? "text-amber-300" : combo >= 3 ? "text-amber-400" : "text-blue-400"
-                                )}>x{combo}</span>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                                    "text-[8px] md:text-[9px] font-mono",
+                                    obj.current >= obj.target ? "text-emerald-400 font-bold" : "text-white/60"
+                                )}>
+                                    {obj.current}/{obj.target}
+                                </span>
+                            </div>
+                            <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                                <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${(obj.current / obj.target) * 100}%` }}
+                                    className={clsx(
+                                        "h-full rounded-full",
+                                        obj.current >= obj.target ? "bg-emerald-500" : "bg-blue-500/60"
+                                    )}
+                                />
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
 

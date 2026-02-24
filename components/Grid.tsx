@@ -100,7 +100,7 @@ export const Grid: React.FC = () => {
                 camera.fovMode = BABYLON.Camera.FOVMODE_VERTICAL_FIXED;
                 camera.fov = fov;
                 camera.radius = radius;
-                camera.target = new BABYLON.Vector3(0, -0.5, 0);
+                camera.target = new BABYLON.Vector3(0, -0.2, 0); // Sığdırmak için hafif yukarı
             }
         };
         updateCamera();
@@ -121,12 +121,12 @@ export const Grid: React.FC = () => {
         dirLight.position = new BABYLON.Vector3(20, 40, 20);
         dirLight.intensity = isMobile ? 0.35 : 0.6; // Mobile'de daha az directional
 
-        // Subtle Glow Layer — Mobile'de minimal
+        // Lower Glow Layer intensity to basically zero or remove
         const glowLayer = new BABYLON.GlowLayer("glow", scene, {
-            mainTextureSamples: isMobile ? 2 : 4,
-            blurKernelSize: isMobile ? 24 : 48
+            mainTextureSamples: 2,
+            blurKernelSize: 16
         });
-        glowLayer.intensity = isMobile ? 0.05 : 0.15; // Mobile'de çok daha az glow
+        glowLayer.intensity = 0; // Disabled parlama
         glowLayerRef.current = glowLayer;
 
         // --- The Board ---
@@ -164,45 +164,17 @@ export const Grid: React.FC = () => {
                 slotMat.alpha = 0.92;
                 slot.material = slotMat;
 
-                // Grid lines — mobile'de daha az görünür
+                // Grid lines — Daha belirgin hale getirildi
                 slot.enableEdgesRendering();
-                slot.edgesWidth = isMobile ? 1.0 : 1.5;
+                slot.edgesWidth = isMobile ? 1.5 : 2.0; // Arttırıldı
                 slot.edgesColor = isMobile
-                    ? new BABYLON.Color4(0.2, 0.25, 0.35, 0.12)
-                    : new BABYLON.Color4(0.3, 0.35, 0.45, 0.2);
+                    ? new BABYLON.Color4(0.3, 0.4, 0.5, 0.25) // Daha parlak ve opak
+                    : new BABYLON.Color4(0.4, 0.5, 0.6, 0.35); // Daha parlak ve opak
             }
         }
 
-        // --- Ambient Particles — subtle floating dust ---
-        const particleCount = isMobile ? 15 : 40;
-        for (let i = 0; i < particleCount; i++) {
-            const p = BABYLON.MeshBuilder.CreateBox("p", { size: Math.random() * 0.1 + 0.02 }, scene);
-            p.position = new BABYLON.Vector3(
-                (Math.random() - 0.5) * 22,
-                (Math.random() * 10) - 5,
-                (Math.random() - 0.5) * 22
-            );
-            p.rotation = new BABYLON.Vector3(Math.random(), Math.random(), Math.random());
-
-            const pMat = new BABYLON.StandardMaterial("pMat", scene);
-            // Soft muted colors
-            const rand = Math.random();
-            if (rand > 0.75) pMat.emissiveColor = BABYLON.Color3.FromHexString("#64748b");
-            else if (rand > 0.5) pMat.emissiveColor = BABYLON.Color3.FromHexString("#6366f1");
-            else if (rand > 0.25) pMat.emissiveColor = BABYLON.Color3.FromHexString("#3b82f6");
-            else pMat.emissiveColor = BABYLON.Color3.FromHexString("#8b5cf6");
-
-            pMat.disableLighting = true;
-            pMat.alpha = 0.4;
-            p.material = pMat;
-            p.isPickable = false;
-
-            p.metadata = {
-                velY: (Math.random() * 0.015) + 0.003,
-                rot: Math.random() * 0.02
-            };
-            ambientParticlesRef.current.push(p);
-        }
+        // --- Ambient Particles removed ---
+        ambientParticlesRef.current = [];
 
 
         // --- Logic Helpers ---
@@ -226,10 +198,10 @@ export const Grid: React.FC = () => {
                     // Kırık buzlu görünüm — daha opak, cracked efekti
                     const crackedCol = BABYLON.Color3.FromHexString("#bfdbfe"); // açık mavi
                     mat.diffuseColor = crackedCol;
-                    mat.emissiveColor = BABYLON.Color3.FromHexString("#60a5fa").scale(0.25);
-                    mat.specularColor = new BABYLON.Color3(0.9, 0.95, 1.0);
-                    mat.specularPower = 64;
-                    mat.alpha = 0.72;
+                    mat.emissiveColor = BABYLON.Color3.FromHexString("#60a5fa").scale(0.1); // Reduced emissive
+                    mat.specularColor = BABYLON.Color3.Black(); // No shininess
+                    mat.specularPower = 0;
+                    mat.alpha = 0.8;
                     box.material = mat;
 
                     // Çatlak efekti için kırmızımsı kenarlar
@@ -240,10 +212,10 @@ export const Grid: React.FC = () => {
                     // Sağlam buz — kristal mavi, şeffaf ve net
                     const iceCol = BABYLON.Color3.FromHexString("#7dd3fc");
                     mat.diffuseColor = iceCol;
-                    mat.emissiveColor = BABYLON.Color3.FromHexString("#38bdf8").scale(0.3);
-                    mat.specularColor = new BABYLON.Color3(1.0, 1.0, 1.0);
-                    mat.specularPower = 128; // Yüksek parlaklık — cam/kristal
-                    mat.alpha = 0.82;
+                    mat.emissiveColor = BABYLON.Color3.FromHexString("#38bdf8").scale(0.15);
+                    mat.specularColor = BABYLON.Color3.Black(); // No shininess
+                    mat.specularPower = 0;
+                    mat.alpha = 0.85;
                     box.material = mat;
 
                     // Parlak beyaz kenarlar — buz netliği
@@ -272,9 +244,9 @@ export const Grid: React.FC = () => {
 
                 // Koyu metal gövde — daha küçük ve güçlü görünüm
                 mat.diffuseColor = BABYLON.Color3.FromHexString("#1c1917"); // koyu kahverengi-siyah metal
-                mat.emissiveColor = BABYLON.Color3.FromHexString("#f59e0b").scale(0.35); // sarı kor ışıması
-                mat.specularColor = new BABYLON.Color3(0.6, 0.5, 0.1);
-                mat.specularPower = 32;
+                mat.emissiveColor = BABYLON.Color3.FromHexString("#f59e0b").scale(0.1); // Reduced emissive
+                mat.specularColor = BABYLON.Color3.Black(); // No shininess
+                mat.specularPower = 0;
                 mat.alpha = 1.0;
                 box.material = mat;
 
@@ -305,9 +277,10 @@ export const Grid: React.FC = () => {
                 const box = BABYLON.MeshBuilder.CreateBox(id, { size: CELL_SIZE * 0.92, height: 0.6 }, scene);
                 const col = BABYLON.Color3.FromHexString(colorHex);
                 mat.diffuseColor = col;
-                mat.emissiveColor = col.scale(0.1);
-                mat.specularColor = new BABYLON.Color3(0.3, 0.3, 0.3);
-                mat.alpha = 0.9;
+                mat.emissiveColor = col.scale(0.05);
+                mat.specularColor = BABYLON.Color3.Black();
+                mat.specularPower = 0;
+                mat.alpha = 0.95;
                 box.material = mat;
 
                 // Clean Edges
@@ -359,7 +332,11 @@ export const Grid: React.FC = () => {
 
                         // Magnetic Haptic Feedback on mobile
                         if (navigator.vibrate) {
-                            navigator.vibrate(5); // Very short tap
+                            try {
+                                navigator.vibrate(5);
+                            } catch (e) {
+                                // Ignore if not allowed yet
+                            }
                         }
                     }
 
@@ -434,14 +411,7 @@ export const Grid: React.FC = () => {
 
             // Dynamic Glow based on Combo — Mobile'de sınırlı
             if (glowLayerRef.current) {
-                const isMobileNow = window.innerWidth < 768;
-                const maxGlow = isMobileNow ? 0.4 : 2.0;
-                const baseGlow = isMobileNow ? 0.05 : 0.6;
-                const pulse = combo > 1 ? Math.sin(time * 5) * 0.15 : 0;
-                const targetIntensity = Math.min(maxGlow, baseGlow + (combo * (isMobileNow ? 0.08 : 0.2)) + pulse);
-
-                // Smooth transition
-                glowLayerRef.current.intensity += (targetIntensity - glowLayerRef.current.intensity) * 0.1;
+                glowLayerRef.current.intensity = 0; // Keep it zero
             }
 
             // Screen Shake Decay
@@ -478,15 +448,7 @@ export const Grid: React.FC = () => {
 
             updateHover();
 
-            // 0. Animate Particles
-            ambientParticlesRef.current.forEach(p => {
-                if (p.metadata) {
-                    p.position.y += p.metadata.velY;
-                    p.rotation.y += p.metadata.rot;
-                    p.rotation.x += p.metadata.rot;
-                    if (p.position.y > 6) p.position.y = -4;
-                }
-            });
+            // 0. Animate Particles — skip (particles removed)
 
             // 1. Sync Active Grid
             const activeIds = new Set<string>();
@@ -583,9 +545,10 @@ export const Grid: React.FC = () => {
 
                                 const mat = new BABYLON.StandardMaterial("ghostMat", scene);
                                 mat.diffuseColor = baseColor;
-                                mat.emissiveColor = baseColor.scale(ghostPulse);
-                                mat.alpha = isValid ? 0.75 : 0.35;
-                                mat.specularColor = new BABYLON.Color3(1, 1, 1);
+                                mat.emissiveColor = baseColor.scale(0.2); // Reduced preview emissive
+                                mat.alpha = isValid ? 0.6 : 0.3;
+                                mat.specularColor = BABYLON.Color3.Black();
+                                mat.specularPower = 0;
                                 ghostBox.material = mat;
 
                                 // Bright edge outlines for clarity
@@ -669,10 +632,10 @@ export const Grid: React.FC = () => {
 
     return (
         <div className={clsx(
-            "relative w-full h-full overflow-hidden shadow-2xl transition-all duration-300",
-            activeSkill === SkillType.SHATTER ? "ring-2 ring-rose-500 shadow-rose-900/50" :
-                activeSkill === SkillType.BOMB ? "ring-2 ring-orange-500 shadow-orange-900/50" :
-                    "shadow-cyan-900/30"
+            "relative w-full h-full overflow-hidden transition-all duration-300",
+            activeSkill === SkillType.SHATTER ? "ring-2 ring-rose-500/30" :
+                activeSkill === SkillType.BOMB ? "ring-2 ring-orange-500/30" :
+                    ""
         )}>
             <canvas
                 ref={canvasRef}

@@ -7,10 +7,61 @@ export enum SkillType {
   GRAVITY_FLUSH = 'GRAVITY_FLUSH'
 }
 
+export enum AppState {
+  HOME = 'HOME',
+  MAP = 'MAP',
+  GAME = 'GAME',
+  CAREER = 'CAREER'
+}
+
+export interface GameStats {
+  blocksPlaced: number;
+  linesCleared: number;
+  totalScore: number;
+  bombsExploded: number;
+  iceBroken: number;
+  gamesPlayed: number;
+  skillUses: {
+    [key in SkillType]?: number;
+  };
+}
+
 export enum CellType {
   NORMAL = 'NORMAL',
   ICE = 'ICE', // Needs 2 clears
   BOMB = 'BOMB' // Explodes 3x3 on clear
+}
+
+export enum ObjectiveType {
+  SCORE = 'SCORE',
+  BREAK_ICE = 'BREAK_ICE',
+  USE_BOMB = 'USE_BOMB',
+  CLEAR_LINES = 'CLEAR_LINES',
+  CHAIN_REACTION = 'CHAIN_REACTION'
+}
+
+export interface LevelObjective {
+  type: ObjectiveType;
+  target: number;
+  current: number;
+}
+
+export interface LevelDef {
+  index: number;
+  name: string;
+  objectives: LevelObjective[];
+  movesLimit?: number;
+  rewardFlux?: number;
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  unlocked: boolean;
+  targetValue: number;
+  currentValue: number;
+  hidden?: boolean;
 }
 
 export interface GridCell {

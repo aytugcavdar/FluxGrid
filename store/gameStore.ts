@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { GridState, Piece, PieceShape, GRID_SIZE, GridCell, SkillType, CellType } from '../types';
-import { SHAPES, POINTS, FLUX_COST, COLORS } from '../constants';
+import { GridState, Piece, PieceShape, GRID_SIZE, GridCell, SkillType, CellType, ObjectiveType, LevelObjective, Achievement, AppState, GameStats } from '../types';
+import { SHAPES, POINTS, FLUX_COST, COLORS, LEVELS, ACHIEVEMENTS } from '../constants';
 import { playPlace, playClear, playCombo, playSkill, playGameOver } from '../utils/audio';
 
 interface GameStore {
@@ -23,9 +23,26 @@ interface GameStore {
     colorBonus?: boolean;           // Tek renkli temizleme bonusu mu?
     surgeBonus?: boolean;           // Surge modu aktif miydi?
   } | null;
+  
+  // Level & Achievements State
+  currentLevelIndex: number;
+  movesLeft: number;
+  levelObjectives: LevelObjective[];
+  achievements: Achievement[];
+  isLevelComplete: boolean;
+  unlockedAchievementId: string | null;
+
+  // Navigation & Persistence
+  appState: AppState;
+  stats: GameStats;
+  maxLevelReached: number;
 
   // Actions
   initGame: () => void;
+  nextLevel: () => void;
+  startLevel: (levelIndex: number) => void;
+  setAppState: (state: AppState) => void;
+  clearAchievementNotification: () => void;
   placePiece: (piece: Piece, startX: number, startY: number) => boolean;
   canPlacePiece: (grid: GridState, piece: Piece, startX: number, startY: number) => boolean;
   activateSkill: (skill: SkillType) => void;
@@ -66,12 +83,14 @@ const processGrid = (initialGrid: GridState): {
   totalLinesCleared: number;
   chainCount: number;
   colorBonus: boolean;
+  bombsExploded: number;
 } => {
   let currentGrid = initialGrid.map(row => row.map(cell => ({ ...cell })));
   let totalLinesCleared = 0;
   let linesClearedInPass = 0;
   let chainCount = 0;      // Kaç dalga (do-while iteration) oluştu
   let colorBonus = false;  // Herhangi bir dalga tek renkli miydi?
+  let bombsExploded = 0;
 
   do {
     linesClearedInPass = 0;
@@ -230,6 +249,7 @@ const processGrid = (initialGrid: GridState): {
                   finalCellsToClear.add(key);
                   if (cell.type === CellType.BOMB) {
                       explosionQueue.push({x, y});
+                      bombsExploded++;
                   }
               }
           }
@@ -285,7 +305,17 @@ const processGrid = (initialGrid: GridState): {
     }
   } while (linesClearedInPass > 0);
 
-  return { grid: currentGrid, totalLinesCleared, chainCount, colorBonus };
+  return { grid: currentGrid, totalLinesCleared, chainCount, colorBonus, bombsExploded };
+};
+
+const INITIAL_STATS: GameStats = {
+  blocksPlaced: 0,
+  linesCleared: 0,
+  totalScore: 0,
+  bombsExploded: 0,
+  iceBroken: 0,
+  gamesPlayed: 0,
+  skillUses: {}
 };
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -300,8 +330,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
   activeSkill: null,
   draggedPiece: null,
   lastAction: null,
+  
+  // Level & Achievements Initial State
+  currentLevelIndex: 0,
+  movesLeft: 0,
+  levelObjectives: [],
+  achievements: JSON.parse(localStorage.getItem('flux_achievements') || JSON.stringify(ACHIEVEMENTS)),
+  isLevelComplete: false,
+  unlockedAchievementId: null,
+
+  // Navigation & Stats Initial State
+  appState: AppState.HOME,
+  stats: JSON.parse(localStorage.getItem('flux_stats') || JSON.stringify(INITIAL_STATS)),
+  maxLevelReached: parseInt(localStorage.getItem('flux_max_level') || '0'),
 
   initGame: () => {
+    const firstLevel = LEVELS[0];
     set({
       grid: createEmptyGrid(),
       pieces: getRandomPieces(3),
@@ -312,8 +356,64 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isSurgeActive: false,
       activeSkill: null,
       lastAction: null,
+      currentLevelIndex: 0,
+      movesLeft: firstLevel.movesLimit || 0,
+      levelObjectives: firstLevel.objectives.map(o => ({ ...o })),
+      isLevelComplete: false,
+      unlockedAchievementId: null,
+      appState: AppState.GAME
+    });
+    
+    // Increment games played
+    const newStats = { ...get().stats, gamesPlayed: get().stats.gamesPlayed + 1 };
+    set({ stats: newStats });
+    localStorage.setItem('flux_stats', JSON.stringify(newStats));
+  },
+
+  startLevel: (idx) => {
+    const levelDef = LEVELS[idx];
+    if (!levelDef) return;
+
+    set({
+      grid: createEmptyGrid(),
+      pieces: getRandomPieces(3),
+      score: 0,
+      flux: 50,
+      combo: 0,
+      isGameOver: false,
+      isSurgeActive: false,
+      activeSkill: null,
+      lastAction: null,
+      currentLevelIndex: idx,
+      movesLeft: levelDef.movesLimit || 0,
+      levelObjectives: levelDef.objectives.map(o => ({ ...o })),
+      isLevelComplete: false,
+      unlockedAchievementId: null,
+      appState: AppState.GAME
     });
   },
+
+  setAppState: (state) => set({ appState: state }),
+
+  nextLevel: () => {
+    const nextIdx = get().currentLevelIndex + 1;
+    if (nextIdx >= LEVELS.length) return; // End of game
+
+    const nextLevelDef = LEVELS[nextIdx];
+    set({
+      grid: createEmptyGrid(),
+      pieces: getRandomPieces(3),
+      flux: 50,
+      currentLevelIndex: nextIdx,
+      movesLeft: nextLevelDef.movesLimit || 0,
+      levelObjectives: nextLevelDef.objectives.map(o => ({ ...o })),
+      isLevelComplete: false,
+      isGameOver: false,
+      activeSkill: null
+    });
+  },
+
+  clearAchievementNotification: () => set({ unlockedAchievementId: null }),
 
   setDraggedPiece: (piece) => set({ draggedPiece: piece }),
 
@@ -495,8 +595,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
 
-    // 3. Process Grid (Check Lines & Gravity recursively)
-    const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus } = processGrid(tempGrid);
+    // 3. Process Grid
+    const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded } = processGrid(tempGrid);
+
+    // Update Objectives
+    const updatedObjectives = get().levelObjectives.map(obj => {
+      let current = obj.current;
+      if (obj.type === ObjectiveType.SCORE) current = score + Math.round(((blocksPlaced * POINTS.BLOCK_PLACED) + (linesCleared * POINTS.LINE_CLEARED)) * (linesCleared > 0 ? combo + 1 : 1));
+      if (obj.type === ObjectiveType.CLEAR_LINES) current += linesCleared;
+      if (obj.type === ObjectiveType.CHAIN_REACTION) current += chainCount;
+      if (obj.type === ObjectiveType.USE_BOMB) current += bombsExploded;
+      // Note: BREAK_ICE logic needs to be integrated into processGrid or here
+      return { ...obj, current: Math.min(obj.target, current) };
+    });
+
+    const levelFinished = updatedObjectives.every(obj => obj.current >= obj.target);
+
+    // Update Achievements
+    const updatedAchievements = get().achievements.map(ach => {
+      if (ach.unlocked) return ach;
+      let val = ach.currentValue;
+      if (ach.id === 'score_10k') val = Math.max(val, score);
+      if (ach.id === 'combo_5') val = Math.max(val, combo > 0 ? combo + 1 : 0);
+      return { ...ach, currentValue: val, unlocked: val >= ach.targetValue };
+    });
+
+    // Save achievements
+    localStorage.setItem('flux_achievements', JSON.stringify(updatedAchievements));
+
+    // Handle just unlocked achievement
+    const newUnlock = updatedAchievements.find((ach, i) => ach.unlocked && !get().achievements[i].unlocked);
 
     // 4. Puan hesaplama
     const comboMultiplier = linesCleared > 0 ? combo + 1 : 0;
@@ -564,8 +692,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
       combo: comboMultiplier,
       flux: finalFlux,
       isSurgeActive: newIsSurgeActive,
-      pieces: currentPieces
+      pieces: currentPieces,
+      movesLeft: get().movesLeft - 1,
+      levelObjectives: updatedObjectives,
+      isLevelComplete: levelFinished,
+      achievements: updatedAchievements,
+      unlockedAchievementId: newUnlock ? newUnlock.id : get().unlockedAchievementId
     });
+
+    // Update Global Stats
+    const currentStats = get().stats;
+    const nextStats: GameStats = {
+      ...currentStats,
+      blocksPlaced: currentStats.blocksPlaced + blocksPlaced,
+      linesCleared: currentStats.linesCleared + linesCleared,
+      totalScore: currentStats.totalScore + pointsGained,
+      bombsExploded: currentStats.bombsExploded + bombsExploded,
+      // iceBroken: logic...
+    };
+    set({ stats: nextStats });
+    localStorage.setItem('flux_stats', JSON.stringify(nextStats));
+
+    if (levelFinished) {
+      const nextMax = Math.max(get().maxLevelReached, get().currentLevelIndex + 1);
+      set({ maxLevelReached: nextMax });
+      localStorage.setItem('flux_max_level', nextMax.toString());
+    }
+
+    if (get().movesLeft <= 0 && !levelFinished) {
+      set({ isGameOver: true });
+    }
 
     get().checkGameOver();
     return true;

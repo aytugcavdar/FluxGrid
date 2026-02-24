@@ -1,12 +1,14 @@
-const CACHE_NAME = 'fluxgrid-v2';
+const CACHE_NAME = 'fluxgrid-v5';
 
-// Install — skip pre-caching (built assets have hashed names)
+// Install — skip pre-caching
 self.addEventListener('install', () => {
+  console.log('SW: Installing v5...');
   self.skipWaiting();
 });
 
 // Activate — clean old caches
 self.addEventListener('activate', (event) => {
+  console.log('SW: Activating v5 and cleaning old caches...');
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
@@ -17,17 +19,22 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch — stale-while-revalidate for assets
+// Fetch — handle assets and ignore extension requests
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  
+  // Ignore non-http(s) schemes (like chrome-extension://)
+  // This is the CRITICAL fix for the console errors
+  if (!request.url.startsWith('http')) return;
   if (request.method !== 'GET') return;
 
   event.respondWith(
     caches.match(request).then((cached) => {
       const fetchPromise = fetch(request).then((response) => {
-        if (response && response.status === 200 && response.type === 'basic') {
+        // Only cache valid http(s) responses
+        if (response && response.status === 200 && response.type === 'basic' && request.url.startsWith('http')) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          caches.open(CACHE_NAME).then((cache) => cache.put(request.url, clone));
         }
         return response;
       }).catch(() => cached);
