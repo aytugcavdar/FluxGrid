@@ -7,11 +7,18 @@ export enum SkillType {
   GRAVITY_FLUSH = 'GRAVITY_FLUSH'
 }
 
+export enum GameMode {
+  CAREER = 'CAREER',
+  ENDLESS = 'ENDLESS',
+  TIMED = 'TIMED'
+}
+
 export enum AppState {
   HOME = 'HOME',
   MAP = 'MAP',
   GAME = 'GAME',
-  CAREER = 'CAREER'
+  CAREER = 'CAREER',
+  MODES = 'MODES' // Mode selection screen
 }
 
 export interface GameStats {

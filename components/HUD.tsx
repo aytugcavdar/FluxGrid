@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { Zap, RefreshCw, Hammer, Trophy, Bomb, Volume2, VolumeX } from 'lucide-react';
+import { Zap, RefreshCw, Hammer, Trophy, Bomb, Volume2, VolumeX, Home } from 'lucide-react';
 import { FLUX_COST } from '../constants';
-import { SkillType } from '../types';
+import { SkillType, GameMode, AppState } from '../types';
 import { getMuted, toggleMute, playClick, playSkill } from '../utils/audio';
 import { LEVELS } from '../constants';
 import clsx from 'clsx';
@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 export const HUD: React.FC = () => {
     const {
         score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive,
-        currentLevelIndex, movesLeft, levelObjectives
+        currentLevelIndex, movesLeft, levelObjectives, gameMode, timeLeft, setAppState
     } = useGameStore();
     const [muted, setMuted] = useState(getMuted);
 
@@ -28,25 +28,50 @@ export const HUD: React.FC = () => {
     return (
         <div className="w-full flex items-center gap-1.5 md:gap-3 justify-between h-full">
 
+            {/* Home Button */}
+            <button
+                onClick={() => { playClick(); setAppState(AppState.HOME); }}
+                className="flex-shrink-0 w-10 md:w-12 h-full bg-white/[0.04] rounded-xl border border-white/[0.06] flex items-center justify-center text-white/40 hover:text-white transition-colors"
+            >
+                <Home size={18} />
+            </button>
+
             {/* Level & Objectives */}
             <div className="flex-1 flex flex-col bg-white/[0.04] px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl border border-white/[0.06] min-w-0 h-full overflow-hidden">
                 <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-1.5 overflow-hidden">
                         <span className="text-[9px] md:text-[10px] font-bold text-blue-400 uppercase tracking-wider truncate">
-                            Seviye {currentLevelIndex + 1}
+                            {gameMode === GameMode.CAREER && `Seviye ${currentLevelIndex + 1}`}
+                            {gameMode === GameMode.ENDLESS && `Sonsuz Mod`}
+                            {gameMode === GameMode.TIMED && `Quantum Rush`}
                         </span>
-                        <span className="text-[10px] md:text-xs text-white/60 truncate font-medium">-{LEVELS[currentLevelIndex].name}</span>
+                        {gameMode === GameMode.CAREER && (
+                            <span className="text-[10px] md:text-xs text-white/60 truncate font-medium">-{LEVELS[currentLevelIndex].name}</span>
+                        )}
+                        {gameMode !== GameMode.CAREER && (
+                            <span className="text-[10px] md:text-xs text-white/40 truncate font-medium italic">En İyi: {highScore.toLocaleString()}</span>
+                        )}
                     </div>
-                    <div className={clsx(
-                        "flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold",
-                        movesLeft <= 5 ? "bg-rose-500/20 text-rose-400 animate-pulse" : "bg-white/5 text-white/40"
-                    )}>
-                        <span>{movesLeft} Hamle</span>
-                    </div>
+
+                    {gameMode === GameMode.TIMED ? (
+                        <div className={clsx(
+                            "flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-black tracking-tighter",
+                            timeLeft <= 10 ? "bg-rose-500/20 text-rose-400 animate-pulse" : "bg-amber-500/20 text-amber-400"
+                        )}>
+                            <span>{timeLeft} Saniye</span>
+                        </div>
+                    ) : (
+                        <div className={clsx(
+                            "flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold",
+                            (gameMode === GameMode.CAREER && movesLeft <= 5) ? "bg-rose-500/20 text-rose-400 animate-pulse" : "bg-white/5 text-white/40"
+                        )}>
+                            <span>{gameMode === GameMode.CAREER ? `${movesLeft} Hamle` : 'Sınırsız'}</span>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex gap-2 md:gap-4 overflow-x-auto no-scrollbar scroll-smooth">
-                    {levelObjectives.map((obj, i) => (
+                    {gameMode === GameMode.CAREER ? levelObjectives.map((obj, i) => (
                         <div key={i} className="flex flex-col flex-shrink-0 min-w-[60px]">
                             <div className="flex justify-between items-end mb-0.5">
                                 <span className="text-[7px] md:text-[8px] uppercase text-white/30 truncate mr-2">
@@ -73,7 +98,14 @@ export const HUD: React.FC = () => {
                                 />
                             </div>
                         </div>
-                    ))}
+                    )) : (
+                        <div className="flex items-center gap-2">
+                            <span className="text-[14px] md:text-[18px] font-black text-white italic tracking-tight">
+                                {score.toLocaleString()}
+                            </span>
+                            <span className="text-[8px] text-white/20 uppercase tracking-widest font-bold">Mevcut Skor</span>
+                        </div>
+                    )}
                 </div>
             </div>
 

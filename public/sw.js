@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fluxgrid-v5';
+const CACHE_NAME = 'fluxgrid-v6';
 
 // Install — skip pre-caching
 self.addEventListener('install', () => {

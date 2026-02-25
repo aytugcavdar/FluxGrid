@@ -9,7 +9,7 @@ import { Tutorial, shouldShowTutorial } from './components/Tutorial';
 import { motion, AnimatePresence } from 'framer-motion';
 import { unlockAudio, playGameOver, playClick } from './utils/audio';
 import clsx from 'clsx';
-import { AppState } from './types';
+import { AppState, GameMode } from './types';
 
 /* ─── Score Popup ─── */
 interface ScorePopup {
@@ -189,7 +189,7 @@ const App: React.FC = () => {
   const {
     initGame, pieces, isGameOver, resetGame, score, combo, lastAction, isSurgeActive,
     isLevelComplete, nextLevel, currentLevelIndex, movesLeft, levelObjectives,
-    achievements, unlockedAchievementId, appState, setAppState
+    achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft
   } = useGameStore();
   const [showTutorial, setShowTutorial] = useState(shouldShowTutorial);
   const [prevGameOver, setPrevGameOver] = useState(false);
@@ -203,14 +203,23 @@ const App: React.FC = () => {
   const prevSurgeRef = useRef(false);
 
   useEffect(() => {
-    initGame();
+    // We don't call initGame() here anymore to allow starting on the HOME screen.
     const handleFirstTouch = () => {
       unlockAudio();
       window.removeEventListener('pointerdown', handleFirstTouch);
     };
     window.addEventListener('pointerdown', handleFirstTouch);
     return () => window.removeEventListener('pointerdown', handleFirstTouch);
-  }, [initGame]);
+  }, []);
+
+  // Global Timer Loop
+  useEffect(() => {
+    if (gameMode !== GameMode.TIMED || appState !== AppState.GAME || isGameOver) return;
+    const interval = setInterval(() => {
+      tickTimer();
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [gameMode, appState, isGameOver, tickTimer]);
 
   // Play game over sound
   useEffect(() => {
@@ -300,7 +309,7 @@ const App: React.FC = () => {
             {/* Main Menu */}
             <div className="w-full max-w-xs space-y-4">
               <button
-                onClick={() => { playClick(); setAppState(AppState.MAP); }}
+                onClick={() => { playClick(); setAppState(AppState.MODES); }}
                 className="w-full py-5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black tracking-[0.2em] transition-all active:scale-95 shadow-xl shadow-blue-900/40 uppercase italic"
               >
                 OYNA
@@ -311,6 +320,63 @@ const App: React.FC = () => {
                 className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-white/80 font-bold tracking-widest transition-all active:scale-95 uppercase text-xs"
               >
                 KARİYER
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {appState === AppState.MODES && (
+          <motion.div
+            key="modes"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-gray-900"
+          >
+            <div className="text-center mb-10">
+              <h2 className="text-3xl font-black text-white italic tracking-tight uppercase mb-2">MOD SEÇİMİ</h2>
+              <p className="text-white/40 text-[10px] tracking-widest uppercase font-bold">Nasıl Oynamak İstersin?</p>
+            </div>
+
+            <div className="w-full max-w-xs space-y-4">
+              <button
+                onClick={() => { playClick(); setAppState(AppState.MAP); }}
+                className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-blue-600/10 hover:border-blue-500/30 transition-all text-left overflow-hidden"
+              >
+                <div className="relative z-10">
+                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">KARİYER</span>
+                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">Hikaye Modu & Görevler</span>
+                </div>
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">🗺️</div>
+              </button>
+
+              <button
+                onClick={() => { playClick(); initGame(GameMode.ENDLESS); }}
+                className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-purple-600/10 hover:border-purple-500/30 transition-all text-left overflow-hidden"
+              >
+                <div className="relative z-10">
+                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">SONSUZ</span>
+                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">Limit Yok, Sadece Skor</span>
+                </div>
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">♾️</div>
+              </button>
+
+              <button
+                onClick={() => { playClick(); initGame(GameMode.TIMED); }}
+                className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-amber-600/10 hover:border-amber-500/30 transition-all text-left overflow-hidden"
+              >
+                <div className="relative z-10">
+                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">QUANTUM RUSH</span>
+                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">Hızlı Ol, Süre Kazan</span>
+                </div>
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">⚡</div>
+              </button>
+
+              <button
+                onClick={() => { playClick(); setAppState(AppState.HOME); }}
+                className="w-full py-4 text-white/40 text-[10px] font-bold uppercase tracking-[0.3em] hover:text-white transition-colors"
+              >
+                ← Geri Dön
               </button>
             </div>
           </motion.div>
@@ -462,12 +528,23 @@ const App: React.FC = () => {
               animate={{ scale: 1, y: 0 }}
               className="bg-gray-800 border border-white/8 p-6 md:p-8 rounded-2xl shadow-2xl max-w-xs w-full text-center relative overflow-hidden"
             >
-              <h2 className="text-2xl font-bold text-white mb-2">{movesLeft <= 0 ? 'Hamle Bitti' : 'Oyun Bitti'}</h2>
+              <h2 className="text-2xl font-bold text-white mb-2">
+                {gameMode === GameMode.TIMED && timeLeft <= 0 ? 'Süre Bitti' :
+                  movesLeft <= 0 ? 'Hamle Bitti' : 'Oyun Bitti'}
+              </h2>
               <div className="w-12 h-0.5 bg-rose-500/60 mx-auto mb-5 rounded-full" />
-              <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">Seviye {currentLevelIndex + 1} Başarısız</p>
+              <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">
+                {gameMode === GameMode.CAREER ? `Seviye ${currentLevelIndex + 1} Başarısız` :
+                  gameMode === GameMode.ENDLESS ? 'Sonsuz Skorun' : 'Rush Skorun'}
+              </p>
               <div className="text-4xl font-bold text-white mb-8">{score.toLocaleString()}</div>
-              <button onClick={resetGame} className="w-full py-4 rounded-xl bg-rose-600 text-white font-semibold">Tekrar Dene</button>
-              <button onClick={() => setAppState(AppState.MAP)} className="w-full mt-3 py-3 rounded-xl bg-white/5 text-white/40 text-[10px] font-bold uppercase">Haritaya Dön</button>
+              <button
+                onClick={() => gameMode === GameMode.CAREER ? resetGame() : initGame(gameMode)}
+                className="w-full py-4 rounded-xl bg-rose-600 text-white font-semibold group transition-all"
+              >
+                <span className="group-active:scale-95 block">Tekrar Dene</span>
+              </button>
+              <button onClick={() => setAppState(AppState.HOME)} className="w-full mt-3 py-3 rounded-xl bg-white/5 text-white/40 text-[10px] font-bold uppercase">Ana Menüye Dön</button>
             </motion.div>
           </motion.div>
         )}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { GridState, Piece, PieceShape, GRID_SIZE, GridCell, SkillType, CellType, ObjectiveType, LevelObjective, Achievement, AppState, GameStats } from '../types';
+import { GridState, Piece, PieceShape, GRID_SIZE, GridCell, SkillType, CellType, ObjectiveType, LevelObjective, Achievement, AppState, GameStats, GameMode } from '../types';
 import { SHAPES, POINTS, FLUX_COST, COLORS, LEVELS, ACHIEVEMENTS } from '../constants';
 import { playPlace, playClear, playCombo, playSkill, playGameOver } from '../utils/audio';
 
@@ -34,14 +34,19 @@ interface GameStore {
 
   // Navigation & Persistence
   appState: AppState;
+  gameMode: GameMode;
+  timeLeft: number;
+  highScores: { [key: string]: number };
   stats: GameStats;
   maxLevelReached: number;
 
   // Actions
-  initGame: () => void;
+  initGame: (mode?: GameMode) => void;
   nextLevel: () => void;
   startLevel: (levelIndex: number) => void;
   setAppState: (state: AppState) => void;
+  setGameMode: (mode: GameMode) => void;
+  tickTimer: () => void;
   clearAchievementNotification: () => void;
   placePiece: (piece: Piece, startX: number, startY: number) => boolean;
   canPlacePiece: (grid: GridState, piece: Piece, startX: number, startY: number) => boolean;
@@ -339,13 +344,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
   isLevelComplete: false,
   unlockedAchievementId: null,
 
-  // Navigation & Stats Initial State
+  // Navigation & Persistence
   appState: AppState.HOME,
+  gameMode: GameMode.CAREER,
+  timeLeft: 0,
+  highScores: JSON.parse(localStorage.getItem('flux_highscores') || '{}'),
   stats: JSON.parse(localStorage.getItem('flux_stats') || JSON.stringify(INITIAL_STATS)),
   maxLevelReached: parseInt(localStorage.getItem('flux_max_level') || '0'),
 
-  initGame: () => {
+  initGame: (mode = GameMode.CAREER) => {
     const firstLevel = LEVELS[0];
+    const isTimed = mode === GameMode.TIMED;
+    
     set({
       grid: createEmptyGrid(),
       pieces: getRandomPieces(3),
@@ -357,11 +367,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       activeSkill: null,
       lastAction: null,
       currentLevelIndex: 0,
-      movesLeft: firstLevel.movesLimit || 0,
-      levelObjectives: firstLevel.objectives.map(o => ({ ...o })),
+      movesLeft: mode === GameMode.CAREER ? (firstLevel.movesLimit || 0) : 999,
+      levelObjectives: mode === GameMode.CAREER ? firstLevel.objectives.map(o => ({ ...o })) : [],
       isLevelComplete: false,
       unlockedAchievementId: null,
-      appState: AppState.GAME
+      appState: AppState.GAME,
+      gameMode: mode,
+      timeLeft: isTimed ? 60 : 0
     });
     
     // Increment games played
@@ -389,11 +401,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
       levelObjectives: levelDef.objectives.map(o => ({ ...o })),
       isLevelComplete: false,
       unlockedAchievementId: null,
-      appState: AppState.GAME
+      appState: AppState.GAME,
+      gameMode: GameMode.CAREER,
+      timeLeft: 0
     });
   },
 
   setAppState: (state) => set({ appState: state }),
+  setGameMode: (mode) => set({ gameMode: mode }),
+
+  tickTimer: () => {
+    const { timeLeft, isGameOver, gameMode, appState } = get();
+    if (gameMode !== GameMode.TIMED || isGameOver || appState !== AppState.GAME) return;
+
+    if (timeLeft <= 1) {
+      playGameOver();
+      set({ timeLeft: 0, isGameOver: true });
+    } else {
+      set({ timeLeft: timeLeft - 1 });
+    }
+  },
 
   nextLevel: () => {
     const nextIdx = get().currentLevelIndex + 1;
@@ -681,19 +708,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     const newScore = score + pointsGained;
-    if (newScore > highScore) {
+    const modeKey = get().gameMode;
+    const currentHighs = get().highScores;
+    const oldHigh = currentHighs[modeKey] || 0;
+    
+    if (newScore > oldHigh) {
+      const newHighs = { ...currentHighs, [modeKey]: newScore };
+      set({ highScores: newHighs });
+      localStorage.setItem('flux_highscores', JSON.stringify(newHighs));
+      // Also update legacy highscore for backward compatibility
       localStorage.setItem('flux_highscore', newScore.toString());
+    }
+
+    // Time Reward logic
+    let extraTime = 0;
+    if (get().gameMode === GameMode.TIMED && linesCleared > 0) {
+      extraTime = linesCleared * 6; // 6 sec per line
+      if (comboMultiplier > 1) extraTime += comboMultiplier * 3;
+      if (isSurgeActive) extraTime *= 1.5;
     }
 
     set({
       grid: newGrid,
       score: newScore,
-      highScore: Math.max(newScore, highScore),
+      highScore: Math.max(newScore, get().highScore),
       combo: comboMultiplier,
       flux: finalFlux,
       isSurgeActive: newIsSurgeActive,
       pieces: currentPieces,
-      movesLeft: get().movesLeft - 1,
+      movesLeft: get().gameMode === GameMode.CAREER ? (get().movesLeft - 1) : 999,
+      timeLeft: Math.min(99, get().timeLeft + extraTime),
       levelObjectives: updatedObjectives,
       isLevelComplete: levelFinished,
       achievements: updatedAchievements,
