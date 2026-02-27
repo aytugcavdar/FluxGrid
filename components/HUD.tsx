@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { Zap, RefreshCw, Hammer, Trophy, Bomb, Volume2, VolumeX, Home } from 'lucide-react';
+import { Zap, RefreshCw, Hammer, Trophy, Bomb, Volume2, VolumeX, Home, Sparkles, User } from 'lucide-react';
 import { FLUX_COST } from '../constants';
 import { SkillType, GameMode, AppState } from '../types';
 import { getMuted, toggleMute, playClick, playSkill } from '../utils/audio';
@@ -8,7 +8,10 @@ import { LEVELS } from '../constants';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const HUD: React.FC = () => {
+export const HUD: React.FC<{ onOpenAbilities?: () => void; onOpenProfile?: () => void }> = ({ 
+    onOpenAbilities, 
+    onOpenProfile 
+}) => {
     const {
         score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive,
         currentLevelIndex, movesLeft, levelObjectives, gameMode, timeLeft, setAppState
@@ -204,6 +207,26 @@ export const HUD: React.FC = () => {
                         : <Volume2 size={14} className="text-white/40" />
                     }
                 </button>
+
+                {/* Abilities Button */}
+                {onOpenAbilities && (
+                    <button 
+                        onClick={() => { playClick(); onOpenAbilities(); }} 
+                        className="flex-shrink-0 w-10 md:w-12 h-full bg-purple-500/10 rounded-xl border border-purple-500/20 flex items-center justify-center text-purple-400 hover:bg-purple-500/20 transition-colors"
+                    >
+                        <Sparkles size={18} />
+                    </button>
+                )}
+
+                {/* Profile Button */}
+                {onOpenProfile && (
+                    <button 
+                        onClick={() => { playClick(); onOpenProfile(); }} 
+                        className="flex-shrink-0 w-10 md:w-12 h-full bg-blue-500/10 rounded-xl border border-blue-500/20 flex items-center justify-center text-blue-400 hover:bg-blue-500/20 transition-colors"
+                    >
+                        <User size={18} />
+                    </button>
+                )}
             </div>
         </div>
     );

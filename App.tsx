@@ -1,11 +1,16 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Grid } from './components/Grid';
 import { useGameStore } from './store/gameStore';
+import { useAbilityStore } from './store/abilityStore';
+import { usePassiveAbilityStore } from './store/passiveAbilityStore';
+import { useProfileStore } from './store/profileStore';
 import { HUD } from './components/HUD';
 import { LevelMap } from './components/LevelMap';
 import { CareerPage } from './components/CareerPage';
 import { Piece } from './components/Piece';
 import { Tutorial, shouldShowTutorial } from './components/Tutorial';
+import { AbilityPanel } from './components/AbilityPanel';
+import { ProfileView } from './components/ProfileView';
 import { motion, AnimatePresence } from 'framer-motion';
 import { unlockAudio, playGameOver, playClick } from './utils/audio';
 import clsx from 'clsx';
@@ -192,6 +197,8 @@ const App: React.FC = () => {
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft
   } = useGameStore();
   const [showTutorial, setShowTutorial] = useState(shouldShowTutorial);
+  const [showAbilities, setShowAbilities] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [prevGameOver, setPrevGameOver] = useState(false);
   const [scorePopups, setScorePopups] = useState<ScorePopup[]>([]);
   const prevScoreRef = useRef(0);
@@ -201,6 +208,13 @@ const App: React.FC = () => {
   const [showSurgeFlash, setShowSurgeFlash] = useState(false);
   const lastActionRef = useRef<typeof lastAction>(null);
   const prevSurgeRef = useRef(false);
+
+  // Initialize stores on mount
+  useEffect(() => {
+    useAbilityStore.getState().initializeAbilities();
+    usePassiveAbilityStore.getState().initializePassives();
+    useProfileStore.getState().initializeProfile();
+  }, []);
 
   useEffect(() => {
     // We don't call initGame() here anymore to allow starting on the HOME screen.
@@ -403,26 +417,29 @@ const App: React.FC = () => {
             className="fixed inset-0 flex flex-col z-30 overflow-hidden"
           >
             {/* HUD */}
-            <header className="flex-none p-4 md:p-6 w-full max-w-4xl mx-auto">
-              <div className="h-[40px] md:h-[52px]">
-                <HUD />
+            <header className="flex-none p-2 md:p-4 md:p-6 w-full max-w-4xl mx-auto">
+              <div className="h-[36px] md:h-[52px]">
+                <HUD 
+                  onOpenAbilities={() => setShowAbilities(true)}
+                  onOpenProfile={() => setShowProfile(true)}
+                />
               </div>
             </header>
 
             {/* Grid Area - The core issue was flex-1 taking too much space */}
-            <main className="flex-1 relative flex items-center justify-center p-2 min-h-0">
-              <div className="w-full h-full max-h-[70vh] aspect-square flex items-center justify-center">
+            <main className="flex-1 relative flex items-center justify-center p-1 md:p-2 min-h-0">
+              <div className="w-full h-full max-h-[85vh] md:max-h-[70vh] aspect-square flex items-center justify-center">
                 <Grid />
               </div>
             </main>
 
             {/* Piece Tray */}
             <div className="game-tray bg-gradient-to-t from-gray-900/90 via-gray-900/50 to-transparent">
-              <div className="max-w-2xl mx-auto px-3 md:px-4 h-full flex flex-col">
-                <div className="flex justify-between items-end mb-0.5 px-1">
-                  <span className="text-[9px] uppercase tracking-widest text-white/30 font-medium">Parça Tepsisi</span>
+              <div className="max-w-2xl mx-auto px-2 md:px-4 h-full flex flex-col">
+                <div className="flex justify-between items-end mb-0 md:mb-0.5 px-1">
+                  <span className="text-[8px] md:text-[9px] uppercase tracking-widest text-white/30 font-medium">Parça Tepsisi</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 flex-1 min-h-0 pb-2 md:pb-4">
+                <div className="grid grid-cols-3 gap-1.5 md:gap-2 flex-1 min-h-0 pb-1 md:pb-4">
                   <AnimatePresence mode="popLayout">
                     {pieces.map((piece) => (
                       <motion.div
@@ -464,6 +481,8 @@ const App: React.FC = () => {
       <DragOverlay />
       <AnimatePresence>
         {showTutorial && <Tutorial onComplete={() => setShowTutorial(false)} />}
+        {showAbilities && <AbilityPanel onClose={() => setShowAbilities(false)} />}
+        {showProfile && <ProfileView onClose={() => setShowProfile(false)} />}
       </AnimatePresence>
 
       <AnimatePresence>

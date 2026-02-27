@@ -12,8 +12,8 @@
   --color-accent-secondary: #8b5cf6;
 
   /* Layout — mobile-first (smallest screens) */
-  --grid-cell: 36px;
-  --tray-height: 90px;
+  --grid-cell: 40px;
+  --tray-height: 85px;
   --hud-height: 36px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
@@ -24,9 +24,9 @@
 /* Medium phones (411px+) */
 @media (min-width: 411px) {
   :root {
-    --grid-cell: 40px;
-    --tray-height: 108px;
-    --hud-height: 44px;
+    --grid-cell: 44px;
+    --tray-height: 100px;
+    --hud-height: 40px;
   }
 }
 
@@ -273,13 +273,13 @@ canvas {
   justify-content: center;
   border-radius: 14px;
   cursor: grab;
-  min-height: 60px;
+  min-height: 55px;
   touch-action: none;
 }
 
 @media (min-width: 411px) {
   .piece-slot {
-    min-height: 70px;
+    min-height: 65px;
     border-radius: 16px;
   }
 }
