@@ -1,17 +1,21 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
-import { LEVELS } from '../constants';
+import { generateLevel } from '../utils/levelGenerator';
 import { AppState } from '../types';
 import { Trophy, ChevronLeft, Map as MapIcon, Star, Lock } from 'lucide-react';
 import clsx from 'clsx';
 import { playClick } from '../utils/audio';
 
+// Generate 100 levels for the map display
+const MAP_LEVELS = Array.from({ length: 100 }, (_, i) => generateLevel(i + 1));
+
 export const LevelMap: React.FC = () => {
     const { maxLevelReached, setAppState, startLevel } = useGameStore();
 
     const handleLevelClick = (idx: number) => {
-        if (idx <= maxLevelReached) {
+        // Levels are 1-indexed for the user, but stored as 1-indexed in LevelMap logic
+        if (idx <= maxLevelReached || idx === maxLevelReached + 1) { // Allow playing next level
             playClick();
             startLevel(idx);
         }
@@ -46,17 +50,19 @@ export const LevelMap: React.FC = () => {
                 <div className="absolute left-1/2 top-10 bottom-40 w-1 bg-white/[0.03] -translate-x-1/2" />
 
                 <div className="flex flex-col gap-16 relative z-10">
-                    {LEVELS.map((level, i) => {
-                        const isUnlocked = i <= maxLevelReached;
-                        const isCurrent = i === maxLevelReached;
+                    {MAP_LEVELS.map((level, i) => {
+                        // MaxLevelReached starts at 0, level.index starts at 1
+                        const isUnlocked = level.index <= maxLevelReached + 1;
+                        const isCurrent = level.index === maxLevelReached + 1;
                         const isLeft = i % 2 === 0;
 
                         return (
                             <motion.div
                                 key={level.index}
                                 initial={{ opacity: 0, x: isLeft ? -20 : 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: i * 0.1 }}
+                                whileInView={{ opacity: 1, x: 0 }}
+                                viewport={{ once: true, margin: "-50px" }}
+                                transition={{ delay: 0.1 }}
                                 className={clsx(
                                     "flex items-center w-full",
                                     isLeft ? "flex-row" : "flex-row-reverse"
@@ -64,7 +70,7 @@ export const LevelMap: React.FC = () => {
                             >
                                 {/* Level Node */}
                                 <button
-                                    onClick={() => handleLevelClick(i)}
+                                    onClick={() => handleLevelClick(level.index)}
                                     disabled={!isUnlocked}
                                     className={clsx(
                                         "w-20 h-20 rounded-3xl flex items-center justify-center transition-all duration-300 relative group",
@@ -106,7 +112,7 @@ export const LevelMap: React.FC = () => {
                                         !isUnlocked && "opacity-40"
                                     )}>
                                         <h3 className="text-xs font-black text-white truncate uppercase tracking-tight">{level.name}</h3>
-                                        <p className="text-[9px] text-white/30 font-bold">Seviye {level.index}</p>
+                                        <p className="text-[9px] text-white/30 font-bold">Hedef: {level.objectives[0]?.target} Puan</p>
                                     </div>
                                 </button>
                             </motion.div>

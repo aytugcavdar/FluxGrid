@@ -4,13 +4,13 @@ import { Zap, RefreshCw, Hammer, Trophy, Bomb, Volume2, VolumeX, Home, Sparkles,
 import { FLUX_COST } from '../constants';
 import { SkillType, GameMode, AppState } from '../types';
 import { getMuted, toggleMute, playClick, playSkill } from '../utils/audio';
-import { LEVELS } from '../constants';
+import { generateLevel } from '../utils/levelGenerator';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const HUD: React.FC<{ onOpenAbilities?: () => void; onOpenProfile?: () => void }> = ({ 
-    onOpenAbilities, 
-    onOpenProfile 
+export const HUD: React.FC<{ onOpenAbilities?: () => void; onOpenProfile?: () => void }> = ({
+    onOpenAbilities,
+    onOpenProfile
 }) => {
     const {
         score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive,
@@ -28,6 +28,8 @@ export const HUD: React.FC<{ onOpenAbilities?: () => void; onOpenProfile?: () =>
         activateSkill(skill);
     };
 
+    const currentLevelDef = gameMode === GameMode.CAREER ? generateLevel(currentLevelIndex) : null;
+
     return (
         <div className="w-full flex items-center gap-1.5 md:gap-3 justify-between h-full">
 
@@ -44,12 +46,13 @@ export const HUD: React.FC<{ onOpenAbilities?: () => void; onOpenProfile?: () =>
                 <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-1.5 overflow-hidden">
                         <span className="text-[9px] md:text-[10px] font-bold text-blue-400 uppercase tracking-wider truncate">
-                            {gameMode === GameMode.CAREER && `Seviye ${currentLevelIndex + 1}`}
+                            {gameMode === GameMode.CAREER && `Seviye ${currentLevelIndex}`}
                             {gameMode === GameMode.ENDLESS && `Sonsuz Mod`}
                             {gameMode === GameMode.TIMED && `Quantum Rush`}
+                            {gameMode === GameMode.DAILY_CHALLENGE && `Günlük Meydan Okuma`}
                         </span>
-                        {gameMode === GameMode.CAREER && (
-                            <span className="text-[10px] md:text-xs text-white/60 truncate font-medium">-{LEVELS[currentLevelIndex].name}</span>
+                        {gameMode === GameMode.CAREER && currentLevelDef && (
+                            <span className="text-[10px] md:text-xs text-white/60 truncate font-medium">-{currentLevelDef.name}</span>
                         )}
                         {gameMode !== GameMode.CAREER && (
                             <span className="text-[10px] md:text-xs text-white/40 truncate font-medium italic">En İyi: {highScore.toLocaleString()}</span>
@@ -210,8 +213,8 @@ export const HUD: React.FC<{ onOpenAbilities?: () => void; onOpenProfile?: () =>
 
                 {/* Abilities Button */}
                 {onOpenAbilities && (
-                    <button 
-                        onClick={() => { playClick(); onOpenAbilities(); }} 
+                    <button
+                        onClick={() => { playClick(); onOpenAbilities(); }}
                         className="flex-shrink-0 w-10 md:w-12 h-full bg-purple-500/10 rounded-xl border border-purple-500/20 flex items-center justify-center text-purple-400 hover:bg-purple-500/20 transition-colors"
                     >
                         <Sparkles size={18} />
@@ -220,8 +223,8 @@ export const HUD: React.FC<{ onOpenAbilities?: () => void; onOpenProfile?: () =>
 
                 {/* Profile Button */}
                 {onOpenProfile && (
-                    <button 
-                        onClick={() => { playClick(); onOpenProfile(); }} 
+                    <button
+                        onClick={() => { playClick(); onOpenProfile(); }}
                         className="flex-shrink-0 w-10 md:w-12 h-full bg-blue-500/10 rounded-xl border border-blue-500/20 flex items-center justify-center text-blue-400 hover:bg-blue-500/20 transition-colors"
                     >
                         <User size={18} />

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { ProgressionState, LevelProgress, ActiveAbilityType, PassiveAbilityType, LevelObjective } from '../types';
-import { LEVELS, ABILITY_UNLOCKS } from '../constants';
+import { ABILITY_UNLOCKS } from '../constants';
+import { generateLevel } from '../utils/levelGenerator';
 
 interface ProgressionStore extends ProgressionState {
   // Actions
@@ -37,18 +38,20 @@ export const useProgressionStore = create<ProgressionStore>((set, get) => ({
       }
     }
     
-    // Initialize progress for all levels
-    LEVELS.forEach(level => {
-      if (!progressMap.has(level.index)) {
-        progressMap.set(level.index, {
-          levelIndex: level.index,
+    // Initialize progress for all levels up to the next available level
+    const maxLevelToCheck = Math.max(1, savedMaxLevel + 1);
+    for (let i = 1; i <= maxLevelToCheck; i++) {
+      if (!progressMap.has(i)) {
+        const levelDef = generateLevel(i);
+        progressMap.set(i, {
+          levelIndex: i,
           completed: false,
           stars: 0,
           bestScore: 0,
-          objectives: level.objectives.map(o => ({ ...o }))
+          objectives: levelDef.objectives.map(o => ({ ...o }))
         });
       }
-    });
+    }
     
     set({
       maxLevelReached: savedMaxLevel,

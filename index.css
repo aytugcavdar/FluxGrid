@@ -13,7 +13,7 @@
 
   /* Layout — mobile-first (smallest screens) */
   --grid-cell: 40px;
-  --tray-height: 85px;
+  --tray-height: clamp(110px, 16vh, 140px);
   --hud-height: 36px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
@@ -25,7 +25,7 @@
 @media (min-width: 411px) {
   :root {
     --grid-cell: 44px;
-    --tray-height: 100px;
+    --tray-height: clamp(120px, 18vh, 160px);
     --hud-height: 40px;
   }
 }
@@ -34,7 +34,7 @@
 @media (min-width: 768px) {
   :root {
     --grid-cell: 48px;
-    --tray-height: 120px;
+    --tray-height: clamp(120px, 18vh, 160px);
     --hud-height: 52px;
   }
 }
@@ -44,6 +44,13 @@
   :root {
     --grid-cell: 56px;
     --tray-height: 130px;
+  }
+}
+
+/* Short screens */
+@media (max-height: 700px) {
+  :root {
+    --tray-height: 100px;
   }
 }
 
@@ -59,7 +66,7 @@
 html,
 body {
   width: 100%;
-  height: 100%;
+  height: 100dvh;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -78,7 +85,7 @@ body {
 
 #root {
   width: 100%;
-  height: 100%;
+  height: 100dvh;
   position: fixed;
   inset: 0;
 }
@@ -188,7 +195,7 @@ canvas {
 .game-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100dvh;
   width: 100%;
   position: relative;
   overflow: hidden;
@@ -207,6 +214,7 @@ canvas {
 .game-grid {
   flex: 1;
   min-height: 0;
+  max-height: calc(100dvh - var(--tray-height) - var(--hud-height));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -217,7 +225,7 @@ canvas {
 .game-tray {
   flex: none;
   height: var(--tray-height);
-  padding-bottom: max(8px, var(--safe-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
   position: relative;
   z-index: 20;
 }

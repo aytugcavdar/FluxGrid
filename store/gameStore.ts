@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { GridState, Piece, PieceShape, GRID_SIZE, GridCell, SkillType, CellType, ObjectiveType, LevelObjective, Achievement, AppState, GameStats, GameMode } from '../types';
-import { SHAPES, POINTS, FLUX_COST, COLORS, LEVELS, ACHIEVEMENTS } from '../constants';
-import { playPlace, playClear, playCombo, playSkill, playGameOver } from '../utils/audio';
+import { SHAPES, POINTS, FLUX_COST, COLORS, ACHIEVEMENTS } from '../constants';
+import { generateLevel } from '../utils/levelGenerator';
+import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd } from '../utils/audio';
 
 interface GameStore {
   grid: GridState;
@@ -63,19 +64,61 @@ const createEmptyGrid = (): GridState =>
     Array(GRID_SIZE).fill(null).map(() => ({ filled: false, color: '' }))
   );
 
-const getRandomPieces = (count: number): Piece[] => {
+import { SeededRNG, getDailySeed } from '../utils/seededRng';
+
+let currentDailyRNG: SeededRNG | null = null;
+
+const getRandomPieces = (count: number, grid?: GridState, isDaily?: boolean): Piece[] => {
   const newPieces: Piece[] = [];
+  
+  if (isDaily && !currentDailyRNG) {
+    currentDailyRNG = new SeededRNG(getDailySeed());
+  }
+
+  // Calculate grid density if grid is provided
+  let density = 0;
+  if (grid) {
+    let filledCells = 0;
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        if (grid[y][x].filled) filledCells++;
+      }
+    }
+    density = filledCells / (GRID_SIZE * GRID_SIZE);
+  }
+
   for (let i = 0; i < count; i++) {
-    const randomShape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+    let selectedShape: PieceShape;
+
+    const randVal = isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+
+    // Smart RNG: Adjust probabilities based on density
+    if (density > 0.7 && !isDaily) {
+      // High density: Favor smaller pieces (1x1, 1x2, 2x1) to prevent unfair losses (Disabled in daily for consistency)
+      const smallShapes = SHAPES.filter(s => s.shape.length * s.shape[0].length <= 2);
+      selectedShape = smallShapes[Math.floor(randVal * smallShapes.length)];
+    } else if (density > 0.5 && !isDaily) {
+      // Medium density: Mixed probabilities, slight bias against very large pieces
+      if (randVal > 0.3) {
+        // 70% chance for medium/small
+        const mediumShapes = SHAPES.filter(s => s.shape.length * s.shape[0].length <= 4);
+        selectedShape = mediumShapes[Math.floor((isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * mediumShapes.length)];
+      } else {
+        selectedShape = SHAPES[Math.floor((isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * SHAPES.length)];
+      }
+    } else {
+      // Low density or Daily mode: Completely random based on seed/Math.random
+      selectedShape = SHAPES[Math.floor(randVal * SHAPES.length)];
+    }
     
     // 15% chance for a special piece
     let type: CellType = CellType.NORMAL;
-    const rng = Math.random();
-    if (rng > 0.92) type = CellType.BOMB; // 8% chance
-    else if (rng > 0.85) type = CellType.ICE; // 7% chance
+    const specialRand = isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+    if (specialRand > 0.92) type = CellType.BOMB; // 8% chance
+    else if (specialRand > 0.85) type = CellType.ICE; // 7% chance
 
     newPieces.push({ 
-        ...randomShape, 
+        ...selectedShape, 
         instanceId: uuidv4(),
         type: type
     });
@@ -89,6 +132,7 @@ const processGrid = (initialGrid: GridState): {
   chainCount: number;
   colorBonus: boolean;
   bombsExploded: number;
+  iceBroken: number;
 } => {
   let currentGrid = initialGrid.map(row => row.map(cell => ({ ...cell })));
   let totalLinesCleared = 0;
@@ -96,6 +140,7 @@ const processGrid = (initialGrid: GridState): {
   let chainCount = 0;      // Kaç dalga (do-while iteration) oluştu
   let colorBonus = false;  // Herhangi bir dalga tek renkli miydi?
   let bombsExploded = 0;
+  let iceBroken = 0;
 
   do {
     linesClearedInPass = 0;
@@ -252,6 +297,9 @@ const processGrid = (initialGrid: GridState): {
               const key = `${x},${y}`;
               if (!finalCellsToClear.has(key)) {
                   finalCellsToClear.add(key);
+                  if (cell.type === CellType.ICE) {
+                      iceBroken++; // Track ice broken
+                  }
                   if (cell.type === CellType.BOMB) {
                       explosionQueue.push({x, y});
                       bombsExploded++;
@@ -310,7 +358,7 @@ const processGrid = (initialGrid: GridState): {
     }
   } while (linesClearedInPass > 0);
 
-  return { grid: currentGrid, totalLinesCleared, chainCount, colorBonus, bombsExploded };
+  return { grid: currentGrid, totalLinesCleared, chainCount, colorBonus, bombsExploded, iceBroken };
 };
 
 const INITIAL_STATS: GameStats = {
@@ -353,12 +401,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
   maxLevelReached: parseInt(localStorage.getItem('flux_max_level') || '0'),
 
   initGame: (mode = GameMode.CAREER) => {
-    const firstLevel = LEVELS[0];
+    const firstLevel = generateLevel(1);
     const isTimed = mode === GameMode.TIMED;
+    const isDaily = mode === GameMode.DAILY_CHALLENGE;
+    const initialGrid = createEmptyGrid();
+    
+    // Reset daily RNG if starting a new daily challenge
+    if (isDaily) {
+      currentDailyRNG = new SeededRNG(getDailySeed());
+    }
     
     set({
-      grid: createEmptyGrid(),
-      pieces: getRandomPieces(3),
+      grid: initialGrid,
+      pieces: getRandomPieces(3, initialGrid, isDaily),
       score: 0,
       flux: 50,
       combo: 0,
@@ -366,7 +421,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isSurgeActive: false,
       activeSkill: null,
       lastAction: null,
-      currentLevelIndex: 0,
+      currentLevelIndex: 1, // Start at level 1 (1-indexed for generator)
       movesLeft: mode === GameMode.CAREER ? (firstLevel.movesLimit || 0) : 999,
       levelObjectives: mode === GameMode.CAREER ? firstLevel.objectives.map(o => ({ ...o })) : [],
       isLevelComplete: false,
@@ -382,13 +437,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     localStorage.setItem('flux_stats', JSON.stringify(newStats));
   },
 
-  startLevel: (idx) => {
-    const levelDef = LEVELS[idx];
-    if (!levelDef) return;
+  startLevel: (levelIndex) => {
+    // levelIndex is 1-indexed here, or we convert it if previously 0-indexed
+    const nextIdx = Math.max(1, levelIndex);
+    const levelDef = generateLevel(nextIdx);
+
+    const initialGrid = createEmptyGrid();
 
     set({
-      grid: createEmptyGrid(),
-      pieces: getRandomPieces(3),
+      grid: initialGrid,
+      pieces: getRandomPieces(3, initialGrid),
       score: 0,
       flux: 50,
       combo: 0,
@@ -396,7 +454,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isSurgeActive: false,
       activeSkill: null,
       lastAction: null,
-      currentLevelIndex: idx,
+      currentLevelIndex: nextIdx,
       movesLeft: levelDef.movesLimit || 0,
       levelObjectives: levelDef.objectives.map(o => ({ ...o })),
       isLevelComplete: false,
@@ -423,13 +481,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   nextLevel: () => {
-    const nextIdx = get().currentLevelIndex + 1;
-    if (nextIdx >= LEVELS.length) return; // End of game
+    // If currentLevelIndex is somehow 0 from old saves, bump to 1
+    const nextIdx = Math.max(1, get().currentLevelIndex + 1);
 
-    const nextLevelDef = LEVELS[nextIdx];
+    const nextLevelDef = generateLevel(nextIdx);
+    const initialGrid = createEmptyGrid();
+    const isDaily = get().gameMode === GameMode.DAILY_CHALLENGE;
+    
     set({
-      grid: createEmptyGrid(),
-      pieces: getRandomPieces(3),
+      grid: initialGrid,
+      pieces: getRandomPieces(3, initialGrid, isDaily),
       flux: 50,
       currentLevelIndex: nextIdx,
       movesLeft: nextLevelDef.movesLimit || 0,
@@ -456,7 +517,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (flux >= FLUX_COST.REROLL) {
         set({
           flux: flux - FLUX_COST.REROLL,
-          pieces: getRandomPieces(3),
+          pieces: getRandomPieces(3, get().grid, get().gameMode === GameMode.DAILY_CHALLENGE),
           activeSkill: null
         });
         get().checkGameOver();
@@ -623,20 +684,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     // 3. Process Grid
-    const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded } = processGrid(tempGrid);
+    const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken } = processGrid(tempGrid);
 
-    // Update Objectives
+    // Update Objectives (before score calculation for proper tracking)
     const updatedObjectives = get().levelObjectives.map(obj => {
       let current = obj.current;
-      if (obj.type === ObjectiveType.SCORE) current = score + Math.round(((blocksPlaced * POINTS.BLOCK_PLACED) + (linesCleared * POINTS.LINE_CLEARED)) * (linesCleared > 0 ? combo + 1 : 1));
       if (obj.type === ObjectiveType.CLEAR_LINES) current += linesCleared;
       if (obj.type === ObjectiveType.CHAIN_REACTION) current += chainCount;
       if (obj.type === ObjectiveType.USE_BOMB) current += bombsExploded;
-      // Note: BREAK_ICE logic needs to be integrated into processGrid or here
+      if (obj.type === ObjectiveType.BREAK_ICE) current += iceBroken;
+      // SCORE will be updated after score calculation
       return { ...obj, current: Math.min(obj.target, current) };
     });
-
-    const levelFinished = updatedObjectives.every(obj => obj.current >= obj.target);
 
     // Update Achievements
     const updatedAchievements = get().achievements.map(ach => {
@@ -655,6 +714,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // 4. Puan hesaplama
     const comboMultiplier = linesCleared > 0 ? combo + 1 : 0;
+    const newCombo = linesCleared > 0 ? comboMultiplier : 0; // Reset combo to 0 if no lines cleared
 
     // Renk bonusu: tek renk satır/sütun temizleme
     const colorBonusMultiplier = (linesCleared > 0 && colorBonus) ? POINTS.COLOR_BONUS_MULTIPLIER : 1;
@@ -691,10 +751,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const newIsSurgeActive = surgeJustFilled ? true : (surgeWasUsed ? false : isSurgeActive);
     const finalFlux = surgeWasUsed ? 0 : newFlux; // Surge kullanılınca flux sıfırlanır
 
+    if (surgeJustFilled) {
+      playSurgeStart();
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // Haptic for surge start
+    } else if (surgeWasUsed) {
+      playSurgeEnd();
+      // Optional haptic for surge end
+    }
+
     // 5. Tepsi güncelle
     let currentPieces = get().pieces.filter(p => p.instanceId !== piece.instanceId);
     if (currentPieces.length === 0) {
-      currentPieces = getRandomPieces(3);
+      const isDaily = get().gameMode === GameMode.DAILY_CHALLENGE;
+      currentPieces = getRandomPieces(3, newGrid, isDaily); // Use newGrid for density calculation
     }
 
     // Ses + Titresim
@@ -720,6 +789,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
       localStorage.setItem('flux_highscore', newScore.toString());
     }
 
+    // Update Objectives with NEW score
+    const updatedObjectivesWithScore = updatedObjectives.map(obj => {
+      if (obj.type === ObjectiveType.SCORE) {
+        return { ...obj, current: Math.min(obj.target, newScore) };
+      }
+      return obj;
+    });
+
+    const levelFinished = updatedObjectivesWithScore.every(obj => obj.current >= obj.target);
+
     // Time Reward logic
     let extraTime = 0;
     if (get().gameMode === GameMode.TIMED && linesCleared > 0) {
@@ -732,13 +811,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       grid: newGrid,
       score: newScore,
       highScore: Math.max(newScore, get().highScore),
-      combo: comboMultiplier,
+      combo: newCombo, // Use newCombo instead of comboMultiplier
       flux: finalFlux,
       isSurgeActive: newIsSurgeActive,
       pieces: currentPieces,
       movesLeft: get().gameMode === GameMode.CAREER ? (get().movesLeft - 1) : 999,
       timeLeft: Math.min(99, get().timeLeft + extraTime),
-      levelObjectives: updatedObjectives,
+      levelObjectives: updatedObjectivesWithScore,
       isLevelComplete: levelFinished,
       achievements: updatedAchievements,
       unlockedAchievementId: newUnlock ? newUnlock.id : get().unlockedAchievementId
@@ -752,7 +831,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       linesCleared: currentStats.linesCleared + linesCleared,
       totalScore: currentStats.totalScore + pointsGained,
       bombsExploded: currentStats.bombsExploded + bombsExploded,
-      // iceBroken: logic...
+      iceBroken: currentStats.iceBroken + iceBroken,
     };
     set({ stats: nextStats });
     localStorage.setItem('flux_stats', JSON.stringify(nextStats));
@@ -761,9 +840,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const nextMax = Math.max(get().maxLevelReached, get().currentLevelIndex + 1);
       set({ maxLevelReached: nextMax });
       localStorage.setItem('flux_max_level', nextMax.toString());
+      
+      // Apply reward flux
+      const currentLevelDef = generateLevel(get().currentLevelIndex);
+      if (currentLevelDef.rewardFlux) {
+        const newFluxWithReward = Math.min(100, finalFlux + currentLevelDef.rewardFlux);
+        set({ flux: newFluxWithReward });
+      }
     }
 
-    if (get().movesLeft <= 0 && !levelFinished) {
+    // Only check movesLeft for CAREER mode
+    if (get().gameMode === GameMode.CAREER && get().movesLeft <= 0 && !levelFinished) {
       set({ isGameOver: true });
     }
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Grid } from './components/Grid';
 import { useGameStore } from './store/gameStore';
+import { useThemeStore } from './store/themeStore';
 import { useAbilityStore } from './store/abilityStore';
 import { usePassiveAbilityStore } from './store/passiveAbilityStore';
 import { useProfileStore } from './store/profileStore';
@@ -15,6 +16,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { unlockAudio, playGameOver, playClick } from './utils/audio';
 import clsx from 'clsx';
 import { AppState, GameMode } from './types';
+import { getDragYOffset } from './utils/responsive';
 
 /* ─── Score Popup ─── */
 interface ScorePopup {
@@ -144,7 +146,7 @@ const DragOverlay = () => {
 
   const isMobile = window.innerWidth < 768;
   const isSmallPhone = window.innerWidth < 400;
-  const yOffset = isMobile ? Math.min(-90, -window.innerHeight * 0.11) : 0;
+  const yOffset = getDragYOffset();
   const cellSize = isSmallPhone ? 28 : isMobile ? 32 : 42;
   const gap = isSmallPhone ? 1.5 : 2;
 
@@ -196,9 +198,11 @@ const App: React.FC = () => {
     isLevelComplete, nextLevel, currentLevelIndex, movesLeft, levelObjectives,
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft
   } = useGameStore();
+  const { currentTheme, setTheme, getThemeColors } = useThemeStore();
   const [showTutorial, setShowTutorial] = useState(shouldShowTutorial);
   const [showAbilities, setShowAbilities] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [prevGameOver, setPrevGameOver] = useState(false);
   const [scorePopups, setScorePopups] = useState<ScorePopup[]>([]);
   const prevScoreRef = useRef(0);
@@ -208,6 +212,48 @@ const App: React.FC = () => {
   const [showSurgeFlash, setShowSurgeFlash] = useState(false);
   const lastActionRef = useRef<typeof lastAction>(null);
   const prevSurgeRef = useRef(false);
+
+  // Game Over Message Helper
+  const getGameOverMessage = () => {
+    if (gameMode === GameMode.ENDLESS) {
+      return {
+        title: 'Harika Oyun!',
+        subtitle: 'Artık Hamle Kalmadı',
+        description: 'Tüm parçalar yerleştirilemez durumda'
+      };
+    }
+    
+    if (gameMode === GameMode.TIMED) {
+      if (timeLeft <= 0) {
+        return {
+          title: 'Süre Doldu!',
+          subtitle: 'Quantum Rush Sona Erdi',
+          description: `${score.toLocaleString()} puan kazandın`
+        };
+      }
+    }
+    
+    if (gameMode === GameMode.CAREER) {
+      if (movesLeft <= 0) {
+        return {
+          title: 'Hamle Bitti',
+          subtitle: `Seviye ${currentLevelIndex} Başarısız`,
+          description: 'Hedeflere ulaşamadın'
+        };
+      }
+      return {
+        title: 'Oyun Bitti',
+        subtitle: `Seviye ${currentLevelIndex}`,
+        description: 'Artık hamle kalmadı'
+      };
+    }
+    
+    return {
+      title: 'Oyun Bitti',
+      subtitle: 'Tekrar Dene',
+      description: ''
+    };
+  };
 
   // Initialize stores on mount
   useEffect(() => {
@@ -294,7 +340,7 @@ const App: React.FC = () => {
   }, [unlockedAchievementId, clearAchievementNotification]);
 
   return (
-    <div className="game-container" onPointerDown={unlockAudio}>
+    <div className="game-container" onPointerDown={unlockAudio} style={{ background: getThemeColors().background }}>
       <AnimatePresence mode="wait">
         {appState === AppState.HOME && (
           <motion.div
@@ -330,10 +376,17 @@ const App: React.FC = () => {
               </button>
 
               <button
-                onClick={() => { playClick(); setAppState(AppState.CAREER); }}
+                onClick={() => { playClick(); setAppState(AppState.MAP); }}
                 className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-white/80 font-bold tracking-widest transition-all active:scale-95 uppercase text-xs"
               >
-                KARİYER
+                SEVİYE HARİTASI
+              </button>
+              
+              <button
+                onClick={() => { playClick(); setShowThemeSelector(true); }}
+                className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-white/80 font-bold tracking-widest transition-all active:scale-95 uppercase text-xs flex items-center justify-center gap-2"
+              >
+                <span>🎨</span> TEMA
               </button>
             </div>
           </motion.div>
@@ -419,16 +472,16 @@ const App: React.FC = () => {
             {/* HUD */}
             <header className="flex-none p-2 md:p-4 md:p-6 w-full max-w-4xl mx-auto">
               <div className="h-[36px] md:h-[52px]">
-                <HUD 
+                <HUD
                   onOpenAbilities={() => setShowAbilities(true)}
                   onOpenProfile={() => setShowProfile(true)}
                 />
               </div>
             </header>
 
-            {/* Grid Area - The core issue was flex-1 taking too much space */}
+            {/* Grid Area */}
             <main className="flex-1 relative flex items-center justify-center p-1 md:p-2 min-h-0">
-              <div className="w-full h-full max-h-[85vh] md:max-h-[70vh] aspect-square flex items-center justify-center">
+              <div className="w-full h-full max-h-[85dvh] md:max-h-[70dvh] aspect-square flex items-center justify-center">
                 <Grid />
               </div>
             </main>
@@ -486,7 +539,7 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       <AnimatePresence>
-        {isLevelComplete && (
+        {isLevelComplete && gameMode === GameMode.CAREER && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -502,7 +555,7 @@ const App: React.FC = () => {
                 <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="text-4xl">🏆</motion.span>
               </div>
               <h2 className="text-3xl font-black text-white mb-2 italic tracking-tight">TEBRİKLER!</h2>
-              <p className="text-blue-400 text-sm font-bold uppercase tracking-widest mb-6">Seviye {currentLevelIndex + 1} Tamamlandı</p>
+              <p className="text-blue-400 text-sm font-bold uppercase tracking-widest mb-6">Seviye {currentLevelIndex} Tamamlandı</p>
               <div className="bg-white/5 rounded-2xl p-4 mb-8">
                 <p className="text-gray-400 text-xs uppercase tracking-widest mb-1">Kazanılan Skor</p>
                 <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
@@ -547,15 +600,19 @@ const App: React.FC = () => {
               animate={{ scale: 1, y: 0 }}
               className="bg-gray-800 border border-white/8 p-6 md:p-8 rounded-2xl shadow-2xl max-w-xs w-full text-center relative overflow-hidden"
             >
-              <h2 className="text-2xl font-bold text-white mb-2">
-                {gameMode === GameMode.TIMED && timeLeft <= 0 ? 'Süre Bitti' :
-                  movesLeft <= 0 ? 'Hamle Bitti' : 'Oyun Bitti'}
-              </h2>
+              {(() => {
+                const gameOverMsg = getGameOverMessage();
+                return (
+                  <>
+                    <h2 className="text-2xl font-bold text-white mb-2">{gameOverMsg.title}</h2>
+                    <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">{gameOverMsg.subtitle}</p>
+                    {gameOverMsg.description && (
+                      <p className="text-gray-500 text-xs mb-4">{gameOverMsg.description}</p>
+                    )}
+                  </>
+                );
+              })()}
               <div className="w-12 h-0.5 bg-rose-500/60 mx-auto mb-5 rounded-full" />
-              <p className="text-gray-400 text-xs uppercase tracking-wider mb-2">
-                {gameMode === GameMode.CAREER ? `Seviye ${currentLevelIndex + 1} Başarısız` :
-                  gameMode === GameMode.ENDLESS ? 'Sonsuz Skorun' : 'Rush Skorun'}
-              </p>
               <div className="text-4xl font-bold text-white mb-8">{score.toLocaleString()}</div>
               <button
                 onClick={() => gameMode === GameMode.CAREER ? resetGame() : initGame(gameMode)}
@@ -564,6 +621,86 @@ const App: React.FC = () => {
                 <span className="group-active:scale-95 block">Tekrar Dene</span>
               </button>
               <button onClick={() => setAppState(AppState.HOME)} className="w-full mt-3 py-3 rounded-xl bg-white/5 text-white/40 text-[10px] font-bold uppercase">Ana Menüye Dön</button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Theme Selector Modal */}
+      <AnimatePresence>
+        {showThemeSelector && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            onClick={() => setShowThemeSelector(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gray-800 border border-white/8 p-6 rounded-2xl shadow-2xl max-w-sm w-full"
+            >
+              <h2 className="text-2xl font-bold text-white mb-4 text-center">Tema Seç</h2>
+              <p className="text-gray-400 text-xs text-center mb-6">Oyun masası görünümünü değiştir</p>
+              
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                <button
+                  onClick={() => { playClick(); setTheme('dark'); }}
+                  className={clsx(
+                    "p-4 rounded-xl border-2 transition-all",
+                    currentTheme === 'dark' ? "border-blue-500 bg-blue-500/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+                  )}
+                >
+                  <div className="w-full h-16 rounded-lg mb-2" style={{ background: 'linear-gradient(180deg, #111827 0%, #0f172a 100%)' }}></div>
+                  <p className="text-white text-sm font-bold">Koyu</p>
+                  <p className="text-gray-400 text-xs">Varsayılan</p>
+                </button>
+                
+                <button
+                  onClick={() => { playClick(); setTheme('light'); }}
+                  className={clsx(
+                    "p-4 rounded-xl border-2 transition-all",
+                    currentTheme === 'light' ? "border-blue-500 bg-blue-500/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+                  )}
+                >
+                  <div className="w-full h-16 rounded-lg mb-2" style={{ background: 'linear-gradient(180deg, #f9fafb 0%, #e5e7eb 100%)' }}></div>
+                  <p className="text-white text-sm font-bold">Açık</p>
+                  <p className="text-gray-400 text-xs">Parlak</p>
+                </button>
+                
+                <button
+                  onClick={() => { playClick(); setTheme('neon'); }}
+                  className={clsx(
+                    "p-4 rounded-xl border-2 transition-all",
+                    currentTheme === 'neon' ? "border-blue-500 bg-blue-500/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+                  )}
+                >
+                  <div className="w-full h-16 rounded-lg mb-2" style={{ background: 'linear-gradient(180deg, #0f0e17 0%, #1a0a2e 100%)' }}></div>
+                  <p className="text-white text-sm font-bold">Neon</p>
+                  <p className="text-gray-400 text-xs">Mor Ton</p>
+                </button>
+                
+                <button
+                  onClick={() => { playClick(); setTheme('ocean'); }}
+                  className={clsx(
+                    "p-4 rounded-xl border-2 transition-all",
+                    currentTheme === 'ocean' ? "border-blue-500 bg-blue-500/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+                  )}
+                >
+                  <div className="w-full h-16 rounded-lg mb-2" style={{ background: 'linear-gradient(180deg, #0a1929 0%, #0c1821 100%)' }}></div>
+                  <p className="text-white text-sm font-bold">Okyanus</p>
+                  <p className="text-gray-400 text-xs">Mavi Ton</p>
+                </button>
+              </div>
+              
+              <button
+                onClick={() => { playClick(); setShowThemeSelector(false); }}
+                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all"
+              >
+                Tamam
+              </button>
             </motion.div>
           </motion.div>
         )}

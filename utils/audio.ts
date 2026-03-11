@@ -173,3 +173,44 @@ export const playClick = () => {
   osc.start(ctx.currentTime);
   osc.stop(ctx.currentTime + 0.04);
 };
+
+/** Surge Mode activation sound (Energetic ramp up) */
+export const playSurgeStart = () => {
+  if (isMuted()) return;
+  const ctx = getCtx();
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(200, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.4);
+  gain.gain.setValueAtTime(0.01, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 0.2);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.5);
+};
+
+/** Surge Mode deactivation sound (Power down) */
+export const playSurgeEnd = () => {
+  if (isMuted()) return;
+  const ctx = getCtx();
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(600, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.3);
+  gain.gain.setValueAtTime(0.08, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.4);
+};

@@ -1,7 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as BABYLON from 'babylonjs';
 import { useGameStore } from '../store/gameStore';
+import { useThemeStore } from '../store/themeStore';
 import { GRID_SIZE, SkillType, CellType } from '../types';
+import { getDragYOffset } from '../utils/responsive';
 import clsx from 'clsx';
 
 // Constants for 3D layout
@@ -13,6 +15,7 @@ const GRID_OFFSET = ((GRID_SIZE - 1) * TOTAL_CELL_SIZE) / 2;
 export const Grid: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, useShatter, setDraggedPiece, score, combo, isSurgeActive } = useGameStore();
+    const { getThemeColors } = useThemeStore();
 
     const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive });
     useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive]);
@@ -26,6 +29,8 @@ export const Grid: React.FC = () => {
     const ambientParticlesRef = useRef<BABYLON.Mesh[]>([]);
     const lastScoreRef = useRef(0);
     const glowLayerRef = useRef<BABYLON.GlowLayer | null>(null);
+    const placementHandledRef = useRef(false);
+    const skillOverlayMeshesRef = useRef<BABYLON.Mesh[]>([]);
 
     // Refs for render loop logic
     const lastHandledActionRef = useRef<any>(null);
@@ -133,23 +138,24 @@ export const Grid: React.FC = () => {
         const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 20, height: 20 }, scene);
         ground.visibility = 0;
 
-        // Grid Base — mobile'de daha koyu
+        // Get theme colors
+        const themeColors = getThemeColors();
+        
+        // Grid Base — themed
         const baseSize = (GRID_SIZE * TOTAL_CELL_SIZE) + 1.5;
         const gridBase = BABYLON.MeshBuilder.CreateBox("gridBase", { width: baseSize, height: 0.1, depth: baseSize }, scene);
         gridBase.position.y = -0.6;
         const gridMat = new BABYLON.StandardMaterial("gridMat", scene);
-        // Koyu gri-navy, speküler tamamen sıfır → ışık yansıması yok → parlak görünmez
-        gridMat.diffuseColor = BABYLON.Color3.FromHexString("#0a0f18");
-        gridMat.emissiveColor = BABYLON.Color3.FromHexString("#060a10");
-        gridMat.specularColor = BABYLON.Color3.Black(); // Parlama yok!
+        gridMat.diffuseColor = BABYLON.Color3.FromHexString(themeColors.gridBase);
+        gridMat.emissiveColor = BABYLON.Color3.FromHexString(themeColors.gridBase).scale(0.6);
+        gridMat.specularColor = BABYLON.Color3.Black();
         gridMat.specularPower = 0;
         gridBase.material = gridMat;
         gridBase.isPickable = false;
 
-        // Grid Slots - The "Blue Grid" lines from the image
+        // Grid Slots - themed
         for (let y = 0; y < GRID_SIZE; y++) {
             for (let x = 0; x < GRID_SIZE; x++) {
-                // We use edges rendering on these invisible boxes to create the grid lines
                 const slot = BABYLON.MeshBuilder.CreateBox(`slot-${x}-${y}`, { width: 0.95, depth: 0.95, height: 0.05 }, scene);
                 slot.position.x = (x * TOTAL_CELL_SIZE) - GRID_OFFSET;
                 slot.position.z = -((y * TOTAL_CELL_SIZE) - GRID_OFFSET);
@@ -157,19 +163,17 @@ export const Grid: React.FC = () => {
                 slot.isPickable = false;
 
                 const slotMat = new BABYLON.StandardMaterial(`slotMat-${x}-${y}`, scene);
-                // Çok hafif koyu yüzey — tamamen şeffaf değil, ışık yansımasını engeller
-                slotMat.diffuseColor = BABYLON.Color3.FromHexString("#0a0f18");
-                slotMat.emissiveColor = BABYLON.Color3.FromHexString("#080c14");
+                slotMat.diffuseColor = BABYLON.Color3.FromHexString(themeColors.gridSlot);
+                slotMat.emissiveColor = BABYLON.Color3.FromHexString(themeColors.gridSlot).scale(0.8);
                 slotMat.specularColor = BABYLON.Color3.Black();
                 slotMat.alpha = 0.92;
                 slot.material = slotMat;
 
-                // Grid lines — Daha belirgin hale getirildi
+                // Grid lines — themed and more visible
                 slot.enableEdgesRendering();
-                slot.edgesWidth = isMobile ? 1.5 : 2.0; // Arttırıldı
-                slot.edgesColor = isMobile
-                    ? new BABYLON.Color4(0.3, 0.4, 0.5, 0.25) // Daha parlak ve opak
-                    : new BABYLON.Color4(0.4, 0.5, 0.6, 0.35); // Daha parlak ve opak
+                slot.edgesWidth = isMobile ? 2.0 : 2.5;
+                const edgeColor = BABYLON.Color3.FromHexString(themeColors.gridEdge);
+                slot.edgesColor = new BABYLON.Color4(edgeColor.r, edgeColor.g, edgeColor.b, 0.5);
             }
         }
 
@@ -303,8 +307,7 @@ export const Grid: React.FC = () => {
                 const y = globalMouseRef.current.y - rect.top;
 
                 // Drag offset - Must exactly match the 2D DragOverlay offset
-                const isMobile = window.innerWidth < 768;
-                const DRAG_Y_OFFSET = (stateRef.current.draggedPiece && isMobile) ? Math.min(-90, -window.innerHeight * 0.11) : 0;
+                const DRAG_Y_OFFSET = stateRef.current.draggedPiece ? getDragYOffset() : 0;
 
                 if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
                     pickInfo = scene.pick(x, y + DRAG_Y_OFFSET, (mesh) => mesh === ground);
@@ -573,23 +576,34 @@ export const Grid: React.FC = () => {
 
         const handleWindowPointerUp = () => {
             const { draggedPiece } = stateRef.current;
+            
+            // Handle piece placement
             if (draggedPiece && hoverCoordRef.current) {
                 placePiece(draggedPiece, hoverCoordRef.current.x, hoverCoordRef.current.y);
             }
+            
+            // Reset state
             setDraggedPiece(null);
             hoverCoordRef.current = null;
             setHoverCoord(null);
             globalMouseRef.current = null;
         };
 
-        const handleCanvasPointerUp = () => {
-            const { activeSkill } = stateRef.current;
+        const handleCanvasPointerUp = (e: PointerEvent) => {
+            const { activeSkill, draggedPiece } = stateRef.current;
             const hover = hoverCoordRef.current;
+            
+            // Handle skill usage
             if (activeSkill === SkillType.SHATTER && hover) {
                 if (hover.x >= 0 && hover.x < GRID_SIZE && hover.y >= 0 && hover.y < GRID_SIZE) {
                     useShatter(hover.x, hover.y);
+                    e.stopPropagation(); // Prevent window handler
+                    return;
                 }
             }
+            
+            // Handle piece placement - don't stop propagation, let window handler do it
+            // This ensures placement works both on canvas and outside
         };
 
         window.addEventListener('pointerup', handleWindowPointerUp);
@@ -597,6 +611,65 @@ export const Grid: React.FC = () => {
         canvasRef.current.addEventListener('pointerup', handleCanvasPointerUp);
 
         engine.runRenderLoop(() => {
+            const time = performance.now() / 1000;
+            
+            // Clear old skill overlays
+            skillOverlayMeshesRef.current.forEach(m => m.dispose());
+            skillOverlayMeshesRef.current = [];
+
+            const currentHover = hoverCoordRef.current;
+            const { activeSkill, grid } = stateRef.current;
+            
+            if (activeSkill && currentHover) {
+                if (activeSkill === SkillType.SHATTER) {
+                    // Highlight the single hovered cell
+                    if (currentHover.x >= 0 && currentHover.x < GRID_SIZE && 
+                        currentHover.y >= 0 && currentHover.y < GRID_SIZE &&
+                        grid[currentHover.y][currentHover.x].filled) {
+                        
+                        const overlay = BABYLON.MeshBuilder.CreateBox("shatter-overlay", {
+                            size: CELL_SIZE * 0.95,
+                            height: 0.7
+                        }, scene);
+                        overlay.position = getVectorPos(currentHover.x, currentHover.y);
+                        overlay.position.y = 0.1;
+                        
+                        const mat = new BABYLON.StandardMaterial("shatterMat", scene);
+                        mat.emissiveColor = BABYLON.Color3.FromHexString("#ef4444");
+                        mat.alpha = 0.3 + Math.sin(time * 8) * 0.15; // Pulsing
+                        overlay.material = mat;
+                        overlay.isPickable = false;
+                        
+                        skillOverlayMeshesRef.current.push(overlay);
+                    }
+                } else if (activeSkill === SkillType.BOMB) {
+                    // Highlight 3x3 area
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            const x = currentHover.x + dx;
+                            const y = currentHover.y + dy;
+                            
+                            if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE) {
+                                const overlay = BABYLON.MeshBuilder.CreateBox("bomb-overlay", {
+                                    size: CELL_SIZE * 0.95,
+                                    height: 0.7
+                                }, scene);
+                                overlay.position = getVectorPos(x, y);
+                                overlay.position.y = 0.1;
+                                
+                                const mat = new BABYLON.StandardMaterial("bombMat", scene);
+                                mat.emissiveColor = BABYLON.Color3.FromHexString("#f97316");
+                                mat.alpha = 0.25 + Math.sin(time * 8) * 0.1; // Pulsing
+                                overlay.material = mat;
+                                overlay.isPickable = false;
+                                
+                                skillOverlayMeshesRef.current.push(overlay);
+                            }
+                        }
+                    }
+                }
+            }
+            
             scene.render();
         });
 

@@ -50,39 +50,6 @@ export const POINTS = {
 
 import { ObjectiveType, LevelDef, Achievement } from './types';
 
-export const LEVELS: LevelDef[] = [
-  {
-    index: 1,
-    name: "Başlangıç",
-    objectives: [
-      { type: ObjectiveType.SCORE, target: 1000, current: 0 },
-      { type: ObjectiveType.CLEAR_LINES, target: 5, current: 0 }
-    ],
-    movesLimit: 20,
-    rewardFlux: 30
-  },
-  {
-    index: 2,
-    name: "Buz Kıran",
-    objectives: [
-      { type: ObjectiveType.BREAK_ICE, target: 3, current: 0 },
-      { type: ObjectiveType.SCORE, target: 2500, current: 0 }
-    ],
-    movesLimit: 25,
-    rewardFlux: 40
-  },
-  {
-    index: 3,
-    name: "Zincir Reaksiyonu",
-    objectives: [
-      { type: ObjectiveType.CHAIN_REACTION, target: 2, current: 0 },
-      { type: ObjectiveType.CLEAR_LINES, target: 10, current: 0 }
-    ],
-    movesLimit: 30,
-    rewardFlux: 50
-  }
-];
-
 export const ACHIEVEMENTS: Achievement[] = [
   {
     id: 'score_10k',
@@ -114,16 +81,16 @@ export const ACHIEVEMENTS: Achievement[] = [
 import { ActiveAbilityType, PassiveAbilityType, AbilityUnlock } from './types';
 
 export const ABILITY_UNLOCKS: AbilityUnlock[] = [
-  { ability: ActiveAbilityType.ROTATE, condition: { type: 'LEVEL', value: 5 } },
-  { ability: ActiveAbilityType.SWAP, condition: { type: 'LEVEL', value: 10 } },
-  { ability: ActiveAbilityType.FREEZE, condition: { type: 'LEVEL', value: 15 } },
-  { ability: ActiveAbilityType.MAGNET, condition: { type: 'ACHIEVEMENT_COUNT', value: 10 } },
-  { ability: ActiveAbilityType.UNDO, condition: { type: 'TOTAL_SCORE', value: 50000 } },
   { ability: PassiveAbilityType.FLUX_BOOST, condition: { type: 'LEVEL', value: 3 } },
-  { ability: PassiveAbilityType.SCORE_MULTIPLIER, condition: { type: 'LEVEL', value: 7 } },
-  { ability: PassiveAbilityType.LUCKY_PIECES, condition: { type: 'LEVEL', value: 12 } },
-  { ability: PassiveAbilityType.COMBO_MASTER, condition: { type: 'ACHIEVEMENT_COUNT', value: 5 } },
-  { ability: PassiveAbilityType.ICE_BREAKER, condition: { type: 'TOTAL_SCORE', value: 25000 } }
+  { ability: ActiveAbilityType.ROTATE, condition: { type: 'LEVEL', value: 5 } },
+  { ability: PassiveAbilityType.SCORE_MULTIPLIER, condition: { type: 'LEVEL', value: 8 } },
+  { ability: ActiveAbilityType.SWAP, condition: { type: 'LEVEL', value: 12 } },
+  { ability: PassiveAbilityType.LUCKY_PIECES, condition: { type: 'LEVEL', value: 15 } },
+  { ability: ActiveAbilityType.FREEZE, condition: { type: 'LEVEL', value: 20 } },
+  { ability: PassiveAbilityType.ICE_BREAKER, condition: { type: 'LEVEL', value: 25 } },
+  { ability: ActiveAbilityType.MAGNET, condition: { type: 'LEVEL', value: 30 } },
+  { ability: PassiveAbilityType.COMBO_MASTER, condition: { type: 'LEVEL', value: 35 } },
+  { ability: ActiveAbilityType.UNDO, condition: { type: 'LEVEL', value: 40 } }
 ];
 
 // Expanded Achievement Definitions

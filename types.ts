@@ -31,7 +31,8 @@ export enum PassiveAbilityType {
 export enum GameMode {
   CAREER = 'CAREER',
   ENDLESS = 'ENDLESS',
-  TIMED = 'TIMED'
+  TIMED = 'TIMED',
+  DAILY_CHALLENGE = 'DAILY_CHALLENGE'
 }
 
 export enum AppState {
@@ -39,7 +40,8 @@ export enum AppState {
   MAP = 'MAP',
   GAME = 'GAME',
   CAREER = 'CAREER',
-  MODES = 'MODES' // Mode selection screen
+  MODES = 'MODES', // Mode selection screen
+  DAILY_CHALLENGE_INFO = 'DAILY_CHALLENGE_INFO'
 }
 
 export interface GameStats {
