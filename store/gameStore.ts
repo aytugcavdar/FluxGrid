@@ -291,7 +291,8 @@ const processGrid = (initialGrid: GridState): {
           if (!cell.filled) return;
 
           if (cell.type === CellType.ICE && (cell.health || 0) > 1) {
-              cell.health = (cell.health || 2) - 1;
+              // Ice takes damage - create new cell with reduced health (immutable)
+              currentGrid[y][x] = { ...cell, health: (cell.health || 2) - 1 };
               // Visual feedback for crack? handled by renderer checking health
           } else {
               const key = `${x},${y}`;
@@ -686,35 +687,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // 3. Process Grid
     const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken } = processGrid(tempGrid);
 
-    // Update Objectives (before score calculation for proper tracking)
-    const updatedObjectives = get().levelObjectives.map(obj => {
-      let current = obj.current;
-      if (obj.type === ObjectiveType.CLEAR_LINES) current += linesCleared;
-      if (obj.type === ObjectiveType.CHAIN_REACTION) current += chainCount;
-      if (obj.type === ObjectiveType.USE_BOMB) current += bombsExploded;
-      if (obj.type === ObjectiveType.BREAK_ICE) current += iceBroken;
-      // SCORE will be updated after score calculation
-      return { ...obj, current: Math.min(obj.target, current) };
-    });
-
-    // Update Achievements
-    const updatedAchievements = get().achievements.map(ach => {
-      if (ach.unlocked) return ach;
-      let val = ach.currentValue;
-      if (ach.id === 'score_10k') val = Math.max(val, score);
-      if (ach.id === 'combo_5') val = Math.max(val, combo > 0 ? combo + 1 : 0);
-      return { ...ach, currentValue: val, unlocked: val >= ach.targetValue };
-    });
-
-    // Save achievements
-    localStorage.setItem('flux_achievements', JSON.stringify(updatedAchievements));
-
-    // Handle just unlocked achievement
-    const newUnlock = updatedAchievements.find((ach, i) => ach.unlocked && !get().achievements[i].unlocked);
-
-    // 4. Puan hesaplama
-    const comboMultiplier = linesCleared > 0 ? combo + 1 : 0;
-    const newCombo = linesCleared > 0 ? comboMultiplier : 0; // Reset combo to 0 if no lines cleared
+    // 4. Puan hesaplama (önce hesapla)
+    // Combo: eğer satır temizlendiyse artır, yoksa 0
+    const newCombo = linesCleared > 0 ? combo + 1 : 0;
+    const comboMultiplier = newCombo;
 
     // Renk bonusu: tek renk satır/sütun temizleme
     const colorBonusMultiplier = (linesCleared > 0 && colorBonus) ? POINTS.COLOR_BONUS_MULTIPLIER : 1;
@@ -725,8 +701,40 @@ export const useGameStore = create<GameStore>((set, get) => ({
                        (linesCleared * POINTS.LINE_CLEARED) +
                        (comboMultiplier * POINTS.COMBO_MULTIPLIER);
     const pointsGained = Math.round(basePoints * colorBonusMultiplier * surgeMultiplier);
+    
+    const newScore = score + pointsGained;
+
+    // 5. Update Objectives (TEK SEFERDE, yeni score ile)
+    const updatedObjectives = get().levelObjectives.map(obj => {
+      let current = obj.current;
+      if (obj.type === ObjectiveType.SCORE) current = newScore;
+      if (obj.type === ObjectiveType.CLEAR_LINES) current += linesCleared;
+      if (obj.type === ObjectiveType.CHAIN_REACTION) current += chainCount;
+      if (obj.type === ObjectiveType.USE_BOMB) current += bombsExploded;
+      if (obj.type === ObjectiveType.BREAK_ICE) current += iceBroken;
+      return { ...obj, current: Math.min(obj.target, current) };
+    });
+
+    const levelFinished = updatedObjectives.every(obj => obj.current >= obj.target);
+
+    // Update Achievements
+    const updatedAchievements = get().achievements.map(ach => {
+      if (ach.unlocked) return ach;
+      let val = ach.currentValue;
+      if (ach.id === 'score_10k') val = Math.max(val, newScore);
+      if (ach.id === 'combo_5') val = Math.max(val, newCombo);
+      return { ...ach, currentValue: val, unlocked: val >= ach.targetValue };
+    });
+
+    // Save achievements
+    localStorage.setItem('flux_achievements', JSON.stringify(updatedAchievements));
+
+    // Handle just unlocked achievement
+    const newUnlock = updatedAchievements.find((ach, i) => ach.unlocked && !get().achievements[i].unlocked);
 
     // lastAction güncelle
+
+    // Update Achievements
     if (linesCleared > 0) {
       set({ lastAction: {
         type: 'CLEAR',
@@ -776,7 +784,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         if (navigator.vibrate) navigator.vibrate(20);
     }
 
-    const newScore = score + pointsGained;
     const modeKey = get().gameMode;
     const currentHighs = get().highScores;
     const oldHigh = currentHighs[modeKey] || 0;
@@ -785,19 +792,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const newHighs = { ...currentHighs, [modeKey]: newScore };
       set({ highScores: newHighs });
       localStorage.setItem('flux_highscores', JSON.stringify(newHighs));
-      // Also update legacy highscore for backward compatibility
       localStorage.setItem('flux_highscore', newScore.toString());
     }
-
-    // Update Objectives with NEW score
-    const updatedObjectivesWithScore = updatedObjectives.map(obj => {
-      if (obj.type === ObjectiveType.SCORE) {
-        return { ...obj, current: Math.min(obj.target, newScore) };
-      }
-      return obj;
-    });
-
-    const levelFinished = updatedObjectivesWithScore.every(obj => obj.current >= obj.target);
 
     // Time Reward logic
     let extraTime = 0;
@@ -817,7 +813,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       pieces: currentPieces,
       movesLeft: get().gameMode === GameMode.CAREER ? (get().movesLeft - 1) : 999,
       timeLeft: Math.min(99, get().timeLeft + extraTime),
-      levelObjectives: updatedObjectivesWithScore,
+      levelObjectives: updatedObjectives,
       isLevelComplete: levelFinished,
       achievements: updatedAchievements,
       unlockedAchievementId: newUnlock ? newUnlock.id : get().unlockedAchievementId

@@ -590,7 +590,7 @@ export const Grid: React.FC = () => {
         };
 
         const handleCanvasPointerUp = (e: PointerEvent) => {
-            const { activeSkill, draggedPiece } = stateRef.current;
+            const { activeSkill } = stateRef.current;
             const hover = hoverCoordRef.current;
             
             // Handle skill usage
@@ -598,12 +598,9 @@ export const Grid: React.FC = () => {
                 if (hover.x >= 0 && hover.x < GRID_SIZE && hover.y >= 0 && hover.y < GRID_SIZE) {
                     useShatter(hover.x, hover.y);
                     e.stopPropagation(); // Prevent window handler
-                    return;
                 }
             }
-            
-            // Handle piece placement - don't stop propagation, let window handler do it
-            // This ensures placement works both on canvas and outside
+            // Note: Piece placement is handled by window handler
         };
 
         window.addEventListener('pointerup', handleWindowPointerUp);
@@ -613,9 +610,8 @@ export const Grid: React.FC = () => {
         engine.runRenderLoop(() => {
             const time = performance.now() / 1000;
             
-            // Clear old skill overlays
-            skillOverlayMeshesRef.current.forEach(m => m.dispose());
-            skillOverlayMeshesRef.current = [];
+            // Hide all skill overlays first
+            skillOverlayMeshesRef.current.forEach(m => m.isVisible = false);
 
             const currentHover = hoverCoordRef.current;
             const { activeSkill, grid } = stateRef.current;
@@ -627,43 +623,59 @@ export const Grid: React.FC = () => {
                         currentHover.y >= 0 && currentHover.y < GRID_SIZE &&
                         grid[currentHover.y][currentHover.x].filled) {
                         
-                        const overlay = BABYLON.MeshBuilder.CreateBox("shatter-overlay", {
-                            size: CELL_SIZE * 0.95,
-                            height: 0.7
-                        }, scene);
+                        // Reuse or create overlay
+                        let overlay = skillOverlayMeshesRef.current[0];
+                        if (!overlay) {
+                            overlay = BABYLON.MeshBuilder.CreateBox("shatter-overlay", {
+                                size: CELL_SIZE * 0.95,
+                                height: 0.7
+                            }, scene);
+                            overlay.position.y = 0.1;
+                            
+                            const mat = new BABYLON.StandardMaterial("shatterMat", scene);
+                            mat.emissiveColor = BABYLON.Color3.FromHexString("#ef4444");
+                            overlay.material = mat;
+                            overlay.isPickable = false;
+                            
+                            skillOverlayMeshesRef.current[0] = overlay;
+                        }
+                        
                         overlay.position = getVectorPos(currentHover.x, currentHover.y);
                         overlay.position.y = 0.1;
-                        
-                        const mat = new BABYLON.StandardMaterial("shatterMat", scene);
-                        mat.emissiveColor = BABYLON.Color3.FromHexString("#ef4444");
-                        mat.alpha = 0.3 + Math.sin(time * 8) * 0.15; // Pulsing
-                        overlay.material = mat;
-                        overlay.isPickable = false;
-                        
-                        skillOverlayMeshesRef.current.push(overlay);
+                        (overlay.material as BABYLON.StandardMaterial).alpha = 0.3 + Math.sin(time * 8) * 0.15;
+                        overlay.isVisible = true;
                     }
                 } else if (activeSkill === SkillType.BOMB) {
                     // Highlight 3x3 area
+                    let overlayIndex = 0;
                     for (let dy = -1; dy <= 1; dy++) {
                         for (let dx = -1; dx <= 1; dx++) {
                             const x = currentHover.x + dx;
                             const y = currentHover.y + dy;
                             
                             if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE) {
-                                const overlay = BABYLON.MeshBuilder.CreateBox("bomb-overlay", {
-                                    size: CELL_SIZE * 0.95,
-                                    height: 0.7
-                                }, scene);
+                                // Reuse or create overlay
+                                let overlay = skillOverlayMeshesRef.current[overlayIndex];
+                                if (!overlay) {
+                                    overlay = BABYLON.MeshBuilder.CreateBox(`bomb-overlay-${overlayIndex}`, {
+                                        size: CELL_SIZE * 0.95,
+                                        height: 0.7
+                                    }, scene);
+                                    overlay.position.y = 0.1;
+                                    
+                                    const mat = new BABYLON.StandardMaterial(`bombMat-${overlayIndex}`, scene);
+                                    mat.emissiveColor = BABYLON.Color3.FromHexString("#f97316");
+                                    overlay.material = mat;
+                                    overlay.isPickable = false;
+                                    
+                                    skillOverlayMeshesRef.current[overlayIndex] = overlay;
+                                }
+                                
                                 overlay.position = getVectorPos(x, y);
                                 overlay.position.y = 0.1;
-                                
-                                const mat = new BABYLON.StandardMaterial("bombMat", scene);
-                                mat.emissiveColor = BABYLON.Color3.FromHexString("#f97316");
-                                mat.alpha = 0.25 + Math.sin(time * 8) * 0.1; // Pulsing
-                                overlay.material = mat;
-                                overlay.isPickable = false;
-                                
-                                skillOverlayMeshesRef.current.push(overlay);
+                                (overlay.material as BABYLON.StandardMaterial).alpha = 0.25 + Math.sin(time * 8) * 0.1;
+                                overlay.isVisible = true;
+                                overlayIndex++;
                             }
                         }
                     }
@@ -681,6 +693,11 @@ export const Grid: React.FC = () => {
             window.removeEventListener('pointerup', handleWindowPointerUp);
             window.removeEventListener('pointermove', handleGlobalPointerMove);
             if (canvasRef.current) canvasRef.current.removeEventListener('pointerup', handleCanvasPointerUp);
+            
+            // Dispose skill overlays
+            skillOverlayMeshesRef.current.forEach(m => m?.dispose());
+            skillOverlayMeshesRef.current = [];
+            
             scene.dispose();
             engine.dispose();
         };
