@@ -32,7 +32,11 @@ export enum GameMode {
   CAREER = 'CAREER',
   ENDLESS = 'ENDLESS',
   TIMED = 'TIMED',
-  DAILY_CHALLENGE = 'DAILY_CHALLENGE'
+  DAILY_CHALLENGE = 'DAILY_CHALLENGE',
+  ZEN = 'ZEN',
+  BLITZ = 'BLITZ',
+  PUZZLE = 'PUZZLE',
+  SURVIVAL = 'SURVIVAL'
 }
 
 export enum AppState {
@@ -41,7 +45,8 @@ export enum AppState {
   GAME = 'GAME',
   CAREER = 'CAREER',
   MODES = 'MODES', // Mode selection screen
-  DAILY_CHALLENGE_INFO = 'DAILY_CHALLENGE_INFO'
+  DAILY_CHALLENGE_INFO = 'DAILY_CHALLENGE_INFO',
+  PUZZLE_MAP = 'PUZZLE_MAP'
 }
 
 export interface GameStats {
@@ -59,7 +64,8 @@ export interface GameStats {
 export enum CellType {
   NORMAL = 'NORMAL',
   ICE = 'ICE', // Needs 2 clears
-  BOMB = 'BOMB' // Explodes 3x3 on clear
+  BOMB = 'BOMB', // Explodes 3x3 on clear
+  STONE = 'STONE' // SURVIVAL mode rising rows
 }
 
 // Special Block Types
@@ -94,6 +100,12 @@ export interface LevelDef {
   objectives: LevelObjective[];
   movesLimit?: number;
   rewardFlux?: number;
+  // Puzzle mode fields
+  isPuzzle?: boolean;
+  initialGrid?: GridState;
+  fixedPieces?: PieceShape[];
+  targetRows?: number[];
+  targetCols?: number[];
 }
 
 export interface Achievement {

@@ -46,6 +46,15 @@ export const POINTS = {
   COMBO_MULTIPLIER: 75,
   COLOR_BONUS_MULTIPLIER: 1.5, // %50 bonus for single-color line clear
   SURGE_MULTIPLIER: 2.0,       // x2 during Surge mode
+  BLITZ_TIME_BONUS: 100,       // Bonus points per second remaining in BLITZ mode
+};
+
+// SURVIVAL Mode Stone Block
+export const STONE_BLOCK = {
+  color: '#4b5563',
+  type: 'STONE' as const,
+  clearable: true,
+  appearance: 'matte' as const
 };
 
 import { ObjectiveType, LevelDef, Achievement } from './types';

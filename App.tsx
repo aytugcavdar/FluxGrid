@@ -274,7 +274,7 @@ const App: React.FC = () => {
 
   // Global Timer Loop
   useEffect(() => {
-    if (gameMode !== GameMode.TIMED || appState !== AppState.GAME || isGameOver) return;
+    if ((gameMode !== GameMode.TIMED && gameMode !== GameMode.ZEN && gameMode !== GameMode.BLITZ && gameMode !== GameMode.SURVIVAL) || appState !== AppState.GAME || isGameOver) return;
     const interval = setInterval(() => {
       tickTimer();
     }, 1000);
@@ -437,6 +437,39 @@ const App: React.FC = () => {
                   <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">Hızlı Ol, Süre Kazan</span>
                 </div>
                 <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">⚡</div>
+              </button>
+
+              <button
+                onClick={() => { playClick(); initGame(GameMode.ZEN); }}
+                className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-purple-600/10 hover:border-purple-500/30 transition-all text-left overflow-hidden"
+              >
+                <div className="relative z-10">
+                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">ZEN</span>
+                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">Hedef yok. Süre yok. Sadece sen ve bloklar.</span>
+                </div>
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">☁️</div>
+              </button>
+
+              <button
+                onClick={() => { playClick(); initGame(GameMode.BLITZ); }}
+                className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-red-600/10 hover:border-red-500/30 transition-all text-left overflow-hidden"
+              >
+                <div className="relative z-10">
+                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">BLITZ</span>
+                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">30 saniye. Her satır 2 saniye kazandırır.</span>
+                </div>
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">⚡</div>
+              </button>
+
+              <button
+                onClick={() => { playClick(); initGame(GameMode.SURVIVAL); }}
+                className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-gray-600/10 hover:border-gray-500/30 transition-all text-left overflow-hidden"
+              >
+                <div className="relative z-10">
+                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">SURVIVAL</span>
+                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">Grid dolmadan önce temizle. Satırlar yükseliyor.</span>
+                </div>
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">💀</div>
               </button>
 
               <button

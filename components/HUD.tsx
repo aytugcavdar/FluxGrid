@@ -14,7 +14,8 @@ export const HUD: React.FC<{ onOpenAbilities?: () => void; onOpenProfile?: () =>
 }) => {
     const {
         score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive,
-        currentLevelIndex, movesLeft, levelObjectives, gameMode, timeLeft, setAppState
+        currentLevelIndex, movesLeft, levelObjectives, gameMode, timeLeft, setAppState,
+        zenSessionTime, zenBlocksPlaced
     } = useGameStore();
     const [muted, setMuted] = useState(getMuted);
 
@@ -50,21 +51,28 @@ export const HUD: React.FC<{ onOpenAbilities?: () => void; onOpenProfile?: () =>
                             {gameMode === GameMode.ENDLESS && `Sonsuz Mod`}
                             {gameMode === GameMode.TIMED && `Quantum Rush`}
                             {gameMode === GameMode.DAILY_CHALLENGE && `Günlük Meydan Okuma`}
+                            {gameMode === GameMode.ZEN && `ZEN Modu`}
+                            {gameMode === GameMode.BLITZ && `BLITZ`}
+                            {gameMode === GameMode.SURVIVAL && `SURVIVAL`}
                         </span>
                         {gameMode === GameMode.CAREER && currentLevelDef && (
                             <span className="text-[10px] md:text-xs text-white/60 truncate font-medium">-{currentLevelDef.name}</span>
                         )}
-                        {gameMode !== GameMode.CAREER && (
+                        {(gameMode !== GameMode.CAREER && gameMode !== GameMode.ZEN) && (
                             <span className="text-[10px] md:text-xs text-white/40 truncate font-medium italic">En İyi: {highScore.toLocaleString()}</span>
                         )}
                     </div>
 
-                    {gameMode === GameMode.TIMED ? (
+                    {gameMode === GameMode.TIMED || gameMode === GameMode.BLITZ ? (
                         <div className={clsx(
                             "flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-black tracking-tighter",
                             timeLeft <= 10 ? "bg-rose-500/20 text-rose-400 animate-pulse" : "bg-amber-500/20 text-amber-400"
                         )}>
                             <span>{timeLeft} Saniye</span>
+                        </div>
+                    ) : gameMode === GameMode.ZEN ? (
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-purple-500/20 text-purple-400">
+                            <span>⏱ {Math.floor(zenSessionTime / 60)}:{(zenSessionTime % 60).toString().padStart(2, '0')}</span>
                         </div>
                     ) : (
                         <div className={clsx(
@@ -104,7 +112,16 @@ export const HUD: React.FC<{ onOpenAbilities?: () => void; onOpenProfile?: () =>
                                 />
                             </div>
                         </div>
-                    )) : (
+                    )) : gameMode === GameMode.ZEN ? (
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[14px] md:text-[18px] font-black text-purple-400 italic tracking-tight">
+                                    🧱 {zenBlocksPlaced}
+                                </span>
+                                <span className="text-[8px] text-white/20 uppercase tracking-widest font-bold">Blok</span>
+                            </div>
+                        </div>
+                    ) : (
                         <div className="flex items-center gap-2">
                             <span className="text-[14px] md:text-[18px] font-black text-white italic tracking-tight">
                                 {score.toLocaleString()}

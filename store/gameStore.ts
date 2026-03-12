@@ -1,9 +1,13 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { GridState, Piece, PieceShape, GRID_SIZE, GridCell, SkillType, CellType, ObjectiveType, LevelObjective, Achievement, AppState, GameStats, GameMode } from '../types';
-import { SHAPES, POINTS, FLUX_COST, COLORS, ACHIEVEMENTS } from '../constants';
+import { SHAPES, POINTS, FLUX_COST, COLORS, ACHIEVEMENTS, STONE_BLOCK } from '../constants';
 import { generateLevel } from '../utils/levelGenerator';
 import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd } from '../utils/audio';
+import { handleError, safeExecute, ErrorCategory, ErrorSeverity } from '../utils/errorHandler';
+import { debouncedSave, safeLocalStorageGet, safeParseInt, safeJSONParse } from './helpers/localStorage';
+import { createEmptyGrid, processGrid } from './helpers/grid';
+import { getRandomPieces } from './helpers/pieces';
 
 interface GameStore {
   grid: GridState;
@@ -41,6 +45,17 @@ interface GameStore {
   stats: GameStats;
   maxLevelReached: number;
 
+  // ZEN Mode State
+  zenSessionTime: number;    // Saniye cinsinden oynama süresi
+  zenBlocksPlaced: number;   // Bu oturumda yerleştirilen blok sayısı
+
+  // SURVIVAL Mode State
+  survivalTime: number;           // Hayatta kalma süresi (saniye)
+  survivalPushInterval: number;   // Şu anki satır gelme aralığı (saniye)
+  survivalNextPush: number;       // Sonraki satır ne zaman gelecek (countdown)
+  survivalRowCount: number;       // Kaç taş satır geldi toplam
+  survivalHighScore: number;      // En iyi hayatta kalma süresi (saniye)
+
   // Actions
   initGame: (mode?: GameMode) => void;
   nextLevel: () => void;
@@ -48,6 +63,7 @@ interface GameStore {
   setAppState: (state: AppState) => void;
   setGameMode: (mode: GameMode) => void;
   tickTimer: () => void;
+  pushSurvivalRow: () => void;
   clearAchievementNotification: () => void;
   placePiece: (piece: Piece, startX: number, startY: number) => boolean;
   canPlacePiece: (grid: GridState, piece: Piece, startX: number, startY: number) => boolean;
@@ -58,309 +74,6 @@ interface GameStore {
   checkGameOver: () => void;
   resetGame: () => void;
 }
-
-const createEmptyGrid = (): GridState => 
-  Array(GRID_SIZE).fill(null).map(() => 
-    Array(GRID_SIZE).fill(null).map(() => ({ filled: false, color: '' }))
-  );
-
-import { SeededRNG, getDailySeed } from '../utils/seededRng';
-
-let currentDailyRNG: SeededRNG | null = null;
-
-const getRandomPieces = (count: number, grid?: GridState, isDaily?: boolean): Piece[] => {
-  const newPieces: Piece[] = [];
-  
-  if (isDaily && !currentDailyRNG) {
-    currentDailyRNG = new SeededRNG(getDailySeed());
-  }
-
-  // Calculate grid density if grid is provided
-  let density = 0;
-  if (grid) {
-    let filledCells = 0;
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let x = 0; x < GRID_SIZE; x++) {
-        if (grid[y][x].filled) filledCells++;
-      }
-    }
-    density = filledCells / (GRID_SIZE * GRID_SIZE);
-  }
-
-  for (let i = 0; i < count; i++) {
-    let selectedShape: PieceShape;
-
-    const randVal = isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
-
-    // Smart RNG: Adjust probabilities based on density
-    if (density > 0.7 && !isDaily) {
-      // High density: Favor smaller pieces (1x1, 1x2, 2x1) to prevent unfair losses (Disabled in daily for consistency)
-      const smallShapes = SHAPES.filter(s => s.shape.length * s.shape[0].length <= 2);
-      selectedShape = smallShapes[Math.floor(randVal * smallShapes.length)];
-    } else if (density > 0.5 && !isDaily) {
-      // Medium density: Mixed probabilities, slight bias against very large pieces
-      if (randVal > 0.3) {
-        // 70% chance for medium/small
-        const mediumShapes = SHAPES.filter(s => s.shape.length * s.shape[0].length <= 4);
-        selectedShape = mediumShapes[Math.floor((isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * mediumShapes.length)];
-      } else {
-        selectedShape = SHAPES[Math.floor((isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * SHAPES.length)];
-      }
-    } else {
-      // Low density or Daily mode: Completely random based on seed/Math.random
-      selectedShape = SHAPES[Math.floor(randVal * SHAPES.length)];
-    }
-    
-    // 15% chance for a special piece
-    let type: CellType = CellType.NORMAL;
-    const specialRand = isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
-    if (specialRand > 0.92) type = CellType.BOMB; // 8% chance
-    else if (specialRand > 0.85) type = CellType.ICE; // 7% chance
-
-    newPieces.push({ 
-        ...selectedShape, 
-        instanceId: uuidv4(),
-        type: type
-    });
-  }
-  return newPieces;
-};
-
-const processGrid = (initialGrid: GridState): {
-  grid: GridState;
-  totalLinesCleared: number;
-  chainCount: number;
-  colorBonus: boolean;
-  bombsExploded: number;
-  iceBroken: number;
-} => {
-  let currentGrid = initialGrid.map(row => row.map(cell => ({ ...cell })));
-  let totalLinesCleared = 0;
-  let linesClearedInPass = 0;
-  let chainCount = 0;      // Kaç dalga (do-while iteration) oluştu
-  let colorBonus = false;  // Herhangi bir dalga tek renkli miydi?
-  let bombsExploded = 0;
-  let iceBroken = 0;
-
-  do {
-    linesClearedInPass = 0;
-    
-    // 1. Check Rows
-    const fullRows: number[] = [];
-    for (let y = 0; y < GRID_SIZE; y++) {
-      if (currentGrid[y].every(cell => cell.filled)) fullRows.push(y);
-    }
-
-    // 2. Check Cols
-    const fullCols: number[] = [];
-    for (let x = 0; x < GRID_SIZE; x++) {
-      let isFull = true;
-      for (let y = 0; y < GRID_SIZE; y++) {
-        if (!currentGrid[y][x].filled) {
-          isFull = false;
-          break;
-        }
-      }
-      if (isFull) fullCols.push(x);
-    }
-
-    linesClearedInPass = fullRows.length + fullCols.length;
-    totalLinesCleared += linesClearedInPass;
-
-    if (linesClearedInPass > 0) {
-      chainCount++;
-
-      // Renk Bonusu: Temizlenen satır/sütunların tamamı aynı renkte mi?
-      const checkColorBonus = () => {
-        for (const y of fullRows) {
-          const rowColors = new Set(currentGrid[y].filter(c => c.filled).map(c => c.color));
-          if (rowColors.size === 1) return true;
-        }
-        for (const x of fullCols) {
-          const colColors = new Set<string>();
-          for (let y = 0; y < GRID_SIZE; y++) {
-            if (currentGrid[y][x].filled) colColors.add(currentGrid[y][x].color);
-          }
-          if (colColors.size === 1) return true;
-        }
-        return false;
-      };
-      if (checkColorBonus()) colorBonus = true;
-      // Identify cells to clear (Set to avoid duplicates)
-      const cellsToClear = new Set<string>(); // "x,y"
-      const bombsTriggered: {x: number, y: number}[] = [];
-
-      // Helper to mark cell for clearing
-      const markForClear = (x: number, y: number) => {
-        const key = `${x},${y}`;
-        if (cellsToClear.has(key)) return;
-
-        const cell = currentGrid[y][x];
-        if (!cell.filled) return;
-
-        // Handle ICE
-        if (cell.type === CellType.ICE && (cell.health || 0) > 1) {
-            // Ice takes damage but doesn't clear yet
-            // We modify the grid directly here for health, but don't add to cellsToClear
-            // Actually, we need to handle this carefully. 
-            // If we don't add to cellsToClear, it stays. 
-            // We should decrement health.
-            // But we can't modify currentGrid safely while iterating? 
-            // We are gathering what to clear first.
-            // Let's store "damage" separately?
-            // Simpler: If it's ICE and health > 1, we just decrement health and DO NOT add to cellsToClear.
-            // We'll do the mutation in the application phase.
-             cellsToClear.add(key); // Add it, but check health later?
-             // No, let's separate "cells hit" from "cells cleared".
-        } else {
-             cellsToClear.add(key);
-             if (cell.type === CellType.BOMB) {
-                 bombsTriggered.push({x, y});
-             }
-        }
-      };
-
-      // Mark row cells
-      fullRows.forEach(y => {
-        for (let x = 0; x < GRID_SIZE; x++) markForClear(x, y);
-      });
-      // Mark col cells
-      fullCols.forEach(x => {
-        for (let y = 0; y < GRID_SIZE; y++) markForClear(x, y);
-      });
-
-      // Handle Bomb Explosions (Recursive?)
-      // For simplicity, just one level of explosion for now, or loop until no new bombs
-      let bombIndex = 0;
-      while(bombIndex < bombsTriggered.length) {
-          const bomb = bombsTriggered[bombIndex];
-          bombIndex++;
-          
-          // Explode 3x3
-          for(let dy = -1; dy <= 1; dy++) {
-              for(let dx = -1; dx <= 1; dx++) {
-                  const nx = bomb.x + dx;
-                  const ny = bomb.y + dy;
-                  if(nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
-                      const key = `${nx},${ny}`;
-                      if(!cellsToClear.has(key) && currentGrid[ny][nx].filled) {
-                          cellsToClear.add(key);
-                          if(currentGrid[ny][nx].type === CellType.BOMB) {
-                              bombsTriggered.push({x: nx, y: ny});
-                          }
-                      }
-                  }
-              }
-          }
-      }
-
-      // Apply Clears and Damage
-      // We need to re-iterate rows/cols to apply damage to ICE that wasn't fully cleared?
-      // Actually, my markForClear logic above was a bit flawed.
-      // Let's iterate all "Hit" cells.
-      const cellsHit = new Set<string>();
-      fullRows.forEach(y => {
-        for (let x = 0; x < GRID_SIZE; x++) cellsHit.add(`${x},${y}`);
-      });
-      fullCols.forEach(x => {
-        for (let y = 0; y < GRID_SIZE; y++) cellsHit.add(`${x},${y}`);
-      });
-
-      // Also add bomb radius to cellsHit?
-      // Bombs only trigger if they are CLEARED.
-      // So first we determine what is cleared.
-      
-      // Let's refine:
-      // 1. Identify all cells that are part of a full line.
-      // 2. For each such cell:
-      //    - If ICE (health > 1): Decrement health. NOT CLEARED.
-      //    - Else: Mark as CLEARED.
-      //    - If BOMB and CLEARED: Add to explosion queue.
-      // 3. Process explosion queue:
-      //    - For each cell in radius:
-      //      - If ICE (health > 1): Decrement health. NOT CLEARED.
-      //      - Else: Mark as CLEARED.
-      //      - If BOMB and CLEARED (and not visited): Add to queue.
-
-      const finalCellsToClear = new Set<string>();
-      const processedBombs = new Set<string>();
-      const explosionQueue: {x: number, y: number}[] = [];
-
-      const processHit = (x: number, y: number) => {
-          const cell = currentGrid[y][x];
-          if (!cell.filled) return;
-
-          if (cell.type === CellType.ICE && (cell.health || 0) > 1) {
-              // Ice takes damage - create new cell with reduced health (immutable)
-              currentGrid[y][x] = { ...cell, health: (cell.health || 2) - 1 };
-              // Visual feedback for crack? handled by renderer checking health
-          } else {
-              const key = `${x},${y}`;
-              if (!finalCellsToClear.has(key)) {
-                  finalCellsToClear.add(key);
-                  if (cell.type === CellType.ICE) {
-                      iceBroken++; // Track ice broken
-                  }
-                  if (cell.type === CellType.BOMB) {
-                      explosionQueue.push({x, y});
-                      bombsExploded++;
-                  }
-              }
-          }
-      };
-
-      // Initial Hits
-      cellsHit.forEach(key => {
-          const [x, y] = key.split(',').map(Number);
-          processHit(x, y);
-      });
-
-      // Process Explosions
-      while (explosionQueue.length > 0) {
-          const bomb = explosionQueue.pop()!;
-          const bKey = `${bomb.x},${bomb.y}`;
-          if (processedBombs.has(bKey)) continue;
-          processedBombs.add(bKey);
-
-          for(let dy = -1; dy <= 1; dy++) {
-              for(let dx = -1; dx <= 1; dx++) {
-                  const nx = bomb.x + dx;
-                  const ny = bomb.y + dy;
-                  if(nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
-                      processHit(nx, ny);
-                  }
-              }
-          }
-      }
-
-      // Execute Clears
-      finalCellsToClear.forEach(key => {
-          const [x, y] = key.split(',').map(Number);
-          currentGrid[y][x] = { filled: false, color: '' };
-      });
-
-      // Apply Gravity
-      for (let x = 0; x < GRID_SIZE; x++) {
-        const stack: GridCell[] = [];
-        // Collect filled cells
-        for (let y = 0; y < GRID_SIZE; y++) {
-          if (currentGrid[y][x].filled) stack.push(currentGrid[y][x]);
-        }
-        // Fill from bottom up
-        for (let y = GRID_SIZE - 1; y >= 0; y--) {
-          const popped = stack.pop();
-          if (popped) {
-            currentGrid[y][x] = popped;
-          } else {
-            currentGrid[y][x] = { filled: false, color: '' };
-          }
-        }
-      }
-    }
-  } while (linesClearedInPass > 0);
-
-  return { grid: currentGrid, totalLinesCleared, chainCount, colorBonus, bombsExploded, iceBroken };
-};
 
 const INITIAL_STATS: GameStats = {
   blocksPlaced: 0,
@@ -376,7 +89,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   grid: createEmptyGrid(),
   pieces: [],
   score: 0,
-  highScore: parseInt(localStorage.getItem('flux_highscore') || '0'),
+  highScore: safeParseInt(safeLocalStorageGet('flux_highscore', '0')),
   flux: 100,
   combo: 0,
   isGameOver: false,
@@ -389,7 +102,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   currentLevelIndex: 0,
   movesLeft: 0,
   levelObjectives: [],
-  achievements: JSON.parse(localStorage.getItem('flux_achievements') || JSON.stringify(ACHIEVEMENTS)),
+  achievements: safeJSONParse(safeLocalStorageGet('flux_achievements', JSON.stringify(ACHIEVEMENTS)), ACHIEVEMENTS),
   isLevelComplete: false,
   unlockedAchievementId: null,
 
@@ -397,45 +110,82 @@ export const useGameStore = create<GameStore>((set, get) => ({
   appState: AppState.HOME,
   gameMode: GameMode.CAREER,
   timeLeft: 0,
-  highScores: JSON.parse(localStorage.getItem('flux_highscores') || '{}'),
-  stats: JSON.parse(localStorage.getItem('flux_stats') || JSON.stringify(INITIAL_STATS)),
-  maxLevelReached: parseInt(localStorage.getItem('flux_max_level') || '0'),
+  highScores: safeJSONParse(safeLocalStorageGet('flux_highscores', '{}'), {}),
+  stats: safeJSONParse(safeLocalStorageGet('flux_stats', JSON.stringify(INITIAL_STATS)), INITIAL_STATS),
+  maxLevelReached: safeParseInt(safeLocalStorageGet('flux_max_level', '0')),
+
+  // ZEN Mode Initial State
+  zenSessionTime: 0,
+  zenBlocksPlaced: 0,
+
+  // SURVIVAL Mode Initial State
+  survivalTime: 0,
+  survivalPushInterval: 10,
+  survivalNextPush: 10,
+  survivalRowCount: 0,
+  survivalHighScore: safeParseInt(safeLocalStorageGet('flux_survival_highscore', '0')),
 
   initGame: (mode = GameMode.CAREER) => {
-    const firstLevel = generateLevel(1);
-    const isTimed = mode === GameMode.TIMED;
-    const isDaily = mode === GameMode.DAILY_CHALLENGE;
-    const initialGrid = createEmptyGrid();
+    const success = safeExecute(
+      () => {
+        const firstLevel = generateLevel(1);
+        const isTimed = mode === GameMode.TIMED;
+        const isDaily = mode === GameMode.DAILY_CHALLENGE;
+        const isZen = mode === GameMode.ZEN;
+        const isBlitz = mode === GameMode.BLITZ;
+        const isSurvival = mode === GameMode.SURVIVAL;
+        const initialGrid = createEmptyGrid();
+        
+        set({
+          grid: initialGrid,
+          pieces: getRandomPieces(3, initialGrid, isDaily),
+          score: 0,
+          flux: 50,
+          combo: 0,
+          isGameOver: false,
+          isSurgeActive: false,
+          activeSkill: null,
+          lastAction: null,
+          currentLevelIndex: 1,
+          movesLeft: mode === GameMode.CAREER ? (firstLevel.movesLimit || 0) : 999,
+          levelObjectives: mode === GameMode.CAREER ? firstLevel.objectives.map(o => ({ ...o })) : [],
+          isLevelComplete: false,
+          unlockedAchievementId: null,
+          appState: AppState.GAME,
+          gameMode: mode,
+          timeLeft: isTimed ? 60 : isBlitz ? 30 : 0,
+          // ZEN mode initialization
+          zenSessionTime: isZen ? 0 : get().zenSessionTime,
+          zenBlocksPlaced: isZen ? 0 : get().zenBlocksPlaced,
+          // SURVIVAL mode initialization
+          survivalTime: isSurvival ? 0 : get().survivalTime,
+          survivalPushInterval: isSurvival ? 10 : get().survivalPushInterval,
+          survivalNextPush: isSurvival ? 10 : get().survivalNextPush,
+          survivalRowCount: isSurvival ? 0 : get().survivalRowCount
+        });
+        
+        // Increment games played
+        const newStats = { ...get().stats, gamesPlayed: get().stats.gamesPlayed + 1 };
+        set({ stats: newStats });
+        localStorage.setItem('flux_stats', JSON.stringify(newStats));
+        
+        return true;
+      },
+      false,
+      ErrorCategory.GAME_STATE,
+      { operation: 'initGame', mode }
+    );
     
-    // Reset daily RNG if starting a new daily challenge
-    if (isDaily) {
-      currentDailyRNG = new SeededRNG(getDailySeed());
+    // Hata durumunda varsayılan duruma dön
+    if (!success) {
+      set({
+        grid: createEmptyGrid(),
+        pieces: [],
+        score: 0,
+        isGameOver: false,
+        appState: AppState.HOME
+      });
     }
-    
-    set({
-      grid: initialGrid,
-      pieces: getRandomPieces(3, initialGrid, isDaily),
-      score: 0,
-      flux: 50,
-      combo: 0,
-      isGameOver: false,
-      isSurgeActive: false,
-      activeSkill: null,
-      lastAction: null,
-      currentLevelIndex: 1, // Start at level 1 (1-indexed for generator)
-      movesLeft: mode === GameMode.CAREER ? (firstLevel.movesLimit || 0) : 999,
-      levelObjectives: mode === GameMode.CAREER ? firstLevel.objectives.map(o => ({ ...o })) : [],
-      isLevelComplete: false,
-      unlockedAchievementId: null,
-      appState: AppState.GAME,
-      gameMode: mode,
-      timeLeft: isTimed ? 60 : 0
-    });
-    
-    // Increment games played
-    const newStats = { ...get().stats, gamesPlayed: get().stats.gamesPlayed + 1 };
-    set({ stats: newStats });
-    localStorage.setItem('flux_stats', JSON.stringify(newStats));
   },
 
   startLevel: (levelIndex) => {
@@ -471,13 +221,175 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   tickTimer: () => {
     const { timeLeft, isGameOver, gameMode, appState } = get();
-    if (gameMode !== GameMode.TIMED || isGameOver || appState !== AppState.GAME) return;
+    
+    // Guard: Oyun bittiyse veya oyun ekranında değilse işlem yapma
+    if (isGameOver || appState !== AppState.GAME) return;
+    
+    safeExecute(
+      () => {
+        // ZEN modda session time'ı artır
+        if (gameMode === GameMode.ZEN) {
+          const newTime = get().zenSessionTime + 1;
+          // Guard: Makul bir üst limit (24 saat = 86400 saniye)
+          if (newTime < 86400) {
+            set({ zenSessionTime: newTime });
+          }
+          return;
+        }
+        
+        // SURVIVAL modda survival time'ı artır ve satır push logic'i
+        if (gameMode === GameMode.SURVIVAL) {
+          const newSurvivalTime = get().survivalTime + 1;
+          const newNextPush = get().survivalNextPush - 1;
+          
+          // Guard: Makul bir üst limit (24 saat)
+          if (newSurvivalTime < 86400) {
+            set({ survivalTime: newSurvivalTime });
+          }
+          
+          // Satır push zamanı geldi mi?
+          if (newNextPush <= 0) {
+            get().pushSurvivalRow();
+          } else {
+            set({ survivalNextPush: newNextPush });
+          }
+          
+          // Zorluk artışı kontrolü
+          let newInterval = get().survivalPushInterval;
+          if (newSurvivalTime === 60 && newInterval > 8) {
+            newInterval = 8;
+            set({ survivalPushInterval: newInterval });
+            playSkill();
+          } else if (newSurvivalTime === 120 && newInterval > 6) {
+            newInterval = 6;
+            set({ survivalPushInterval: newInterval });
+            playSkill();
+          } else if (newSurvivalTime === 180 && newInterval > 5) {
+            newInterval = 5;
+            set({ survivalPushInterval: newInterval });
+            playSkill();
+          } else if (newSurvivalTime === 200 && newInterval > 4) {
+            newInterval = 4;
+            set({ survivalPushInterval: newInterval });
+            playSkill();
+          }
+          
+          return;
+        }
+        
+        // TIMED ve BLITZ modda timer'ı azalt
+        if (gameMode === GameMode.TIMED || gameMode === GameMode.BLITZ) {
+          if (timeLeft <= 1) {
+            // BLITZ modda kalan süre bonusu ekle
+            if (gameMode === GameMode.BLITZ && timeLeft > 0) {
+              const timeBonus = timeLeft * POINTS.BLITZ_TIME_BONUS;
+              const newScore = get().score + timeBonus;
+              set({ score: newScore, highScore: Math.max(newScore, get().highScore) });
+            }
+            playGameOver();
+            set({ timeLeft: 0, isGameOver: true });
+          } else {
+            set({ timeLeft: timeLeft - 1 });
+          }
+        }
+      },
+      undefined,
+      ErrorCategory.GAME_STATE,
+      { operation: 'tickTimer', gameMode, timeLeft }
+    );
+  },
 
-    if (timeLeft <= 1) {
+  pushSurvivalRow: () => {
+    const { grid, isGameOver } = get();
+    
+    // Guard: Oyun zaten bittiyse işlem yapma
+    if (isGameOver) return;
+    
+    // Guard: Grid geçerli mi kontrol et
+    if (!grid || grid.length !== GRID_SIZE) {
+      handleError(
+        new Error('Invalid grid state in SURVIVAL mode'),
+        ErrorCategory.GAME_STATE,
+        ErrorSeverity.HIGH,
+        { gridLength: grid?.length, expected: GRID_SIZE }
+      );
+      return;
+    }
+    
+    // 1. Üst satırda blok var mı kontrol et (game over)
+    const topRowFilled = grid[0].some(cell => cell.filled);
+    if (topRowFilled) {
+      // High score güncelle
+      const currentTime = get().survivalTime;
+      const currentHighScore = get().survivalHighScore;
+      if (currentTime > currentHighScore) {
+        set({ survivalHighScore: currentTime });
+        debouncedSave('flux_survival_highscore', currentTime.toString());
+      }
       playGameOver();
-      set({ timeLeft: 0, isGameOver: true });
-    } else {
-      set({ timeLeft: timeLeft - 1 });
+      set({ isGameOver: true });
+      return;
+    }
+    
+    const success = safeExecute(
+      () => {
+        // 2. Grid'i yukarı kaydır
+        const newGrid = grid.map(row => row.map(cell => ({ ...cell })));
+        for (let y = 0; y < GRID_SIZE - 1; y++) {
+          for (let x = 0; x < GRID_SIZE; x++) {
+            newGrid[y][x] = newGrid[y + 1][x];
+          }
+        }
+        
+        // 3. Alt satıra taş satırı ekle (1-3 random boşluk ile)
+        const gapCount = Math.floor(Math.random() * 3) + 1;
+        const gapPositions = new Set<number>();
+        
+        // Guard: Sonsuz döngü önleme
+        let attempts = 0;
+        while (gapPositions.size < gapCount && attempts < 100) {
+          gapPositions.add(Math.floor(Math.random() * GRID_SIZE));
+          attempts++;
+        }
+        
+        for (let x = 0; x < GRID_SIZE; x++) {
+          if (gapPositions.has(x)) {
+            newGrid[GRID_SIZE - 1][x] = { filled: false, color: '' };
+          } else {
+            newGrid[GRID_SIZE - 1][x] = {
+              filled: true,
+              color: STONE_BLOCK.color,
+              id: uuidv4(),
+              type: CellType.STONE
+            };
+          }
+        }
+        
+        // 4. State'i güncelle
+        const newRowCount = get().survivalRowCount + 1;
+        const newNextPush = get().survivalPushInterval;
+        
+        set({
+          grid: newGrid,
+          survivalRowCount: newRowCount,
+          survivalNextPush: newNextPush
+        });
+        
+        // 5. Ses ve titreşim
+        playClear(1);
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        
+        return true;
+      },
+      false,
+      ErrorCategory.GAME_STATE,
+      { operation: 'pushSurvivalRow', survivalTime: get().survivalTime }
+    );
+    
+    // Hata durumunda oyunu bitir
+    if (!success) {
+      playGameOver();
+      set({ isGameOver: true });
     }
   },
 
@@ -562,7 +474,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const newScore = score + 5 + extraScore;
     const newHighScore = Math.max(newScore, get().highScore);
     if (newHighScore > get().highScore) {
-      localStorage.setItem('flux_highscore', newHighScore.toString());
+      debouncedSave('flux_highscore', newHighScore.toString());
     }
 
     set({
@@ -625,7 +537,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const newScore = score + (blocksDestroyed * 5) + extraScore;
     const newHighScore = Math.max(newScore, get().highScore);
     if (newHighScore > get().highScore) {
-      localStorage.setItem('flux_highscore', newHighScore.toString());
+      debouncedSave('flux_highscore', newHighScore.toString());
     }
 
     set({
@@ -660,7 +572,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   placePiece: (piece, startX, startY) => {
-    const { grid, score, combo, flux, highScore, isSurgeActive } = get();
+    const { grid, score, combo, flux, highScore, isSurgeActive, gameMode } = get();
     
     // 1. Validate placement
     if (!get().canPlacePiece(grid, piece, startX, startY)) return false;
@@ -687,7 +599,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // 3. Process Grid
     const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken } = processGrid(tempGrid);
 
-    // 4. Puan hesaplama (önce hesapla)
+    // ZEN mode: Blok sayısını artır
+    if (gameMode === GameMode.ZEN) {
+      set({ zenBlocksPlaced: get().zenBlocksPlaced + 1 });
+    }
+
+    // 4. Puan hesaplama (ZEN modda skip edilir)
     // Combo: eğer satır temizlendiyse artır, yoksa 0
     const newCombo = linesCleared > 0 ? combo + 1 : 0;
     const comboMultiplier = newCombo;
@@ -702,7 +619,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
                        (comboMultiplier * POINTS.COMBO_MULTIPLIER);
     const pointsGained = Math.round(basePoints * colorBonusMultiplier * surgeMultiplier);
     
-    const newScore = score + pointsGained;
+    // ZEN modda skor güncellenmez
+    const newScore = gameMode === GameMode.ZEN ? 0 : (score + pointsGained);
 
     // 5. Update Objectives (TEK SEFERDE, yeni score ile)
     const updatedObjectives = get().levelObjectives.map(obj => {
@@ -726,8 +644,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return { ...ach, currentValue: val, unlocked: val >= ach.targetValue };
     });
 
-    // Save achievements
-    localStorage.setItem('flux_achievements', JSON.stringify(updatedAchievements));
+    // Save achievements (debounced)
+    debouncedSave('flux_achievements', JSON.stringify(updatedAchievements));
 
     // Handle just unlocked achievement
     const newUnlock = updatedAchievements.find((ach, i) => ach.unlocked && !get().achievements[i].unlocked);
@@ -791,17 +709,37 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (newScore > oldHigh) {
       const newHighs = { ...currentHighs, [modeKey]: newScore };
       set({ highScores: newHighs });
-      localStorage.setItem('flux_highscores', JSON.stringify(newHighs));
-      localStorage.setItem('flux_highscore', newScore.toString());
+      debouncedSave('flux_highscores', JSON.stringify(newHighs));
+      debouncedSave('flux_highscore', newScore.toString());
     }
 
     // Time Reward logic
     let extraTime = 0;
+    const previousCombo = combo; // Önceki combo değerini sakla
+    
     if (get().gameMode === GameMode.TIMED && linesCleared > 0) {
       extraTime = linesCleared * 6; // 6 sec per line
       if (comboMultiplier > 1) extraTime += comboMultiplier * 3;
       if (isSurgeActive) extraTime *= 1.5;
     }
+    
+    // BLITZ mode time logic
+    if (get().gameMode === GameMode.BLITZ) {
+      if (linesCleared > 0) {
+        extraTime = linesCleared * 2; // +2 saniye per line
+        if (comboMultiplier > 1) extraTime += 0.5; // +0.5 saniye per combo
+      }
+      // Combo kırılma cezası: önceki combo > 0 ama şimdi 0 ise
+      if (previousCombo > 0 && newCombo === 0) {
+        extraTime = -1; // -1 saniye ceza
+      }
+      // Timer'ı 60 saniyede cap'le
+      const newTimeLeft = Math.min(60, Math.max(0, get().timeLeft + extraTime));
+      extraTime = newTimeLeft - get().timeLeft; // Gerçek değişimi hesapla
+    }
+
+    // Calculate new movesLeft - only decrement in CAREER mode
+    const newMovesLeft = get().gameMode === GameMode.CAREER ? (get().movesLeft - 1) : get().movesLeft;
 
     set({
       grid: newGrid,
@@ -811,7 +749,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       flux: finalFlux,
       isSurgeActive: newIsSurgeActive,
       pieces: currentPieces,
-      movesLeft: get().gameMode === GameMode.CAREER ? (get().movesLeft - 1) : 999,
+      movesLeft: newMovesLeft,
       timeLeft: Math.min(99, get().timeLeft + extraTime),
       levelObjectives: updatedObjectives,
       isLevelComplete: levelFinished,
@@ -830,12 +768,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       iceBroken: currentStats.iceBroken + iceBroken,
     };
     set({ stats: nextStats });
-    localStorage.setItem('flux_stats', JSON.stringify(nextStats));
+    debouncedSave('flux_stats', JSON.stringify(nextStats));
 
     if (levelFinished) {
       const nextMax = Math.max(get().maxLevelReached, get().currentLevelIndex + 1);
       set({ maxLevelReached: nextMax });
-      localStorage.setItem('flux_max_level', nextMax.toString());
+      debouncedSave('flux_max_level', nextMax.toString());
       
       // Apply reward flux
       const currentLevelDef = generateLevel(get().currentLevelIndex);
@@ -855,7 +793,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   checkGameOver: () => {
-    const { grid, pieces, activeSkill } = get();
+    const { grid, pieces, activeSkill, gameMode } = get();
+    
+    // ZEN modda oyun hiç bitmez
+    if (gameMode === GameMode.ZEN) return;
+    
+    // SURVIVAL modda üst satır kontrolü pushSurvivalRow'da yapılıyor
+    // Burada sadece piece placement kontrolü yapıyoruz
+    
     if (pieces.length === 0) return; // Should not happen due to refill logic
 
     // If we have a skill active (like Shatter), game is not over
@@ -877,6 +822,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     if (!canFitAny) {
+      // SURVIVAL modda high score güncelle
+      if (gameMode === GameMode.SURVIVAL) {
+        const currentTime = get().survivalTime;
+        const currentHighScore = get().survivalHighScore;
+        if (currentTime > currentHighScore) {
+          set({ survivalHighScore: currentTime });
+          debouncedSave('flux_survival_highscore', currentTime.toString());
+        }
+      }
       playGameOver();
       set({ isGameOver: true });
     }
