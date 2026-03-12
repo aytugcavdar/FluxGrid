@@ -1,8 +1,32 @@
-import { TouchGesture, TouchControllerState } from '@shared/types';
-import { GESTURE_THRESHOLDS } from '@shared/constants';
+// Local types for touch controller
+interface LocalTouchGesture {
+  type: 'TAP' | 'DRAG' | 'SWIPE' | 'LONG_PRESS';
+  startPos: { x: number; y: number };
+  currentPos: { x: number; y: number };
+  startTime: number;
+  fingers: number;
+}
+
+interface LocalTouchControllerState {
+  activeGestures: Map<number, LocalTouchGesture>;
+  lastTapTime: number;
+  draggedElement: HTMLElement | null;
+  zoomLevel: number;
+  cameraRotation: { x: number; y: number };
+}
+
+// Gesture thresholds
+const LOCAL_GESTURE_THRESHOLDS = {
+  TAP_MAX_DURATION: 200,
+  DOUBLE_TAP_MAX_INTERVAL: 300,
+  LONG_PRESS_DURATION: 500,
+  DRAG_MIN_DISTANCE: 10,
+  SWIPE_MIN_VELOCITY: 0.5,
+  PINCH_MIN_SCALE_CHANGE: 0.1,
+};
 
 class TouchController {
-  private state: TouchControllerState = {
+  private state: LocalTouchControllerState = {
     activeGestures: new Map(),
     lastTapTime: 0,
     draggedElement: null,
@@ -29,7 +53,7 @@ class TouchController {
     const touches = Array.from(e.touches);
     
     touches.forEach(touch => {
-      const gesture: TouchGesture = {
+      const gesture: LocalTouchGesture = {
         type: 'TAP',
         startPos: { x: touch.clientX, y: touch.clientY },
         currentPos: { x: touch.clientX, y: touch.clientY },
@@ -45,7 +69,7 @@ class TouchController {
     
     // Check for double tap
     const now = Date.now();
-    if (now - this.state.lastTapTime < GESTURE_THRESHOLDS.DOUBLE_TAP_MAX_INTERVAL) {
+    if (now - this.state.lastTapTime < LOCAL_GESTURE_THRESHOLDS.DOUBLE_TAP_MAX_INTERVAL) {
       // Double tap detected - ignore it
       e.preventDefault();
       return;
@@ -74,7 +98,7 @@ class TouchController {
         if (touches.length === 2) {
           this.handleTwoFingerGesture(touches[0], touches[1]);
         }
-      } else if (distance > GESTURE_THRESHOLDS.DRAG_MIN_DISTANCE) {
+      } else if (distance > LOCAL_GESTURE_THRESHOLDS.DRAG_MIN_DISTANCE) {
         gesture.type = 'DRAG';
         this.emit('drag', {
           position: gesture.currentPos,
@@ -86,7 +110,7 @@ class TouchController {
       }
       
       // Check for long press
-      if (duration > GESTURE_THRESHOLDS.LONG_PRESS_DURATION && distance < GESTURE_THRESHOLDS.DRAG_MIN_DISTANCE) {
+      if (duration > LOCAL_GESTURE_THRESHOLDS.LONG_PRESS_DURATION && distance < LOCAL_GESTURE_THRESHOLDS.DRAG_MIN_DISTANCE) {
         gesture.type = 'LONG_PRESS';
         this.emit('longpress', { position: gesture.currentPos });
         this.triggerHaptic([50, 30, 50]);
@@ -105,14 +129,14 @@ class TouchController {
       const distance = this.calculateDistance(gesture.startPos, gesture.currentPos);
       
       // Determine final gesture type
-      if (gesture.type === 'TAP' && duration < GESTURE_THRESHOLDS.TAP_MAX_DURATION) {
+      if (gesture.type === 'TAP' && duration < LOCAL_GESTURE_THRESHOLDS.TAP_MAX_DURATION) {
         this.emit('tap', { position: gesture.currentPos });
       } else if (gesture.type === 'DRAG') {
         this.emit('dragend', { position: gesture.currentPos });
-      } else if (distance > GESTURE_THRESHOLDS.DRAG_MIN_DISTANCE) {
+      } else if (distance > LOCAL_GESTURE_THRESHOLDS.DRAG_MIN_DISTANCE) {
         // Swipe
         const velocity = distance / duration;
-        if (velocity > GESTURE_THRESHOLDS.SWIPE_MIN_VELOCITY) {
+        if (velocity > LOCAL_GESTURE_THRESHOLDS.SWIPE_MIN_VELOCITY) {
           gesture.type = 'SWIPE';
           const direction = this.getSwipeDirection(gesture.startPos, gesture.currentPos);
           this.emit('swipe', { direction, velocity });
@@ -145,7 +169,7 @@ class TouchController {
     const startDistance = this.calculateDistance(gesture1.startPos, gesture2.startPos);
     const scaleChange = currentDistance / startDistance;
     
-    if (Math.abs(scaleChange - 1) > GESTURE_THRESHOLDS.PINCH_MIN_SCALE_CHANGE) {
+    if (Math.abs(scaleChange - 1) > LOCAL_GESTURE_THRESHOLDS.PINCH_MIN_SCALE_CHANGE) {
       this.emit('pinch', { scale: scaleChange });
     }
     

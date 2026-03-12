@@ -1,16 +1,29 @@
-import { PerformanceMetrics, OptimizationSettings } from '@shared/types';
-import { PERFORMANCE_SETTINGS } from '@shared/constants';
+// Local types for mobile optimizer
+interface LocalPerformanceMetrics {
+  fps: number;
+  frameTime: number;
+  memoryUsage: number;
+  drawCalls: number;
+}
+
+interface LocalOptimizationSettings {
+  particleLimit: number;
+  shadowQuality: 'HIGH' | 'MEDIUM' | 'LOW' | 'OFF';
+  textureQuality: 'HIGH' | 'MEDIUM' | 'LOW';
+  antialiasing: boolean;
+  bloomEffect: boolean;
+}
 
 class MobileOptimizer {
-  private metrics: PerformanceMetrics = {
+  private metrics: LocalPerformanceMetrics = {
     fps: 60,
     frameTime: 16.67,
     memoryUsage: 0,
     drawCalls: 0
   };
 
-  private settings: OptimizationSettings = {
-    particleLimit: PERFORMANCE_SETTINGS.MOBILE_PARTICLE_LIMIT,
+  private settings: LocalOptimizationSettings = {
+    particleLimit: 100,
     shadowQuality: 'MEDIUM',
     textureQuality: 'MEDIUM',
     antialiasing: true,
@@ -33,11 +46,11 @@ class MobileOptimizer {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
     if (isMobile) {
-      this.settings.particleLimit = PERFORMANCE_SETTINGS.MOBILE_PARTICLE_LIMIT;
+      this.settings.particleLimit = 50;
       this.settings.shadowQuality = 'LOW';
       this.settings.textureQuality = 'MEDIUM';
     } else {
-      this.settings.particleLimit = PERFORMANCE_SETTINGS.DESKTOP_PARTICLE_LIMIT;
+      this.settings.particleLimit = 200;
       this.settings.shadowQuality = 'HIGH';
       this.settings.textureQuality = 'HIGH';
     }
@@ -58,7 +71,7 @@ class MobileOptimizer {
         if (memory) {
           this.metrics.memoryUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
           
-          if (this.metrics.memoryUsage > PERFORMANCE_SETTINGS.MEMORY_CRITICAL_THRESHOLD) {
+          if (this.metrics.memoryUsage > 0.9) {
             this.handleMemoryPressure();
           }
         }
@@ -84,7 +97,7 @@ class MobileOptimizer {
 
     // Check for performance issues
     const avgFps = this.fpsHistory.reduce((a, b) => a + b, 0) / this.fpsHistory.length;
-    if (avgFps < PERFORMANCE_SETTINGS.MIN_FPS && !this.isLowPerformanceMode) {
+    if (avgFps < 30 && !this.isLowPerformanceMode) {
       this.applyLowPerformanceMode();
     }
 
@@ -182,11 +195,11 @@ class MobileOptimizer {
   }
 
   // Getters
-  getMetrics(): PerformanceMetrics {
+  getMetrics(): LocalPerformanceMetrics {
     return { ...this.metrics };
   }
 
-  getSettings(): OptimizationSettings {
+  getSettings(): LocalOptimizationSettings {
     return { ...this.settings };
   }
 
@@ -199,7 +212,7 @@ class MobileOptimizer {
   }
 
   // Manual settings override
-  updateSettings(updates: Partial<OptimizationSettings>) {
+  updateSettings(updates: Partial<LocalOptimizationSettings>) {
     this.settings = { ...this.settings, ...updates };
   }
 

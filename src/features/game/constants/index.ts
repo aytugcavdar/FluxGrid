@@ -1,7 +1,7 @@
 /**
  * Game feature constants
  */
-import { PieceShape } from '../types';
+import type { PieceShape } from '../types';
 
 // Modern Soft Palette
 export const COLORS = [

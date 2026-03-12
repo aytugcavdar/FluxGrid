@@ -123,11 +123,8 @@ export const useProgressionStore = create<ProgressionStore>((set, get) => ({
     const { maxLevelReached, unlockedAbilities, totalScore, levelProgress } = get();
     const newUnlocks = new Set<ActiveAbilityType | PassiveAbilityType>();
     
-    // Count completed achievements (would need achievement store integration)
-    const achievementCount = 0; // Placeholder
-    
     ABILITY_UNLOCKS.forEach(unlock => {
-      if (unlockedAbilities.has(unlock.ability)) return;
+      if (unlockedAbilities.has(unlock.abilityType)) return;
       
       let shouldUnlock = false;
       
@@ -135,16 +132,21 @@ export const useProgressionStore = create<ProgressionStore>((set, get) => ({
         case 'LEVEL':
           shouldUnlock = maxLevelReached >= unlock.condition.value;
           break;
-        case 'ACHIEVEMENT_COUNT':
-          shouldUnlock = achievementCount >= unlock.condition.value;
-          break;
-        case 'TOTAL_SCORE':
+        case 'SCORE':
           shouldUnlock = totalScore >= unlock.condition.value;
+          break;
+        case 'FLUX':
+          // Flux-based unlocks would need flux store integration
+          shouldUnlock = false;
+          break;
+        case 'ACHIEVEMENT':
+          // Achievement-based unlocks would need achievement store integration
+          shouldUnlock = false;
           break;
       }
       
       if (shouldUnlock) {
-        newUnlocks.add(unlock.ability);
+        newUnlocks.add(unlock.abilityType);
       }
     });
     
