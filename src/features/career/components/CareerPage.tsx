@@ -24,7 +24,7 @@ export const CareerPage: React.FC = () => {
             <div className="sticky top-0 bg-gray-900/80 backdrop-blur-md z-10 px-6 py-8 flex items-center justify-between border-b border-white/5">
                 <div className="flex items-center gap-4">
                     <button
-                        onClick={() => { playClick(); setAppState(AppState.MAP); }}
+                        onClick={() => { playClick(); setAppState(AppState.LEVEL_MAP); }}
                         className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/60 hover:text-white"
                     >
                         <ChevronLeft size={20} />

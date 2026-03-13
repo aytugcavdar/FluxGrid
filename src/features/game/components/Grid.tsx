@@ -14,11 +14,11 @@ const GRID_OFFSET = ((GRID_SIZE - 1) * TOTAL_CELL_SIZE) / 2;
 
 export const Grid: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, useShatter, setDraggedPiece, score, combo, isSurgeActive } = useGameStore();
+    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, useShatter, setDraggedPiece, score, combo, isSurgeActive, lastAction } = useGameStore();
     const { getThemeColors } = useThemeStore();
 
-    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive });
-    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive]);
+    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction });
+    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction]);
 
     const [hoverCoord, setHoverCoord] = useState<{ x: number, y: number } | null>(null);
     const hoverCoordRef = useRef<{ x: number, y: number } | null>(null);

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createEmptyGrid, processGrid } from '@features/game/store/helpers/grid';
-import { GRID_SIZE } from '@features/game/types';
+import { GRID_SIZE, CellType } from '@features/game/types';
 
 describe('createEmptyGrid', () => {
   it('10x10 boş grid oluşturur', () => {
@@ -67,7 +67,7 @@ describe('processGrid — satır/sütun temizleme', () => {
   it('bomba bloğu 3x3 alanı patlatır', () => {
     const grid = createEmptyGrid();
     // Bomba merkezi (5,5)
-    grid[5][5] = { filled: true, color: '#ff0000', id: 'bomb', type: 'BOMB' };
+    grid[5][5] = { filled: true, color: '#ff0000', id: 'bomb', type: CellType.BOMB };
     for (let x = 0; x < GRID_SIZE; x++) {
       if (x !== 5) grid[5][x] = { filled: true, color: '#ff0000', id: `r5-${x}` };
     }

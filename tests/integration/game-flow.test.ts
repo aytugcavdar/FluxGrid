@@ -25,14 +25,21 @@ describe('Game Flow Integration', () => {
   });
 
   it('3 parça kullanılınca tray yenilenir', () => {
-    let placedCount = 0;
+    const initialPieces = useGameStore.getState().pieces;
+    const firstPieceId = initialPieces[0].instanceId;
+    
+    // 3 parçayı sırayla yerleştir
     for (let i = 0; i < 3; i++) {
       const { pieces, placePiece } = useGameStore.getState();
-      const piece = pieces[0];
-      const ok = placePiece(piece, 0, placedCount);
-      if (ok) placedCount++;
+      if (pieces.length > 0) {
+        placePiece(pieces[0], 0, i * 2);
+      }
     }
-    expect(useGameStore.getState().pieces).toHaveLength(3);
+    
+    // Tray yenilenmeli - yeni parçalar gelmeli
+    const finalPieces = useGameStore.getState().pieces;
+    expect(finalPieces).toHaveLength(3);
+    expect(finalPieces[0].instanceId).not.toBe(firstPieceId);
   });
 
   it('parça yerleştirme flux günceller', () => {

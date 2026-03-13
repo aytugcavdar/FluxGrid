@@ -1,5 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
-import { handleError } from '@utils/errorHandler';
+import { handleError, ErrorCategory, ErrorSeverity } from '@utils/errorHandler';
 
 interface Props {
   children: ReactNode;
@@ -19,7 +19,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    handleError(error, { componentStack: info.componentStack });
+    handleError(error, ErrorCategory.RENDER, ErrorSeverity.HIGH, { componentStack: info.componentStack });
   }
 
   render() {

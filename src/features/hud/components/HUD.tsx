@@ -37,14 +37,14 @@ export const HUD: React.FC = () => {
                 <div className="flex items-center gap-0.5 h-[48%]">
                     <button
                         onClick={() => { playClick(); setAppState(AppState.HOME); }}
-                        className="w-7 h-full bg-white/[0.04] rounded-lg border border-white/[0.06] flex items-center justify-center text-white/40"
+                        className="w-6 h-full bg-white/[0.04] rounded border border-white/[0.06] flex items-center justify-center text-white/40"
                     >
-                        <Home size={13} />
+                        <Home size={12} />
                     </button>
 
-                    <div className="flex-1 h-full bg-white/[0.04] rounded-lg border border-white/[0.06] px-1.5 flex items-center justify-between overflow-hidden">
+                    <div className="flex-1 h-full bg-white/[0.04] rounded border border-white/[0.06] px-1.5 flex items-center justify-between overflow-hidden">
                         <div className="flex flex-col justify-center min-w-0">
-                            <span className="text-[7px] font-bold text-blue-400 uppercase tracking-wide truncate">
+                            <span className="text-[7px] font-bold text-blue-400 uppercase tracking-wide truncate leading-tight">
                                 {gameMode === GameMode.CAREER && `Lv ${currentLevelIndex}`}
                                 {gameMode === GameMode.ENDLESS && `Sonsuz`}
                                 {gameMode === GameMode.TIMED && `Rush`}
@@ -52,25 +52,25 @@ export const HUD: React.FC = () => {
                                 {gameMode === GameMode.BLITZ && `Blitz`}
                                 {gameMode === GameMode.SURVIVAL && `Survival`}
                             </span>
-                            <span className="text-[10px] font-black text-white tracking-tight">
+                            <span className="text-[10px] font-black text-white tracking-tight leading-none">
                                 {gameMode === GameMode.ZEN ? `${zenBlocksPlaced}` : score.toLocaleString()}
                             </span>
                         </div>
 
                         {gameMode === GameMode.TIMED || gameMode === GameMode.BLITZ ? (
                             <div className={clsx(
-                                "px-1.5 py-0.5 rounded-md text-[9px] font-black",
+                                "px-1.5 py-0.5 rounded text-[9px] font-black leading-none",
                                 timeLeft <= 10 ? "bg-rose-500/20 text-rose-400 animate-pulse" : "bg-amber-500/20 text-amber-400"
                             )}>
                                 {timeLeft}s
                             </div>
                         ) : gameMode === GameMode.ZEN ? (
-                            <div className="px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-purple-500/20 text-purple-400">
+                            <div className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-purple-500/20 text-purple-400 leading-none">
                                 {Math.floor(zenSessionTime / 60)}:{(zenSessionTime % 60).toString().padStart(2, '0')}
                             </div>
                         ) : gameMode === GameMode.CAREER ? (
                             <div className={clsx(
-                                "px-1.5 py-0.5 rounded-md text-[8px] font-bold",
+                                "px-1.5 py-0.5 rounded text-[8px] font-bold leading-none",
                                 movesLeft <= 5 ? "bg-rose-500/20 text-rose-400 animate-pulse" : "bg-white/5 text-white/40"
                             )}>
                                 {movesLeft}
@@ -78,7 +78,7 @@ export const HUD: React.FC = () => {
                         ) : null}
                     </div>
 
-                    <button onClick={handleMute} className="w-7 h-full bg-white/[0.04] rounded-lg border border-white/[0.06] flex items-center justify-center">
+                    <button onClick={handleMute} className="w-6 h-full bg-white/[0.04] rounded border border-white/[0.06] flex items-center justify-center">
                         {muted ? <VolumeX size={11} className="text-white/25" /> : <Volume2 size={11} className="text-white/40" />}
                     </button>
                 </div>
@@ -86,7 +86,7 @@ export const HUD: React.FC = () => {
                 {/* Bottom Row: Flux + Skills */}
                 <div className="flex items-center gap-0.5 h-[52%]">
                     <div className={clsx(
-                        "flex-1 h-full relative rounded-lg border overflow-hidden flex items-center px-1.5 gap-1 transition-all",
+                        "flex-1 h-full relative rounded border overflow-hidden flex items-center px-1.5 gap-1 transition-all",
                         isSurgeActive ? "bg-amber-900/25 border-amber-500/40" : "bg-white/[0.03] border-white/[0.05]"
                     )}>
                         <AnimatePresence>
@@ -109,8 +109,8 @@ export const HUD: React.FC = () => {
                         </AnimatePresence>
 
                         <div className={clsx("flex items-center gap-0.5 z-10", isSurgeActive && "opacity-20")}>
-                            <Zap size={9} className={clsx("transition-all", flux >= 100 || isSurgeActive ? "fill-current text-blue-400" : "text-blue-400")} />
-                            <span className="text-[8px] font-bold text-white/60">{Math.floor(isSurgeActive ? 100 : flux)}%</span>
+                            <Zap size={8} className={clsx("transition-all", flux >= 100 || isSurgeActive ? "fill-current text-blue-400" : "text-blue-400")} />
+                            <span className="text-[8px] font-bold text-white/60 leading-none">{Math.floor(isSurgeActive ? 100 : flux)}%</span>
                         </div>
 
                         <div className={clsx("flex-1 h-1 bg-white/[0.06] rounded-full overflow-hidden", isSurgeActive && "opacity-20")}>
@@ -350,8 +350,8 @@ const SkillButton = ({ icon, cost, currentFlux, isActive, onClick, colorClass, a
             onClick={() => { playClick(); onClick(); }}
             disabled={disabled}
             className={clsx(
-                "rounded-lg border transition-all relative overflow-hidden",
-                mobile ? "w-8 h-full" : "w-11 h-full",
+                "rounded border transition-all relative overflow-hidden",
+                mobile ? "w-7 h-full" : "w-11 h-full",
                 "flex flex-col items-center justify-center gap-0",
                 isActive ? activeClass : (disabled ? "bg-white/[0.02] border-white/[0.04] text-white/15 cursor-not-allowed" : `${colorClass} hover:brightness-110 active:scale-95`),
                 isAffordable && "ring-1 ring-white/10"
@@ -359,7 +359,7 @@ const SkillButton = ({ icon, cost, currentFlux, isActive, onClick, colorClass, a
         >
             <div className="z-10 flex flex-col items-center gap-0">
                 {icon}
-                <span className={clsx("font-semibold opacity-70", mobile ? "text-[7px]" : "text-[8px]")}>{cost}</span>
+                <span className={clsx("font-semibold opacity-70 leading-none", mobile ? "text-[6px]" : "text-[8px]")}>{cost}</span>
             </div>
         </button>
     );

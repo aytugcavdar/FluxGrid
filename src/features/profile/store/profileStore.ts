@@ -13,6 +13,7 @@ interface ProfileStore {
   incrementStat: (stat: keyof PlayerStats, amount: number) => void;
   incrementSkillUse: (skill: ActiveAbilityType) => void;
   updatePlaytime: (sessionDuration: number) => void;
+  saveProfile: () => void;
   exportProfile: () => string;
   importProfile: (data: string) => boolean;
   calculateDerivedStats: () => {

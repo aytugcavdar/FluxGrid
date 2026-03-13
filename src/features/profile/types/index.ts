@@ -47,6 +47,7 @@ export interface SpecialBlock {
   id?: string;
   specialType: SpecialBlockType;
   lockHealth?: number;
+  health?: number;
   metadata?: {
     spawnedAt?: number;
     clearedCount?: number;

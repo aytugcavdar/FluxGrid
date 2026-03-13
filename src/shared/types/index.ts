@@ -86,6 +86,8 @@ export interface LayoutConfig {
 // Persistence
 export interface PersistenceSchema {
   version: number;
-  lastSaved: number;
+  lastSaved?: number;
+  checksum: string;
   data: any;
+  backups?: Array<{ timestamp: number; data: any }>;
 }

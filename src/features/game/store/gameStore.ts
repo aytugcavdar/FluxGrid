@@ -10,7 +10,7 @@ import { debouncedSave, safeLocalStorageGet, safeParseInt, safeJSONParse } from 
 import { createEmptyGrid, processGrid } from './helpers/grid';
 import { getRandomPieces } from './helpers/pieces';
 
-interface GameStore {
+export interface GameStore {
   grid: GridState;
   pieces: Piece[];
   score: number;
