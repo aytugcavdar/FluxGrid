@@ -335,29 +335,25 @@ const App: React.FC = () => {
             className="fixed inset-0 flex flex-col z-30 overflow-hidden"
           >
             {/* HUD */}
-            <header className="flex-none p-2 md:p-4 md:p-6 w-full max-w-4xl mx-auto">
-              <div className="h-[36px] md:h-[52px]">
-                <HUD
-                  onOpenAbilities={() => setShowAbilities(true)}
-                  onOpenProfile={() => setShowProfile(true)}
-                />
+            <header className="flex-none w-full max-w-4xl mx-auto" style={{ padding: '4px 6px' }}>
+              <div style={{ height: '38px' }}>
+                <HUD />
               </div>
             </header>
 
             {/* Grid Area */}
-            <main className="flex-1 relative flex items-center justify-center p-1 md:p-2 min-h-0">
-              <div className="w-full h-full max-h-[85dvh] md:max-h-[70dvh] aspect-square flex items-center justify-center">
-                <Grid />
+            <main className="flex-1 relative flex items-center justify-center min-h-0 overflow-hidden">
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="w-full h-full max-w-[100vw] max-h-[100%]" style={{ aspectRatio: '1/1' }}>
+                  <Grid />
+                </div>
               </div>
             </main>
 
             {/* Piece Tray */}
-            <div className="game-tray bg-gradient-to-t from-gray-900/90 via-gray-900/50 to-transparent">
-              <div className="max-w-2xl mx-auto px-2 md:px-4 h-full flex flex-col">
-                <div className="flex justify-between items-end mb-0 md:mb-0.5 px-1">
-                  <span className="text-[8px] md:text-[9px] uppercase tracking-widest text-white/30 font-medium">Parça Tepsisi</span>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5 md:gap-2 flex-1 min-h-0 pb-1 md:pb-4">
+            <div className="bg-gradient-to-t from-gray-900/90 via-gray-900/50 to-transparent" style={{ height: '80px', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+              <div className="max-w-2xl mx-auto h-full flex flex-col" style={{ padding: '2px 8px' }}>
+                <div className="grid grid-cols-3 flex-1 min-h-0" style={{ gap: '4px' }}>
                   <AnimatePresence mode="popLayout">
                     {pieces.map((piece) => (
                       <motion.div
@@ -372,6 +368,7 @@ const App: React.FC = () => {
                             piece.type === 'BOMB' ? "bg-red-900/15 border-red-400/20" :
                               "bg-white/[0.03] border-white/[0.04] hover:bg-white/[0.06]"
                         )}
+                        style={{ minHeight: '44px', borderRadius: '8px' }}
                       >
                         <Piece piece={piece} />
                       </motion.div>

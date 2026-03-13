@@ -66,16 +66,13 @@ export const Grid: React.FC = () => {
 
             if (isPortrait) {
                 // --- MOBİL DİKEY ---
-                // HORIZONTAL_FIXED: fov yatay görüş açısı → büyük değer = daha geniş, kenarlar görünür
-                // radius: küçük = yakın/büyük, büyük = uzak/küçük
-                // beta: DEĞİŞTİRMİYORUZ — constructor'daki π/8 kalır (tepeden bakış)
                 let fov: number;
                 let radius: number;
 
                 if (aspectRatio < 0.48) {
-                    fov = 0.98; radius = 13.0; // 360×780 gibi ince uzun ekranlar
+                    fov = 0.98; radius = 13.0; // Çok uzun ekranlar
                 } else if (aspectRatio < 0.55) {
-                    fov = 0.90; radius = 12.5; // Standart telefon (390×844)
+                    fov = 0.90; radius = 12.5; // Standart telefon
                 } else if (aspectRatio < 0.65) {
                     fov = 0.84; radius = 12.5; // Geniş telefon
                 } else {
