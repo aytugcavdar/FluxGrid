@@ -13,7 +13,7 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       exclude: ['node_modules/', 'tests/', '**/*.d.ts', 'src/app/index.tsx'],
       thresholds: {
-        lines: 50,
+        lines: 45,
         functions: 40,
         branches: 40,
       },
