@@ -206,7 +206,7 @@ class ErrorHandler {
     console.groupEnd();
 
     // Critical errors in development mode
-    if (error.severity === ErrorSeverity.CRITICAL && import.meta.env.DEV) {
+    if (error.severity === ErrorSeverity.CRITICAL && process.env.NODE_ENV === 'development') {
       console.error('[CRITICAL ERROR]', error);
     }
   }

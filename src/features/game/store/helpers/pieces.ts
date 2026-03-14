@@ -43,7 +43,7 @@ export const getRandomPieces = (
   }
 
   for (let i = 0; i < count; i++) {
-    let selectedShape: PieceShape;
+    let selectedShape: PieceShape = SHAPES[0]; // Initialize with fallback
     let attempts = 0;
 
     const randVal = isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
