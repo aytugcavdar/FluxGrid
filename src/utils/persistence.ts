@@ -2,8 +2,8 @@ import { PersistenceSchema } from '@shared/types';
 import { PERSISTENCE_SETTINGS } from '@shared/constants';
 
 class PersistenceManager {
-  private backupTimer: NodeJS.Timeout | null = null;
-  private saveDebounceTimer: NodeJS.Timeout | null = null;
+  private backupTimer: ReturnType<typeof setInterval> | null = null;
+  private saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.startAutoBackup();

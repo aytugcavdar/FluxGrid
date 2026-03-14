@@ -4,7 +4,7 @@
 import { safeExecute, ErrorCategory } from '../../../../utils/errorHandler';
 
 // Debounce timers
-let saveTimers: { [key: string]: NodeJS.Timeout } = {};
+let saveTimers: { [key: string]: ReturnType<typeof setTimeout> } = {};
 
 /**
  * Debounced localStorage save with error handling

@@ -14,7 +14,7 @@ const GRID_OFFSET = ((GRID_SIZE - 1) * TOTAL_CELL_SIZE) / 2;
 
 export const Grid: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, useShatter, setDraggedPiece, score, combo, isSurgeActive, lastAction } = useGameStore();
+    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction } = useGameStore();
     const { getThemeColors } = useThemeStore();
 
     const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction });
@@ -593,8 +593,8 @@ export const Grid: React.FC = () => {
             // Handle skill usage
             if (activeSkill === SkillType.SHATTER && hover) {
                 if (hover.x >= 0 && hover.x < GRID_SIZE && hover.y >= 0 && hover.y < GRID_SIZE) {
-                    useShatter(hover.x, hover.y);
-                    e.stopPropagation(); // Prevent window handler
+                    const shatterFn = useGameStore.getState().useShatter;
+                    shatterFn(hover.x, hover.y);
                 }
             }
             // Note: Piece placement is handled by window handler
