@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { PassiveAbilityType, PassiveAbility, PassiveAbilityState } from '../types';
+import { safeJSONParse } from '@features/game/store/helpers/localStorage';
 
 interface PassiveAbilityStore extends PassiveAbilityState {
   // Actions
@@ -26,47 +27,65 @@ export const usePassiveAbilityStore = create<PassiveAbilityStore>((set, get) => 
   initializePassives: () => {
     const passives = new Map<PassiveAbilityType, PassiveAbility>();
     
-    // Flux Boost: +25% flux generation
-    passives.set(PassiveAbilityType.FLUX_BOOST, {
-      type: PassiveAbilityType.FLUX_BOOST,
-      unlocked: false,
-      equipped: false,
-      effect: { multiplier: 1.25 }
+    // Unlock durumlarını localStorage'dan oku
+    const savedUnlocks = safeJSONParse(
+      localStorage.getItem('flux_passive_unlocks') || '{}',
+      {} as Record<string, boolean>
+    );
+    const savedEquipped = safeJSONParse(
+      localStorage.getItem('flux_passive_equipped') || '[]',
+      [] as string[]
+    );
+    
+    const PASSIVE_DEFINITIONS = [
+      {
+        type: PassiveAbilityType.FLUX_BOOST,
+        unlockLevel: 3,
+        effect: { multiplier: 1.25 }
+      },
+      {
+        type: PassiveAbilityType.SCORE_MULTIPLIER,
+        unlockLevel: 8,
+        effect: { multiplier: 1.5 }
+      },
+      {
+        type: PassiveAbilityType.LUCKY_PIECES,
+        unlockLevel: 15,
+        effect: { probability: 0.4 }
+      },
+      {
+        type: PassiveAbilityType.COMBO_MASTER,
+        unlockLevel: 25,
+        effect: { duration: 3000 }
+      },
+      {
+        type: PassiveAbilityType.ICE_BREAKER,
+        unlockLevel: 35,
+        effect: { healthModifier: -1 }
+      },
+    ];
+    
+    const currentMaxLevel = parseInt(localStorage.getItem('flux_max_level') || '0', 10);
+    
+    PASSIVE_DEFINITIONS.forEach(def => {
+      const isUnlocked = currentMaxLevel >= def.unlockLevel || savedUnlocks[def.type] === true;
+      const isEquipped = savedEquipped.includes(def.type);
+      
+      passives.set(def.type, {
+        type: def.type,
+        unlocked: isUnlocked,
+        equipped: isEquipped,
+        effect: def.effect
+      });
     });
     
-    // Score Multiplier: 1.5x score
-    passives.set(PassiveAbilityType.SCORE_MULTIPLIER, {
-      type: PassiveAbilityType.SCORE_MULTIPLIER,
-      unlocked: false,
-      equipped: false,
-      effect: { multiplier: 1.5 }
+    // Equipped slots'u kayıttan restore et
+    const restoredSlots: [PassiveAbilityType | null, PassiveAbilityType | null, PassiveAbilityType | null] = [null, null, null];
+    savedEquipped.forEach((type, i) => {
+      if (i < 3) restoredSlots[i] = type as PassiveAbilityType;
     });
     
-    // Lucky Pieces: +20% favorable shapes
-    passives.set(PassiveAbilityType.LUCKY_PIECES, {
-      type: PassiveAbilityType.LUCKY_PIECES,
-      unlocked: false,
-      equipped: false,
-      effect: { probability: 0.4 } // 40% chance (20% increase from base 20%)
-    });
-    
-    // Combo Master: +3s combo duration
-    passives.set(PassiveAbilityType.COMBO_MASTER, {
-      type: PassiveAbilityType.COMBO_MASTER,
-      unlocked: false,
-      equipped: false,
-      effect: { duration: 3000 } // 3 seconds in milliseconds
-    });
-    
-    // Ice Breaker: Ice health 2→1
-    passives.set(PassiveAbilityType.ICE_BREAKER, {
-      type: PassiveAbilityType.ICE_BREAKER,
-      unlocked: false,
-      equipped: false,
-      effect: { healthModifier: -1 }
-    });
-    
-    set({ passiveAbilities: passives });
+    set({ passiveAbilities: passives, equippedSlots: restoredSlots });
   },
 
   equipPassive: (type: PassiveAbilityType) => {
@@ -96,6 +115,10 @@ export const usePassiveAbilityStore = create<PassiveAbilityStore>((set, get) => 
       passiveAbilities: newPassives
     });
     
+    // Save to localStorage
+    const equipped = newSlots.filter(s => s !== null) as string[];
+    localStorage.setItem('flux_passive_equipped', JSON.stringify(equipped));
+    
     return true;
   },
 
@@ -122,6 +145,10 @@ export const usePassiveAbilityStore = create<PassiveAbilityStore>((set, get) => 
       equippedSlots: newSlots,
       passiveAbilities: newPassives
     });
+    
+    // Save to localStorage
+    const equipped = newSlots.filter(s => s !== null) as string[];
+    localStorage.setItem('flux_passive_equipped', JSON.stringify(equipped));
   },
 
   unlockPassive: (type: PassiveAbilityType) => {
@@ -135,6 +162,13 @@ export const usePassiveAbilityStore = create<PassiveAbilityStore>((set, get) => 
     newPassives.set(type, updatedPassive);
     
     set({ passiveAbilities: newPassives });
+    
+    // Save to localStorage
+    const unlocks: Record<string, boolean> = {};
+    newPassives.forEach((p, key) => {
+      if (p.unlocked) unlocks[key] = true;
+    });
+    localStorage.setItem('flux_passive_unlocks', JSON.stringify(unlocks));
   },
 
   isPassiveEquipped: (type: PassiveAbilityType) => {

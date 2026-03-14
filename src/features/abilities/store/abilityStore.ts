@@ -175,17 +175,31 @@ export const useAbilityStore = create<AbilityStore>((set, get) => ({
   initializeAbilities: () => {
     const abilities = new Map<ActiveAbilityType, ActiveAbility>();
     
-    // Initialize all abilities as locked
+    const currentMaxLevel = parseInt(localStorage.getItem('flux_max_level') || '0', 10);
+    
+    const ACTIVE_UNLOCK_LEVELS: Record<ActiveAbilityType, number> = {
+      [ActiveAbilityType.REROLL]: 0,    // baştan açık
+      [ActiveAbilityType.SHATTER]: 0,   // baştan açık
+      [ActiveAbilityType.BOMB]: 0,      // baştan açık
+      [ActiveAbilityType.ROTATE]: 5,
+      [ActiveAbilityType.SWAP]: 12,
+      [ActiveAbilityType.FREEZE]: 20,
+      [ActiveAbilityType.MAGNET]: 30,
+      [ActiveAbilityType.UNDO]: 40,
+    };
+    
+    // Initialize all abilities
     Object.values(ActiveAbilityType).forEach(type => {
+      const requiredLevel = ACTIVE_UNLOCK_LEVELS[type] ?? 999;
       abilities.set(type, {
         type,
         fluxCost: FLUX_COST[type] || 0,
-        unlocked: false,
+        unlocked: currentMaxLevel >= requiredLevel,
         usageCount: 0
       });
     });
     
-    // Unlock default abilities (existing ones)
+    // Özel: REROLL, SHATTER, BOMB her zaman açık
     abilities.get(ActiveAbilityType.REROLL)!.unlocked = true;
     abilities.get(ActiveAbilityType.SHATTER)!.unlocked = true;
     abilities.get(ActiveAbilityType.BOMB)!.unlocked = true;

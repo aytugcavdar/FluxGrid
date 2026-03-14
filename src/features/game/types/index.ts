@@ -78,6 +78,7 @@ export interface LevelDef {
   fixedPieces?: PieceShape[];
   targetRows?: number[];
   targetCols?: number[];
+  starThresholds: [number, number, number]; // [1star, 2star, 3star] score thresholds
 }
 
 // Achievements

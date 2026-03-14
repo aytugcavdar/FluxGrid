@@ -43,6 +43,13 @@ export const FLUX_COST = {
   UNDO: 30,
 };
 
+export const ZEN_PALETTES = [
+  ['#f59e0b', '#3b82f6', '#a78bfa', '#10b981', '#f472b6', '#6366f1'],  // default warm
+  ['#06b6d4', '#0ea5e9', '#38bdf8', '#7dd3fc', '#67e8f9', '#22d3ee'],  // ocean cool
+  ['#e879f9', '#a78bfa', '#818cf8', '#c084fc', '#f472b6', '#e879f9'],  // neon purple
+  ['#34d399', '#6ee7b7', '#a7f3d0', '#10b981', '#059669', '#047857'],  // forest green
+];
+
 export const POINTS = {
   BLOCK_PLACED: 15,
   LINE_CLEARED: 150,

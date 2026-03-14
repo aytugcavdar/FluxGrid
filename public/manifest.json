@@ -4,6 +4,7 @@
     "description": "Cyberpunk tarzı blok bulmaca oyunu — yerçekimi mekanikleri ve neon estetiği ile.",
     "start_url": "/FluxGrid/",
     "display": "standalone",
+    "display_override": ["window-controls-overlay", "standalone"],
     "orientation": "portrait",
     "theme_color": "#06b6d4",
     "background_color": "#050b14",
@@ -24,5 +25,59 @@
     "categories": [
         "games",
         "entertainment"
+    ],
+    "shortcuts": [
+        {
+            "name": "Sonsuz Mod",
+            "short_name": "Sonsuz",
+            "description": "Limit yok, sadece skor",
+            "url": "/FluxGrid/?mode=endless",
+            "icons": [
+                {
+                    "src": "/FluxGrid/icon-192.svg",
+                    "sizes": "192x192",
+                    "type": "image/svg+xml"
+                }
+            ]
+        },
+        {
+            "name": "Günlük Bulmaca",
+            "short_name": "Günlük",
+            "description": "Günün bulmacası",
+            "url": "/FluxGrid/?mode=daily",
+            "icons": [
+                {
+                    "src": "/FluxGrid/icon-192.svg",
+                    "sizes": "192x192",
+                    "type": "image/svg+xml"
+                }
+            ]
+        },
+        {
+            "name": "Quantum Rush",
+            "short_name": "Rush",
+            "description": "Hızlı ol, süre kazan",
+            "url": "/FluxGrid/?mode=timed",
+            "icons": [
+                {
+                    "src": "/FluxGrid/icon-192.svg",
+                    "sizes": "192x192",
+                    "type": "image/svg+xml"
+                }
+            ]
+        },
+        {
+            "name": "Zen Modu",
+            "short_name": "Zen",
+            "description": "Hedef yok, süre yok",
+            "url": "/FluxGrid/?mode=zen",
+            "icons": [
+                {
+                    "src": "/FluxGrid/icon-192.svg",
+                    "sizes": "192x192",
+                    "type": "image/svg+xml"
+                }
+            ]
+        }
     ]
 }

@@ -204,6 +204,11 @@ class ErrorHandler {
     console.log('Timestamp:', new Date(error.timestamp).toISOString());
     console.log('Recovered:', error.recovered);
     console.groupEnd();
+
+    // Critical errors in development mode
+    if (error.severity === ErrorSeverity.CRITICAL && import.meta.env.DEV) {
+      console.error('[CRITICAL ERROR]', error);
+    }
   }
 
   /**

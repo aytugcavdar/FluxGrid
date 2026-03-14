@@ -26,8 +26,11 @@ export const generateLevel = (levelIndex: number): LevelDef => {
     targetScore = Math.floor(scoreBase + multiplier);
   }
 
+  // Ensure targetScore is finite and positive
+  const safeTargetScore = isFinite(targetScore) && targetScore > 0 ? targetScore : 1000;
+  
   // Round to nearest 500 for clean numbers
-  targetScore = Math.ceil(targetScore / 500) * 500;
+  targetScore = Math.ceil(safeTargetScore / 500) * 500;
 
   const objectives = [
     { type: ObjectiveType.SCORE, target: targetScore, current: 0 }
@@ -81,6 +84,11 @@ export const generateLevel = (levelIndex: number): LevelDef => {
     name,
     objectives,
     movesLimit,
-    rewardFlux
+    rewardFlux,
+    starThresholds: [
+      targetScore,                                        // 1 star = complete target score
+      Math.min(Math.round(targetScore * 1.5), 9999999),  // 2 stars = 50% more (capped)
+      Math.min(Math.round(targetScore * 2.0), 9999999)   // 3 stars = double (capped)
+    ] as [number, number, number]
   };
 };

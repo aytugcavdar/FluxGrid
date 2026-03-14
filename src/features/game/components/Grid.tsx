@@ -39,17 +39,39 @@ export const Grid: React.FC = () => {
     useEffect(() => {
         if (!canvasRef.current) return;
 
+        // Device capability detection
+        const deviceMemory = (navigator as any).deviceMemory ?? 4; // GB
+        const isLowEndDevice = deviceMemory <= 2 || navigator.hardwareConcurrency <= 2;
         const isMobile = window.innerWidth < 768;
-        const hardwareScale = isMobile ? Math.min(window.devicePixelRatio, 1.5) : window.devicePixelRatio;
+
+        // Engine configuration based on device capability
         const engine = new BABYLON.Engine(canvasRef.current, true, {
             preserveDrawingBuffer: true,
             stencil: true,
-            antialias: !isMobile, // Disable AA on mobile for perf
-            adaptToDeviceRatio: false
+            antialias: !isMobile && !isLowEndDevice,
+            adaptToDeviceRatio: false,
+            limitDeviceRatio: isLowEndDevice ? 1.0 : Math.min(window.devicePixelRatio, 2),
+            doNotHandleContextLost: false,
         });
+
+        // Hardware scaling - more aggressive on low-end devices
+        const hardwareScale = isLowEndDevice ? 2.0 : (isMobile ? Math.min(window.devicePixelRatio, 1.5) : window.devicePixelRatio);
         engine.setHardwareScalingLevel(1 / hardwareScale);
+
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0, 0, 0, 0);
+
+        // Low-end device scene optimizations
+        if (isLowEndDevice) {
+            scene.skipPointerMovePicking = true;
+            scene.autoClear = true;
+            scene.autoClearDepthAndStencil = true;
+            BABYLON.SceneOptimizer.OptimizeAsync(scene, BABYLON.SceneOptimizerOptions.LowDegradationAllowed());
+        }
+
+        // Store references for theme updates
+        const gridBaseRef = { current: null as BABYLON.Mesh | null };
+        const gridSlotsRef: BABYLON.Mesh[] = [];
 
         // Camera — beta π/11 ≈ 16.4° daha tepeden/havadan bakış
         const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 11, 18, BABYLON.Vector3.Zero(), scene);
@@ -57,6 +79,11 @@ export const Grid: React.FC = () => {
         camera.upperRadiusLimit = 35;
         camera.lowerBetaLimit = 0.1;
         camera.upperBetaLimit = Math.PI / 2.5;
+
+        // Reduce camera far plane on low-end devices
+        if (isLowEndDevice) {
+            camera.maxZ = 50; // Reduced from default 10000
+        }
 
         const updateCamera = () => {
             const screenW = window.innerWidth;
@@ -123,13 +150,20 @@ export const Grid: React.FC = () => {
         dirLight.position = new BABYLON.Vector3(20, 40, 20);
         dirLight.intensity = isMobile ? 0.35 : 0.6; // Mobile'de daha az directional
 
-        // Lower Glow Layer intensity to basically zero or remove
-        const glowLayer = new BABYLON.GlowLayer("glow", scene, {
-            mainTextureSamples: 2,
-            blurKernelSize: 16
-        });
-        glowLayer.intensity = 0; // Disabled parlama
-        glowLayerRef.current = glowLayer;
+        // Disable directional light on low-end devices
+        if (isLowEndDevice) {
+            dirLight.intensity = 0;
+        }
+
+        // Glow layer - completely disabled on low-end devices
+        if (!isLowEndDevice) {
+            const glowLayer = new BABYLON.GlowLayer("glow", scene, {
+                mainTextureSamples: 2,
+                blurKernelSize: 16
+            });
+            glowLayer.intensity = 0; // Disabled parlama
+            glowLayerRef.current = glowLayer;
+        }
 
         // --- The Board ---
         const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 20, height: 20 }, scene);
@@ -149,6 +183,7 @@ export const Grid: React.FC = () => {
         gridMat.specularPower = 0;
         gridBase.material = gridMat;
         gridBase.isPickable = false;
+        gridBaseRef.current = gridBase;
 
         // Grid Slots - themed
         for (let y = 0; y < GRID_SIZE; y++) {
@@ -171,8 +206,44 @@ export const Grid: React.FC = () => {
                 slot.edgesWidth = isMobile ? 2.0 : 2.5;
                 const edgeColor = BABYLON.Color3.FromHexString(themeColors.gridEdge);
                 slot.edgesColor = new BABYLON.Color4(edgeColor.r, edgeColor.g, edgeColor.b, 0.5);
+                
+                gridSlotsRef.push(slot);
             }
         }
+
+        // Subscribe to theme changes
+        const unsubscribeTheme = useThemeStore.subscribe((state) => {
+            const colors = state.getThemeColors();
+            
+            // Update grid base
+            if (gridBaseRef.current && gridBaseRef.current.material) {
+                const mat = gridBaseRef.current.material as BABYLON.StandardMaterial;
+                mat.diffuseColor = BABYLON.Color3.FromHexString(colors.gridBase);
+                mat.emissiveColor = BABYLON.Color3.FromHexString(colors.gridBase).scale(0.6);
+            }
+            
+            // Update grid slots
+            gridSlotsRef.forEach((slot) => {
+                if (slot.material) {
+                    const mat = slot.material as BABYLON.StandardMaterial;
+                    mat.diffuseColor = BABYLON.Color3.FromHexString(colors.gridSlot);
+                    mat.emissiveColor = BABYLON.Color3.FromHexString(colors.gridSlot).scale(0.8);
+                    
+                    const edgeColor = BABYLON.Color3.FromHexString(colors.gridEdge);
+                    slot.edgesColor = new BABYLON.Color4(edgeColor.r, edgeColor.g, edgeColor.b, 0.5);
+                }
+            });
+            
+            // Update all piece meshes
+            meshMapRef.current.forEach((mesh) => {
+                if (mesh.material) {
+                    const mat = mesh.material as BABYLON.StandardMaterial;
+                    // Get the piece color from the mesh name or store it separately
+                    // For now, we'll keep the existing piece colors as they come from theme
+                    // The pieces will get new colors on next generation
+                }
+            });
+        });
 
         // --- Ambient Particles removed ---
         ambientParticlesRef.current = [];
@@ -394,6 +465,12 @@ export const Grid: React.FC = () => {
             time += 0.02;
             const { grid, draggedPiece, activeSkill, score, combo, lastAction } = stateRef.current;
 
+            // Limit ghost meshes on low-end devices
+            if (isLowEndDevice && ghostMeshesRef.current.length > 9) {
+                ghostMeshesRef.current.slice(9).forEach(m => m.dispose());
+                ghostMeshesRef.current = ghostMeshesRef.current.slice(0, 9);
+            }
+
             // Check for new shake events
             if (lastAction && lastAction !== lastHandledActionRef.current) {
                 if (lastAction.type === 'CLEAR') {
@@ -604,7 +681,8 @@ export const Grid: React.FC = () => {
         window.addEventListener('pointermove', handleGlobalPointerMove);
         canvasRef.current.addEventListener('pointerup', handleCanvasPointerUp);
 
-        engine.runRenderLoop(() => {
+        // Start render loop immediately
+        const renderLoop = () => {
             const time = performance.now() / 1000;
             
             // Hide all skill overlays first
@@ -680,12 +758,38 @@ export const Grid: React.FC = () => {
             }
             
             scene.render();
+        };
+
+        // Start the render loop
+        engine.runRenderLoop(renderLoop);
+
+        // Pause rendering when page is hidden to save resources
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                engine.stopRenderLoop();
+            } else {
+                engine.runRenderLoop(renderLoop);
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // WebGL context lost/restored handlers
+        engine.onContextLostObservable.add(() => {
+            console.warn('WebGL context lost — attempting recovery');
+        });
+
+        engine.onContextRestoredObservable.add(() => {
+            console.log('WebGL context restored');
+            // Clear mesh map to force recreation
+            meshMapRef.current.clear();
         });
 
         const resize = () => engine.resize();
         // window.addEventListener('resize', resize); // Handled by custom handler above
 
         return () => {
+            unsubscribeTheme();
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('pointerup', handleWindowPointerUp);
             window.removeEventListener('pointermove', handleGlobalPointerMove);
@@ -694,6 +798,10 @@ export const Grid: React.FC = () => {
             // Dispose skill overlays
             skillOverlayMeshesRef.current.forEach(m => m?.dispose());
             skillOverlayMeshesRef.current = [];
+            
+            // Dispose ghost meshes
+            ghostMeshesRef.current.forEach(m => m?.dispose());
+            ghostMeshesRef.current = [];
             
             scene.dispose();
             engine.dispose();

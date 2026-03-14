@@ -214,3 +214,21 @@ export const playSurgeEnd = () => {
   osc.start(ctx.currentTime);
   osc.stop(ctx.currentTime + 0.4);
 };
+
+/** Timer tick sound for last 10 seconds (TIMED/BLITZ modes) */
+export const playTick = () => {
+  if (isMuted()) return;
+  const ctx = getCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(880, ctx.currentTime);
+  gain.gain.setValueAtTime(0.04, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.05);
+};

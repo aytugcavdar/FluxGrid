@@ -1,14 +1,14 @@
-const CACHE_NAME = 'fluxgrid-v9';
+const CACHE_NAME = 'fluxgrid-v10';
 
 // Install — skip pre-caching
 self.addEventListener('install', () => {
-  console.log('SW: Installing v9...');
+  console.log('SW: Installing v10...');
   self.skipWaiting();
 });
 
 // Activate — clean old caches
 self.addEventListener('activate', (event) => {
-  console.log('SW: Activating v9 and cleaning old caches...');
+  console.log('SW: Activating v10 and cleaning old caches...');
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
@@ -19,27 +19,44 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch — handle assets and ignore extension requests
+// Fetch — improved cache strategy
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   
   // Ignore non-http(s) schemes (like chrome-extension://)
-  // This is the CRITICAL fix for the console errors
   if (!request.url.startsWith('http')) return;
   if (request.method !== 'GET') return;
 
   event.respondWith(
     caches.match(request).then((cached) => {
-      const fetchPromise = fetch(request).then((response) => {
-        // Only cache valid http(s) responses
-        if (response && response.status === 200 && response.type === 'basic' && request.url.startsWith('http')) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request.url, clone));
-        }
-        return response;
-      }).catch(() => cached);
-
-      return cached || fetchPromise;
+      // Network-first for HTML, cache-first for assets
+      const isHtml = request.url.endsWith('.html') || request.url.endsWith('/');
+      
+      if (isHtml) {
+        // Network-first for HTML
+        return fetch(request)
+          .then((response) => {
+            if (response && response.status === 200 && response.type === 'basic') {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request.url, clone));
+            }
+            return response;
+          })
+          .catch(() => cached || new Response('Offline', { status: 503 }));
+      } else {
+        // Cache-first for assets
+        if (cached) return cached;
+        
+        return fetch(request)
+          .then((response) => {
+            if (response && response.status === 200 && response.type === 'basic') {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request.url, clone));
+            }
+            return response;
+          })
+          .catch(() => new Response('Asset not available', { status: 404 }));
+      }
     })
   );
 });

@@ -19,6 +19,9 @@
     "allowJs": true,
     "jsx": "react-jsx",
     "strict": false,
+    "strictNullChecks": true,
+    "noImplicitAny": false,
+    "strictFunctionTypes": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {

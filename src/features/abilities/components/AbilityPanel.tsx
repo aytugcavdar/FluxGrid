@@ -8,6 +8,25 @@ import { RotateCw, Repeat, Snowflake, Magnet, Undo, Zap, TrendingUp, Clover, Clo
 import clsx from 'clsx';
 import { playClick } from '../../../utils/audio';
 
+const ACTIVE_UNLOCK_LEVELS: Record<ActiveAbilityType, number> = {
+  [ActiveAbilityType.REROLL]: 0,
+  [ActiveAbilityType.SHATTER]: 0,
+  [ActiveAbilityType.BOMB]: 0,
+  [ActiveAbilityType.ROTATE]: 5,
+  [ActiveAbilityType.SWAP]: 12,
+  [ActiveAbilityType.FREEZE]: 20,
+  [ActiveAbilityType.MAGNET]: 30,
+  [ActiveAbilityType.UNDO]: 40,
+};
+
+const PASSIVE_UNLOCK_LEVELS: Record<PassiveAbilityType, number> = {
+  [PassiveAbilityType.FLUX_BOOST]: 3,
+  [PassiveAbilityType.SCORE_MULTIPLIER]: 8,
+  [PassiveAbilityType.LUCKY_PIECES]: 15,
+  [PassiveAbilityType.COMBO_MASTER]: 25,
+  [PassiveAbilityType.ICE_BREAKER]: 35,
+};
+
 const ACTIVE_ABILITY_ICONS: Record<ActiveAbilityType, React.ReactNode> = {
   [ActiveAbilityType.REROLL]: <RefreshCw size={20} />,
   [ActiveAbilityType.SHATTER]: <Hammer size={20} />,
@@ -101,9 +120,17 @@ export const AbilityPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-bold text-white text-sm">{type}</span>
-                      <span className="text-xs text-blue-400 font-bold">{ability.fluxCost} Flux</span>
+                      {unlocked ? (
+                        <span className="text-xs text-blue-400 font-bold">{ability.fluxCost} Flux</span>
+                      ) : (
+                        <span className="text-xs text-white/30 font-bold">Seviye {ACTIVE_UNLOCK_LEVELS[type]}</span>
+                      )}
                     </div>
-                    <p className="text-xs text-white/60">Kullanım: {ability.usageCount}</p>
+                    {unlocked ? (
+                      <p className="text-xs text-white/60">Kullanım: {ability.usageCount}</p>
+                    ) : (
+                      <p className="text-xs text-white/30">Seviye {ACTIVE_UNLOCK_LEVELS[type]}'de açılır</p>
+                    )}
                   </div>
                 </motion.button>
               );
@@ -156,11 +183,15 @@ export const AbilityPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-white/60">
-                      {ability.effect.multiplier && `${ability.effect.multiplier}x çarpan`}
-                      {ability.effect.probability && `${ability.effect.probability * 100}% şans`}
-                      {ability.effect.duration && `${ability.effect.duration}s süre`}
-                    </p>
+                    {unlocked ? (
+                      <p className="text-xs text-white/60">
+                        {ability.effect.multiplier && `${ability.effect.multiplier}x çarpan`}
+                        {ability.effect.probability && `${ability.effect.probability * 100}% şans`}
+                        {ability.effect.duration && `${ability.effect.duration}s süre`}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-white/30">Seviye {PASSIVE_UNLOCK_LEVELS[type]}'de açılır</p>
+                    )}
                   </div>
                 </motion.button>
               );

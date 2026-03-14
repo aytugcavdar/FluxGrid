@@ -4,6 +4,8 @@ import { ActiveAbilityType, PassiveAbilityType } from '@features/abilities/types
 import { LevelObjective } from '@features/game/types';
 import { ABILITY_UNLOCKS } from '@features/abilities/constants';
 import { generateLevel } from '../utils/levelGenerator';
+import { usePassiveAbilityStore } from '@features/abilities/store/passiveAbilityStore';
+import { useAbilityStore } from '@features/abilities/store/abilityStore';
 
 interface ProgressionStore extends ProgressionState {
   // Actions
@@ -95,6 +97,10 @@ export const useProgressionStore = create<ProgressionStore>((set, get) => ({
     
     // Check for new unlocks
     get().checkUnlocks();
+    
+    // Trigger passive and active ability re-initialization to check for unlocks
+    usePassiveAbilityStore.getState().initializePassives();
+    useAbilityStore.getState().initializeAbilities();
   },
 
   unlockNextLevel: () => {

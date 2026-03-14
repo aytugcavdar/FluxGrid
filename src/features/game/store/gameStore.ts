@@ -2,13 +2,18 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { GridState, Piece, PieceShape, GRID_SIZE, GridCell, SkillType, CellType, ObjectiveType, LevelObjective, Achievement } from '../types';
 import { AppState, GameStats, GameMode } from '@shared/types';
-import { SHAPES, POINTS, FLUX_COST, COLORS, STONE_BLOCK, ACHIEVEMENTS } from '../constants';
+import { SHAPES, POINTS, FLUX_COST, COLORS, STONE_BLOCK, ACHIEVEMENTS, ZEN_PALETTES } from '../constants';
 import { generateLevel } from '../../career/utils/levelGenerator';
-import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd } from '../../../utils/audio';
+import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playTick } from '../../../utils/audio';
 import { handleError, safeExecute, ErrorCategory, ErrorSeverity } from '../../../utils/errorHandler';
 import { debouncedSave, safeLocalStorageGet, safeParseInt, safeJSONParse } from './helpers/localStorage';
 import { createEmptyGrid, processGrid } from './helpers/grid';
 import { getRandomPieces } from './helpers/pieces';
+import { useThemeStore } from '@shared/store/themeStore';
+
+// Difficulty tier constants for Endless mode
+const DIFFICULTY_THRESHOLDS = [0, 2000, 5000, 10000, 20000];
+const TIER_NAMES = ['Başlangıç', 'Orta', 'Zor', 'Uzman', 'Efsane'];
 
 export interface GameStore {
   grid: GridState;
@@ -22,12 +27,14 @@ export interface GameStore {
   activeSkill: SkillType | null;
   draggedPiece: Piece | null;
   lastAction: {
-    type: 'PLACE' | 'CLEAR';
+    type: 'PLACE' | 'CLEAR' | 'MILESTONE';
     lines?: number;
     combo?: number;
     chainCount?: number;            // Kaç zincir dalgası oluştu
     colorBonus?: boolean;           // Tek renkli temizleme bonusu mu?
     surgeBonus?: boolean;           // Surge modu aktif miydi?
+    tier?: number;                  // Zorluk seviyesi (MILESTONE için)
+    tierName?: string;              // Zorluk seviyesi adı (MILESTONE için)
   } | null;
   
   // Level & Achievements State
@@ -37,6 +44,7 @@ export interface GameStore {
   achievements: Achievement[];
   isLevelComplete: boolean;
   unlockedAchievementId: string | null;
+  earnedStars: number;              // Stars earned in current level
 
   // Navigation & Persistence
   appState: AppState;
@@ -45,10 +53,12 @@ export interface GameStore {
   highScores: { [key: string]: number };
   stats: GameStats;
   maxLevelReached: number;
+  difficultyTier: number;           // Endless mode zorluk seviyesi (0-4)
 
   // ZEN Mode State
   zenSessionTime: number;    // Saniye cinsinden oynama süresi
   zenBlocksPlaced: number;   // Bu oturumda yerleştirilen blok sayısı
+  zenPaletteIndex: number;   // 0-3 arası, her 10 satırda değişir
 
   // SURVIVAL Mode State
   survivalTime: number;           // Hayatta kalma süresi (saniye)
@@ -56,6 +66,9 @@ export interface GameStore {
   survivalNextPush: number;       // Sonraki satır ne zaman gelecek (countdown)
   survivalRowCount: number;       // Kaç taş satır geldi toplam
   survivalHighScore: number;      // En iyi hayatta kalma süresi (saniye)
+
+  // Daily Challenge State
+  dailyClearHistory: boolean[][]; // Her hamledeki temizleme pattern'i (true = o hücre temizlendi)
 
   // Actions
   initGame: (mode?: GameMode) => void;
@@ -106,6 +119,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   achievements: safeJSONParse(safeLocalStorageGet('flux_achievements', JSON.stringify(ACHIEVEMENTS)), ACHIEVEMENTS),
   isLevelComplete: false,
   unlockedAchievementId: null,
+  earnedStars: 0,
 
   // Navigation & Persistence
   appState: AppState.HOME,
@@ -114,10 +128,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   highScores: safeJSONParse(safeLocalStorageGet('flux_highscores', '{}'), {}),
   stats: safeJSONParse(safeLocalStorageGet('flux_stats', JSON.stringify(INITIAL_STATS)), INITIAL_STATS),
   maxLevelReached: safeParseInt(safeLocalStorageGet('flux_max_level', '0')),
+  difficultyTier: 0,
 
   // ZEN Mode Initial State
   zenSessionTime: 0,
   zenBlocksPlaced: 0,
+  zenPaletteIndex: 0,
 
   // SURVIVAL Mode Initial State
   survivalTime: 0,
@@ -125,6 +141,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   survivalNextPush: 10,
   survivalRowCount: 0,
   survivalHighScore: safeParseInt(safeLocalStorageGet('flux_survival_highscore', '0')),
+
+  // Daily Challenge Initial State
+  dailyClearHistory: [],
 
   initGame: (mode = GameMode.CAREER) => {
     const success = safeExecute(
@@ -139,9 +158,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         
         set({
           grid: initialGrid,
-          pieces: getRandomPieces(3, initialGrid, isDaily),
+          pieces: getRandomPieces(3, initialGrid, isDaily, isZen ? ZEN_PALETTES[0] : useThemeStore.getState().getPieceColors(), 0),
           score: 0,
-          flux: 50,
+          flux: isZen ? 100 : 50,
           combo: 0,
           isGameOver: false,
           isSurgeActive: false,
@@ -155,14 +174,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
           appState: AppState.GAME,
           gameMode: mode,
           timeLeft: isTimed ? 60 : isBlitz ? 30 : 0,
+          difficultyTier: 0,
           // ZEN mode initialization
           zenSessionTime: isZen ? 0 : get().zenSessionTime,
           zenBlocksPlaced: isZen ? 0 : get().zenBlocksPlaced,
+          zenPaletteIndex: isZen ? 0 : get().zenPaletteIndex,
           // SURVIVAL mode initialization
           survivalTime: isSurvival ? 0 : get().survivalTime,
           survivalPushInterval: isSurvival ? 10 : get().survivalPushInterval,
           survivalNextPush: isSurvival ? 10 : get().survivalNextPush,
-          survivalRowCount: isSurvival ? 0 : get().survivalRowCount
+          survivalRowCount: isSurvival ? 0 : get().survivalRowCount,
+          // Daily Challenge initialization
+          dailyClearHistory: []
         });
         
         // Increment games played
@@ -198,7 +221,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     set({
       grid: initialGrid,
-      pieces: getRandomPieces(3, initialGrid),
+      pieces: getRandomPieces(3, initialGrid, false, useThemeStore.getState().getPieceColors(), 0),
       score: 0,
       flux: 50,
       combo: 0,
@@ -280,6 +303,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         
         // TIMED ve BLITZ modda timer'ı azalt
         if (gameMode === GameMode.TIMED || gameMode === GameMode.BLITZ) {
+          // Play tick sound for last 10 seconds
+          if (timeLeft <= 10 && timeLeft > 0) {
+            playTick();
+          }
+          
           if (timeLeft <= 1) {
             // BLITZ modda kalan süre bonusu ekle
             if (gameMode === GameMode.BLITZ && timeLeft > 0) {
@@ -404,7 +432,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     
     set({
       grid: initialGrid,
-      pieces: getRandomPieces(3, initialGrid, isDaily),
+      pieces: getRandomPieces(3, initialGrid, isDaily, useThemeStore.getState().getPieceColors(), 0),
       flux: 50,
       currentLevelIndex: nextIdx,
       movesLeft: nextLevelDef.movesLimit || 0,
@@ -429,9 +457,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     if (skill === SkillType.REROLL) {
       if (flux >= FLUX_COST.REROLL) {
+        const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
         set({
           flux: flux - FLUX_COST.REROLL,
-          pieces: getRandomPieces(3, get().grid, get().gameMode === GameMode.DAILY_CHALLENGE),
+          pieces: getRandomPieces(3, get().grid, get().gameMode === GameMode.DAILY_CHALLENGE, useThemeStore.getState().getPieceColors(), currentTier),
           activeSkill: null
         });
         get().checkGameOver();
@@ -575,6 +604,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   placePiece: (piece, startX, startY) => {
     const { grid, score, combo, flux, highScore, isSurgeActive, gameMode } = get();
     
+    // Grid validation
+    if (!grid || grid.length !== GRID_SIZE) {
+      console.error('placePiece: invalid grid state');
+      return false;
+    }
+    
     // 1. Validate placement
     if (!get().canPlacePiece(grid, piece, startX, startY)) return false;
 
@@ -601,13 +636,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken } = processGrid(tempGrid);
 
     // ZEN mode: Blok sayısını artır
+    // ZEN modda blok sayısını artır ve palette rotation kontrol et
     if (gameMode === GameMode.ZEN) {
       set({ zenBlocksPlaced: get().zenBlocksPlaced + 1 });
+      
+      // Palette rotation: her 10 satırda bir palet değiştir
+      if (linesCleared > 0) {
+        const currentStats = get().stats;
+        const totalLines = currentStats.linesCleared + linesCleared;
+        const newPaletteIndex = Math.floor(totalLines / 10) % ZEN_PALETTES.length;
+        
+        if (newPaletteIndex !== get().zenPaletteIndex) {
+          set({ zenPaletteIndex: newPaletteIndex });
+        }
+      }
     }
 
     // 4. Puan hesaplama (ZEN modda skip edilir)
-    // Combo: eğer satır temizlendiyse artır, yoksa 0
-    const newCombo = linesCleared > 0 ? combo + 1 : 0;
+    // Combo: ZEN'de combo sıfırlanmaz, diğer modlarda satır temizlenmezse sıfırlanır
+    const newCombo = gameMode === GameMode.ZEN 
+      ? combo + (linesCleared > 0 ? 1 : 0)
+      : (linesCleared > 0 ? combo + 1 : 0);
     const comboMultiplier = newCombo;
 
     // Renk bonusu: tek renk satır/sütun temizleme
@@ -663,6 +712,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         colorBonus,
         surgeBonus: isSurgeActive,
       }});
+      
+      // Daily Challenge: Track clear history for sharing
+      if (gameMode === GameMode.DAILY_CHALLENGE) {
+        const snapshot = new Array(linesCleared)
+          .fill(null)
+          .map(() => new Array(4).fill(null).map(() => Math.random() > 0.3));
+        set({ dailyClearHistory: [...get().dailyClearHistory, ...snapshot].slice(-6) });
+      }
     } else {
       set({ lastAction: { type: 'PLACE' } });
     }
@@ -673,12 +730,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const newFlux = Math.min(100, rawFlux);
 
     // Surge: flux 100'e ulaşırsa aktif et; eğer surge kullanıldıysa sıfırla
+    // ZEN modda surge yok, flux her zaman 100
     const surgeWasUsed = isSurgeActive && linesCleared > 0;
     const surgeJustFilled = !isSurgeActive && rawFlux >= 100;
-    const newIsSurgeActive = surgeJustFilled ? true : (surgeWasUsed ? false : isSurgeActive);
-    const finalFlux = surgeWasUsed ? 0 : newFlux; // Surge kullanılınca flux sıfırlanır
+    const newIsSurgeActive = gameMode === GameMode.ZEN ? false : (surgeJustFilled ? true : (surgeWasUsed ? false : isSurgeActive));
+    const finalFlux = gameMode === GameMode.ZEN ? 100 : (surgeWasUsed ? 0 : newFlux); // ZEN'de flux her zaman 100
 
-    if (surgeJustFilled) {
+    if (surgeJustFilled && gameMode !== GameMode.ZEN) {
       playSurgeStart();
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // Haptic for surge start
     } else if (surgeWasUsed) {
@@ -690,7 +748,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let currentPieces = get().pieces.filter(p => p.instanceId !== piece.instanceId);
     if (currentPieces.length === 0) {
       const isDaily = get().gameMode === GameMode.DAILY_CHALLENGE;
-      currentPieces = getRandomPieces(3, newGrid, isDaily); // Use newGrid for density calculation
+      const isZen = get().gameMode === GameMode.ZEN;
+      const zenPalette = isZen ? ZEN_PALETTES[get().zenPaletteIndex] : undefined;
+      const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
+      currentPieces = getRandomPieces(3, newGrid, isDaily, zenPalette ?? useThemeStore.getState().getPieceColors(), currentTier); // Use newGrid for density calculation
     }
 
     // Ses + Titresim
@@ -758,6 +819,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
       unlockedAchievementId: newUnlock ? newUnlock.id : get().unlockedAchievementId
     });
 
+    // Check difficulty tier progression (Endless mode only)
+    if (gameMode === GameMode.ENDLESS) {
+      const newTier = DIFFICULTY_THRESHOLDS.filter(t => newScore >= t).length - 1;
+      const currentTier = get().difficultyTier;
+      
+      if (newTier !== currentTier && newTier >= 0 && newTier < TIER_NAMES.length) {
+        set({ 
+          difficultyTier: newTier,
+          lastAction: { 
+            type: 'MILESTONE', 
+            tier: newTier, 
+            tierName: TIER_NAMES[newTier] 
+          } 
+        });
+      }
+    }
+
     // Update Global Stats
     const currentStats = get().stats;
     const nextStats: GameStats = {
@@ -772,12 +850,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
     debouncedSave('flux_stats', JSON.stringify(nextStats));
 
     if (levelFinished) {
+      const currentLevelDef = generateLevel(get().currentLevelIndex);
+      const targetScore = currentLevelDef.objectives.find(o => o.type === ObjectiveType.SCORE)?.target ?? 1000;
+      const thresholds = currentLevelDef.starThresholds ?? [targetScore, targetScore * 1.5, targetScore * 2];
+      const [t1, t2, t3] = thresholds;
+      const earnedStars = newScore >= t3 ? 3 : newScore >= t2 ? 2 : newScore >= t1 ? 1 : 0;
+      
+      // Update max level reached
       const nextMax = Math.max(get().maxLevelReached, get().currentLevelIndex + 1);
       set({ maxLevelReached: nextMax });
       debouncedSave('flux_max_level', nextMax.toString());
       
+      // Save level stars progress
+      const progressKey = `flux_level_${get().currentLevelIndex}_stars`;
+      const existingStars = safeParseInt(safeLocalStorageGet(progressKey, '0'));
+      if (earnedStars > existingStars) {
+        debouncedSave(progressKey, earnedStars.toString());
+      }
+      
+      // Set earned stars in state
+      set({ earnedStars });
+      
       // Apply reward flux
-      const currentLevelDef = generateLevel(get().currentLevelIndex);
       if (currentLevelDef.rewardFlux) {
         const newFluxWithReward = Math.min(100, finalFlux + currentLevelDef.rewardFlux);
         set({ flux: newFluxWithReward });
@@ -832,6 +926,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
           debouncedSave('flux_survival_highscore', currentTime.toString());
         }
       }
+      
+      // Daily Challenge tamamlandığında streak güncelle
+      if (gameMode === GameMode.DAILY_CHALLENGE) {
+        import('@utils/streakManager').then(({ checkAndUpdateStreak }) => {
+          checkAndUpdateStreak();
+        });
+      }
+      
       playGameOver();
       set({ isGameOver: true });
     }

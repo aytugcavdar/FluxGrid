@@ -74,4 +74,27 @@ describe('processGrid — satır/sütun temizleme', () => {
     const result = processGrid(grid);
     expect(result.bombsExploded).toBeGreaterThan(0);
   });
+
+  it('boş grid processGrid\'den geçince değişmez', () => {
+    const grid = createEmptyGrid();
+    const result = processGrid(grid);
+    expect(result.totalLinesCleared).toBe(0);
+    expect(result.chainCount).toBe(0);
+    expect(result.colorBonus).toBe(false);
+    result.grid.forEach(row => row.forEach(cell => expect(cell.filled).toBe(false)));
+  });
+
+  it('10x10 dolu grid tüm satır ve sütunları temizler', () => {
+    const grid = createEmptyGrid();
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        grid[y][x] = { filled: true, color: '#ff0000', id: `${y}-${x}` };
+      }
+    }
+    const result = processGrid(grid);
+    expect(result.totalLinesCleared).toBeGreaterThanOrEqual(10);
+    result.grid.forEach(row =>
+      row.forEach(cell => expect(cell.filled).toBe(false))
+    );
+  });
 });
