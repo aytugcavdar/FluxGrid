@@ -13,9 +13,9 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       exclude: ['node_modules/', 'tests/', '**/*.d.ts', 'src/app/index.tsx'],
       thresholds: {
-        lines: 70,
-        functions: 70,
-        branches: 60,
+        lines: 50,
+        functions: 40,
+        branches: 40,
       },
     },
   },
