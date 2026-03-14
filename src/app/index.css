@@ -14,7 +14,7 @@
   /* Layout — mobile-first (smallest screens) */
   --grid-cell: 42px;
   --tray-height: clamp(85px, 11vh, 115px);
-  --hud-height: 42px;
+  --hud-height: 28px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-left: env(safe-area-inset-left, 0px);

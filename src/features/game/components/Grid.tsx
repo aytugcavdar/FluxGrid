@@ -728,13 +728,6 @@ export const Grid: React.FC = () => {
                 ref={canvasRef}
                 className="w-full h-full touch-none outline-none block"
             />
-
-            {/* HUD Decoration */}
-            <div className="absolute top-4 right-4 flex gap-1">
-                <div className="w-1.5 h-1.5 bg-cyan-500 rounded-full animate-pulse" />
-                <div className="w-1.5 h-1.5 bg-cyan-500/50 rounded-full" />
-                <div className="w-1.5 h-1.5 bg-cyan-500/20 rounded-full" />
-            </div>
         </div>
     );
 };

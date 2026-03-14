@@ -335,7 +335,7 @@ const App: React.FC = () => {
             className="fixed inset-0 flex flex-col z-30 overflow-hidden"
           >
             {/* HUD */}
-            <header className="flex-none w-full max-w-4xl mx-auto" style={{ padding: '2px 4px', height: '36px' }}>
+            <header className="flex-none w-full max-w-4xl mx-auto" style={{ padding: '2px 4px', height: 'var(--hud-height)' }}>
               <div style={{ height: '100%' }}>
                 <HUD />
               </div>
@@ -344,16 +344,16 @@ const App: React.FC = () => {
             {/* Grid Area */}
             <main className="flex-1 relative flex items-center justify-center min-h-0 overflow-hidden">
               <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ width: 'min(100vw, 100%)', height: 'min(100%, 100vw)', aspectRatio: '1/1' }}>
+                <div style={{ width: '100%', height: '100%', maxWidth: '100vmin', maxHeight: '100vmin', aspectRatio: '1/1' }}>
                   <Grid />
                 </div>
               </div>
             </main>
 
             {/* Piece Tray */}
-            <div className="bg-gradient-to-t from-gray-900/90 via-gray-900/50 to-transparent" style={{ height: '75px', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+            <div className="bg-gray-900/95 border-t border-white/5" style={{ height: 'var(--tray-height)', paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
               <div className="max-w-2xl mx-auto h-full flex flex-col" style={{ padding: '1px 6px' }}>
-                <div className="grid grid-cols-3 flex-1 min-h-0" style={{ gap: '3px' }}>
+                <div className="grid grid-cols-3 flex-1 min-h-0" style={{ gap: '4px' }}>
                   <AnimatePresence mode="popLayout">
                     {pieces.map((piece) => (
                       <motion.div
@@ -368,7 +368,7 @@ const App: React.FC = () => {
                             piece.type === 'BOMB' ? "bg-red-900/15 border-red-400/20" :
                               "bg-white/[0.03] border-white/[0.04] hover:bg-white/[0.06]"
                         )}
-                        style={{ minHeight: '42px', borderRadius: '6px' }}
+                        style={{ borderRadius: '6px' }}
                       >
                         <Piece piece={piece} />
                       </motion.div>

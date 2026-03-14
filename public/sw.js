@@ -1,14 +1,14 @@
-const CACHE_NAME = 'fluxgrid-v6';
+const CACHE_NAME = 'fluxgrid-v9';
 
 // Install — skip pre-caching
 self.addEventListener('install', () => {
-  console.log('SW: Installing v5...');
+  console.log('SW: Installing v9...');
   self.skipWaiting();
 });
 
 // Activate — clean old caches
 self.addEventListener('activate', (event) => {
-  console.log('SW: Activating v5 and cleaning old caches...');
+  console.log('SW: Activating v9 and cleaning old caches...');
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
