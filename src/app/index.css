@@ -2,6 +2,10 @@
    FluxGrid: Modern Clean Design System
    ═══════════════════════════════════════════════ */
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ─── Design Tokens ─── */
 :root {
   --color-bg: #111827;
@@ -75,7 +79,9 @@
 html,
 body {
   width: 100%;
-  height: 100dvh;
+  height: 100vh;           /* fallback */
+  height: 100dvh;          /* modern */
+  height: -webkit-fill-available; /* iOS Safari */
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -87,13 +93,11 @@ body {
   color: var(--color-text);
   touch-action: none;
   overscroll-behavior: none;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
 }
 
 #root {
   width: 100%;
+  height: 100vh;           /* fallback */
   height: 100dvh;
   position: fixed;
   inset: 0;
@@ -130,6 +134,15 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #4b5563;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* ─── Canvas ─── */
@@ -209,13 +222,16 @@ canvas {
   position: relative;
   overflow: hidden;
   background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .game-hud {
   flex: none;
-  height: var(--hud-height);
+  height: calc(var(--hud-height, 68px) + var(--safe-top));
   padding: 2px 6px;
-  padding-top: max(2px, var(--safe-top));
+  padding-top: calc(2px + var(--safe-top));
   position: relative;
   z-index: 10;
 }
@@ -223,7 +239,7 @@ canvas {
 @media (min-width: 768px) {
   .game-hud {
     padding: 4px 12px;
-    padding-top: max(4px, var(--safe-top));
+    padding-top: calc(4px + var(--safe-top));
   }
 }
 
@@ -246,8 +262,8 @@ canvas {
 
 .game-tray {
   flex: none;
-  height: var(--tray-height);
-  padding-bottom: env(safe-area-inset-bottom);
+  height: calc(var(--tray-height, 85px) + var(--safe-bottom));
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
   position: relative;
   z-index: 20;
 }
@@ -343,4 +359,16 @@ canvas {
 .mute-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.7);
+}
+
+
+/* ─── Reduced Motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

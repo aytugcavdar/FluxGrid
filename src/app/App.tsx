@@ -64,6 +64,10 @@ const App: React.FC = () => {
   const [surgeWasUsed, setSurgeWasUsed] = useState(false);
   const [streak, setStreak] = useState(getStreak);
   const [dailyPlayedToday, setDailyPlayedToday] = useState(getDailyPlayedToday);
+  
+  // Grid sizing with ResizeObserver for safe area compatibility
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const [gridSize, setGridSize] = useState(0);
 
   // Game Over Message Helper
   const getGameOverMessage = () => {
@@ -296,6 +300,22 @@ const App: React.FC = () => {
       setDailyPlayedToday(getDailyPlayedToday());
     }
   }, [isGameOver, gameMode]);
+
+  // Grid sizing with ResizeObserver for safe area
+  useEffect(() => {
+    if (!gridContainerRef.current) return;
+    
+    const obs = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (entry) {
+        const { width, height } = entry.contentRect;
+        setGridSize(Math.min(width, height));
+      }
+    });
+    
+    obs.observe(gridContainerRef.current);
+    return () => obs.disconnect();
+  }, []);
 
   return (
     <div className="game-container" onPointerDown={unlockAudio} style={{ background: colors.background }}>
@@ -633,7 +653,13 @@ const App: React.FC = () => {
             className="fixed inset-0 flex flex-col z-30 overflow-hidden"
           >
             {/* HUD */}
-            <header className="flex-none w-full max-w-4xl mx-auto" style={{ padding: '2px 4px', height: 'var(--hud-height)' }}>
+            <header 
+              className="flex-none w-full max-w-4xl mx-auto" 
+              style={{ 
+                padding: `calc(2px + env(safe-area-inset-top, 0px)) 4px 2px`,
+                height: `calc(var(--hud-height, 68px) + env(safe-area-inset-top, 0px))`
+              }}
+            >
               <div style={{ height: '100%' }}>
                 <HUD />
               </div>
@@ -641,8 +667,23 @@ const App: React.FC = () => {
 
             {/* Grid Area */}
             <main className="flex-1 relative flex items-center justify-center min-h-0 overflow-hidden">
-              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ width: '100%', height: '100%', maxWidth: '100vmin', maxHeight: '100vmin', aspectRatio: '1/1' }}>
+              <div 
+                ref={gridContainerRef}
+                style={{ 
+                  width: '100%', 
+                  height: '100%', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center' 
+                }}
+              >
+                <div style={{ 
+                  width: gridSize > 0 ? gridSize : '100%', 
+                  height: gridSize > 0 ? gridSize : '100%', 
+                  maxWidth: gridSize > 0 ? gridSize : '100vmin', 
+                  maxHeight: gridSize > 0 ? gridSize : '100vmin', 
+                  aspectRatio: '1/1' 
+                }}>
                   <Grid />
                 </div>
               </div>
@@ -650,8 +691,8 @@ const App: React.FC = () => {
 
             {/* Piece Tray */}
             <div style={{ 
-              height: 'var(--tray-height)', 
-              paddingBottom: 'env(safe-area-inset-bottom, 8px)',
+              height: `calc(var(--tray-height, 90px) + env(safe-area-inset-bottom, 0px))`,
+              paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + 4px)`,
               backgroundColor: colors.trayBackground,
               borderTop: `1px solid ${colors.hudBorder}`
             }}>
@@ -991,7 +1032,11 @@ const App: React.FC = () => {
 
                     {/* Home Button */}
                     <button
-                      onClick={() => setAppState(AppState.HOME)}
+                      onClick={() => {
+                        playClick();
+                        resetGame();
+                        setAppState(AppState.HOME);
+                      }}
                       className="w-full mt-3 py-3 rounded-xl bg-white/5 text-white/40 text-[10px] font-bold uppercase"
                     >
                       Ana Menüye Dön

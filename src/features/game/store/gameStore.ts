@@ -4,7 +4,7 @@ import { GridState, Piece, PieceShape, GRID_SIZE, GridCell, SkillType, CellType,
 import { AppState, GameStats, GameMode } from '@shared/types';
 import { SHAPES, POINTS, FLUX_COST, COLORS, STONE_BLOCK, ACHIEVEMENTS, ZEN_PALETTES } from '../constants';
 import { generateLevel } from '../../career/utils/levelGenerator';
-import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playTick } from '../../../utils/audio';
+import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playTick, playHaptic } from '../../../utils/audio';
 import { handleError, safeExecute, ErrorCategory, ErrorSeverity } from '../../../utils/errorHandler';
 import { debouncedSave, safeLocalStorageGet, safeParseInt, safeJSONParse } from './helpers/localStorage';
 import { createEmptyGrid, processGrid } from './helpers/grid';
@@ -406,7 +406,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         
         // 5. Ses ve titreşim
         playClear(1);
-        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        playHaptic('clear');
         
         return true;
       },
@@ -499,7 +499,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Audio + Haptic Feedback for Skill
     playSkill();
     if (totalLinesCleared > 0) playClear(totalLinesCleared);
-    if (navigator.vibrate) navigator.vibrate([80, 50, 80]);
+    playHaptic('skill');
 
     const newScore = score + 5 + extraScore;
     const newHighScore = Math.max(newScore, get().highScore);
@@ -562,7 +562,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Audio + Haptic Feedback for Bomb
     playSkill();
     if (totalLinesCleared > 0) playClear(totalLinesCleared);
-    if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 150]);
+    playHaptic('skill');
 
     const newScore = score + (blocksDestroyed * 5) + extraScore;
     const newHighScore = Math.max(newScore, get().highScore);
@@ -738,10 +738,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     if (surgeJustFilled && gameMode !== GameMode.ZEN) {
       playSurgeStart();
-      if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // Haptic for surge start
+      playHaptic('surge');
     } else if (surgeWasUsed) {
       playSurgeEnd();
-      // Optional haptic for surge end
     }
 
     // 5. Tepsi güncelle
@@ -758,10 +757,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (linesCleared > 0) {
         playClear(linesCleared);
         if (comboMultiplier > 1) playCombo(comboMultiplier);
-        if (navigator.vibrate) navigator.vibrate([50, 30, 50, 30, 100]);
+        playHaptic(linesCleared > 1 ? 'clear_multi' : 'clear');
     } else {
         playPlace();
-        if (navigator.vibrate) navigator.vibrate(20);
+        playHaptic('place');
     }
 
     const modeKey = get().gameMode;

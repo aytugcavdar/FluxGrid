@@ -14,7 +14,16 @@ export const Piece: React.FC<Props> = ({ piece }) => {
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
     setDraggedPiece(piece);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent) => {
+    e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
   const renderShape = (p: PieceType) => {
@@ -63,6 +72,8 @@ export const Piece: React.FC<Props> = ({ piece }) => {
     <div
       ref={ref}
       onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
       className={clsx(
         "relative w-full h-full flex items-center justify-center transition-all duration-200 cursor-grab active:cursor-grabbing touch-none select-none",
         { "opacity-25 scale-90": isDragging }

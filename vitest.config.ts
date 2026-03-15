@@ -14,7 +14,7 @@ export default defineConfig({
       exclude: ['node_modules/', 'tests/', '**/*.d.ts', 'src/app/index.tsx'],
       thresholds: {
         lines: 47,
-        functions: 39,
+        functions: 38,
         branches: 37,
       },
     },

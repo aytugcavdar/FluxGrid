@@ -3,7 +3,8 @@ import * as BABYLON from 'babylonjs';
 import { useGameStore } from '../store/gameStore';
 import { useThemeStore } from '../../../shared/store/themeStore';
 import { GRID_SIZE, SkillType, CellType } from '../types';
-import { getDragYOffset } from '../../../utils/responsive';
+import { getDragYOffset, setCanvasRect } from '../../../utils/responsive';
+import { playHaptic } from '../../../utils/audio';
 import clsx from 'clsx';
 
 // Constants for 3D layout
@@ -11,6 +12,8 @@ const CELL_SIZE = 1.0;
 const CELL_SPACING = 0.05; // Tighter spacing like the image
 const TOTAL_CELL_SIZE = CELL_SIZE + CELL_SPACING;
 const GRID_OFFSET = ((GRID_SIZE - 1) * TOTAL_CELL_SIZE) / 2;
+const GHOST_POOL_SIZE = 25;
+const SKILL_OVERLAY_POOL_SIZE = 10;
 
 export const Grid: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -43,6 +46,9 @@ export const Grid: React.FC = () => {
         const deviceMemory = (navigator as any).deviceMemory ?? 4; // GB
         const isLowEndDevice = deviceMemory <= 2 || navigator.hardwareConcurrency <= 2;
         const isMobile = window.innerWidth < 768;
+        
+        // Reduced motion preference
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
         // Engine configuration based on device capability
         const engine = new BABYLON.Engine(canvasRef.current, true, {
@@ -248,6 +254,48 @@ export const Grid: React.FC = () => {
         // --- Ambient Particles removed ---
         ambientParticlesRef.current = [];
 
+        // --- Pool Initialization Functions ---
+        const initGhostPool = (scene: BABYLON.Scene) => {
+            const pool: BABYLON.Mesh[] = [];
+            for (let i = 0; i < GHOST_POOL_SIZE; i++) {
+                const ghost = BABYLON.MeshBuilder.CreateBox(`ghost-pool-${i}`, 
+                    { size: CELL_SIZE * 0.92, height: 0.65 }, 
+                    scene
+                );
+                const mat = new BABYLON.StandardMaterial(`ghost-mat-${i}`, scene);
+                mat.alpha = 0.5;
+                mat.specularColor = BABYLON.Color3.Black();
+                ghost.material = mat;
+                ghost.isPickable = false;
+                ghost.isVisible = false;
+                pool.push(ghost);
+            }
+            return pool;
+        };
+
+        const initSkillOverlayPool = (scene: BABYLON.Scene) => {
+            const pool: BABYLON.Mesh[] = [];
+            for (let i = 0; i < SKILL_OVERLAY_POOL_SIZE; i++) {
+                const overlay = BABYLON.MeshBuilder.CreateBox(`skill-overlay-${i}`, 
+                    { size: CELL_SIZE * 0.95, height: 0.7 }, 
+                    scene
+                );
+                const mat = new BABYLON.StandardMaterial(`skill-mat-${i}`, scene);
+                mat.emissiveColor = i === 0 
+                    ? BABYLON.Color3.FromHexString("#ef4444") 
+                    : BABYLON.Color3.FromHexString("#f97316");
+                overlay.material = mat;
+                overlay.isPickable = false;
+                overlay.isVisible = false;
+                pool.push(overlay);
+            }
+            return pool;
+        };
+
+        // Initialize pools
+        ghostMeshesRef.current = initGhostPool(scene);
+        skillOverlayMeshesRef.current = initSkillOverlayPool(scene);
+
 
         // --- Logic Helpers ---
         const getVectorPos = (gx: number, gy: number) => {
@@ -402,43 +450,34 @@ export const Grid: React.FC = () => {
                         setHoverCoord(newCoord);
 
                         // Magnetic Haptic Feedback on mobile
-                        if (navigator.vibrate) {
-                            try {
-                                navigator.vibrate(5);
-                            } catch (e) {
-                                // Ignore if not allowed yet
-                            }
-                        }
+                        playHaptic('hover');
                     }
 
-                    // --- Ghost Piece Logic ---
-                    // Clear old ghosts
-                    ghostMeshesRef.current.forEach(m => m.dispose());
-                    ghostMeshesRef.current = [];
+                    // --- Ghost Piece Logic (Pool-based) ---
+                    // Hide all ghosts first
+                    ghostMeshesRef.current.forEach(m => { m.isVisible = false; });
 
                     // Check if valid placement
                     const isValid = canPlacePiece(stateRef.current.grid, draggedPiece, fx, fy);
 
                     if (isValid) {
-                        // Create ghost meshes
+                        // Show ghost meshes from pool
+                        let ghostIndex = 0;
                         draggedPiece.shape.forEach((row, rIdx) => {
                             row.forEach((cell, cIdx) => {
-                                if (cell) {
-                                    const ghost = BABYLON.MeshBuilder.CreateBox("ghost", { size: CELL_SIZE * 0.9, height: 0.1 }, scene);
+                                if (cell && ghostIndex < GHOST_POOL_SIZE) {
                                     const gx = fx + cIdx;
                                     const gy = fy + rIdx;
-
+                                    
+                                    const ghost = ghostMeshesRef.current[ghostIndex++];
                                     ghost.position = getVectorPos(gx, gy);
                                     ghost.position.y = -0.45; // Slightly above grid base
 
-                                    const gMat = new BABYLON.StandardMaterial("gMat", scene);
+                                    const gMat = ghost.material as BABYLON.StandardMaterial;
                                     gMat.diffuseColor = BABYLON.Color3.FromHexString(draggedPiece.color);
                                     gMat.emissiveColor = BABYLON.Color3.FromHexString(draggedPiece.color).scale(0.5);
                                     gMat.alpha = 0.4; // Semi-transparent
-                                    ghost.material = gMat;
-                                    ghost.isPickable = false;
-
-                                    ghostMeshesRef.current.push(ghost);
+                                    ghost.isVisible = true;
                                 }
                             });
                         });
@@ -452,9 +491,8 @@ export const Grid: React.FC = () => {
                 hoverCoordRef.current = null;
                 setHoverCoord(null);
 
-                // Cleanup ghosts if mouse leaves grid
-                ghostMeshesRef.current.forEach(m => m.dispose());
-                ghostMeshesRef.current = [];
+                // Hide all ghosts if mouse leaves grid
+                ghostMeshesRef.current.forEach(m => { m.isVisible = false; });
             }
         };
 
@@ -465,21 +503,15 @@ export const Grid: React.FC = () => {
             time += 0.02;
             const { grid, draggedPiece, activeSkill, score, combo, lastAction } = stateRef.current;
 
-            // Limit ghost meshes on low-end devices
-            if (isLowEndDevice && ghostMeshesRef.current.length > 9) {
-                ghostMeshesRef.current.slice(9).forEach(m => m.dispose());
-                ghostMeshesRef.current = ghostMeshesRef.current.slice(0, 9);
-            }
-
             // Check for new shake events
             if (lastAction && lastAction !== lastHandledActionRef.current) {
                 if (lastAction.type === 'CLEAR') {
                     // Shake intensity based on lines cleared and combo
                     const lines = lastAction.lines || 1;
                     const cmb = lastAction.combo || 1;
-                    shakeIntensityRef.current = 0.2 + (lines * 0.1) + (cmb * 0.05);
+                    shakeIntensityRef.current = prefersReducedMotion ? 0 : (0.2 + (lines * 0.1) + (cmb * 0.05));
                 } else if (lastAction.type === 'PLACE') {
-                    shakeIntensityRef.current = 0.05; // Tiny thud on placement
+                    shakeIntensityRef.current = prefersReducedMotion ? 0 : 0.05; // Tiny thud on placement
                 }
                 lastHandledActionRef.current = lastAction;
             }
@@ -590,9 +622,9 @@ export const Grid: React.FC = () => {
                 }
             }
 
-            // 2. Holographic Ghost (The Wireframe Preview)
-            ghostMeshesRef.current.forEach(m => m.dispose());
-            ghostMeshesRef.current = [];
+            // 2. Holographic Ghost (The Wireframe Preview) - Pool-based
+            // Hide all ghosts first
+            ghostMeshesRef.current.forEach(m => { m.isVisible = false; });
 
             const currentHover = hoverCoordRef.current;
             if (draggedPiece && currentHover) {
@@ -602,31 +634,24 @@ export const Grid: React.FC = () => {
                     : BABYLON.Color3.FromHexString("#ef4444");
 
                 // Pulse factor for ghost breathing effect
-                const ghostPulse = 0.7 + Math.sin(time * 8) * 0.15;
                 const ghostY = 0.35 + Math.sin(time * 6) * 0.06;
 
+                let ghostIndex = 0;
                 draggedPiece.shape.forEach((row, dy) => {
                     row.forEach((val, dx) => {
-                        if (val === 1) {
+                        if (val === 1 && ghostIndex < GHOST_POOL_SIZE) {
                             const gx = currentHover.x + dx;
                             const gy = currentHover.y + dy;
 
                             if (gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE) {
-                                // Preview box — taller and more visible
-                                const ghostBox = BABYLON.MeshBuilder.CreateBox("ghost", {
-                                    size: CELL_SIZE * 0.92,
-                                    height: 0.65
-                                }, scene);
+                                const ghostBox = ghostMeshesRef.current[ghostIndex++];
                                 ghostBox.position = getVectorPos(gx, gy);
                                 ghostBox.position.y = ghostY;
 
-                                const mat = new BABYLON.StandardMaterial("ghostMat", scene);
+                                const mat = ghostBox.material as BABYLON.StandardMaterial;
                                 mat.diffuseColor = baseColor;
                                 mat.emissiveColor = baseColor.scale(0.2); // Reduced preview emissive
                                 mat.alpha = isValid ? 0.6 : 0.3;
-                                mat.specularColor = BABYLON.Color3.Black();
-                                mat.specularPower = 0;
-                                ghostBox.material = mat;
 
                                 // Bright edge outlines for clarity
                                 ghostBox.enableEdgesRendering();
@@ -635,8 +660,7 @@ export const Grid: React.FC = () => {
                                     ? new BABYLON.Color4(baseColor.r, baseColor.g, baseColor.b, 0.9)
                                     : new BABYLON.Color4(1, 0.3, 0.3, 0.7);
 
-                                ghostBox.isPickable = false;
-                                ghostMeshesRef.current.push(ghostBox);
+                                ghostBox.isVisible = true;
                             }
                         }
                     });
@@ -651,9 +675,19 @@ export const Grid: React.FC = () => {
         const handleWindowPointerUp = () => {
             const { draggedPiece } = stateRef.current;
             
-            // Handle piece placement
-            if (draggedPiece && hoverCoordRef.current) {
-                placePiece(draggedPiece, hoverCoordRef.current.x, hoverCoordRef.current.y);
+            // Handle piece placement - check canvas bounds first
+            if (draggedPiece && hoverCoordRef.current && canvasRef.current) {
+                const rect = canvasRef.current.getBoundingClientRect();
+                const mousePos = globalMouseRef.current;
+                
+                // Only place if pointer is within canvas bounds
+                if (mousePos && 
+                    mousePos.x >= rect.left && 
+                    mousePos.x <= rect.right && 
+                    mousePos.y >= rect.top && 
+                    mousePos.y <= rect.bottom) {
+                    placePiece(draggedPiece, hoverCoordRef.current.x, hoverCoordRef.current.y);
+                }
             }
             
             // Reset state
@@ -805,6 +839,28 @@ export const Grid: React.FC = () => {
             
             scene.dispose();
             engine.dispose();
+        };
+    }, []);
+
+    // Cache canvas rect for responsive calculations
+    useEffect(() => {
+        if (!canvasRef.current) return;
+        
+        const updateCanvasRect = () => {
+            if (canvasRef.current) {
+                const rect = canvasRef.current.getBoundingClientRect();
+                setCanvasRect(rect);
+            }
+        };
+        
+        // Initial cache
+        updateCanvasRect();
+        
+        // Update on resize
+        window.addEventListener('resize', updateCanvasRect);
+        
+        return () => {
+            window.removeEventListener('resize', updateCanvasRect);
         };
     }, []);
 

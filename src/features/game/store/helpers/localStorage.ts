@@ -7,17 +7,28 @@ import { safeExecute, ErrorCategory } from '../../../../utils/errorHandler';
 let saveTimers: { [key: string]: ReturnType<typeof setTimeout> } = {};
 
 /**
- * Debounced localStorage save with error handling
+ * Debounced localStorage save with error handling and requestIdleCallback optimization
  */
 export const debouncedSave = (key: string, value: string, delay: number = 500) => {
   if (saveTimers[key]) clearTimeout(saveTimers[key]);
   saveTimers[key] = setTimeout(() => {
-    safeExecute(
-      () => localStorage.setItem(key, value),
-      undefined,
-      ErrorCategory.STORAGE,
-      { key, operation: 'write' }
-    );
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => {
+        safeExecute(
+          () => localStorage.setItem(key, value),
+          undefined,
+          ErrorCategory.STORAGE,
+          { key, operation: 'write' }
+        );
+      }, { timeout: 2000 });
+    } else {
+      safeExecute(
+        () => localStorage.setItem(key, value),
+        undefined,
+        ErrorCategory.STORAGE,
+        { key, operation: 'write' }
+      );
+    }
     delete saveTimers[key];
   }, delay);
 };

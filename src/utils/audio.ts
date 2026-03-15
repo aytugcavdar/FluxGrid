@@ -232,3 +232,30 @@ export const playTick = () => {
   osc.start(ctx.currentTime);
   osc.stop(ctx.currentTime + 0.05);
 };
+
+// ─── Haptic Feedback ───
+
+type HapticPattern = 'hover' | 'place' | 'clear' | 'clear_multi' | 'combo' | 'surge' | 'game_over' | 'skill';
+
+const HAPTIC_PATTERNS: Record<HapticPattern, number | number[]> = {
+  hover: 4,
+  place: 15,
+  clear: [20, 10, 20],
+  clear_multi: [50, 30, 50, 30, 100],
+  combo: [30, 20, 30, 20, 50],
+  surge: [100, 50, 100],
+  game_over: [200, 100, 200, 100, 300],
+  skill: [80, 50, 80]
+};
+
+/** Centralized haptic feedback with pattern table */
+export const playHaptic = (pattern: HapticPattern): void => {
+  if (!navigator.vibrate) return;
+  
+  try {
+    const vibrationPattern = HAPTIC_PATTERNS[pattern];
+    navigator.vibrate(vibrationPattern);
+  } catch (e) {
+    // Ignore if vibration not allowed
+  }
+};
