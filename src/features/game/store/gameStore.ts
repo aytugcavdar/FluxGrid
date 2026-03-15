@@ -70,6 +70,15 @@ export interface GameStore {
   // Daily Challenge State
   dailyClearHistory: boolean[][]; // Her hamledeki temizleme pattern'i (true = o hücre temizlendi)
 
+  // Guided Experience State (First-time player tutorial)
+  isFirstGame: boolean;           // İlk oyun mu?
+  guidedStep: number;             // 0 = kapalı, 1-4 = adım numarası
+  guidedTarget: { x: number; y: number; pieceIndex: number } | null; // Hedef pozisyon
+
+  // Boss Level State
+  bossType: string | null;        // Aktif boss tipi
+  bossMoveCounter: number;        // Boss mekanik sayacı
+
   // Actions
   initGame: (mode?: GameMode) => void;
   nextLevel: () => void;
@@ -87,6 +96,8 @@ export interface GameStore {
   setDraggedPiece: (piece: Piece | null) => void;
   checkGameOver: () => void;
   resetGame: () => void;
+  advanceGuidedStep: () => void;
+  completeGuidedMode: () => void;
 }
 
 const INITIAL_STATS: GameStats = {
@@ -145,6 +156,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // Daily Challenge Initial State
   dailyClearHistory: [],
 
+  // Guided Experience Initial State
+  isFirstGame: false,
+  guidedStep: 0,
+  guidedTarget: null,
+
+  // Boss Level Initial State
+  bossType: null,
+  bossMoveCounter: 0,
+
   initGame: (mode = GameMode.CAREER) => {
     const success = safeExecute(
       () => {
@@ -155,6 +175,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const isBlitz = mode === GameMode.BLITZ;
         const isSurvival = mode === GameMode.SURVIVAL;
         const initialGrid = createEmptyGrid();
+        
+        // Check if this is the first game
+        const isFirstGame = safeLocalStorageGet('flux_guided_done', '') !== 'true';
         
         set({
           grid: initialGrid,
@@ -185,8 +208,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
           survivalNextPush: isSurvival ? 10 : get().survivalNextPush,
           survivalRowCount: isSurvival ? 0 : get().survivalRowCount,
           // Daily Challenge initialization
-          dailyClearHistory: []
+          dailyClearHistory: [],
+          // Guided Experience initialization
+          isFirstGame,
+          guidedStep: isFirstGame ? 1 : 0,
+          guidedTarget: null,
+          // Boss Level initialization
+          bossType: null,
+          bossMoveCounter: 0
         });
+        
+        // Calculate guided target for first piece if this is first game
+        if (isFirstGame) {
+          const pieces = get().pieces;
+          if (pieces.length > 0) {
+            const targetPiece = pieces[0];
+            // Find first valid position (bottom-left corner preferred)
+            let target: { x: number; y: number; pieceIndex: number } | null = null;
+            outer: for (let y = GRID_SIZE - 1; y >= 0; y--) {
+              for (let x = 0; x < GRID_SIZE; x++) {
+                if (get().canPlacePiece(initialGrid, targetPiece, x, y)) {
+                  target = { x, y, pieceIndex: 0 };
+                  break outer;
+                }
+              }
+            }
+            set({ guidedTarget: target });
+          }
+        }
         
         // Increment games played
         const newStats = { ...get().stats, gamesPlayed: get().stats.gamesPlayed + 1 };
@@ -236,7 +285,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       unlockedAchievementId: null,
       appState: AppState.GAME,
       gameMode: GameMode.CAREER,
-      timeLeft: 0
+      timeLeft: 0,
+      bossType: levelDef.bossType ?? null,
+      bossMoveCounter: 0
     });
   },
 
@@ -883,6 +934,71 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     get().checkGameOver();
+    
+    // Boss Mechanics - Apply after piece placement
+    const { bossType, bossMoveCounter, gameMode: currentGameMode } = get();
+    if (bossType && currentGameMode === GameMode.CAREER) {
+      const newBossCounter = bossMoveCounter + 1;
+      set({ bossMoveCounter: newBossCounter });
+      
+      switch (bossType) {
+        case 'ICE_STORM':
+          // Her 2 hamlede bir rastgele hücreye buz bloğu düşür
+          if (newBossCounter % 2 === 0) {
+            const empty = findRandomEmptyCell(get().grid);
+            if (empty) {
+              const updatedGrid = get().grid.map(row => row.map(cell => ({ ...cell })));
+              updatedGrid[empty.y][empty.x] = {
+                filled: true,
+                color: '#7dd3fc',
+                id: uuidv4(),
+                type: CellType.ICE,
+                health: 2,
+              };
+              set({ grid: updatedGrid });
+            }
+          }
+          break;
+          
+        case 'BOMB_RAIN':
+          // Her 3 hamlede bir rastgele hücreye bomba düşür
+          if (newBossCounter % 3 === 0) {
+            const empty = findRandomEmptyCell(get().grid);
+            if (empty) {
+              const updatedGrid = get().grid.map(row => row.map(cell => ({ ...cell })));
+              updatedGrid[empty.y][empty.x] = {
+                filled: true,
+                color: '#1c1917',
+                id: uuidv4(),
+                type: CellType.BOMB,
+              };
+              set({ grid: updatedGrid });
+            }
+          }
+          break;
+          
+        case 'DARKNESS':
+          // Parça renklerini gri yap (her hamlede)
+          const darkPieces = get().pieces.map(p => ({
+            ...p,
+            color: '#374151', // koyu gri — renk bilinmiyor hissi
+          }));
+          set({ pieces: darkPieces });
+          break;
+          
+        case 'MIRROR':
+          // Her yerleştirmede ayna parça da gelir (bu mekanik daha karmaşık, şimdilik skip)
+          // TODO: Implement mirror mechanic
+          break;
+      }
+    }
+    
+    // Advance guided step if in guided mode
+    const { isFirstGame, guidedStep } = get();
+    if (isFirstGame && guidedStep > 0 && guidedStep <= 4) {
+      get().advanceGuidedStep();
+    }
+    
     return true;
   },
 
@@ -940,5 +1056,50 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   resetGame: () => {
     get().initGame();
+  },
+
+  advanceGuidedStep: () => {
+    const { guidedStep, pieces, grid } = get();
+    const nextStep = guidedStep + 1;
+    
+    if (nextStep > 4) {
+      get().completeGuidedMode();
+      return;
+    }
+    
+    // Calculate target for next step
+    const targetPiece = pieces[0];
+    if (targetPiece) {
+      // Find first valid position (bottom-left corner preferred)
+      let target: { x: number; y: number; pieceIndex: number } | null = null;
+      outer: for (let y = GRID_SIZE - 1; y >= 0; y--) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+          if (get().canPlacePiece(grid, targetPiece, x, y)) {
+            target = { x, y, pieceIndex: 0 };
+            break outer;
+          }
+        }
+      }
+      set({ guidedStep: nextStep, guidedTarget: target });
+    }
+  },
+
+  completeGuidedMode: () => {
+    try {
+      localStorage.setItem('flux_guided_done', 'true');
+    } catch {}
+    set({ isFirstGame: false, guidedStep: 0, guidedTarget: null });
   }
 }));
+
+// Helper Functions
+const findRandomEmptyCell = (grid: GridState): { x: number; y: number } | null => {
+  const empty: { x: number; y: number }[] = [];
+  for (let y = 0; y < GRID_SIZE; y++) {
+    for (let x = 0; x < GRID_SIZE; x++) {
+      if (!grid[y][x].filled) empty.push({ x, y });
+    }
+  }
+  if (empty.length === 0) return null;
+  return empty[Math.floor(Math.random() * empty.length)];
+};

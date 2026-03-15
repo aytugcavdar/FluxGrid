@@ -79,6 +79,46 @@ export const generateLevel = (levelIndex: number): LevelDef => {
   else if (levelIndex === 5) name = "Buz Kırıcı";
   else if (levelIndex % 10 === 0) name = `Usta Aşama ${levelIndex / 10}`;
 
+  // Boss Level Logic - Every 10th level
+  if (levelIndex % 10 === 0 && levelIndex > 0) {
+    const bossIndex = (levelIndex / 10) - 1;
+    const bossTypes = [
+      'ICE_STORM',    // Seviye 10: Grid'e sürekli buz blok düşer
+      'BOMB_RAIN',    // Seviye 20: Her 3 hamlede bir bomba bloğu
+      'SPEED_SURGE',  // Seviye 30: Moves limit yarıya inmiş, hedef aynı
+      'DARKNESS',     // Seviye 40: Parça renklerini gizler
+      'MIRROR',       // Seviye 50: Her yerleştirmede ayna parça da gelir
+    ] as const;
+    
+    const bossDescriptions = {
+      ICE_STORM: 'Her 2 hamlede bir buz bloğu düşüyor!',
+      BOMB_RAIN: 'Dikkat: Bombalar sahada!',
+      SPEED_SURGE: 'Daha az hamle, aynı hedef!',
+      DARKNESS: 'Parça renkleri gizli — şansına güven!',
+      MIRROR: 'Her yerleştirmede ayna parça da geliyor!',
+    };
+    
+    const bossType = bossTypes[bossIndex % bossTypes.length];
+    
+    return {
+      index: levelIndex,
+      name: `BOSS — ${levelIndex}. Seviye`,
+      objectives,
+      movesLimit: bossType === 'SPEED_SURGE' 
+        ? Math.floor((movesLimit || 20) * 0.6) 
+        : movesLimit,
+      rewardFlux: Math.min(150, rewardFlux * 2), // Boss'ta 2x flux ödülü
+      starThresholds: [
+        targetScore,
+        Math.round(targetScore * 1.8),
+        Math.round(targetScore * 2.5),
+      ] as [number, number, number],
+      isBoss: true,
+      bossType,
+      bossDescription: bossDescriptions[bossType],
+    };
+  }
+
   return {
     index: levelIndex,
     name,

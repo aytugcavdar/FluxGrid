@@ -79,6 +79,9 @@ export interface LevelDef {
   targetRows?: number[];
   targetCols?: number[];
   starThresholds: [number, number, number]; // [1star, 2star, 3star] score thresholds
+  isBoss?: boolean;
+  bossType?: 'ICE_STORM' | 'BOMB_RAIN' | 'SPEED_SURGE' | 'DARKNESS' | 'MIRROR';
+  bossDescription?: string;
 }
 
 // Achievements

@@ -14,14 +14,15 @@ const TOTAL_CELL_SIZE = CELL_SIZE + CELL_SPACING;
 const GRID_OFFSET = ((GRID_SIZE - 1) * TOTAL_CELL_SIZE) / 2;
 const GHOST_POOL_SIZE = 25;
 const SKILL_OVERLAY_POOL_SIZE = 10;
+const GUIDED_HIGHLIGHT_POOL_SIZE = 25;
 
 export const Grid: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction } = useGameStore();
+    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, guidedTarget, pieces } = useGameStore();
     const { getThemeColors } = useThemeStore();
 
-    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction });
-    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction]);
+    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces });
+    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces]);
 
     const [hoverCoord, setHoverCoord] = useState<{ x: number, y: number } | null>(null);
     const hoverCoordRef = useRef<{ x: number, y: number } | null>(null);
@@ -29,6 +30,7 @@ export const Grid: React.FC = () => {
 
     const meshMapRef = useRef<Map<string, BABYLON.Mesh>>(new Map());
     const ghostMeshesRef = useRef<BABYLON.Mesh[]>([]);
+    const guidedHighlightMeshesRef = useRef<BABYLON.Mesh[]>([]);
     const ambientParticlesRef = useRef<BABYLON.Mesh[]>([]);
     const lastScoreRef = useRef(0);
     const glowLayerRef = useRef<BABYLON.GlowLayer | null>(null);
@@ -292,9 +294,30 @@ export const Grid: React.FC = () => {
             return pool;
         };
 
+        const initGuidedHighlightPool = (scene: BABYLON.Scene) => {
+            const pool: BABYLON.Mesh[] = [];
+            for (let i = 0; i < GUIDED_HIGHLIGHT_POOL_SIZE; i++) {
+                const highlight = BABYLON.MeshBuilder.CreateBox(`guided-highlight-${i}`, 
+                    { size: CELL_SIZE * 0.92, height: 0.65 }, 
+                    scene
+                );
+                const mat = new BABYLON.StandardMaterial(`guided-mat-${i}`, scene);
+                mat.diffuseColor = BABYLON.Color3.FromHexString("#10b981");
+                mat.emissiveColor = BABYLON.Color3.FromHexString("#10b981").scale(0.3);
+                mat.alpha = 0.5;
+                mat.specularColor = BABYLON.Color3.Black();
+                highlight.material = mat;
+                highlight.isPickable = false;
+                highlight.isVisible = false;
+                pool.push(highlight);
+            }
+            return pool;
+        };
+
         // Initialize pools
         ghostMeshesRef.current = initGhostPool(scene);
         skillOverlayMeshesRef.current = initSkillOverlayPool(scene);
+        guidedHighlightMeshesRef.current = initGuidedHighlightPool(scene);
 
 
         // --- Logic Helpers ---
@@ -666,6 +689,44 @@ export const Grid: React.FC = () => {
                     });
                 });
             }
+            
+            // 3. Guided Experience Highlighting
+            guidedHighlightMeshesRef.current.forEach(m => { m.isVisible = false; });
+            
+            const { guidedTarget, pieces: currentPieces } = stateRef.current;
+            if (guidedTarget && !draggedPiece) {
+                const targetPiece = currentPieces[guidedTarget.pieceIndex];
+                if (targetPiece) {
+                    const pulseAlpha = 0.3 + Math.sin(time * 4) * 0.15;
+                    const pulseY = 0.4 + Math.sin(time * 3) * 0.08;
+                    
+                    let highlightIndex = 0;
+                    targetPiece.shape.forEach((row, dy) => {
+                        row.forEach((val, dx) => {
+                            if (val === 1 && highlightIndex < GUIDED_HIGHLIGHT_POOL_SIZE) {
+                                const gx = guidedTarget.x + dx;
+                                const gy = guidedTarget.y + dy;
+                                
+                                if (gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE) {
+                                    const highlight = guidedHighlightMeshesRef.current[highlightIndex++];
+                                    highlight.position = getVectorPos(gx, gy);
+                                    highlight.position.y = pulseY;
+                                    
+                                    const mat = highlight.material as BABYLON.StandardMaterial;
+                                    mat.alpha = pulseAlpha;
+                                    
+                                    // Bright green edges
+                                    highlight.enableEdgesRendering();
+                                    highlight.edgesWidth = 4.0;
+                                    highlight.edgesColor = new BABYLON.Color4(0.06, 0.73, 0.51, 0.9);
+                                    
+                                    highlight.isVisible = true;
+                                }
+                            }
+                        });
+                    });
+                }
+            }
         });
 
         const handleGlobalPointerMove = (e: PointerEvent) => {
@@ -836,6 +897,10 @@ export const Grid: React.FC = () => {
             // Dispose ghost meshes
             ghostMeshesRef.current.forEach(m => m?.dispose());
             ghostMeshesRef.current = [];
+            
+            // Dispose guided highlight meshes
+            guidedHighlightMeshesRef.current.forEach(m => m?.dispose());
+            guidedHighlightMeshesRef.current = [];
             
             scene.dispose();
             engine.dispose();

@@ -1,3 +1,4 @@
+import '../i18n';
 import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -14,3 +15,11 @@ root.render(
     <App />
   </React.StrictMode>
 );
+
+// React mount olduktan sonra splash kapat
+// onMount değil, ilk render sonrası
+setTimeout(() => {
+  if (typeof (window as any).splashComplete === 'function') {
+    (window as any).splashComplete();
+  }
+}, 100);

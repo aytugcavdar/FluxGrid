@@ -7,7 +7,7 @@ import { useThemeStore } from '@shared/store/themeStore';
 import { useAbilityStore } from '../features/abilities/store/abilityStore';
 import { usePassiveAbilityStore } from '../features/abilities/store/passiveAbilityStore';
 import { useProfileStore } from '../features/profile/store/profileStore';
-import { HUD, ScorePopups, ChainCounter, PerfectBonus, SurgeFlash, ComboFlash, DragOverlay } from '@features/hud';
+import { HUD, ScorePopups, ChainCounter, PerfectBonus, SurgeFlash, ComboFlash, DragOverlay, ComboBar } from '@features/hud';
 import { LevelMap } from '../features/career/components/LevelMap';
 import { CareerPage } from '../features/career/components/CareerPage';
 import { Tutorial, shouldShowTutorial } from '@shared/components';
@@ -19,6 +19,7 @@ import { generateShareText, shareResult } from '@utils/shareResult';
 import { generateLevel } from '@features/career/utils/levelGenerator';
 import { safeParseInt } from '@features/game/store/helpers/localStorage';
 import { getStreak, getDailyPlayedToday, getDayNumber } from '@utils/streakManager';
+import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { AppState, GameMode } from '@shared/types';
 
@@ -35,11 +36,13 @@ interface TimePopup {
 }
 
 const App: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const {
     initGame, pieces, isGameOver, resetGame, score, combo, lastAction, isSurgeActive,
     isLevelComplete, nextLevel, currentLevelIndex, movesLeft,
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
-    earnedStars, dailyClearHistory, highScore, stats, maxLevelReached, startLevel, survivalTime
+    earnedStars, dailyClearHistory, highScore, stats, maxLevelReached, startLevel, survivalTime, bossType,
+    isFirstGame, guidedStep
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors } = useThemeStore();
   const colors = getThemeColors();
@@ -47,6 +50,7 @@ const App: React.FC = () => {
   const [showAbilities, setShowAbilities] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
+  const [showBossIntro, setShowBossIntro] = useState(false);
   const [prevGameOver, setPrevGameOver] = useState(false);
   const [scorePopups, setScorePopups] = useState<ScorePopup[]>([]);
   const prevScoreRef = useRef(0);
@@ -116,6 +120,13 @@ const App: React.FC = () => {
     useAbilityStore.getState().initializeAbilities();
     usePassiveAbilityStore.getState().initializePassives();
     useProfileStore.getState().initializeProfile();
+    
+    // Babylon.js tamamen hazır olunca splash kapat
+    // (initGame çağrılmadan önce)
+    if (typeof (window as any).splashComplete === 'function') {
+      (window as any).splashComplete();
+      delete (window as any).splashComplete;
+    }
   }, []);
 
   useEffect(() => {
@@ -316,6 +327,21 @@ const App: React.FC = () => {
     obs.observe(gridContainerRef.current);
     return () => obs.disconnect();
   }, []);
+
+  // Language change handler
+  const changeLanguage = (lang: 'tr' | 'en') => {
+    i18n.changeLanguage(lang);
+    localStorage.setItem('flux_language', lang);
+  };
+
+  // Boss intro animation
+  useEffect(() => {
+    if (appState === AppState.GAME && bossType) {
+      setShowBossIntro(true);
+      const t = setTimeout(() => setShowBossIntro(false), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [appState, bossType]);
 
   return (
     <div className="game-container" onPointerDown={unlockAudio} style={{ background: colors.background }}>
@@ -687,6 +713,65 @@ const App: React.FC = () => {
                   <Grid />
                 </div>
               </div>
+              
+              {/* Guided Experience Overlay */}
+              {isFirstGame && guidedStep > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  pointerEvents: 'none',
+                  zIndex: 25,
+                }}>
+                  {/* Guided message banner */}
+                  <motion.div
+                    key={guidedStep}
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      background: 'rgba(59,130,246,0.9)',
+                      backdropFilter: 'blur(8px)',
+                      borderRadius: 20,
+                      padding: '6px 16px',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: 'white',
+                      whiteSpace: 'nowrap',
+                      letterSpacing: '.02em',
+                    }}
+                  >
+                    {guidedStep === 1 && 'Alttaki parçayı sürükle ve ızgaraya bırak'}
+                    {guidedStep === 2 && 'Bir satırı tamamen doldur'}
+                    {guidedStep === 3 && 'Flux dolunca yetenek kullanabilirsin'}
+                    {guidedStep === 4 && 'Mükemmel! Artık hazırsın'}
+                  </motion.div>
+                  
+                  {/* Skip button */}
+                  <button
+                    onClick={() => useGameStore.getState().completeGuidedMode()}
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 12,
+                      background: 'rgba(255,255,255,0.08)',
+                      border: '0.5px solid rgba(255,255,255,0.12)',
+                      borderRadius: 10,
+                      padding: '4px 10px',
+                      fontSize: 10,
+                      color: 'rgba(255,255,255,0.4)',
+                      cursor: 'pointer',
+                      pointerEvents: 'auto',
+                      fontWeight: 600,
+                      letterSpacing: '.05em',
+                    }}
+                  >
+                    ATLA
+                  </button>
+                </div>
+              )}
             </main>
 
             {/* Piece Tray */}
@@ -730,6 +815,7 @@ const App: React.FC = () => {
             <ScorePopups popups={scorePopups} />
             <ComboFlash combo={combo} />
             <SurgeFlash active={showSurgeFlash} />
+            {gameMode !== GameMode.ZEN && <ComboBar />}
             
             {/* BLITZ Time Popups */}
             <div style={{ position: 'fixed', top: 80, right: 16, display: 'flex', flexDirection: 'column', gap: 4, pointerEvents: 'none', zIndex: 50 }}>
@@ -1049,6 +1135,63 @@ const App: React.FC = () => {
         )}
       </AnimatePresence>
       
+      {/* Boss Intro Overlay */}
+      <AnimatePresence>
+        {showBossIntro && bossType && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 65,
+              background: 'rgba(0,0,0,0.85)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'none',
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.5, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 200 }}
+              style={{ textAlign: 'center' }}
+            >
+              <div style={{ fontSize: 48, marginBottom: 12 }}>
+                {bossType === 'ICE_STORM' ? '❄️' :
+                 bossType === 'BOMB_RAIN' ? '💣' :
+                 bossType === 'SPEED_SURGE' ? '⚡' :
+                 bossType === 'DARKNESS' ? '🌑' : '🪞'}
+              </div>
+              <div style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: '#ef4444',
+                letterSpacing: '-0.02em',
+              }}>
+                BOSS SEVİYE
+              </div>
+              <div style={{
+                fontSize: 13,
+                color: 'rgba(255,255,255,0.6)',
+                marginTop: 8,
+                maxWidth: 240,
+                textAlign: 'center',
+              }}>
+                {bossType === 'ICE_STORM' ? 'Her 2 hamlede bir buz bloğu düşüyor!' :
+                 bossType === 'BOMB_RAIN' ? 'Dikkat: Bombalar sahada!' :
+                 bossType === 'SPEED_SURGE' ? 'Daha az hamle, aynı hedef!' :
+                 bossType === 'DARKNESS' ? 'Parça renkleri gizli — şansına güven!' :
+                 'Her yerleştirmede ayna parça da geliyor!'}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
       {/* Theme Selector Modal */}
       <AnimatePresence>
         {showThemeSelector && (
@@ -1065,8 +1208,8 @@ const App: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
               className="bg-gray-800 border border-white/8 p-6 rounded-2xl shadow-2xl max-w-sm w-full"
             >
-              <h2 className="text-2xl font-bold text-white mb-4 text-center">Tema Seç</h2>
-              <p className="text-gray-400 text-xs text-center mb-6">Oyun masası görünümünü değiştir</p>
+              <h2 className="text-2xl font-bold text-white mb-4 text-center">{t('settings.title')}</h2>
+              <p className="text-gray-400 text-xs text-center mb-6">{t('settings.themeDesc')}</p>
               
               <div className="grid grid-cols-2 gap-3 mb-6">
                 <button
@@ -1077,8 +1220,8 @@ const App: React.FC = () => {
                   )}
                 >
                   <div className="w-full h-16 rounded-lg mb-2" style={{ background: 'linear-gradient(180deg, #111827 0%, #0f172a 100%)' }}></div>
-                  <p className="text-white text-sm font-bold">Koyu</p>
-                  <p className="text-gray-400 text-xs">Varsayılan</p>
+                  <p className="text-white text-sm font-bold">{t('settings.dark')}</p>
+                  <p className="text-gray-400 text-xs">{t('settings.darkSub')}</p>
                 </button>
                 
                 <button
@@ -1089,8 +1232,8 @@ const App: React.FC = () => {
                   )}
                 >
                   <div className="w-full h-16 rounded-lg mb-2" style={{ background: 'linear-gradient(180deg, #f9fafb 0%, #e5e7eb 100%)' }}></div>
-                  <p className="text-white text-sm font-bold">Açık</p>
-                  <p className="text-gray-400 text-xs">Parlak</p>
+                  <p className="text-white text-sm font-bold">{t('settings.light')}</p>
+                  <p className="text-gray-400 text-xs">{t('settings.lightSub')}</p>
                 </button>
                 
                 <button
@@ -1101,8 +1244,8 @@ const App: React.FC = () => {
                   )}
                 >
                   <div className="w-full h-16 rounded-lg mb-2" style={{ background: 'linear-gradient(180deg, #0f0e17 0%, #1a0a2e 100%)' }}></div>
-                  <p className="text-white text-sm font-bold">Neon</p>
-                  <p className="text-gray-400 text-xs">Mor Ton</p>
+                  <p className="text-white text-sm font-bold">{t('settings.neon')}</p>
+                  <p className="text-gray-400 text-xs">{t('settings.neonSub')}</p>
                 </button>
                 
                 <button
@@ -1113,16 +1256,45 @@ const App: React.FC = () => {
                   )}
                 >
                   <div className="w-full h-16 rounded-lg mb-2" style={{ background: 'linear-gradient(180deg, #0a1929 0%, #0c1821 100%)' }}></div>
-                  <p className="text-white text-sm font-bold">Okyanus</p>
-                  <p className="text-gray-400 text-xs">Mavi Ton</p>
+                  <p className="text-white text-sm font-bold">{t('settings.ocean')}</p>
+                  <p className="text-gray-400 text-xs">{t('settings.oceanSub')}</p>
                 </button>
+              </div>
+
+              {/* Language Selection */}
+              <div style={{ marginTop: 12, marginBottom: 16 }}>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 8, textAlign: 'center' }}>
+                  {t('settings.language')}
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {(['tr', 'en'] as const).map(lang => (
+                    <button
+                      key={lang}
+                      onClick={() => { playClick(); changeLanguage(lang); }}
+                      style={{
+                        flex: 1,
+                        padding: '10px 0',
+                        borderRadius: 10,
+                        border: `1.5px solid ${i18n.language === lang ? 'rgba(59,130,246,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                        background: i18n.language === lang ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)',
+                        color: i18n.language === lang ? '#93c5fd' : 'rgba(255,255,255,0.4)',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {lang === 'tr' ? '🇹🇷 Türkçe' : '🇬🇧 English'}
+                    </button>
+                  ))}
+                </div>
               </div>
               
               <button
                 onClick={() => { playClick(); setShowThemeSelector(false); }}
                 className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all"
               >
-                Tamam
+                {t('settings.confirm')}
               </button>
             </motion.div>
           </motion.div>

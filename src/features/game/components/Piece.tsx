@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { motion } from 'framer-motion';
 import { Piece as PieceType, CellType } from '../types';
 import { useGameStore } from '../store/gameStore';
 import clsx from 'clsx';
@@ -8,8 +9,12 @@ interface Props {
 }
 
 export const Piece: React.FC<Props> = ({ piece }) => {
-  const { setDraggedPiece, draggedPiece } = useGameStore();
+  const { setDraggedPiece, draggedPiece, guidedTarget, guidedStep, pieces } = useGameStore();
   const ref = useRef<HTMLDivElement>(null);
+
+  // Check if this is the guided piece
+  const pieceIndex = pieces.findIndex(p => p.instanceId === piece.instanceId);
+  const isGuidedPiece = guidedTarget?.pieceIndex === pieceIndex;
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -68,32 +73,62 @@ export const Piece: React.FC<Props> = ({ piece }) => {
 
   const isDragging = draggedPiece?.instanceId === piece.instanceId;
 
-  return (
-    <div
-      ref={ref}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
-      className={clsx(
-        "relative w-full h-full flex items-center justify-center transition-all duration-200 cursor-grab active:cursor-grabbing touch-none select-none",
-        { "opacity-25 scale-90": isDragging }
-      )}
-      // Ensure minimum tap target
-      style={{ minWidth: 44, minHeight: 44 }}
-    >
-      {/* Special Icon Badge */}
-      {piece.type === CellType.ICE && (
-        <div className="absolute -top-0.5 -right-0.5 w-4 h-4 md:w-5 md:h-5 bg-blue-400 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white shadow z-10">
-          ❄️
-        </div>
-      )}
-      {piece.type === CellType.BOMB && (
-        <div className="absolute -top-0.5 -right-0.5 w-4 h-4 md:w-5 md:h-5 bg-red-500 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white shadow-lg z-10">
-          💣
-        </div>
-      )}
+  // Wrapper component for guided animation
+  const PieceWrapper = isGuidedPiece ? motion.div : 'div';
+  const wrapperProps = isGuidedPiece ? {
+    animate: { scale: [1, 1.05, 1] },
+    transition: { duration: 1.2, repeat: Infinity }
+  } : {};
 
-      {renderShape(piece)}
-    </div>
+  return (
+    <PieceWrapper {...wrapperProps} style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div
+        ref={ref}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        className={clsx(
+          "relative w-full h-full flex items-center justify-center transition-all duration-200 cursor-grab active:cursor-grabbing touch-none select-none",
+          { "opacity-25 scale-90": isDragging }
+        )}
+        // Ensure minimum tap target
+        style={{ minWidth: 44, minHeight: 44 }}
+      >
+        {/* Special Icon Badge */}
+        {piece.type === CellType.ICE && (
+          <div className="absolute -top-0.5 -right-0.5 w-4 h-4 md:w-5 md:h-5 bg-blue-400 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white shadow z-10">
+            ❄️
+          </div>
+        )}
+        {piece.type === CellType.BOMB && (
+          <div className="absolute -top-0.5 -right-0.5 w-4 h-4 md:w-5 md:h-5 bg-red-500 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white shadow-lg z-10">
+            💣
+          </div>
+        )}
+
+        {renderShape(piece)}
+      </div>
+      
+      {/* Guided finger indicator */}
+      {isGuidedPiece && guidedStep === 1 && (
+        <motion.div
+          style={{
+            position: 'absolute',
+            bottom: -20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            pointerEvents: 'none',
+            zIndex: 100
+          }}
+          animate={{ y: [0, -8, 0] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        >
+          <svg width="20" height="24" viewBox="0 0 20 24" fill="none">
+            <path d="M10 2C10 2 10 18 10 18" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.6"/>
+            <path d="M6 14L10 18L14 14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
+          </svg>
+        </motion.div>
+      )}
+    </PieceWrapper>
   );
 };

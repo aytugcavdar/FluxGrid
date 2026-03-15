@@ -165,6 +165,7 @@ export const LevelMap: React.FC = () => {
                   {regionLevels.map((level, i) => {
                     const isUnlocked = level.index <= maxLevelReached + 1;
                     const isCurrent = level.index === maxLevelReached + 1;
+                    const isBoss = level.index % 10 === 0 && level.index > 0;
                     const isLeft = i % 2 === 0;
                     const levelStars = safeParseInt(
                       localStorage.getItem(`flux_level_${level.index}_stars`) || '0'
@@ -194,7 +195,9 @@ export const LevelMap: React.FC = () => {
                             height: 72,
                             borderRadius: 20,
                             background: isUnlocked ? region.bgColor : 'rgba(255,255,255,0.02)',
-                            border: isUnlocked
+                            border: isBoss && isUnlocked
+                              ? `2px solid #ef4444`
+                              : isUnlocked
                               ? `2px solid ${isCurrent ? region.color : region.borderColor}`
                               : '2px solid rgba(255,255,255,0.05)',
                             display: 'flex',
@@ -213,7 +216,7 @@ export const LevelMap: React.FC = () => {
                                 position: 'absolute',
                                 inset: 0,
                                 borderRadius: 20,
-                                background: region.color,
+                                background: isBoss ? '#ef4444' : region.color,
                                 opacity: 0.15
                               }}
                               animate={{ opacity: [0.15, 0.05, 0.15] }}
@@ -223,11 +226,24 @@ export const LevelMap: React.FC = () => {
 
                           {isUnlocked ? (
                             <>
+                              {/* Boss skull icon */}
+                              {isBoss && (
+                                <div style={{ 
+                                  position: 'absolute', 
+                                  top: 4, 
+                                  right: 4, 
+                                  fontSize: 12,
+                                  lineHeight: 1
+                                }}>
+                                  💀
+                                </div>
+                              )}
+                              
                               <span
                                 style={{
                                   fontSize: 18,
                                   fontWeight: 700,
-                                  color: region.color,
+                                  color: isBoss ? '#ef4444' : region.color,
                                   lineHeight: 1
                                 }}
                               >
@@ -280,8 +296,24 @@ export const LevelMap: React.FC = () => {
                           }}
                         >
                           {isUnlocked && (
-                            <div style={{ fontSize: 9, color: `${region.color}70`, fontWeight: 500 }}>
-                              {level.name}
+                            <div>
+                              <div style={{ 
+                                fontSize: 9, 
+                                color: isBoss ? '#ef4444' : `${region.color}70`, 
+                                fontWeight: isBoss ? 700 : 500 
+                              }}>
+                                {isBoss ? '💀 BOSS' : level.name}
+                              </div>
+                              {isBoss && level.bossDescription && (
+                                <div style={{ 
+                                  fontSize: 8, 
+                                  color: 'rgba(239,68,68,0.5)', 
+                                  marginTop: 1,
+                                  maxWidth: 120
+                                }}>
+                                  {level.bossDescription}
+                                </div>
+                              )}
                             </div>
                           )}
                           {!isUnlocked && (
