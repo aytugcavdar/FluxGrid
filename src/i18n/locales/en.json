@@ -73,7 +73,8 @@
     "maxCombo": "MAX COMBO",
     "totalLines": "TOTAL LINES",
     "totalGames": "TOTAL GAMES",
-    "bossLevel": "BOSS LEVEL"
+    "bossLevel": "BOSS LEVEL",
+    "confirmExit": "Are you sure you want to exit? Your progress will be lost."
   },
   "skills": {
     "reroll": "Reroll",

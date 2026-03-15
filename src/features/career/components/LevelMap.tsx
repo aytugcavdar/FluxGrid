@@ -6,6 +6,7 @@ import { AppState } from '@shared/types';
 import { Trophy, ChevronLeft } from 'lucide-react';
 import { playClick } from '../../../utils/audio';
 import { safeParseInt } from '../../game/store/helpers/localStorage';
+import { useTranslation } from 'react-i18next';
 
 // Generate 100 levels for the map display
 const MAP_LEVELS = Array.from({ length: 100 }, (_, i) => generateLevel(i + 1));
@@ -63,6 +64,7 @@ const getRegion = (levelIndex: number) =>
   REGIONS.find(r => levelIndex >= r.range[0] && levelIndex <= r.range[1]) ?? REGIONS[0];
 
 export const LevelMap: React.FC = () => {
+  const { t } = useTranslation();
   const { maxLevelReached, setAppState, startLevel } = useGameStore();
 
   const handleLevelClick = (idx: number) => {
@@ -73,7 +75,7 @@ export const LevelMap: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900 z-[40] overflow-y-auto overflow-x-hidden no-scrollbar pb-32">
+    <div className="fixed inset-0 bg-gray-900 z-[40] overflow-y-auto overflow-x-hidden no-scrollbar" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 120px)' }}>
       {/* Header */}
       <div className="sticky top-0 bg-gray-900/80 backdrop-blur-md z-10 px-6 py-8 flex items-center justify-between border-b border-white/5">
         <div className="flex items-center gap-4">
@@ -84,8 +86,8 @@ export const LevelMap: React.FC = () => {
             <ChevronLeft size={20} />
           </button>
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight italic">GÖREV HARİTASI</h1>
-            <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">FluxGrid Macerası</p>
+            <h1 className="text-xl font-black text-white tracking-tight italic">{t('levels.mapTitle')}</h1>
+            <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">{t('levels.mapSubtitle')}</p>
           </div>
         </div>
 
@@ -100,7 +102,7 @@ export const LevelMap: React.FC = () => {
         {/* Total Progress Bar */}
         <div style={{ padding: '0 10px', marginBottom: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Toplam ilerleme</span>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>{t('levels.totalProgress')}</span>
             <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
               {Math.min(maxLevelReached, 100)}/100
             </span>
@@ -144,10 +146,10 @@ export const LevelMap: React.FC = () => {
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: region.color }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: region.color }}>
-                    {region.label}
+                    {t(`levels.region${REGIONS.indexOf(region) + 1}`)}
                   </div>
                   <div style={{ fontSize: 9, color: `${region.color}80`, marginTop: 1 }}>
-                    {region.subtitle} · {region.range[0]}-{region.range[1]}. seviye
+                    {t(`levels.region${REGIONS.indexOf(region) + 1}Sub`)} · {t('levels.rangeLabel', { start: region.range[0], end: region.range[1] })}
                   </div>
                 </div>
                 {/* Region Progress */}
@@ -302,7 +304,7 @@ export const LevelMap: React.FC = () => {
                                 color: isBoss ? '#ef4444' : `${region.color}70`, 
                                 fontWeight: isBoss ? 700 : 500 
                               }}>
-                                {isBoss ? '💀 BOSS' : level.name}
+                                {isBoss ? t('levels.boss') : level.name}
                               </div>
                               {isBoss && level.bossDescription && (
                                 <div style={{ 
@@ -318,7 +320,7 @@ export const LevelMap: React.FC = () => {
                           )}
                           {!isUnlocked && (
                             <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>
-                              Seviye {level.index - 1}'i tamamla
+                              {t('levels.completeLevel', { prev: level.index - 1 })}
                             </div>
                           )}
                         </div>
@@ -334,19 +336,19 @@ export const LevelMap: React.FC = () => {
         {/* Coming Soon Node */}
         <div className="w-full flex justify-center mt-8">
           <div className="px-6 py-2 rounded-full bg-white/5 border border-white/5 text-[9px] font-black text-white/20 tracking-widest uppercase">
-            YAKINDA YENİ SEVİYELER...
+            {t('levels.comingSoon')}
           </div>
         </div>
       </div>
 
       {/* Footer Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-gray-900 via-gray-900 to-transparent z-20">
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-gray-900 via-gray-900 to-transparent z-20" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
         <div className="max-w-md mx-auto flex gap-4">
           <button
             onClick={() => { playClick(); setAppState(AppState.CAREER); }}
             className="flex-1 py-4 rounded-2xl bg-gray-800 border border-white/10 text-white font-black tracking-widest text-xs uppercase hover:bg-gray-700 transition-colors"
           >
-            KARİYER
+            {t('home.career')}
           </button>
         </div>
       </div>

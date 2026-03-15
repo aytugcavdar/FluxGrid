@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 
@@ -266,6 +266,32 @@ export const Tutorial: React.FC<TutorialProps> = ({ onComplete }) => {
 
   const currentStep = STEPS[step];
 
+  const handleNext = useCallback(() => {
+    if (step < STEPS.length - 1) {
+      setStep(step + 1);
+      setPiecePlaced(false);
+      setShowClearAnimation(false);
+    } else {
+      try {
+        localStorage.setItem('flux_tutorial_seen', 'true');
+        localStorage.setItem('flux_tutorial_version', '2');
+      } catch {
+        // Ignore localStorage errors
+      }
+      onComplete();
+    }
+  }, [step, onComplete]);
+
+  const handleSkip = useCallback(() => {
+    try {
+      localStorage.setItem('flux_tutorial_seen', 'true');
+      localStorage.setItem('flux_tutorial_version', '2');
+    } catch {
+      // Ignore localStorage errors
+    }
+    onComplete();
+  }, [onComplete]);
+
   // Auto advance logic
   useEffect(() => {
     if (currentStep.autoAdvance && currentStep.autoAdvance > 0) {
@@ -274,7 +300,7 @@ export const Tutorial: React.FC<TutorialProps> = ({ onComplete }) => {
       }, currentStep.autoAdvance);
       return () => clearTimeout(timer);
     }
-  }, [step, currentStep.autoAdvance]);
+  }, [step, currentStep.autoAdvance, handleNext]);
 
   // Step 2: Auto demo after 3 seconds
   useEffect(() => {
@@ -295,28 +321,6 @@ export const Tutorial: React.FC<TutorialProps> = ({ onComplete }) => {
       return () => clearTimeout(timer);
     }
   }, [step]);
-
-  const handleNext = () => {
-    if (step < STEPS.length - 1) {
-      setStep(step + 1);
-      setPiecePlaced(false);
-      setShowClearAnimation(false);
-    } else {
-      try {
-        localStorage.setItem('flux_tutorial_seen', 'true');
-        localStorage.setItem('flux_tutorial_version', '2');
-      } catch {}
-      onComplete();
-    }
-  };
-
-  const handleSkip = () => {
-    try {
-      localStorage.setItem('flux_tutorial_seen', 'true');
-      localStorage.setItem('flux_tutorial_version', '2');
-    } catch {}
-    onComplete();
-  };
 
   const renderStepContent = () => {
     switch (step) {

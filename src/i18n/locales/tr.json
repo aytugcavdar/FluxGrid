@@ -73,7 +73,8 @@
     "maxCombo": "MAX COMBO",
     "totalLines": "TOPLAM SATIR",
     "totalGames": "TOPLAM OYUN",
-    "bossLevel": "BOSS SEVİYE"
+    "bossLevel": "BOSS SEVİYE",
+    "confirmExit": "Oyundan çıkmak istediğinize emin misiniz? İlerlemeniz kaybolacak."
   },
   "skills": {
     "reroll": "Yenile",

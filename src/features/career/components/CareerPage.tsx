@@ -5,21 +5,23 @@ import { AppState } from '@shared/types';
 import { ChevronLeft, BarChart3, Target, Layout, Zap, Trophy, Bomb, IceCream } from 'lucide-react';
 import { playClick } from '../../../utils/audio';
 import clsx from 'clsx';
+import { useTranslation } from 'react-i18next';
 
 export const CareerPage: React.FC = () => {
+    const { t } = useTranslation();
     const { stats, achievements, setAppState } = useGameStore();
 
     const statCards = [
-        { label: 'TOPLAM SKOR', value: stats.totalScore.toLocaleString(), icon: <Trophy size={18} />, color: 'text-amber-400' },
-        { label: 'TEMİZLENEN SATIRLAR', value: stats.linesCleared, icon: <Layout size={18} />, color: 'text-blue-400' },
-        { label: 'YERLEŞTİRİLEN BLOKLAR', value: stats.blocksPlaced, icon: <Target size={18} />, color: 'text-emerald-400' },
-        { label: 'OYNANAN OYUNLAR', value: stats.gamesPlayed, icon: <BarChart3 size={18} />, color: 'text-purple-400' },
-        { label: 'PATLATILAN BOMBALAR', value: stats.bombsExploded, icon: <Bomb size={18} />, color: 'text-orange-400' },
-        { label: 'KIRILAN BUZLAR', value: stats.iceBroken, icon: <IceCream size={18} />, color: 'text-cyan-400' },
+        { label: t('career.totalScore'), value: stats.totalScore.toLocaleString(), icon: <Trophy size={18} />, color: 'text-amber-400' },
+        { label: t('career.linesCleared'), value: stats.linesCleared, icon: <Layout size={18} />, color: 'text-blue-400' },
+        { label: t('career.blocksPlaced'), value: stats.blocksPlaced, icon: <Target size={18} />, color: 'text-emerald-400' },
+        { label: t('career.gamesPlayed'), value: stats.gamesPlayed, icon: <BarChart3 size={18} />, color: 'text-purple-400' },
+        { label: t('career.bombsExploded'), value: stats.bombsExploded, icon: <Bomb size={18} />, color: 'text-orange-400' },
+        { label: t('career.iceBroken'), value: stats.iceBroken, icon: <IceCream size={18} />, color: 'text-cyan-400' },
     ];
 
     return (
-        <div className="fixed inset-0 bg-gray-900 z-[40] overflow-y-auto no-scrollbar pb-32">
+        <div className="fixed inset-0 bg-gray-900 z-[40] overflow-y-auto no-scrollbar" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 32px)' }}>
             {/* Header */}
             <div className="sticky top-0 bg-gray-900/80 backdrop-blur-md z-10 px-6 py-8 flex items-center justify-between border-b border-white/5">
                 <div className="flex items-center gap-4">
@@ -30,8 +32,8 @@ export const CareerPage: React.FC = () => {
                         <ChevronLeft size={20} />
                     </button>
                     <div>
-                        <h1 className="text-xl font-black text-white tracking-tight italic uppercase">KARİYER</h1>
-                        <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">İstatistikler ve Başarımlar</p>
+                        <h1 className="text-xl font-black text-white tracking-tight italic uppercase">{t('career.title')}</h1>
+                        <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">{t('career.subtitle')}</p>
                     </div>
                 </div>
             </div>
@@ -40,7 +42,7 @@ export const CareerPage: React.FC = () => {
                 {/* Stats Grid */}
                 <div>
                     <h2 className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                        <BarChart3 size={12} /> GENEL İSTATİSTİKLER
+                        <BarChart3 size={12} /> {t('career.stats')}
                     </h2>
                     <div className="grid grid-cols-2 gap-3">
                         {statCards.map((stat, i) => (
@@ -64,7 +66,7 @@ export const CareerPage: React.FC = () => {
                 {/* Achievements Section */}
                 <div>
                     <h2 className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                        <Trophy size={12} /> BAŞARIMLAR ({achievements.filter(a => a.unlocked).length}/{achievements.length})
+                        <Trophy size={12} /> {t('career.achievements')} ({achievements.filter(a => a.unlocked).length}/{achievements.length})
                     </h2>
                     <div className="space-y-3">
                         {achievements.map((ach, i) => (

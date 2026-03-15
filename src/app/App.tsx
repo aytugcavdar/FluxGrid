@@ -77,18 +77,18 @@ const App: React.FC = () => {
   const getGameOverMessage = () => {
     if (gameMode === GameMode.ENDLESS) {
       return {
-        title: 'Harika Oyun!',
-        subtitle: 'Artık Hamle Kalmadı',
-        description: 'Tüm parçalar yerleştirilemez durumda'
+        title: t('game.greatGame'),
+        subtitle: t('game.noMovesLeft'),
+        description: t('game.noPiecesCanPlace')
       };
     }
     
     if (gameMode === GameMode.TIMED) {
       if (timeLeft <= 0) {
         return {
-          title: 'Süre Doldu!',
-          subtitle: 'Quantum Rush Sona Erdi',
-          description: `${score.toLocaleString()} puan kazandın`
+          title: t('game.timeUp'),
+          subtitle: t('game.rushEnded'),
+          description: t('game.pointsEarned', { score: score.toLocaleString() })
         };
       }
     }
@@ -96,21 +96,21 @@ const App: React.FC = () => {
     if (gameMode === GameMode.CAREER) {
       if (movesLeft <= 0) {
         return {
-          title: 'Hamle Bitti',
-          subtitle: `Seviye ${currentLevelIndex} Başarısız`,
-          description: 'Hedeflere ulaşamadın'
+          title: t('game.movesLeft'),
+          subtitle: t('game.levelFailed', { level: currentLevelIndex }),
+          description: t('game.objectivesNotMet')
         };
       }
       return {
-        title: 'Oyun Bitti',
-        subtitle: `Seviye ${currentLevelIndex}`,
-        description: 'Artık hamle kalmadı'
+        title: t('game.gameOver'),
+        subtitle: t('hud.level', { level: currentLevelIndex }),
+        description: t('game.noMovesLeft')
       };
     }
     
     return {
-      title: 'Oyun Bitti',
-      subtitle: 'Tekrar Dene',
+      title: t('game.gameOver'),
+      subtitle: t('game.tryAgain'),
       description: ''
     };
   };
@@ -184,7 +184,7 @@ const App: React.FC = () => {
     const handlePopState = (event: PopStateEvent) => {
       // If in GAME state, show confirmation dialog
       if (appState === AppState.GAME && !isGameOver) {
-        const confirmed = window.confirm('Oyundan çıkmak istediğinize emin misiniz? İlerlemeniz kaybolacak.');
+        const confirmed = window.confirm(t('game.confirmExit'));
         if (confirmed) {
           setAppState(AppState.HOME);
         } else {
@@ -378,19 +378,19 @@ const App: React.FC = () => {
                   <div style={{ fontSize: 16, fontWeight: 700, color: '#60a5fa' }}>
                     {highScore > 0 ? (highScore >= 1000 ? `${(highScore / 1000).toFixed(1)}k` : highScore) : '--'}
                   </div>
-                  <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>EN İYİ SKOR</div>
+                  <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t('home.bestScore')}</div>
                 </div>
                 <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '8px 0', textAlign: 'center' }}>
                   <div style={{ fontSize: 16, fontWeight: 700, color: '#a78bfa' }}>
                     {stats.gamesPlayed}
                   </div>
-                  <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>OYUN</div>
+                  <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t('home.games')}</div>
                 </div>
                 <div style={{ flex: 1, background: streak > 0 ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.04)', border: `0.5px solid ${streak > 0 ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '8px 0', textAlign: 'center' }}>
                   <div style={{ fontSize: 16, fontWeight: 700, color: streak > 0 ? '#f59e0b' : 'rgba(255,255,255,0.3)' }}>
                     {streak > 0 ? streak : '--'}
                   </div>
-                  <div style={{ fontSize: 8, color: streak > 0 ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.3)', marginTop: 2 }}>SERİ</div>
+                  <div style={{ fontSize: 8, color: streak > 0 ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t('home.streak')}</div>
                 </div>
               </div>
 
@@ -415,10 +415,10 @@ const App: React.FC = () => {
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: dailyPlayedToday ? '#10b981' : '#f59e0b', flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: dailyPlayedToday ? '#34d399' : '#fbbf24' }}>
-                    Günlük Bulmaca #{getDayNumber()}
+                    {t('home.dailyChallenge', { day: getDayNumber() })}
                   </div>
                   <div style={{ fontSize: 9, color: dailyPlayedToday ? 'rgba(52,211,153,0.5)' : 'rgba(251,191,36,0.4)', marginTop: 1 }}>
-                    {dailyPlayedToday ? 'Bugün tamamlandı' : 'Henüz oynanmadı'}
+                    {dailyPlayedToday ? t('home.dailyPlayed') : t('home.dailyNotPlayed')}
                   </div>
                 </div>
                 {!dailyPlayedToday && (
@@ -452,7 +452,7 @@ const App: React.FC = () => {
                   >
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#93c5fd' }}>
-                        Kariyer — Seviye {nextLevel}
+                        {t('home.careerLevel', { level: nextLevel })}
                       </div>
                       <div style={{ fontSize: 9, color: 'rgba(147,197,253,0.4)', marginTop: 1 }}>
                         {careerLevelDef.name}
@@ -475,10 +475,10 @@ const App: React.FC = () => {
               {/* Quick Start Grid */}
               {(() => {
                 const QUICK_MODES = [
-                  { mode: GameMode.ENDLESS, label: 'Sonsuz', icon: '∞', color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.2)' },
-                  { mode: GameMode.TIMED, label: 'Rush', icon: '⚡', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.2)' },
-                  { mode: GameMode.BLITZ, label: 'Blitz', icon: '🔥', color: '#ef4444', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.2)' },
-                  { mode: GameMode.ZEN, label: 'Zen', icon: '☁', color: '#6b7280', bg: 'rgba(107,114,128,0.1)', border: 'rgba(107,114,128,0.2)' },
+                  { mode: GameMode.ENDLESS, label: t('modes.endless'), icon: '∞', color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.2)' },
+                  { mode: GameMode.TIMED, label: t('modes.rush'), icon: '⚡', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.2)' },
+                  { mode: GameMode.BLITZ, label: t('modes.blitz'), icon: '🔥', color: '#ef4444', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.2)' },
+                  { mode: GameMode.ZEN, label: t('modes.zen'), icon: '☁', color: '#6b7280', bg: 'rgba(107,114,128,0.1)', border: 'rgba(107,114,128,0.2)' },
                 ];
 
                 return (
@@ -527,7 +527,7 @@ const App: React.FC = () => {
                     cursor: 'pointer'
                   }}
                 >
-                  HARİTA
+                  {t('home.map')}
                 </button>
                 <button
                   onClick={() => { playClick(); setAppState(AppState.MODES); }}
@@ -544,7 +544,7 @@ const App: React.FC = () => {
                     cursor: 'pointer'
                   }}
                 >
-                  TÜM MODLAR
+                  {t('home.allModes')}
                 </button>
                 <button
                   onClick={() => { playClick(); setShowThemeSelector(true); }}
@@ -561,7 +561,7 @@ const App: React.FC = () => {
                     cursor: 'pointer'
                   }}
                 >
-                  AYARLAR
+                  {t('home.settings')}
                 </button>
               </div>
             </div>
@@ -577,8 +577,8 @@ const App: React.FC = () => {
             className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-gray-900"
           >
             <div className="text-center mb-10">
-              <h2 className="text-3xl font-black text-white italic tracking-tight uppercase mb-2">MOD SEÇİMİ</h2>
-              <p className="text-white/40 text-[10px] tracking-widest uppercase font-bold">Nasıl Oynamak İstersin?</p>
+              <h2 className="text-3xl font-black text-white italic tracking-tight uppercase mb-2">{t('modes.title')}</h2>
+              <p className="text-white/40 text-[10px] tracking-widest uppercase font-bold">{t('modes.subtitle')}</p>
             </div>
 
             <div className="w-full max-w-xs space-y-4">
@@ -587,8 +587,8 @@ const App: React.FC = () => {
                 className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-blue-600/10 hover:border-blue-500/30 transition-all text-left overflow-hidden"
               >
                 <div className="relative z-10">
-                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">KARİYER</span>
-                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">Hikaye Modu & Görevler</span>
+                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">{t('modes.career')}</span>
+                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">{t('modes.careerSub')}</span>
                 </div>
                 <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">🗺️</div>
               </button>
@@ -598,8 +598,8 @@ const App: React.FC = () => {
                 className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-purple-600/10 hover:border-purple-500/30 transition-all text-left overflow-hidden"
               >
                 <div className="relative z-10">
-                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">SONSUZ</span>
-                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">Limit Yok, Sadece Skor</span>
+                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">{t('modes.endless')}</span>
+                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">{t('modes.endlessSub')}</span>
                 </div>
                 <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">♾️</div>
               </button>
@@ -609,8 +609,8 @@ const App: React.FC = () => {
                 className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-amber-600/10 hover:border-amber-500/30 transition-all text-left overflow-hidden"
               >
                 <div className="relative z-10">
-                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">QUANTUM RUSH</span>
-                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">Hızlı Ol, Süre Kazan</span>
+                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">{t('modes.rush')}</span>
+                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">{t('modes.rushSub')}</span>
                 </div>
                 <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">⚡</div>
               </button>
@@ -620,8 +620,8 @@ const App: React.FC = () => {
                 className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-purple-600/10 hover:border-purple-500/30 transition-all text-left overflow-hidden"
               >
                 <div className="relative z-10">
-                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">ZEN</span>
-                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">Hedef yok. Süre yok. Her 10 satırda palet değişir.</span>
+                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">{t('modes.zen')}</span>
+                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">{t('modes.zenSub')}</span>
                 </div>
                 <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">☁️</div>
               </button>
@@ -631,8 +631,8 @@ const App: React.FC = () => {
                 className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-red-600/10 hover:border-red-500/30 transition-all text-left overflow-hidden"
               >
                 <div className="relative z-10">
-                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">BLITZ</span>
-                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">30 saniye. Her satır 2 saniye kazandırır.</span>
+                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">{t('modes.blitz')}</span>
+                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">{t('modes.blitzSub')}</span>
                 </div>
                 <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">⚡</div>
               </button>
@@ -642,8 +642,8 @@ const App: React.FC = () => {
                 className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-gray-600/10 hover:border-gray-500/30 transition-all text-left overflow-hidden"
               >
                 <div className="relative z-10">
-                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">SURVIVAL</span>
-                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">Grid dolmadan önce temizle. Satırlar yükseliyor.</span>
+                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">{t('modes.survival')}</span>
+                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">{t('modes.survivalSub')}</span>
                 </div>
                 <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">💀</div>
               </button>
@@ -652,7 +652,7 @@ const App: React.FC = () => {
                 onClick={() => { playClick(); setAppState(AppState.HOME); }}
                 className="w-full py-4 text-white/40 text-[10px] font-bold uppercase tracking-[0.3em] hover:text-white transition-colors"
               >
-                ← Geri Dön
+                {t('home.backButton')}
               </button>
             </div>
           </motion.div>
