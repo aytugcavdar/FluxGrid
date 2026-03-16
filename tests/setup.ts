@@ -1,5 +1,7 @@
 import '@testing-library/jest-dom';
 import { vi, afterEach } from 'vitest';
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
 
 // localStorage mock
 const localStorageMock = (() => {
@@ -68,3 +70,34 @@ afterEach(() => {
   localStorageMock.clear();
   vi.clearAllMocks();
 });
+
+// i18next configuration for tests
+i18n
+  .use(initReactI18next)
+  .init({
+    lng: 'tr',
+    fallbackLng: 'tr',
+    ns: ['translation'],
+    defaultNS: 'translation',
+    resources: {
+      tr: {
+        translation: {
+          home: {
+            play: 'OYNA',
+            howToPlay: 'Nasıl Oynanır?',
+            bestScore: 'En İyi Skor',
+            games: 'Oyun',
+            streak: 'Seri',
+            dailyChallenge: 'Günlük Meydan Okuma',
+            dailyNotPlayed: 'Bugün oynanmadı',
+            map: 'Harita',
+            allModes: 'Tüm Modlar',
+            settings: 'Ayarlar',
+          },
+        },
+      },
+    },
+    interpolation: {
+      escapeValue: false,
+    },
+  });

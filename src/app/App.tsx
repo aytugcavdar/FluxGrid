@@ -16,12 +16,12 @@ import { ProfileView } from '../features/profile/components/ProfileView';
 import { motion, AnimatePresence } from 'framer-motion';
 import { unlockAudio, playGameOver, playClick } from '@utils/audio';
 import { generateShareText, shareResult } from '@utils/shareResult';
-import { generateLevel } from '@features/career/utils/levelGenerator';
-import { safeParseInt } from '@features/game/store/helpers/localStorage';
 import { getStreak, getDailyPlayedToday, getDayNumber } from '@utils/streakManager';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { AppState, GameMode } from '@shared/types';
+import { X } from 'lucide-react';
+import { useCountUp } from '@shared/hooks/useCountUp';
 
 interface ScorePopup {
   id: number;
@@ -35,13 +35,28 @@ interface TimePopup {
   isNegative: boolean;
 }
 
+// Helper function to get mode icon
+const getModeIcon = (mode: GameMode): string => {
+  const icons: Record<GameMode, string> = {
+    [GameMode.ENDLESS]: '∞',
+    [GameMode.BLITZ]: '🔥',
+    [GameMode.TIMED]: '⚡',
+    [GameMode.SURVIVAL]: '🛡️',
+    [GameMode.ZEN]: '☁️',
+    [GameMode.CAREER]: '🎯',
+    [GameMode.DAILY_CHALLENGE]: '📅',
+    [GameMode.PUZZLE]: '🧩',
+  };
+  return icons[mode] || '🎮';
+};
+
 const App: React.FC = () => {
   const { t, i18n } = useTranslation();
   const {
     initGame, pieces, isGameOver, resetGame, score, combo, lastAction, isSurgeActive,
-    isLevelComplete, nextLevel, currentLevelIndex, movesLeft,
+    isLevelComplete, nextLevel, currentLevelIndex,
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
-    earnedStars, dailyClearHistory, highScore, stats, maxLevelReached, startLevel, survivalTime, bossType,
+    earnedStars, dailyClearHistory, highScore, stats, maxLevelReached, startLevel, bossType,
     isFirstGame, guidedStep
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors } = useThemeStore();
@@ -69,51 +84,17 @@ const App: React.FC = () => {
   const [streak, setStreak] = useState(getStreak);
   const [dailyPlayedToday, setDailyPlayedToday] = useState(getDailyPlayedToday);
   
+  // Score display animation state
+  const displayScore = useCountUp(score, 600, isGameOver);
+  const isNewRecord = score >= highScore && highScore > 0;
+  const [showRecordBadge, setShowRecordBadge] = useState(false);
+  const [showButtons, setShowButtons] = useState(false);
+  
   // Grid sizing with ResizeObserver for safe area compatibility
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [gridSize, setGridSize] = useState(0);
 
-  // Game Over Message Helper
-  const getGameOverMessage = () => {
-    if (gameMode === GameMode.ENDLESS) {
-      return {
-        title: t('game.greatGame'),
-        subtitle: t('game.noMovesLeft'),
-        description: t('game.noPiecesCanPlace')
-      };
-    }
-    
-    if (gameMode === GameMode.TIMED) {
-      if (timeLeft <= 0) {
-        return {
-          title: t('game.timeUp'),
-          subtitle: t('game.rushEnded'),
-          description: t('game.pointsEarned', { score: score.toLocaleString() })
-        };
-      }
-    }
-    
-    if (gameMode === GameMode.CAREER) {
-      if (movesLeft <= 0) {
-        return {
-          title: t('game.movesLeft'),
-          subtitle: t('game.levelFailed', { level: currentLevelIndex }),
-          description: t('game.objectivesNotMet')
-        };
-      }
-      return {
-        title: t('game.gameOver'),
-        subtitle: t('hud.level', { level: currentLevelIndex }),
-        description: t('game.noMovesLeft')
-      };
-    }
-    
-    return {
-      title: t('game.gameOver'),
-      subtitle: t('game.tryAgain'),
-      description: ''
-    };
-  };
+
 
   // Initialize stores on mount
   useEffect(() => {
@@ -312,6 +293,26 @@ const App: React.FC = () => {
     }
   }, [isGameOver, gameMode]);
 
+  // Show new record badge with delay
+  useEffect(() => {
+    if (isGameOver && isNewRecord) {
+      const timer = setTimeout(() => setShowRecordBadge(true), 400);
+      return () => clearTimeout(timer);
+    } else {
+      setShowRecordBadge(false);
+    }
+  }, [isGameOver, isNewRecord]);
+
+  // Show buttons with delay (800ms)
+  useEffect(() => {
+    if (isGameOver) {
+      const timer = setTimeout(() => setShowButtons(true), 800);
+      return () => clearTimeout(timer);
+    } else {
+      setShowButtons(false);
+    }
+  }, [isGameOver]);
+
   // Grid sizing with ResizeObserver for safe area
   useEffect(() => {
     if (!gridContainerRef.current) return;
@@ -347,6 +348,48 @@ const App: React.FC = () => {
     <div className="game-container" onPointerDown={unlockAudio} style={{ background: colors.background }}>
       <AnimatePresence mode="wait">
         {appState === AppState.HOME && (
+          <ErrorBoundary
+            fallback={
+              <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6" style={{ backgroundColor: colors.cardBackground }}>
+                <div className="w-full max-w-xs">
+                  {/* Fallback UI without animations */}
+                  <div className="text-center mb-3">
+                    <h1 className="text-4xl md:text-5xl font-black italic tracking-tighter text-white mb-1 leading-none uppercase">
+                      FLUX<span className="text-blue-500">GRID</span>
+                    </h1>
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="h-[1px] w-6 bg-blue-500/40" />
+                      <span className="text-[8px] uppercase tracking-[0.3em] text-white/40 font-bold">Zen Puzzle</span>
+                      <div className="h-[1px] w-6 bg-blue-500/40" />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { playClick(); initGame(GameMode.ENDLESS); }}
+                    style={{
+                      width: '100%',
+                      padding: '20px 24px',
+                      borderRadius: 16,
+                      background: 'rgba(167,139,250,0.15)',
+                      border: '1px solid rgba(167,139,250,0.3)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 8,
+                      cursor: 'pointer',
+                      color: '#a78bfa',
+                      fontSize: 20,
+                      fontWeight: 800
+                    }}
+                  >
+                    {t('home.play')}
+                  </button>
+                  <p className="text-white/40 text-xs text-center mt-4">
+                    {t('game.errorOccurred')} - Animasyonlar devre dışı
+                  </p>
+                </div>
+              </div>
+            }
+          >
           <motion.div
             key="home"
             initial={{ opacity: 0 }}
@@ -358,11 +401,12 @@ const App: React.FC = () => {
             <div className="w-full max-w-xs">
               {/* Logo Section */}
               <motion.div
-                initial={{ y: -20 }}
-                animate={{ y: 0 }}
-                className="text-center mb-4"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+                className="text-center mb-3"
               >
-                <h1 className="text-5xl md:text-6xl font-black italic tracking-tighter text-white mb-1 leading-none uppercase">
+                <h1 className="text-4xl md:text-5xl font-black italic tracking-tighter text-white mb-1 leading-none uppercase">
                   FLUX<span className="text-blue-500">GRID</span>
                 </h1>
                 <div className="flex items-center justify-center gap-2">
@@ -373,36 +417,279 @@ const App: React.FC = () => {
               </motion.div>
 
               {/* Stats Row */}
-              <div style={{ display: 'flex', gap: 6, margin: '8px 0 16px' }}>
-                <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '8px 0', textAlign: 'center' }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#60a5fa' }}>
-                    {highScore > 0 ? (highScore >= 1000 ? `${(highScore / 1000).toFixed(1)}k` : highScore) : '--'}
+              {stats && typeof stats.gamesPlayed === 'number' && stats.gamesPlayed > 2 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
+                  style={{ display: 'flex', gap: 6, margin: '8px 0 16px' }}
+                >
+                  <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '8px 0', textAlign: 'center' }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#60a5fa' }}>
+                      {highScore > 0 ? (highScore >= 1000 ? `${(highScore / 1000).toFixed(1)}k` : highScore) : '--'}
+                    </div>
+                    <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t('home.bestScore')}</div>
                   </div>
-                  <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t('home.bestScore')}</div>
-                </div>
-                <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '8px 0', textAlign: 'center' }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#a78bfa' }}>
-                    {stats.gamesPlayed}
+                  <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '8px 0', textAlign: 'center' }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#a78bfa' }}>
+                      {stats.gamesPlayed}
+                    </div>
+                    <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t('home.games')}</div>
                   </div>
-                  <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t('home.games')}</div>
-                </div>
-                <div style={{ flex: 1, background: streak > 0 ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.04)', border: `0.5px solid ${streak > 0 ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '8px 0', textAlign: 'center' }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: streak > 0 ? '#f59e0b' : 'rgba(255,255,255,0.3)' }}>
-                    {streak > 0 ? streak : '--'}
+                  <div style={{ flex: 1, background: streak > 0 ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.04)', border: `0.5px solid ${streak > 0 ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '8px 0', textAlign: 'center' }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: streak > 0 ? '#f59e0b' : 'rgba(255,255,255,0.3)' }}>
+                      {streak > 0 ? streak : '--'}
+                    </div>
+                    <div style={{ fontSize: 8, color: streak > 0 ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t('home.streak')}</div>
                   </div>
-                  <div style={{ fontSize: 8, color: streak > 0 ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t('home.streak')}</div>
-                </div>
-              </div>
+                </motion.div>
+              )}
+
+              {/* Primary Action Button */}
+              {(() => {
+                const primaryAction = (() => {
+                  // Build highScores object from localStorage with error handling
+                  const highScores: { [key: string]: number } = {};
+                  Object.values(GameMode).forEach(mode => {
+                    try {
+                      const stored = localStorage.getItem(`flux_highscore_${mode}`);
+                      if (stored) {
+                        const parsed = parseInt(stored, 10);
+                        if (!isNaN(parsed) && parsed >= 0) {
+                          highScores[mode] = parsed;
+                        } else {
+                          console.warn(`[Error Handling] Invalid high score for mode ${mode}: ${stored}`);
+                        }
+                      }
+                    } catch (e) {
+                      console.error(`[Error Handling] Failed to read high score for mode ${mode}:`, e);
+                    }
+                  });
+
+                  // Fallback for missing user data - default to new user state
+                  const isNewUser = !stats || typeof stats.gamesPlayed !== 'number' || stats.gamesPlayed === 0;
+                  
+                  if (!stats || typeof stats.gamesPlayed !== 'number') {
+                    console.warn('[Error Handling] Missing or corrupted user stats, defaulting to new user state');
+                  }
+                  
+                  if (isNewUser) {
+                    return {
+                      label: t('home.play'),
+                      mode: GameMode.ENDLESS,
+                      showTutorialLink: true,
+                    };
+                  }
+
+                  // Get last played mode from localStorage with error handling
+                  const modeStatsStr = localStorage.getItem('flux_mode_stats');
+                  let lastMode: GameMode | null = null;
+                  let highestMode: GameMode | null = null;
+                  
+                  if (modeStatsStr) {
+                    try {
+                      const modeStats = JSON.parse(modeStatsStr);
+                      const modes = Object.values(modeStats) as any[];
+                      
+                      if (modes.length > 0) {
+                        // Validate mode data
+                        const validModes = modes.filter(m => 
+                          m && 
+                          typeof m.mode === 'string' && 
+                          Object.values(GameMode).includes(m.mode) &&
+                          typeof m.lastPlayed === 'number' &&
+                          typeof m.highScore === 'number'
+                        );
+
+                        if (validModes.length !== modes.length) {
+                          console.warn('[Error Handling] Some mode stats entries were invalid and filtered out');
+                        }
+
+                        if (validModes.length > 0) {
+                          // Get last played
+                          const sortedByTime = [...validModes].sort((a, b) => b.lastPlayed - a.lastPlayed);
+                          lastMode = sortedByTime[0].mode;
+                          
+                          // Get highest scoring
+                          const sortedByScore = [...validModes].sort((a, b) => b.highScore - a.highScore);
+                          highestMode = sortedByScore[0].mode;
+                        }
+                      }
+                    } catch (e) {
+                      console.error('[Error Handling] Failed to parse mode stats, corrupted data detected:', e);
+                      // Clear corrupted data
+                      try {
+                        localStorage.removeItem('flux_mode_stats');
+                        console.info('[Error Handling] Cleared corrupted mode stats from localStorage');
+                      } catch (clearError) {
+                        console.error('[Error Handling] Failed to clear corrupted mode stats:', clearError);
+                      }
+                    }
+                  }
+
+                  // Fallback for invalid mode data - default to ENDLESS
+                  const selectedMode = lastMode || highestMode || GameMode.ENDLESS;
+                  
+                  // Validate selected mode
+                  if (!Object.values(GameMode).includes(selectedMode)) {
+                    console.warn(`[Error Handling] Invalid mode detected: ${selectedMode}, falling back to ENDLESS`);
+                    return {
+                      label: 'DEVAM ET',
+                      mode: GameMode.ENDLESS,
+                      score: highScores[GameMode.ENDLESS] || 0,
+                      showTutorialLink: false,
+                    };
+                  }
+
+                  const modeScore = highScores[selectedMode] || 0;
+
+                  return {
+                    label: modeScore > 0 ? 'TEKRAR OYNA' : 'DEVAM ET',
+                    mode: selectedMode,
+                    score: modeScore,
+                    showTutorialLink: false,
+                  };
+                })();
+
+                // Get mode display info
+                const getModeInfo = (mode: GameMode) => {
+                  const modeInfo: Record<GameMode, { icon: string; color: string; bg: string; border: string }> = {
+                    [GameMode.ENDLESS]: { icon: '∞', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)', border: 'rgba(167,139,250,0.3)' },
+                    [GameMode.TIMED]: { icon: '⚡', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)' },
+                    [GameMode.BLITZ]: { icon: '🔥', color: '#ef4444', bg: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.3)' },
+                    [GameMode.ZEN]: { icon: '☁', color: '#6b7280', bg: 'rgba(107,114,128,0.15)', border: 'rgba(107,114,128,0.3)' },
+                    [GameMode.DAILY_CHALLENGE]: { icon: '📅', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)' },
+                    [GameMode.CAREER]: { icon: '🗺️', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.3)' },
+                    [GameMode.SURVIVAL]: { icon: '💀', color: '#6b7280', bg: 'rgba(107,114,128,0.15)', border: 'rgba(107,114,128,0.3)' },
+                    [GameMode.PUZZLE]: { icon: '🧩', color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)', border: 'rgba(139,92,246,0.3)' },
+                  };
+                  return modeInfo[mode] || modeInfo[GameMode.ENDLESS];
+                };
+
+                const modeInfo = getModeInfo(primaryAction.mode);
+
+                return (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
+                    style={{ marginBottom: 16 }}
+                  >
+                    <motion.button
+                      onClick={() => { playClick(); initGame(primaryAction.mode); }}
+                      whileTap={{ scale: 0.97 }}
+                      style={{
+                        width: '100%',
+                        padding: '20px 24px',
+                        borderRadius: 16,
+                        background: modeInfo.bg,
+                        border: `1px solid ${modeInfo.border}`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 8,
+                        cursor: 'pointer',
+                        position: 'relative',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <div style={{ fontSize: 32, lineHeight: 1 }}>{modeInfo.icon}</div>
+                      <div style={{ 
+                        fontSize: 20, 
+                        fontWeight: 800, 
+                        color: modeInfo.color, 
+                        letterSpacing: '.05em',
+                        textAlign: 'center'
+                      }}>
+                        {primaryAction.label}
+                      </div>
+                      {primaryAction.score !== undefined && primaryAction.score > 0 && (
+                        <div style={{ 
+                          fontSize: 14, 
+                          fontWeight: 600, 
+                          color: 'rgba(255,255,255,0.4)',
+                          textAlign: 'center'
+                        }}>
+                          {t('home.bestScore')}: {primaryAction.score.toLocaleString()}
+                        </div>
+                      )}
+                    </motion.button>
+                    
+                    {/* Tutorial link for new users */}
+                    {primaryAction.showTutorialLink && (
+                      <motion.button
+                        onClick={() => { playClick(); setShowTutorial(true); }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.3, delay: 0.4 }}
+                        style={{
+                          width: '100%',
+                          marginTop: 8,
+                          padding: '8px 0',
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'rgba(255,255,255,0.4)',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'center'
+                        }}
+                      >
+                        {t('home.howToPlay')}
+                      </motion.button>
+                    )}
+                    
+                    {/* Career Continuation Chip */}
+                    {maxLevelReached && typeof maxLevelReached === 'number' && maxLevelReached > 0 && (
+                      <motion.button
+                        onClick={() => { 
+                          playClick(); 
+                          const nextLevel = Math.max(1, maxLevelReached + 1);
+                          startLevel(nextLevel); 
+                        }}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        whileTap={{ scale: 0.97 }}
+                        transition={{ duration: 0.3, delay: 0.4, ease: "easeOut" }}
+                        style={{
+                          width: '100%',
+                          marginTop: 8,
+                          padding: '6px 12px',
+                          background: 'rgba(59,130,246,0.08)',
+                          border: '0.5px solid rgba(59,130,246,0.2)',
+                          borderRadius: 8,
+                          color: '#93c5fd',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6
+                        }}
+                      >
+                        <span>kardan devam</span>
+                        <span style={{ opacity: 0.6 }}>→</span>
+                        <span>Seviye {maxLevelReached + 1}</span>
+                      </motion.button>
+                    )}
+                  </motion.div>
+                );
+              })()}
 
               {/* Daily Challenge Card */}
               <motion.button
                 onClick={() => { playClick(); initGame(GameMode.DAILY_CHALLENGE); }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
                 whileTap={{ scale: 0.97 }}
                 style={{
                   width: '100%',
-                  padding: '10px 14px',
+                  padding: '8px 12px',
                   borderRadius: 12,
-                  marginBottom: 8,
+                  marginBottom: 12,
                   background: dailyPlayedToday ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.1)',
                   border: `0.5px solid ${dailyPlayedToday ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.25)'}`,
                   display: 'flex',
@@ -414,104 +701,27 @@ const App: React.FC = () => {
               >
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: dailyPlayedToday ? '#10b981' : '#f59e0b', flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: dailyPlayedToday ? '#34d399' : '#fbbf24' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: dailyPlayedToday ? '#34d399' : '#fbbf24' }}>
                     {t('home.dailyChallenge', { day: getDayNumber() })}
                   </div>
-                  <div style={{ fontSize: 9, color: dailyPlayedToday ? 'rgba(52,211,153,0.5)' : 'rgba(251,191,36,0.4)', marginTop: 1 }}>
+                  <div style={{ fontSize: 8, color: dailyPlayedToday ? 'rgba(52,211,153,0.5)' : 'rgba(251,191,36,0.4)', marginTop: 1 }}>
                     {dailyPlayedToday ? t('home.dailyPlayed') : t('home.dailyNotPlayed')}
                   </div>
                 </div>
                 {!dailyPlayedToday && (
-                  <div style={{ fontSize: 10, color: 'rgba(245,158,11,0.6)' }}>→</div>
+                  <div style={{ fontSize: 9, color: 'rgba(245,158,11,0.6)' }}>→</div>
                 )}
               </motion.button>
 
-              {/* Career Continue Button */}
-              {maxLevelReached > 0 && (() => {
-                const nextLevel = Math.max(1, maxLevelReached + 1);
-                const careerLevelDef = generateLevel(nextLevel);
-                const careerStars = safeParseInt(localStorage.getItem(`flux_level_${maxLevelReached}_stars`) || '0');
-                
-                return (
-                  <motion.button
-                    onClick={() => { playClick(); startLevel(nextLevel); }}
-                    whileTap={{ scale: 0.97 }}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      marginBottom: 16,
-                      background: 'rgba(59,130,246,0.08)',
-                      border: '0.5px solid rgba(59,130,246,0.2)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                  >
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#93c5fd' }}>
-                        {t('home.careerLevel', { level: nextLevel })}
-                      </div>
-                      <div style={{ fontSize: 9, color: 'rgba(147,197,253,0.4)', marginTop: 1 }}>
-                        {careerLevelDef.name}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 2 }}>
-                      {[1, 2, 3].map(s => (
-                        <svg key={s} width="10" height="10" viewBox="0 0 10 10">
-                          <polygon
-                            points="5,0 6.5,3.5 10,3.5 7.5,6 8.5,10 5,7.5 1.5,10 2.5,6 0,3.5 3.5,3.5"
-                            fill={careerStars >= s ? '#f59e0b' : 'rgba(255,255,255,0.1)'}
-                          />
-                        </svg>
-                      ))}
-                    </div>
-                  </motion.button>
-                );
-              })()}
 
-              {/* Quick Start Grid */}
-              {(() => {
-                const QUICK_MODES = [
-                  { mode: GameMode.ENDLESS, label: t('modes.endless'), icon: '∞', color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.2)' },
-                  { mode: GameMode.TIMED, label: t('modes.rush'), icon: '⚡', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.2)' },
-                  { mode: GameMode.BLITZ, label: t('modes.blitz'), icon: '🔥', color: '#ef4444', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.2)' },
-                  { mode: GameMode.ZEN, label: t('modes.zen'), icon: '☁', color: '#6b7280', bg: 'rgba(107,114,128,0.1)', border: 'rgba(107,114,128,0.2)' },
-                ];
-
-                return (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
-                    {QUICK_MODES.map(({ mode, label, icon, color, bg, border }) => (
-                      <motion.button
-                        key={mode}
-                        onClick={() => { playClick(); initGame(mode); }}
-                        whileTap={{ scale: 0.95 }}
-                        style={{
-                          padding: '12px 8px',
-                          borderRadius: 12,
-                          background: bg,
-                          border: `0.5px solid ${border}`,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: 4,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <span style={{ fontSize: 20, lineHeight: 1 }}>{icon}</span>
-                        <span style={{ fontSize: 10, fontWeight: 700, color, letterSpacing: '.05em' }}>
-                          {label.toUpperCase()}
-                        </span>
-                      </motion.button>
-                    ))}
-                  </div>
-                );
-              })()}
 
               {/* Bottom Navigation */}
-              <div style={{ display: 'flex', gap: 6 }}>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.5, ease: "easeOut" }}
+                style={{ display: 'flex', gap: 6 }}
+              >
                 <button
                   onClick={() => { playClick(); setAppState(AppState.LEVEL_MAP); }}
                   style={{
@@ -520,14 +730,20 @@ const App: React.FC = () => {
                     borderRadius: 10,
                     background: 'rgba(255,255,255,0.04)',
                     border: '0.5px solid rgba(255,255,255,0.06)',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: 'rgba(255,255,255,0.4)',
-                    letterSpacing: '.05em',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 4
                   }}
                 >
-                  {t('home.map')}
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                  </svg>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '.05em' }}>
+                    {t('home.map')}
+                  </span>
                 </button>
                 <button
                   onClick={() => { playClick(); setAppState(AppState.MODES); }}
@@ -537,14 +753,22 @@ const App: React.FC = () => {
                     borderRadius: 10,
                     background: 'rgba(255,255,255,0.04)',
                     border: '0.5px solid rgba(255,255,255,0.06)',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: 'rgba(255,255,255,0.4)',
-                    letterSpacing: '.05em',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 4
                   }}
                 >
-                  {t('home.allModes')}
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                  </svg>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '.05em' }}>
+                    {t('home.allModes')}
+                  </span>
                 </button>
                 <button
                   onClick={() => { playClick(); setShowThemeSelector(true); }}
@@ -554,18 +778,25 @@ const App: React.FC = () => {
                     borderRadius: 10,
                     background: 'rgba(255,255,255,0.04)',
                     border: '0.5px solid rgba(255,255,255,0.06)',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: 'rgba(255,255,255,0.4)',
-                    letterSpacing: '.05em',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 4
                   }}
                 >
-                  {t('home.settings')}
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 1v6m0 6v6m5.2-13.2l-4.2 4.2m0 6l4.2 4.2M23 12h-6m-6 0H1m18.2 5.2l-4.2-4.2m0-6l4.2-4.2"/>
+                  </svg>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '.05em' }}>
+                    {t('home.settings')}
+                  </span>
                 </button>
-              </div>
+              </motion.div>
             </div>
           </motion.div>
+          </ErrorBoundary>
         )}
 
         {appState === AppState.MODES && (
@@ -745,8 +976,7 @@ const App: React.FC = () => {
                   >
                     {guidedStep === 1 && 'Alttaki parçayı sürükle ve ızgaraya bırak'}
                     {guidedStep === 2 && 'Bir satırı tamamen doldur'}
-                    {guidedStep === 3 && 'Flux dolunca yetenek kullanabilirsin'}
-                    {guidedStep === 4 && 'Mükemmel! Artık hazırsın'}
+                    {guidedStep === 3 && 'İşte böyle! Flux ile yetenek kullanabilirsin'}
                   </motion.div>
                   
                   {/* Skip button */}
@@ -980,8 +1210,6 @@ const App: React.FC = () => {
               className="bg-gray-800 border border-white/8 p-6 md:p-8 rounded-2xl shadow-2xl max-w-xs w-full text-center relative overflow-hidden"
             >
               {(() => {
-                const gameOverMsg = getGameOverMessage();
-                
                 // Mode suggestions
                 const MODE_SUGGESTIONS: Record<string, { mode: GameMode; label: string; desc: string }> = {
                   [GameMode.ENDLESS]: { mode: GameMode.BLITZ, label: 'Blitz\'i dene', desc: '30 saniye, anlık heyecan' },
@@ -996,65 +1224,89 @@ const App: React.FC = () => {
 
                 return (
                   <>
-                    <h2 className="text-2xl font-bold text-white mb-2">{gameOverMsg.title}</h2>
-                    <p className="text-gray-400 text-xs uppercase tracking-wider mb-4">{gameOverMsg.subtitle}</p>
+                    {/* Header Section */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{getModeIcon(gameMode)}</span>
+                        <span className="text-xs text-gray-400 uppercase tracking-wider">
+                          Oyun Bitti
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          playClick();
+                          resetGame();
+                          setAppState(AppState.HOME);
+                        }}
+                        className="text-gray-400 hover:text-white transition-colors"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
 
-                    {/* Score Display */}
-                    <div style={{ textAlign: 'center', margin: '8px 0 16px' }}>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: '.1em', marginBottom: 4 }}>
-                        {gameMode === GameMode.TIMED ? 'QUANTUM RUSH' :
-                          gameMode === GameMode.BLITZ ? 'BLITZ' :
-                            gameMode === GameMode.CAREER ? `SEVİYE ${currentLevelIndex}` :
-                              gameMode === GameMode.SURVIVAL ? `${Math.floor(survivalTime)}s HAYATTA KALDI` :
-                                'SKOR'}
+                    {/* Score Display with Count-Up Animation */}
+                    <div className="text-center my-6">
+                      <div 
+                        className={clsx(
+                          "text-4xl font-bold transition-colors duration-300",
+                          isNewRecord ? "text-amber-400" : "text-white"
+                        )}
+                      >
+                        {displayScore.toLocaleString()}
                       </div>
-                      <div style={{ fontSize: 36, fontWeight: 700, color: 'white', lineHeight: 1 }}>
-                        {score.toLocaleString()}
-                      </div>
-                      {score > (highScore * 0.9) && score < highScore && (
-                        <div style={{ fontSize: 10, color: 'rgba(245,158,11,0.7)', marginTop: 4 }}>
-                          Rekora %{Math.round((score / highScore) * 100)} yaklaştın
-                        </div>
+                      
+                      {isNewRecord && showRecordBadge && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mt-2 text-amber-400 text-sm font-semibold"
+                        >
+                          🏆 Yeni Rekor!
+                        </motion.div>
                       )}
-                      {score >= highScore && highScore > 0 && (
-                        <div style={{ fontSize: 10, color: '#34d399', marginTop: 4 }}>
-                          🎉 Yeni rekor!
+                      
+                      {!isNewRecord && highScore > 0 && (
+                        <div className="mt-2 text-xs text-gray-400">
+                          En iyinin %{Math.round((score / highScore) * 100)}'i
                         </div>
                       )}
                     </div>
 
-                    {/* Mini Stats Row */}
-                    <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-                      <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '6px 0', textAlign: 'center' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#60a5fa' }}>
-                          {combo > 0 ? `x${combo}` : '--'}
+                    {/* Stats Chips - Only show if not CAREER mode */}
+                    {gameMode !== GameMode.CAREER && (
+                      <div className="flex gap-2 mb-4">
+                        <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                          <div className="text-sm font-bold text-blue-400">
+                            {combo > 0 ? `x${combo}` : '--'}
+                          </div>
+                          <div className="text-[10px] text-gray-500 uppercase">Max Combo</div>
                         </div>
-                        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)' }}>MAX COMBO</div>
-                      </div>
-                      <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '6px 0', textAlign: 'center' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#a78bfa' }}>
-                          {stats.linesCleared}
+                        <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                          <div className="text-sm font-bold text-purple-400">
+                            {stats.linesCleared}
+                          </div>
+                          <div className="text-[10px] text-gray-500 uppercase">Satır</div>
                         </div>
-                        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)' }}>TOPLAM SATIR</div>
                       </div>
-                      <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '6px 0', textAlign: 'center' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#f59e0b' }}>
-                          {stats.gamesPlayed}
-                        </div>
-                        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)' }}>TOPLAM OYUN</div>
-                      </div>
-                    </div>
+                    )}
 
-                    {/* Retry Button */}
-                    <button
-                      onClick={() => gameMode === GameMode.CAREER ? resetGame() : initGame(gameMode)}
-                      className="w-full py-4 rounded-xl bg-rose-600 text-white font-semibold group transition-all"
+                    {/* Primary Action Button - Tekrar Oyna */}
+                    <motion.button
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: showButtons ? 1 : 0 }}
+                      onClick={() => {
+                        playClick();
+                        initGame(gameMode);
+                      }}
+                      className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all active:scale-95"
                     >
-                      <span className="group-active:scale-95 block">Tekrar Dene</span>
-                    </button>
+                      Tekrar Oyna
+                    </motion.button>
 
                     {/* Share Result Button */}
-                    <button
+                    <motion.button
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: showButtons ? 1 : 0 }}
                       onClick={async () => {
                         const text = generateShareText(
                           score,
@@ -1069,64 +1321,30 @@ const App: React.FC = () => {
                           setTimeout(() => setShareStatus('idle'), 2000);
                         }
                       }}
-                      style={{
-                        width: '100%',
-                        marginTop: 8,
-                        padding: '12px 0',
-                        borderRadius: 12,
-                        border: '0.5px solid rgba(59,130,246,0.3)',
-                        background: 'rgba(59,130,246,0.08)',
-                        color: '#60a5fa',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                      }}
+                      className="w-full mt-2 py-3 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-400 text-sm font-semibold hover:bg-blue-500/20 transition-all"
                     >
                       {shareStatus === 'copied' ? '✓ Kopyalandı!' : shareStatus === 'shared' ? '✓ Paylaşıldı!' : '↗ Sonucu Paylaş'}
-                    </button>
+                    </motion.button>
 
                     {/* Mode Suggestion */}
                     {suggestion && (
-                      <button
+                      <motion.button
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: showButtons ? 1 : 0 }}
                         onClick={() => { playClick(); initGame(suggestion.mode); }}
-                        style={{
-                          width: '100%',
-                          marginTop: 6,
-                          padding: '8px 14px',
-                          borderRadius: 10,
-                          border: '0.5px solid rgba(255,255,255,0.06)',
-                          background: 'rgba(255,255,255,0.03)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          cursor: 'pointer',
-                          textAlign: 'left'
-                        }}
+                        className="w-full mt-2 py-2 px-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-all flex items-center gap-2 text-left"
                       >
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.5)' }}>
+                        <div className="flex-1">
+                          <div className="text-xs font-semibold text-gray-400">
                             {suggestion.label}
                           </div>
-                          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginTop: 1 }}>
+                          <div className="text-[10px] text-gray-500">
                             {suggestion.desc}
                           </div>
                         </div>
-                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>→</div>
-                      </button>
+                        <div className="text-xs text-gray-500">→</div>
+                      </motion.button>
                     )}
-
-                    {/* Home Button */}
-                    <button
-                      onClick={() => {
-                        playClick();
-                        resetGame();
-                        setAppState(AppState.HOME);
-                      }}
-                      className="w-full mt-3 py-3 rounded-xl bg-white/5 text-white/40 text-[10px] font-bold uppercase"
-                    >
-                      Ana Menüye Dön
-                    </button>
                   </>
                 );
               })()}

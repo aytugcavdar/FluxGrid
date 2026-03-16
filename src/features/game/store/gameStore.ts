@@ -176,8 +176,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const isSurvival = mode === GameMode.SURVIVAL;
         const initialGrid = createEmptyGrid();
         
-        // Check if this is the first game
-        const isFirstGame = safeLocalStorageGet('flux_guided_done', '') !== 'true';
+        // Check if this is the first game (onboarding)
+        const isOnboarding = safeLocalStorageGet('flux_onboard_v1', '') !== 'true';
         
         set({
           grid: initialGrid,
@@ -210,16 +210,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
           // Daily Challenge initialization
           dailyClearHistory: [],
           // Guided Experience initialization
-          isFirstGame,
-          guidedStep: isFirstGame ? 1 : 0,
+          isFirstGame: isOnboarding,
+          guidedStep: isOnboarding ? 1 : 0,
           guidedTarget: null,
           // Boss Level initialization
           bossType: null,
           bossMoveCounter: 0
         });
         
-        // Calculate guided target for first piece if this is first game
-        if (isFirstGame) {
+        // Calculate guided target for first piece if this is onboarding
+        if (isOnboarding) {
           const pieces = get().pieces;
           if (pieces.length > 0) {
             const targetPiece = pieces[0];
@@ -993,9 +993,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
     
-    // Advance guided step if in guided mode
+    // Advance guided step if in onboarding mode
     const { isFirstGame, guidedStep } = get();
-    if (isFirstGame && guidedStep > 0 && guidedStep <= 4) {
+    if (isFirstGame && guidedStep > 0 && guidedStep <= 3) {
       get().advanceGuidedStep();
     }
     
@@ -1059,10 +1059,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   advanceGuidedStep: () => {
-    const { guidedStep, pieces, grid } = get();
+    const { guidedStep, pieces, grid, flux } = get();
     const nextStep = guidedStep + 1;
     
-    if (nextStep > 4) {
+    // Step 1: İlk parçayı bırak
+    // Step 2: Satır temizle (otomatik ilerler)
+    // Step 3: Flux göster ve tamamla
+    if (nextStep === 3) {
+      // Flux barına 30 puan ekle ve mesaj göster
+      const newFlux = Math.min(100, flux + 30);
+      set({ 
+        flux: newFlux,
+        guidedStep: nextStep,
+        guidedTarget: null
+      });
+      
+      // 2 saniye sonra tamamla
+      setTimeout(() => {
+        get().completeGuidedMode();
+      }, 2000);
+      return;
+    }
+    
+    if (nextStep > 3) {
       get().completeGuidedMode();
       return;
     }
@@ -1086,7 +1105,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   completeGuidedMode: () => {
     try {
-      localStorage.setItem('flux_guided_done', 'true');
+      localStorage.setItem('flux_onboard_v1', 'true');
     } catch {}
     set({ isFirstGame: false, guidedStep: 0, guidedTarget: null });
   }

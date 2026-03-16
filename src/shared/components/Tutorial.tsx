@@ -15,11 +15,12 @@ interface TutorialStep {
 }
 
 const STEPS: TutorialStep[] = [
-  { id: 1, type: 'static', title: 'Parçalarını tanı', subtitle: 'Her turda 3 parça gelir', autoAdvance: 0 },
-  { id: 2, type: 'interactive', title: 'Parçayı yerleştir', subtitle: 'Sürükle veya tıkla', autoAdvance: 3000 },
-  { id: 3, type: 'demo', title: 'Satır doldur', subtitle: 'Tam satır = puan', autoAdvance: 2500 },
-  { id: 4, type: 'demo', title: 'Yetenekleri kullan', subtitle: 'Flux biriktir, harcama yap', autoAdvance: 0 },
-  { id: 5, type: 'cta', title: 'Hazırsın!', subtitle: 'Cyberpunk bulmaca maceran başlıyor', autoAdvance: 0 },
+  { id: 1, type: 'interactive', title: 'Parçayı yerleştir', subtitle: 'Sürükle veya tıkla', autoAdvance: 3000 },
+  { id: 2, type: 'demo', title: 'Satır doldur', subtitle: 'Tam satır = puan', autoAdvance: 2500 },
+  { id: 3, type: 'demo', title: 'Flux barını doldur', subtitle: 'Her yerleştirmede dolor', autoAdvance: 0 },
+  { id: 4, type: 'demo', title: 'Surge aktif', subtitle: 'Flux 100 olunca 2 kat puan!', autoAdvance: 0 },
+  { id: 5, type: 'demo', title: 'Skill butonları', subtitle: 'Flux harcar — Reroll, Shatter, Bomb', autoAdvance: 0 },
+  { id: 6, type: 'cta', title: 'Hazırsın!', subtitle: 'Cyberpunk bulmaca maceran başlıyor', autoAdvance: 0 },
 ];
 
 // Demo Grid Component
@@ -273,8 +274,7 @@ export const Tutorial: React.FC<TutorialProps> = ({ onComplete }) => {
       setShowClearAnimation(false);
     } else {
       try {
-        localStorage.setItem('flux_tutorial_seen', 'true');
-        localStorage.setItem('flux_tutorial_version', '2');
+        localStorage.setItem('flux_onboard_v1', 'true');
       } catch {
         // Ignore localStorage errors
       }
@@ -284,8 +284,7 @@ export const Tutorial: React.FC<TutorialProps> = ({ onComplete }) => {
 
   const handleSkip = useCallback(() => {
     try {
-      localStorage.setItem('flux_tutorial_seen', 'true');
-      localStorage.setItem('flux_tutorial_version', '2');
+      localStorage.setItem('flux_onboard_v1', 'true');
     } catch {
       // Ignore localStorage errors
     }
@@ -324,49 +323,7 @@ export const Tutorial: React.FC<TutorialProps> = ({ onComplete }) => {
 
   const renderStepContent = () => {
     switch (step) {
-      case 0: // Step 1: Parçaları tanı
-        return (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginBottom: 24 }}>
-              {/* 3 demo pieces */}
-              <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ repeat: Infinity, duration: 2, delay: 0 }}
-              >
-                <DemoPiece
-                  shape={[
-                    [1, 1],
-                    [1, 0],
-                  ]}
-                  color="#a78bfa"
-                />
-              </motion.div>
-              <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ repeat: Infinity, duration: 2, delay: 0.3 }}
-              >
-                <DemoPiece
-                  shape={[
-                    [1, 1, 1],
-                    [0, 1, 0],
-                  ]}
-                  color="#3b82f6"
-                />
-              </motion.div>
-              <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ repeat: Infinity, duration: 2, delay: 0.6 }}
-              >
-                <DemoPiece shape={[[1, 1, 1]]} color="#06b6d4" />
-              </motion.div>
-            </div>
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
-              Bunlar senin parçaların
-            </p>
-          </div>
-        );
-
-      case 1: // Step 2: Sürükleyerek yerleştir
+      case 0: // Step 1: Sürükleyerek yerleştir
         return (
           <div style={{ textAlign: 'center' }}>
             <div style={{ marginBottom: 16 }}>
@@ -421,7 +378,7 @@ export const Tutorial: React.FC<TutorialProps> = ({ onComplete }) => {
           </div>
         );
 
-      case 2: // Step 3: Satır doldur
+      case 1: // Step 2: Satır doldur
         return (
           <div style={{ textAlign: 'center' }}>
             <div style={{ marginBottom: 16 }}>
@@ -455,10 +412,94 @@ export const Tutorial: React.FC<TutorialProps> = ({ onComplete }) => {
           </div>
         );
 
-      case 3: // Step 4: Flux ve yetenekler
+      case 2: // Step 3: Flux barını doldur
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ marginBottom: 16 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: 'rgba(255,255,255,0.3)',
+                  marginBottom: 6,
+                  letterSpacing: '0.1em',
+                }}
+              >
+                FLUX ENERGY
+              </div>
+              <div
+                style={{
+                  width: 200,
+                  height: 8,
+                  background: 'rgba(255,255,255,0.08)',
+                  borderRadius: 4,
+                  overflow: 'hidden',
+                  margin: '0 auto',
+                }}
+              >
+                <motion.div
+                  style={{
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
+                    borderRadius: 4,
+                  }}
+                  initial={{ width: '0%' }}
+                  animate={{ width: '100%' }}
+                  transition={{ duration: 2, ease: 'easeInOut' }}
+                />
+              </div>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 2 }}
+                style={{ fontSize: 14, color: '#60a5fa', marginTop: 8, fontWeight: 700 }}
+              >
+                100%
+              </motion.div>
+            </div>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginTop: 16 }}>
+              Her parça yerleştirdiğinde flux artar
+            </p>
+          </div>
+        );
+
+      case 3: // Step 4: Surge aktif
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: [0, 1.2, 1], opacity: [0, 1, 1] }}
+              transition={{ duration: 0.6, times: [0, 0.6, 1] }}
+              style={{
+                fontSize: 48,
+                marginBottom: 16,
+              }}
+            >
+              ⚡
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              style={{
+                fontSize: 24,
+                fontWeight: 900,
+                color: '#fbbf24',
+                letterSpacing: '0.1em',
+                marginBottom: 8,
+              }}
+            >
+              SURGE!
+            </motion.div>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
+              Flux 100 olunca surge aktif — satır temizleme 2 kat puan!
+            </p>
+          </div>
+        );
+
+      case 4: // Step 5: Skill butonları
         return <FluxDemo />;
 
-      case 4: // Step 5: Hazırsın!
+      case 5: // Step 6: Hazırsın!
         return (
           <div style={{ textAlign: 'center' }}>
             <motion.div
@@ -599,7 +640,7 @@ export const Tutorial: React.FC<TutorialProps> = ({ onComplete }) => {
 /** Check if tutorial has been seen */
 export const shouldShowTutorial = (): boolean => {
   try {
-    return localStorage.getItem('flux_tutorial_version') !== '2';
+    return localStorage.getItem('flux_onboard_v1') !== 'true';
   } catch {
     return true;
   }

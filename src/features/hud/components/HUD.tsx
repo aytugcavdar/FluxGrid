@@ -28,62 +28,159 @@ export const HUD: React.FC = () => {
         playSkill();
         activateSkill(skill);
     };
+    
+    const handleCancelSkill = () => {
+        playClick();
+        activateSkill(activeSkill!); // Toggle off
+    };
 
     const currentLevelDef = gameMode === GameMode.CAREER ? generateLevel(currentLevelIndex) : null;
 
     return (
         <>
-            {/* MOBILE LAYOUT - 3 ROWS */}
+            {/* SKILL BANNER - Shatter veya Bomb aktifken göster */}
+            <AnimatePresence>
+                {(activeSkill === SkillType.SHATTER || activeSkill === SkillType.BOMB) && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.2 }}
+                        style={{
+                            width: '100%',
+                            padding: '12px 16px',
+                            background: activeSkill === SkillType.SHATTER 
+                                ? 'linear-gradient(90deg, rgba(239,68,68,0.15), rgba(239,68,68,0.08))' 
+                                : 'linear-gradient(90deg, rgba(249,115,22,0.15), rgba(249,115,22,0.08))',
+                            border: `1px solid ${activeSkill === SkillType.SHATTER ? 'rgba(239,68,68,0.3)' : 'rgba(249,115,22,0.3)'}`,
+                            borderRadius: 12,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: 8
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <motion.div
+                                animate={{ scale: [1, 1.1, 1] }}
+                                transition={{ duration: 1, repeat: Infinity }}
+                                style={{
+                                    fontSize: 24,
+                                    lineHeight: 1
+                                }}
+                            >
+                                {activeSkill === SkillType.SHATTER ? '🔨' : '💣'}
+                            </motion.div>
+                            <div>
+                                <div style={{
+                                    fontSize: 14,
+                                    fontWeight: 700,
+                                    color: activeSkill === SkillType.SHATTER ? '#ef4444' : '#f97316',
+                                    marginBottom: 2
+                                }}>
+                                    {activeSkill === SkillType.SHATTER ? 'Hedef bloğa dokun' : 'Patlama merkezi seç'}
+                                </div>
+                                <div style={{
+                                    fontSize: 11,
+                                    color: 'rgba(255,255,255,0.4)'
+                                }}>
+                                    {activeSkill === SkillType.SHATTER ? 'Tek blok kır' : '3×3 alan temizle'}
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleCancelSkill}
+                            style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 8,
+                                background: 'rgba(0,0,0,0.2)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                color: 'rgba(255,255,255,0.6)'
+                            }}
+                        >
+                            ✕
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* MOBILE LAYOUT - 2 ROWS */}
             <div className="md:hidden w-full h-full flex flex-col" style={{ gap: 2 }}>
-                {/* ROW 1: Score + Timer/Moves + Home + Mute */}
-                <div style={{ height: 28, display: 'flex', alignItems: 'center', gap: 4, padding: '0 4px' }}>
-                    {/* Home button */}
+                {/* ROW 1: Home + Score/Mode/Progress + Timer/Moves + Mute */}
+                <div style={{ height: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '0 6px' }}>
+                    {/* Home button - 44×44px */}
                     <button
                         onClick={() => { playClick(); setAppState(AppState.HOME); }}
                         style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 5,
-                            border: `0.5px solid ${colors.hudBorder}`,
+                            width: 44,
+                            height: 44,
+                            minWidth: 44,
+                            minHeight: 44,
+                            borderRadius: 8,
+                            border: `1px solid ${colors.hudBorder}`,
                             background: colors.hudBackground,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             color: colors.textTertiary,
-                            flexShrink: 0
+                            flexShrink: 0,
+                            cursor: 'pointer'
                         }}
                     >
-                        <Home size={12} />
+                        <Home size={18} />
                     </button>
 
-                    {/* Score block */}
-                    <div style={{ flex: 1, padding: '0 6px' }}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: colors.textPrimary, lineHeight: 1 }}>
+                    {/* Center content - Score + Mode + Progress */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                        {/* Score - 18px font */}
+                        <div style={{ fontSize: 18, fontWeight: 700, color: colors.textPrimary, lineHeight: 1 }}>
                             {gameMode === GameMode.ZEN ? zenBlocksPlaced : score.toLocaleString()}
                         </div>
-                        <div style={{ fontSize: 8, color: colors.textTertiary, marginTop: 1 }}>
+                        
+                        {/* Mode name - 11px font */}
+                        <div style={{ fontSize: 11, color: colors.textTertiary, lineHeight: 1 }}>
                             {(gameMode === GameMode.ENDLESS || gameMode === GameMode.TIMED) && `EN İYİ ${highScore.toLocaleString()}`}
                             {gameMode === GameMode.CAREER && (currentLevelDef?.name ?? '')}
                             {gameMode === GameMode.ZEN && 'BLOK'}
                             {(gameMode === GameMode.BLITZ || gameMode === GameMode.SURVIVAL) && `EN İYİ ${highScore.toLocaleString()}`}
                         </div>
+                        
+                        {/* Progress indicator - 3px decorative line */}
+                        <div style={{
+                            width: '80%',
+                            height: 3,
+                            background: gameMode === GameMode.CAREER && levelObjectives.length > 0
+                                ? (levelObjectives[0].current >= levelObjectives[0].target ? 'rgba(16,185,129,0.6)' : 'rgba(59,130,246,0.5)')
+                                : 'rgba(59,130,246,0.4)',
+                            borderRadius: 2,
+                            marginTop: 2
+                        }} />
                     </div>
 
-                    {/* Timer/Moves pill */}
+                    {/* Timer/Moves pill - conditional */}
                     {(gameMode === GameMode.TIMED || gameMode === GameMode.BLITZ) && (
                         <div style={{
-                            padding: '3px 8px',
-                            borderRadius: 10,
+                            padding: '6px 12px',
+                            borderRadius: 12,
                             background: gameMode === GameMode.BLITZ 
                                 ? (timeLeft <= 5 ? 'rgba(239,68,68,0.15)' : timeLeft <= 15 ? 'rgba(249,115,22,0.12)' : timeLeft <= 25 ? 'rgba(245,158,11,0.12)' : 'rgba(59,130,246,0.1)')
                                 : (timeLeft <= 10 ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.12)'),
                             border: gameMode === GameMode.BLITZ
-                                ? `0.5px solid ${timeLeft <= 5 ? 'rgba(239,68,68,0.3)' : timeLeft <= 15 ? 'rgba(249,115,22,0.25)' : timeLeft <= 25 ? 'rgba(245,158,11,0.25)' : 'rgba(59,130,246,0.2)'}`
-                                : `0.5px solid ${timeLeft <= 10 ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.25)'}`,
-                            flexShrink: 0
+                                ? `1px solid ${timeLeft <= 5 ? 'rgba(239,68,68,0.3)' : timeLeft <= 15 ? 'rgba(249,115,22,0.25)' : timeLeft <= 25 ? 'rgba(245,158,11,0.25)' : 'rgba(59,130,246,0.2)'}`
+                                : `1px solid ${timeLeft <= 10 ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.25)'}`,
+                            flexShrink: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            animation: (gameMode === GameMode.BLITZ && timeLeft <= 5) || (gameMode === GameMode.TIMED && timeLeft <= 10) ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none'
                         }}>
                             <div style={{ 
-                                fontSize: 14, 
+                                fontSize: 16, 
                                 fontWeight: 700, 
                                 color: gameMode === GameMode.BLITZ
                                     ? (timeLeft <= 5 ? '#ef4444' : timeLeft <= 15 ? '#f97316' : timeLeft <= 25 ? '#f59e0b' : '#3b82f6')
@@ -93,11 +190,12 @@ export const HUD: React.FC = () => {
                                 {timeLeft}
                             </div>
                             <div style={{ 
-                                fontSize: 7, 
+                                fontSize: 11, 
                                 color: gameMode === GameMode.BLITZ
                                     ? (timeLeft <= 5 ? 'rgba(239,68,68,0.6)' : timeLeft <= 15 ? 'rgba(249,115,22,0.6)' : timeLeft <= 25 ? 'rgba(245,158,11,0.6)' : 'rgba(59,130,246,0.6)')
                                     : (timeLeft <= 10 ? 'rgba(239,68,68,0.6)' : 'rgba(245,158,11,0.6)'), 
-                                textAlign: 'center' 
+                                textAlign: 'center',
+                                marginTop: 2
                             }}>
                                 SN
                             </div>
@@ -106,164 +204,159 @@ export const HUD: React.FC = () => {
 
                     {gameMode === GameMode.CAREER && (
                         <div style={{
-                            padding: '3px 8px',
-                            borderRadius: 10,
+                            padding: '6px 12px',
+                            borderRadius: 12,
                             background: movesLeft <= 5 ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.05)',
-                            border: `0.5px solid ${movesLeft <= 5 ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)'}`,
-                            flexShrink: 0
+                            border: `1px solid ${movesLeft <= 5 ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                            flexShrink: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            animation: movesLeft <= 5 ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none'
                         }}>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: movesLeft <= 5 ? '#ef4444' : colors.textPrimary, lineHeight: 1 }}>
+                            <div style={{ 
+                                fontSize: 16, 
+                                fontWeight: 700, 
+                                color: movesLeft <= 5 ? '#ef4444' : colors.textPrimary, 
+                                lineHeight: 1 
+                            }}>
                                 {movesLeft}
                             </div>
-                            <div style={{ fontSize: 7, color: colors.textTertiary, textAlign: 'center' }}>
+                            <div style={{ 
+                                fontSize: 11, 
+                                color: movesLeft <= 5 ? 'rgba(239,68,68,0.6)' : colors.textTertiary, 
+                                textAlign: 'center',
+                                marginTop: 2
+                            }}>
                                 HAMLE
                             </div>
                         </div>
                     )}
 
                     {gameMode === GameMode.ZEN && (
-                        <div style={{ fontSize: 11, color: colors.textSecondary, padding: '0 4px', flexShrink: 0 }}>
+                        <div style={{ 
+                            fontSize: 11, 
+                            color: colors.textSecondary, 
+                            padding: '0 8px', 
+                            flexShrink: 0,
+                            fontWeight: 600
+                        }}>
                             {Math.floor(zenSessionTime / 60)}:{(zenSessionTime % 60).toString().padStart(2, '0')}
                         </div>
                     )}
 
                     {gameMode === GameMode.SURVIVAL && (
                         <div style={{
-                            padding: '3px 8px',
-                            borderRadius: 10,
+                            padding: '6px 12px',
+                            borderRadius: 12,
                             background: 'rgba(107,114,128,0.15)',
-                            border: '0.5px solid rgba(107,114,128,0.25)',
-                            flexShrink: 0
+                            border: '1px solid rgba(107,114,128,0.25)',
+                            flexShrink: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center'
                         }}>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: '#9ca3af', lineHeight: 1 }}>
+                            <div style={{ 
+                                fontSize: 16, 
+                                fontWeight: 700, 
+                                color: '#9ca3af', 
+                                lineHeight: 1 
+                            }}>
                                 {survivalNextPush}
                             </div>
-                            <div style={{ fontSize: 7, color: 'rgba(156,163,175,0.6)', textAlign: 'center' }}>
+                            <div style={{ 
+                                fontSize: 11, 
+                                color: 'rgba(156,163,175,0.6)', 
+                                textAlign: 'center',
+                                marginTop: 2
+                            }}>
                                 SN
                             </div>
                         </div>
                     )}
 
-                    {/* Mute button */}
+                    {/* Mute button - 44×44px */}
                     <button
                         onClick={handleMute}
                         style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 5,
-                            border: `0.5px solid ${colors.hudBorder}`,
+                            width: 44,
+                            height: 44,
+                            minWidth: 44,
+                            minHeight: 44,
+                            borderRadius: 8,
+                            border: `1px solid ${colors.hudBorder}`,
                             background: colors.hudBackground,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            flexShrink: 0
+                            flexShrink: 0,
+                            cursor: 'pointer'
                         }}
                     >
-                        {muted ? <VolumeX size={11} style={{ color: colors.textTertiary, opacity: 0.4 }} /> : <Volume2 size={11} style={{ color: colors.textTertiary }} />}
+                        {muted ? <VolumeX size={18} style={{ color: colors.textTertiary, opacity: 0.4 }} /> : <Volume2 size={18} style={{ color: colors.textTertiary }} />}
                     </button>
                 </div>
 
                 {/* ROW 2: Flux bar + Skill buttons */}
-                <div style={{ height: 24, display: 'flex', alignItems: 'center', gap: 3, padding: '0 4px' }}>
-                    {/* ZEN mode: Palette dots instead of flux bar */}
-                    {gameMode === GameMode.ZEN ? (
-                        <div style={{
-                            flex: 1,
-                            height: 24,
-                            background: colors.hudBackground,
-                            borderRadius: 5,
-                            border: `0.5px solid ${colors.hudBorder}`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '0 6px',
-                            gap: 4
-                        }}>
-                            <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                                {ZEN_PALETTES[zenPaletteIndex].map((color, i) => (
-                                    <div key={i} style={{
-                                        width: 8,
-                                        height: 8,
-                                        borderRadius: '50%',
-                                        background: color,
-                                        opacity: 0.7
-                                    }} />
-                                ))}
-                            </div>
-                            <span style={{
-                                fontSize: 8,
-                                color: 'rgba(255,255,255,0.3)',
-                                marginLeft: 4,
-                                fontWeight: 600
-                            }}>
-                                palet {zenPaletteIndex + 1}/4
-                            </span>
-                        </div>
-                    ) : (
-                        /* Other modes: Flux bar */
-                        <div style={{
-                            flex: 1,
-                            height: 24,
-                            background: colors.hudBackground,
-                            borderRadius: 5,
-                            border: `0.5px solid ${colors.hudBorder}`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '0 6px',
-                            gap: 4,
-                            position: 'relative',
-                            overflow: 'hidden'
-                        }}>
-                            {/* Surge overlay */}
-                            <AnimatePresence>
-                                {isSurgeActive && (
+                <div style={{ height: 44, display: 'flex', alignItems: 'center', gap: 6, padding: '0 6px' }}>
+                    {/* Flux Bar Container - flex:1 */}
+                    <div style={{ flex: 1, height: 44, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {isSurgeActive ? (
+                            // Surge Mode: Animated Text
+                            <motion.span
+                                animate={{ opacity: [1, 0.6, 1] }}
+                                transition={{ duration: 0.8, repeat: Infinity }}
+                                style={{ fontSize: 14, fontWeight: 900, letterSpacing: '0.1em', color: '#fbbf24' }}
+                            >
+                                ⚡ SURGE
+                            </motion.span>
+                        ) : gameMode === GameMode.ZEN ? (
+                            // ZEN mode: Palette dots
+                            <>
+                                <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                                    {ZEN_PALETTES[zenPaletteIndex].map((color, i) => (
+                                        <div key={i} style={{
+                                            width: 8,
+                                            height: 8,
+                                            borderRadius: '50%',
+                                            background: color,
+                                            opacity: 0.7
+                                        }} />
+                                    ))}
+                                </div>
+                                <span style={{
+                                    fontSize: 11,
+                                    color: 'rgba(255,255,255,0.3)',
+                                    fontWeight: 600
+                                }}>
+                                    palet {zenPaletteIndex + 1}/4
+                                </span>
+                            </>
+                        ) : (
+                            // Normal Mode: Flux Bar
+                            <>
+                                <Zap size={12} style={{ color: colors.accentColor, fill: flux >= 100 ? colors.accentColor : 'none' }} />
+                                <span style={{ fontSize: 11, fontWeight: 600, color: colors.textTertiary, lineHeight: 1 }}>
+                                    {Math.floor(flux)}%
+                                </span>
+                                <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 3 }}>
                                     <motion.div
-                                        initial={{ scale: 0, opacity: 0 }}
-                                        animate={{ scale: 1, opacity: 1 }}
-                                        exit={{ scale: 0, opacity: 0 }}
                                         style={{
-                                            position: 'absolute',
-                                            inset: 0,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            zIndex: 20,
-                                            pointerEvents: 'none'
+                                            height: '100%',
+                                            background: flux >= 80 ? colors.surgeColor : colors.accentColor,
+                                            borderRadius: 3
                                         }}
-                                    >
-                                        <motion.span
-                                            animate={{ opacity: [1, 0.6, 1] }}
-                                            transition={{ duration: 0.8, repeat: Infinity }}
-                                            style={{ fontSize: 8, fontWeight: 900, letterSpacing: '0.1em', color: '#fbbf24' }}
-                                        >
-                                            ⚡SURGE
-                                        </motion.span>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-
-                            <Zap size={9} style={{ color: colors.accentColor, fill: flux >= 100 || isSurgeActive ? colors.accentColor : 'none', zIndex: 10, opacity: isSurgeActive ? 0.2 : 1 }} />
-                            <span style={{ fontSize: 8, fontWeight: 600, color: colors.textTertiary, lineHeight: 1, zIndex: 10, opacity: isSurgeActive ? 0.2 : 1 }}>
-                                {Math.floor(isSurgeActive ? 100 : flux)}%
-                            </span>
-
-                            {/* Bar */}
-                            <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden', zIndex: 10, opacity: isSurgeActive ? 0.2 : 1 }}>
-                                <motion.div
-                                    style={{
-                                        height: '100%',
-                                        background: isSurgeActive ? colors.surgeColor : (flux >= 80 ? colors.surgeColor : colors.accentColor),
-                                        borderRadius: 2
-                                    }}
-                                    animate={{ width: `${Math.min(isSurgeActive ? 100 : flux, 100)}%` }}
-                                    transition={{ type: 'spring', stiffness: 40, damping: 15 }}
-                                />
-                            </div>
-                        </div>
-                    )}
+                                        animate={{ width: `${Math.min(flux, 100)}%` }}
+                                        transition={{ type: 'spring', stiffness: 40, damping: 15 }}
+                                    />
+                                </div>
+                            </>
+                        )}
+                    </div>
 
                     {/* Skill buttons */}
                     <MobileSkillButton
-                        icon={<RefreshCw size={9} />}
+                        icon={<RefreshCw size={16} />}
                         cost={FLUX_COST.REROLL}
                         currentFlux={flux}
                         isActive={false}
@@ -274,7 +367,7 @@ export const HUD: React.FC = () => {
                     />
 
                     <MobileSkillButton
-                        icon={<Hammer size={9} />}
+                        icon={<Hammer size={16} />}
                         cost={FLUX_COST.SHATTER}
                         currentFlux={flux}
                         isActive={activeSkill === SkillType.SHATTER}
@@ -285,7 +378,7 @@ export const HUD: React.FC = () => {
                     />
 
                     <MobileSkillButton
-                        icon={<Bomb size={9} />}
+                        icon={<Bomb size={16} />}
                         cost={FLUX_COST.BOMB}
                         currentFlux={flux}
                         isActive={activeSkill === SkillType.BOMB}
@@ -294,146 +387,6 @@ export const HUD: React.FC = () => {
                         accentBg={gameMode === GameMode.ZEN ? 'rgba(255,255,255,0.06)' : 'rgba(249,115,22,0.1)'}
                         accentBorder="rgba(249,115,22,0.2)"
                     />
-                </div>
-
-                {/* ROW 3: Objective / Progress pills */}
-                <div style={{ height: 12, display: 'flex', gap: 3, padding: '0 4px' }}>
-                    {/* CAREER mode objectives */}
-                    {gameMode === GameMode.CAREER && levelObjectives.slice(0, 2).map((obj, i) => (
-                        <div key={i} style={{
-                            flex: 1,
-                            height: 12,
-                            background: 'rgba(255,255,255,0.05)',
-                            borderRadius: 2,
-                            overflow: 'hidden',
-                            position: 'relative',
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '0 4px'
-                        }}>
-                            <div style={{
-                                position: 'absolute',
-                                left: 0,
-                                top: 0,
-                                height: '100%',
-                                background: obj.current >= obj.target ? 'rgba(16,185,129,0.4)' : 'rgba(59,130,246,0.35)',
-                                width: `${Math.min(100, (obj.current / obj.target) * 100)}%`,
-                                borderRadius: 2
-                            }} />
-                            <span style={{
-                                fontSize: 7,
-                                color: 'rgba(255,255,255,0.5)',
-                                position: 'relative',
-                                zIndex: 1,
-                                whiteSpace: 'nowrap'
-                            }}>
-                                {obj.type === 'SCORE' ? `${(obj.current / 1000).toFixed(0)}k/${(obj.target / 1000).toFixed(0)}k` :
-                                    obj.type === 'CLEAR_LINES' ? `${obj.current}/${obj.target} satır` :
-                                        obj.type === 'BREAK_ICE' ? `${obj.current}/${obj.target} buz` :
-                                            `${obj.current}/${obj.target}`}
-                            </span>
-                        </div>
-                    ))}
-
-                    {/* Other modes high score progress */}
-                    {gameMode !== GameMode.CAREER && gameMode !== GameMode.ZEN && (
-                        <div style={{
-                            flex: 1,
-                            height: 12,
-                            background: 'rgba(255,255,255,0.05)',
-                            borderRadius: 2,
-                            overflow: 'hidden',
-                            position: 'relative',
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '0 4px'
-                        }}>
-                            <div style={{
-                                position: 'absolute',
-                                left: 0,
-                                top: 0,
-                                height: '100%',
-                                background: 'rgba(59,130,246,0.3)',
-                                width: `${highScore > 0 ? Math.min(100, (score / highScore) * 100) : 0}%`,
-                                borderRadius: 2
-                            }} />
-                            <span style={{
-                                fontSize: 7,
-                                color: 'rgba(255,255,255,0.4)',
-                                position: 'relative',
-                                zIndex: 1
-                            }}>
-                                {highScore > 0 ? `${Math.round((score / highScore) * 100)}% rekor` : 'ilk oyun'}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* ZEN mode block count progress */}
-                    {gameMode === GameMode.ZEN && (
-                        <div style={{
-                            flex: 1,
-                            height: 12,
-                            background: 'rgba(255,255,255,0.05)',
-                            borderRadius: 2,
-                            overflow: 'hidden',
-                            position: 'relative',
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '0 4px'
-                        }}>
-                            <div style={{
-                                position: 'absolute',
-                                left: 0,
-                                top: 0,
-                                height: '100%',
-                                background: 'rgba(167,139,250,0.35)',
-                                width: `${(zenBlocksPlaced % 100)}%`,
-                                borderRadius: 2
-                            }} />
-                            <span style={{
-                                fontSize: 7,
-                                color: 'rgba(255,255,255,0.4)',
-                                position: 'relative',
-                                zIndex: 1
-                            }}>
-                                {zenBlocksPlaced} blok
-                            </span>
-                        </div>
-                    )}
-
-                    {/* SURVIVAL mode push countdown bar */}
-                    {gameMode === GameMode.SURVIVAL && (
-                        <div style={{
-                            flex: 1,
-                            height: 12,
-                            background: 'rgba(255,255,255,0.05)',
-                            borderRadius: 2,
-                            overflow: 'hidden',
-                            position: 'relative',
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '0 4px'
-                        }}>
-                            <div style={{
-                                position: 'absolute',
-                                left: 0,
-                                top: 0,
-                                height: '100%',
-                                background: 'rgba(239,68,68,0.4)',
-                                width: `${((survivalPushInterval - survivalNextPush) / survivalPushInterval) * 100}%`,
-                                borderRadius: 2,
-                                transition: 'width 1s linear'
-                            }} />
-                            <span style={{
-                                fontSize: 7,
-                                color: 'rgba(255,255,255,0.4)',
-                                position: 'relative',
-                                zIndex: 1
-                            }}>
-                                {survivalNextPush}s sonra satır
-                            </span>
-                        </div>
-                    )}
                 </div>
             </div>
 
@@ -672,32 +625,84 @@ const MobileSkillButton = ({ icon, cost, currentFlux, isActive, onClick, accentC
         <button
             onClick={() => { playClick(); onClick(); }}
             disabled={disabled}
+            data-testid="mobile-skill-button"
             style={{
-                width: 28,
-                height: 24,
-                borderRadius: 5,
-                border: `0.5px solid ${isActive ? accentColor : (disabled ? 'rgba(255,255,255,0.04)' : accentBorder)}`,
+                width: 44,
+                height: 44,
+                minWidth: 44,
+                minHeight: 44,
+                borderRadius: 8,
+                border: `1px solid ${isActive ? accentColor : (disabled ? 'rgba(255,255,255,0.04)' : accentBorder)}`,
                 background: isActive ? accentColor : (disabled ? 'rgba(255,255,255,0.02)' : accentBg),
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 1,
-                flexShrink: 0,
+                position: 'relative',
                 opacity: disabled ? 0.4 : 1,
-                cursor: disabled ? 'not-allowed' : 'pointer'
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                transition: 'all 0.2s ease',
+                padding: 0,
+                flexShrink: 0
             }}
         >
-            <div style={{ color: isActive ? 'white' : (disabled ? 'rgba(255,255,255,0.2)' : accentColor) }}>
+            {/* Icon - visually smaller but centered in 44px area */}
+            <div 
+                data-testid="icon-container"
+                style={{ 
+                    width: 28, 
+                    height: 28, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    color: isActive ? 'white' : (disabled ? 'rgba(255,255,255,0.2)' : accentColor)
+                }}
+            >
                 {icon}
             </div>
-            <span style={{
-                fontSize: 7,
-                fontWeight: 500,
-                color: isActive ? 'white' : (disabled ? 'rgba(255,255,255,0.15)' : accentColor)
-            }}>
+            
+            {/* Flux Cost Badge - positioned at bottom right */}
+            <div 
+                data-testid="cost-badge"
+                style={{
+                    position: 'absolute',
+                    bottom: 2,
+                    right: 2,
+                    background: isActive ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.5)',
+                    borderRadius: 6,
+                    padding: '2px 4px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: isActive ? 'white' : accentColor,
+                    lineHeight: 1
+                }}
+            >
                 {cost}
-            </span>
+            </div>
+            
+            {/* Active Indicator */}
+            {isActive && (
+                <div 
+                    data-testid="active-indicator"
+                    style={{
+                        position: 'absolute',
+                        bottom: -14,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: accentColor,
+                        whiteSpace: 'nowrap',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2
+                    }}
+                >
+                    <span style={{ fontSize: 6 }}>●</span>
+                    AKTİF
+                </div>
+            )}
         </button>
     );
 };

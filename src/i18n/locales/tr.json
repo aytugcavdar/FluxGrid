@@ -16,7 +16,8 @@
     "dailyNotPlayed": "Henüz oynanmadı",
     "careerLevel": "Kariyer — Seviye {{level}}",
     "quickStart": "Hızlı Başlat",
-    "backButton": "← Geri Dön"
+    "backButton": "← Geri Dön",
+    "howToPlay": "nasıl oynanır?"
   },
   "modes": {
     "endless": "SONSUZ",

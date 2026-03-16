@@ -16,7 +16,8 @@
     "dailyNotPlayed": "Not played yet",
     "careerLevel": "Career — Level {{level}}",
     "quickStart": "Quick Start",
-    "backButton": "← Back"
+    "backButton": "← Back",
+    "howToPlay": "how to play?"
   },
   "modes": {
     "endless": "ENDLESS",
