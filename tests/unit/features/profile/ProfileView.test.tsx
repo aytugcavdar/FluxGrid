@@ -30,7 +30,7 @@ describe('ProfileView', () => {
     // Setup default profile state
     useProfileStore.setState({
       profile: {
-        id: 'test-user',
+        username: 'test-user',
         createdAt: Date.now(),
         lastPlayed: Date.now(),
         stats: {
@@ -46,17 +46,15 @@ describe('ProfileView', () => {
           skillUses: new Map(),
         },
         achievements: new Map(),
-        settings: {
-          soundEnabled: true,
-          musicEnabled: true,
-          vibrationEnabled: true,
-          theme: 'dark',
-        },
         progression: {
           currentLevel: 1,
           maxLevelReached: 1,
           totalScore: 5000,
+          levelProgress: new Map(),
+          unlockedAbilities: new Set(),
         },
+        unlockedAbilities: new Set(),
+        equippedPassives: [],
       },
     });
   });

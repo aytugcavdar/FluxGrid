@@ -18,10 +18,11 @@ vi.mock('framer-motion', () => ({
 
 describe('Piece', () => {
   const mockPiece = {
+    id: 'piece-1',
     instanceId: 'test-piece-1',
     shape: [
-      [true, true],
-      [true, false],
+      [1, 1],
+      [1, 0],
     ],
     color: '#3b82f6',
     type: CellType.NORMAL,
@@ -196,9 +197,9 @@ describe('Piece', () => {
       const lShapePiece = {
         ...mockPiece,
         shape: [
-          [true, false],
-          [true, false],
-          [true, true],
+          [1, 0],
+          [1, 0],
+          [1, 1],
         ],
       };
 
@@ -211,7 +212,7 @@ describe('Piece', () => {
     it('should render single block piece', () => {
       const singlePiece = {
         ...mockPiece,
-        shape: [[true]],
+        shape: [[1]],
       };
 
       const { container } = render(<Piece piece={singlePiece} />);
