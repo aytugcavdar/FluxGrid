@@ -120,7 +120,8 @@ describe('CareerPage', () => {
       render(<CareerPage />);
 
       expect(screen.getByText(/TOPLAM SKOR/i)).toBeInTheDocument();
-      expect(screen.getByText('12.500')).toBeInTheDocument();
+      // Check for formatted number (locale-agnostic)
+      expect(screen.getByText((12500).toLocaleString())).toBeInTheDocument();
     });
 
     it('should display lines cleared stat', () => {
@@ -305,7 +306,7 @@ describe('CareerPage', () => {
       render(<CareerPage />);
 
       // Check that numbers are formatted with locale
-      expect(screen.getByText('1.234.567')).toBeInTheDocument();
+      expect(screen.getByText((1234567).toLocaleString())).toBeInTheDocument();
       // blocksPlaced is not formatted with toLocaleString in CareerPage
       expect(screen.getByText('99999')).toBeInTheDocument();
     });

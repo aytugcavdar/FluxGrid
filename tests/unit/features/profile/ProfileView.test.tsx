@@ -101,7 +101,9 @@ describe('ProfileView', () => {
       render(<ProfileView onClose={mockOnClose} />);
 
       expect(screen.getByText(/TOPLAM SKOR/i)).toBeInTheDocument();
-      expect(screen.getByText('5.000')).toBeInTheDocument(); // Turkish locale formatting
+      // Check for formatted number (locale-agnostic)
+      const formattedScore = (5000).toLocaleString();
+      expect(screen.getByText(formattedScore)).toBeInTheDocument();
     });
 
     it('should display games played stat card', () => {
@@ -209,8 +211,9 @@ describe('ProfileView', () => {
 
       render(<ProfileView onClose={mockOnClose} />);
 
-      expect(screen.getByText('123.456')).toBeInTheDocument();
-      expect(screen.getByText('9.999')).toBeInTheDocument();
+      // Check for formatted numbers (locale-agnostic)
+      expect(screen.getByText((123456).toLocaleString())).toBeInTheDocument();
+      expect(screen.getByText((9999).toLocaleString())).toBeInTheDocument();
     });
 
     it('should calculate and display average score correctly', () => {
@@ -227,7 +230,8 @@ describe('ProfileView', () => {
 
       render(<ProfileView onClose={mockOnClose} />);
 
-      expect(screen.getByText('2.500')).toBeInTheDocument(); // 10000 / 4
+      // Check for formatted average (locale-agnostic)
+      expect(screen.getByText((2500).toLocaleString())).toBeInTheDocument(); // 10000 / 4
     });
   });
 });
