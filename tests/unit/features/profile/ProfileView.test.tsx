@@ -153,7 +153,7 @@ describe('ProfileView', () => {
       expect(screen.getByText(/En Yüksek Kombo/i)).toBeInTheDocument();
       expect(screen.getByText('8')).toBeInTheDocument();
     });
-
+    
     it('should display longest session in minutes', () => {
       render(<ProfileView onClose={mockOnClose} />);
 
