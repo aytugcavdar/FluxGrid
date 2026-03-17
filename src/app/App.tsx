@@ -20,8 +20,10 @@ import { getStreak, getDailyPlayedToday, getDayNumber } from '@utils/streakManag
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { AppState, GameMode } from '@shared/types';
-import { X } from 'lucide-react';
+import { X, User } from 'lucide-react';
 import { useCountUp } from '@shared/hooks/useCountUp';
+import { initializeFirebase } from '../services/firebase/config';
+import { useAuthStore } from '../features/auth/store/authStore';
 
 interface ScorePopup {
   id: number;
@@ -98,6 +100,12 @@ const App: React.FC = () => {
 
   // Initialize stores on mount
   useEffect(() => {
+    // Initialize Firebase
+    initializeFirebase();
+    
+    // Initialize auth
+    useAuthStore.getState().initAuth();
+    
     useAbilityStore.getState().initializeAbilities();
     usePassiveAbilityStore.getState().initializePassives();
     useProfileStore.getState().initializeProfile();
@@ -119,6 +127,34 @@ const App: React.FC = () => {
     window.addEventListener('pointerdown', handleFirstTouch);
     return () => window.removeEventListener('pointerdown', handleFirstTouch);
   }, []);
+
+  // Sync game data to Firebase when game ends
+  useEffect(() => {
+    if (isGameOver && score > 0) {
+      const user = useAuthStore.getState().user;
+      if (user) {
+        // Import sync functions dynamically to avoid circular deps
+        import('../services/firebase/syncManager').then(({ syncScore, syncGameData }) => {
+          // Sync score to leaderboard
+          syncScore(
+            user.uid,
+            gameMode,
+            score,
+            user.displayName || 'Anonymous',
+            user.photoURL || null
+          ).catch(err => console.error('Failed to sync score:', err));
+
+          // Sync game stats
+          const gameData = {
+            highScores: { [gameMode]: score },
+            totalGamesPlayed: stats.gamesPlayed,
+            lastSeenAt: Date.now(),
+          };
+          syncGameData(user.uid, gameData).catch(err => console.error('Failed to sync game data:', err));
+        });
+      }
+    }
+  }, [isGameOver, score, gameMode, stats.gamesPlayed]);
 
   // URL parameter handling for shortcuts
   useEffect(() => {
@@ -404,8 +440,16 @@ const App: React.FC = () => {
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, ease: "easeOut" }}
-                className="text-center mb-3"
+                className="text-center mb-3 relative"
               >
+                {/* Profile Button - Top Right */}
+                <button
+                  onClick={() => { playClick(); setShowProfile(true); }}
+                  className="absolute top-0 right-0 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
+                >
+                  <User size={20} className="text-white/60" />
+                </button>
+                
                 <h1 className="text-4xl md:text-5xl font-black italic tracking-tighter text-white mb-1 leading-none uppercase">
                   FLUX<span className="text-blue-500">GRID</span>
                 </h1>

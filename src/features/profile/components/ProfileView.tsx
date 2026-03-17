@@ -3,10 +3,12 @@ import { motion } from 'framer-motion';
 import { useProfileStore } from '../store/profileStore';
 import { ChevronLeft, Download, User, TrendingUp, Clock, Target } from 'lucide-react';
 import { playClick } from '../../../utils/audio';
+import { useAuthStore } from '../../auth/store/authStore';
 import clsx from 'clsx';
 
 export const ProfileView: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { profile, calculateDerivedStats, exportProfile } = useProfileStore();
+  const { user, isAnonymous, signInWithGoogle, signOut } = useAuthStore();
 
   const handleExport = () => {
     playClick();
@@ -18,6 +20,18 @@ export const ProfileView: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     a.download = `fluxgrid-profile-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleGoogleSignIn = async () => {
+    playClick();
+    try {
+      // Sign out anonymous user first
+      await signOut();
+      // Then sign in with Google
+      await signInWithGoogle();
+    } catch (error) {
+      console.error('Google Sign-In failed:', error);
+    }
   };
 
   if (!profile) {
@@ -74,10 +88,34 @@ export const ProfileView: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         {/* Profile Header */}
         <div className="bg-white/[0.03] border border-white/[0.05] p-6 rounded-3xl text-center">
           <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <User size={32} className="text-blue-400" />
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt="Profile" className="w-full h-full rounded-full" />
+            ) : (
+              <User size={32} className="text-blue-400" />
+            )}
           </div>
-          <h2 className="text-2xl font-black text-white mb-1">OYUNCU</h2>
-          <p className="text-xs text-white/40 uppercase tracking-widest">FluxGrid Ustası</p>
+          <h2 className="text-2xl font-black text-white mb-1">
+            {user?.displayName || 'OYUNCU'}
+          </h2>
+          <p className="text-xs text-white/40 uppercase tracking-widest">
+            {isAnonymous ? 'Anonim Kullanıcı' : 'FluxGrid Ustası'}
+          </p>
+          
+          {/* Google Sign-In Button */}
+          {isAnonymous && (
+            <button
+              onClick={handleGoogleSignIn}
+              className="mt-4 w-full flex items-center justify-center gap-3 px-6 py-3 bg-white rounded-xl hover:bg-gray-100 transition-colors"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18">
+                <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+                <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.593.102-1.17.282-1.709V4.958H.957C.347 6.173 0 7.548 0 9c0 1.452.348 2.827.957 4.042l3.007-2.335z"/>
+                <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+              </svg>
+              <span className="text-sm font-bold text-gray-900">Google ile Giriş Yap</span>
+            </button>
+          )}
         </div>
 
         {/* Quick Stats */}
