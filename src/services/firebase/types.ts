@@ -1,6 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
+import { GameMode as SharedGameMode } from '@shared/types';
 
-export type GameMode = 'endless' | 'timed' | 'blitz' | 'zen' | 'daily' | 'survival';
+export type GameMode = SharedGameMode;
 
 export interface UserData {
   // Profile

@@ -1,12 +1,13 @@
-import { getPerformance, trace, Performance } from 'firebase/performance';
+import { getPerformance, trace } from 'firebase/performance';
+import type { PerformanceTrace } from 'firebase/performance';
 import { app } from './config';
 
-let performance: Performance | null = null;
+let performance: ReturnType<typeof getPerformance> | null = null;
 
 /**
  * Initialize Firebase Performance Monitoring
  */
-export function initializePerformance(): Performance | null {
+export function initializePerformance(): ReturnType<typeof getPerformance> | null {
   if (typeof window === 'undefined') {
     return null;
   }

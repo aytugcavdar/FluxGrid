@@ -34,7 +34,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     const auth = getFirebaseAuth();
     
     // Set up auth state listener
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    onAuthStateChanged(auth, async (user) => {
       if (!user) {
         // No user exists, create anonymous user
         try {
@@ -68,9 +68,6 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         }
       }
     });
-
-    // Store unsubscribe function for cleanup
-    return () => unsubscribe();
   },
 
   upgradeToGoogleAccount: async () => {

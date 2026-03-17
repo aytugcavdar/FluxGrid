@@ -462,8 +462,9 @@ export async function trackSession(
     let peakHour = currentHour;
     let maxFrequency = hourFrequency[currentHour];
     for (const [hour, frequency] of Object.entries(hourFrequency)) {
-      if (frequency > maxFrequency) {
-        maxFrequency = frequency;
+      const freq = typeof frequency === 'number' ? frequency : 0;
+      if (freq > maxFrequency) {
+        maxFrequency = freq;
         peakHour = parseInt(hour, 10);
       }
     }
