@@ -71,6 +71,70 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+// Mock Firebase modules
+vi.mock('firebase/app', () => ({
+  initializeApp: vi.fn(() => ({})),
+  getApp: vi.fn(() => ({})),
+}));
+
+vi.mock('firebase/auth', () => ({
+  getAuth: vi.fn(() => ({})),
+  onAuthStateChanged: vi.fn((auth, callback) => {
+    // Return unsubscribe function
+    return vi.fn();
+  }),
+  signInAnonymously: vi.fn(() => Promise.resolve({ user: { uid: 'test-uid', isAnonymous: true } })),
+  GoogleAuthProvider: vi.fn(),
+  signInWithPopup: vi.fn(),
+  linkWithCredential: vi.fn(),
+  signOut: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock('firebase/firestore', () => ({
+  getFirestore: vi.fn(() => ({})),
+  doc: vi.fn(),
+  setDoc: vi.fn(() => Promise.resolve()),
+  getDoc: vi.fn(() => Promise.resolve({ exists: () => false, data: () => ({}) })),
+  updateDoc: vi.fn(() => Promise.resolve()),
+  collection: vi.fn(),
+  query: vi.fn(),
+  where: vi.fn(),
+  orderBy: vi.fn(),
+  limit: vi.fn(),
+  getDocs: vi.fn(() => Promise.resolve({ docs: [], size: 0 })),
+  serverTimestamp: vi.fn(() => Date.now()),
+  Timestamp: {
+    now: vi.fn(() => ({ seconds: Date.now() / 1000, nanoseconds: 0 })),
+    fromDate: vi.fn((date) => ({ seconds: date.getTime() / 1000, nanoseconds: 0 })),
+  },
+}));
+
+vi.mock('firebase/functions', () => ({
+  getFunctions: vi.fn(() => ({})),
+  httpsCallable: vi.fn(() => vi.fn(() => Promise.resolve({ data: {} }))),
+}));
+
+vi.mock('firebase/messaging', () => ({
+  getMessaging: vi.fn(() => null),
+  getToken: vi.fn(() => Promise.resolve('mock-token')),
+  onMessage: vi.fn(),
+}));
+
+vi.mock('firebase/performance', () => ({
+  getPerformance: vi.fn(() => ({})),
+  trace: vi.fn(() => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    putAttribute: vi.fn(),
+    putMetric: vi.fn(),
+  })),
+}));
+
+vi.mock('firebase/analytics', () => ({
+  getAnalytics: vi.fn(() => ({})),
+  logEvent: vi.fn(),
+}));
+
 // i18next configuration for tests
 i18n
   .use(initReactI18next)
