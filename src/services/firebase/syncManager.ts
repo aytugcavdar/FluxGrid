@@ -60,20 +60,32 @@ export async function syncScore(
     const userRef = doc(db, 'users', uid);
     const leaderboardRef = doc(db, `leaderboards/${mode}/scores`, uid);
 
-    // Validation 2: Rate limiting - check if user submitted a score in the last 60 seconds
+    // Validation 2: Rate limiting - only apply for same or lower scores
     const leaderboardDoc = await getDoc(leaderboardRef);
+    let shouldApplyRateLimit = false;
+    
     if (leaderboardDoc.exists()) {
-      const lastSubmittedAt = leaderboardDoc.data()?.lastScoreSubmittedAt;
-      if (lastSubmittedAt) {
-        const lastSubmittedTimestamp = lastSubmittedAt instanceof Timestamp 
-          ? lastSubmittedAt.toMillis() 
-          : lastSubmittedAt;
-        const now = Date.now();
-        const timeSinceLastSubmit = now - lastSubmittedTimestamp;
+      const existingScore = leaderboardDoc.data()?.score || 0;
+      
+      // If new score is higher, always allow immediately (no rate limit)
+      if (score > existingScore) {
+        shouldApplyRateLimit = false;
+      } else {
+        // For same or lower scores, apply rate limit
+        shouldApplyRateLimit = true;
+        const lastSubmittedAt = leaderboardDoc.data()?.lastScoreSubmittedAt;
         
-        if (timeSinceLastSubmit < 60000) { // 60 seconds
-          console.warn(`Rate limit: User ${uid} submitted a score ${timeSinceLastSubmit}ms ago. Must wait 60 seconds between submissions.`);
-          return;
+        if (lastSubmittedAt) {
+          const lastSubmittedTimestamp = lastSubmittedAt instanceof Timestamp 
+            ? lastSubmittedAt.toMillis() 
+            : lastSubmittedAt;
+          const now = Date.now();
+          const timeSinceLastSubmit = now - lastSubmittedTimestamp;
+          
+          if (timeSinceLastSubmit < 60000) { // 60 seconds
+            console.warn(`Rate limit: User ${uid} submitted a score ${timeSinceLastSubmit}ms ago. Must wait 60 seconds between submissions.`);
+            return;
+          }
         }
       }
     }

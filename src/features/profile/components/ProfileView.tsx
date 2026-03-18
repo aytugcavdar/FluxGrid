@@ -174,10 +174,10 @@ export const ProfileView: React.FC<{ onClose: () => void; onOpenLeaderboard: (mo
         <div>
           <h3 className="text-xs font-black text-white/40 uppercase tracking-widest mb-4">YETENEKLERİM</h3>
           <div className="bg-white/[0.03] border border-white/[0.05] rounded-2xl divide-y divide-white/5">
-            {Array.from(profile.stats.skillUses.entries()).map(([skill, count]) => (
+            {Object.entries(profile.stats.skillUses).map(([skill, count]) => (
               <StatRow key={skill} label={skill} value={count.toString()} />
             ))}
-            {profile.stats.skillUses.size === 0 && (
+            {Object.keys(profile.stats.skillUses).length === 0 && (
               <div className="p-4 text-center text-white/40 text-sm">Henüz yetenek kullanılmadı</div>
             )}
           </div>

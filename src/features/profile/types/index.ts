@@ -26,7 +26,7 @@ export interface PlayerStats {
   highestCombo: number;
   longestSession: number;
   totalPlaytime: number;
-  skillUses: Map<ActiveAbilityType, number>;
+  skillUses: Record<string, number>;
 }
 
 // Special Block Types

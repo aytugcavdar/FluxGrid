@@ -242,13 +242,20 @@ export const Grid: React.FC = () => {
                 }
             });
             
-            // Update all piece meshes
+            // Update all NORMAL type piece meshes (not ICE or BOMB which have fixed colors)
             meshMapRef.current.forEach((mesh) => {
                 if (mesh.material) {
                     const mat = mesh.material as BABYLON.StandardMaterial;
-                    // Get the piece color from the mesh name or store it separately
-                    // For now, we'll keep the existing piece colors as they come from theme
-                    // The pieces will get new colors on next generation
+                    // Only update NORMAL blocks - ICE and BOMB have fixed colors
+                    // Check if this is a normal block by checking if it doesn't have the special colors
+                    const currentDiffuse = mat.diffuseColor;
+                    const isIce = currentDiffuse.r > 0.6 && currentDiffuse.g > 0.8 && currentDiffuse.b > 0.9;
+                    const isBomb = currentDiffuse.r > 0.1 && currentDiffuse.g < 0.15 && currentDiffuse.b < 0.15;
+                    
+                    if (!isIce && !isBomb) {
+                        // This is a normal block - update its emissive to match new theme
+                        mat.emissiveColor = currentDiffuse.scale(0.05);
+                    }
                 }
             });
         });

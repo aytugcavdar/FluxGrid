@@ -292,6 +292,82 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </motion.div>
         )}
 
+        {/* DAILY STREAK BANNER - Always visible */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: 'easeOut', delay: 0.22 }}
+          style={{
+            width: '100%',
+            padding: '12px 16px',
+            borderRadius: 12,
+            background: streak > 0 
+              ? (dailyPlayedToday 
+                  ? 'linear-gradient(90deg, rgba(16,185,129,0.12), rgba(16,185,129,0.06))' 
+                  : 'linear-gradient(90deg, rgba(245,158,11,0.15), rgba(245,158,11,0.08))')
+              : 'rgba(255,255,255,0.03)',
+            border: `1px solid ${streak > 0 
+              ? (dailyPlayedToday ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.3)') 
+              : 'rgba(255,255,255,0.06)'}`,
+            marginBottom: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {streak > 0 ? (
+              <motion.div
+                animate={!dailyPlayedToday ? { scale: [1, 1.15, 1] } : {}}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                style={{ fontSize: 28, lineHeight: 1 }}
+              >
+                🔥
+              </motion.div>
+            ) : (
+              <div style={{ fontSize: 24, lineHeight: 1, opacity: 0.4 }}>📅</div>
+            )}
+            <div>
+              <div style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: streak > 0 
+                  ? (dailyPlayedToday ? '#34d399' : '#fbbf24')
+                  : 'rgba(255,255,255,0.4)',
+                marginBottom: 2
+              }}>
+                {streak > 0 
+                  ? `${streak} günlük seri!` 
+                  : 'Günlük seri başlat'}
+              </div>
+              <div style={{
+                fontSize: 11,
+                color: streak > 0 
+                  ? (dailyPlayedToday ? 'rgba(52,211,153,0.6)' : 'rgba(251,191,36,0.6)')
+                  : 'rgba(255,255,255,0.3)'
+              }}>
+                {dailyPlayedToday 
+                  ? 'Bugün tamamlandı ✓' 
+                  : (streak > 0 
+                      ? 'Serini kaybetmek üzeresin!' 
+                      : 'Her gün oyna, ödül kazan')}
+              </div>
+            </div>
+          </div>
+          {!dailyPlayedToday && (
+            <motion.div
+              animate={streak > 0 ? { opacity: [0.6, 1, 0.6] } : {}}
+              transition={{ duration: 2, repeat: Infinity }}
+              style={{
+                fontSize: 20,
+                color: streak > 0 ? '#fbbf24' : 'rgba(255,255,255,0.2)'
+              }}
+            >
+              →
+            </motion.div>
+          )}
+        </motion.div>
+
         {/* MAIN CTA BUTTON */}
         <motion.button
           initial={{ opacity: 0, y: 16 }}

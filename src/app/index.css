@@ -21,7 +21,7 @@
   /* Layout — mobile-first (smallest screens) */
   --grid-cell: 42px;
   --tray-height: clamp(85px, 11vh, 115px);
-  --hud-height: 88px;
+  --hud-height: 68px;  /* content only, safe area added separately */
   --skill-btn-size: 44px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
@@ -34,7 +34,7 @@
   :root {
     --grid-cell: 46px;
     --tray-height: clamp(90px, 12vh, 125px);
-    --hud-height: 88px;
+    --hud-height: 68px;  /* content only */
   }
 }
 
@@ -59,7 +59,7 @@
 @media (max-height: 700px) {
   :root {
     --tray-height: 75px;
-    --hud-height: 88px;
+    --hud-height: 68px;  /* content only */
   }
 }
 
@@ -67,7 +67,7 @@
 @media (min-height: 850px) and (max-width: 767px) {
   :root {
     --tray-height: clamp(80px, 10vh, 105px);
-    --hud-height: 88px;
+    --hud-height: 68px;  /* content only */
   }
 }
 

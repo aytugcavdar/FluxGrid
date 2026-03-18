@@ -27,7 +27,7 @@ export const validateScore = functions.firestore
       const userRef = admin.firestore().doc(`users/${uid}`);
       const userDoc = await userRef.get();
       
-      if (userDoc.exists()) {
+      if (userDoc.exists) {
         const userData = userDoc.data();
         const previousHighScores = userData?.highScores || {};
         const previousHighScore = previousHighScores[mode] || 0;

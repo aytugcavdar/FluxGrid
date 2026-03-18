@@ -11,6 +11,14 @@ interface Props {
 export const Piece: React.FC<Props> = ({ piece }) => {
   const { setDraggedPiece, draggedPiece, guidedTarget, guidedStep, pieces } = useGameStore();
   const ref = useRef<HTMLDivElement>(null);
+  const [windowWidth, setWindowWidth] = React.useState(window.innerWidth);
+
+  // Update window width on resize for responsive block size
+  React.useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Check if this is the guided piece
   const pieceIndex = pieces.findIndex(p => p.instanceId === piece.instanceId);
@@ -32,11 +40,9 @@ export const Piece: React.FC<Props> = ({ piece }) => {
   };
 
   const renderShape = (p: PieceType) => {
-    // Auto-calculate block size based on screen width — 3 tiers
-    const isSmallPhone = window.innerWidth < 400;
-    const isMobile = window.innerWidth < 768;
-    const blockSize = isSmallPhone ? 14 : isMobile ? 18 : 22;
-    const gap = isSmallPhone ? 1 : isMobile ? 1.5 : 2;
+    // Responsive block size calculation - updates on window resize
+    const blockSize = Math.max(12, Math.min(22, windowWidth / 28));
+    const gap = windowWidth < 400 ? 1 : windowWidth < 768 ? 1.5 : 2;
 
     return (
       <div
@@ -61,7 +67,7 @@ export const Piece: React.FC<Props> = ({ piece }) => {
                 ? (p.type === CellType.ICE ? '#a5f3fc' : p.type === CellType.BOMB ? '#ef4444' : p.color)
                 : 'transparent',
               boxShadow: filled
-                ? `0 0 ${isMobile ? 3 : 4}px ${p.type === CellType.ICE ? '#93c5fd' : p.type === CellType.BOMB ? '#f87171' : p.color}40`
+                ? `0 0 ${windowWidth < 768 ? 3 : 4}px ${p.type === CellType.ICE ? '#93c5fd' : p.type === CellType.BOMB ? '#f87171' : p.color}40`
                 : 'none',
               opacity: filled ? 1 : 0,
             }}

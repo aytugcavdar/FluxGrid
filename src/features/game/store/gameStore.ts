@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { GridState, Piece, PieceShape, GRID_SIZE, GridCell, SkillType, CellType, ObjectiveType, LevelObjective, Achievement } from '../types';
 import { AppState, GameStats, GameMode } from '@shared/types';
-import { SHAPES, POINTS, FLUX_COST, COLORS, STONE_BLOCK, ACHIEVEMENTS, ZEN_PALETTES } from '../constants';
+import { SHAPES, POINTS, FLUX_COST, COLORS, STONE_BLOCK, EXPANDED_ACHIEVEMENTS, ZEN_PALETTES } from '../constants';
 import { generateLevel } from '../../career/utils/levelGenerator';
 import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playTick, playHaptic } from '../../../utils/audio';
 import { handleError, safeExecute, ErrorCategory, ErrorSeverity } from '../../../utils/errorHandler';
@@ -127,7 +127,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   currentLevelIndex: 0,
   movesLeft: 0,
   levelObjectives: [],
-  achievements: safeJSONParse(safeLocalStorageGet('flux_achievements', JSON.stringify(ACHIEVEMENTS)), ACHIEVEMENTS),
+  achievements: safeJSONParse(safeLocalStorageGet('flux_achievements', JSON.stringify(EXPANDED_ACHIEVEMENTS)), EXPANDED_ACHIEVEMENTS),
   isLevelComplete: false,
   unlockedAchievementId: null,
   earnedStars: 0,
@@ -507,6 +507,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
           pieces: getRandomPieces(3, get().grid, get().gameMode === GameMode.DAILY_CHALLENGE, useThemeStore.getState().getPieceColors(), currentTier),
           activeSkill: null
         });
+        
+        // Sync to profileStore
+        import('../../profile/store/profileStore').then(({ useProfileStore }) => {
+          useProfileStore.getState().incrementSkillUse('REROLL' as any);
+        });
+        
         get().checkGameOver();
       }
     } else if (skill === SkillType.SHATTER) {
@@ -558,6 +564,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       highScore: newHighScore,
       combo: newCombo,
       activeSkill: null
+    });
+    
+    // Sync to profileStore
+    import('../../profile/store/profileStore').then(({ useProfileStore }) => {
+      useProfileStore.getState().incrementSkillUse('SHATTER' as any);
     });
   },
 
@@ -622,6 +633,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       combo: newCombo,
       activeSkill: null
     });
+    
+    // Sync to profileStore
+    import('../../profile/store/profileStore').then(({ useProfileStore }) => {
+      useProfileStore.getState().incrementSkillUse('BOMB' as any);
+    });
   },
 
   canPlacePiece: (grid, piece, startX, startY) => {
@@ -647,6 +663,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   placePiece: (piece, startX, startY) => {
     const { grid, score, combo, flux, highScore, isSurgeActive, gameMode } = get();
+    
+    // Store the placed piece for boss mechanics (before it's removed from pieces array)
+    const justPlacedPiece = piece;
     
     // Grid validation
     if (!grid || grid.length !== GRID_SIZE) {
@@ -729,12 +748,40 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const levelFinished = updatedObjectives.every(obj => obj.current >= obj.target);
 
-    // Update Achievements
+    // Update Achievements - handle all categories
     const updatedAchievements = get().achievements.map(ach => {
       if (ach.unlocked) return ach;
       let val = ach.currentValue;
+      
+      // SCORE category
+      if (ach.category === 'SCORE') {
+        val = Math.max(val, newScore);
+      }
+      
+      // COMBO category
+      if (ach.category === 'COMBO') {
+        val = Math.max(val, newCombo);
+      }
+      
+      // SPECIAL_BLOCKS category
+      if (ach.category === 'SPECIAL_BLOCKS') {
+        if (ach.id === 'bomb_10') val += bombsExploded;
+        if (ach.id === 'ice_50') val += iceBroken;
+        // Add other special block tracking as needed
+      }
+      
+      // PROGRESSION category
+      if (ach.category === 'PROGRESSION') {
+        if (ach.id === 'level_10' || ach.id === 'level_25' || ach.id === 'level_50') {
+          val = Math.max(val, get().currentLevelIndex);
+        }
+      }
+      
+      // Legacy achievement IDs (for backward compatibility)
       if (ach.id === 'score_10k') val = Math.max(val, newScore);
       if (ach.id === 'combo_5') val = Math.max(val, newCombo);
+      if (ach.id === 'bomb_expert') val += bombsExploded;
+      
       return { ...ach, currentValue: val, unlocked: val >= ach.targetValue };
     });
 
@@ -1019,13 +1066,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
           
         case 'MIRROR':
           // Her yerleştirmede aynı parçanın yatay mirror'ını rastgele boş bir pozisyona yerleştir
-          // Mirror parçayı oluştur (son yerleştirilen parçayı kullan)
-          const lastPiece = get().pieces[0]; // İlk parça son yerleştirilen olmalı
-          if (!lastPiece) break;
+          // Mirror parçayı oluştur (justPlacedPiece kullan - pieces[0] değil)
+          if (!justPlacedPiece) break;
           
           const mirrorPiece = {
-            ...lastPiece,
-            shape: lastPiece.shape.map(row => [...row].reverse()), // Yatay mirror
+            ...justPlacedPiece,
+            shape: justPlacedPiece.shape.map(row => [...row].reverse()), // Yatay mirror
             id: uuidv4(),
           };
           
@@ -1183,6 +1229,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       localStorage.setItem('flux_onboard_v1', 'true');
     } catch {}
     set({ isFirstGame: false, guidedStep: 0, guidedTarget: null });
+  },
+
+  setGuidedHighlight: (x: number | null, y: number | null, shape: number[][] | null) => {
+    if (x === null || y === null || shape === null) {
+      set({ guidedTarget: null });
+    } else {
+      set({ guidedTarget: { x, y, pieceIndex: 0 } });
+    }
   }
 }));
 

@@ -70,7 +70,7 @@ export const ComboBar: React.FC = () => {
         exit={{ opacity: 0, scaleX: 0.8 }}
         style={{
           position: 'fixed',
-          left: 12,
+          right: 12,
           top: '50%',
           transform: 'translateY(-50%)',
           zIndex: 35,

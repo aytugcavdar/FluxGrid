@@ -77,7 +77,29 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
 
       const userScore = userDoc.data().score;
 
-      // OPTIMIZED: Fetch only top 1001 documents instead of all users with higher scores
+      // OPTIMIZED: Try to use count aggregation query first (faster on mobile)
+      try {
+        // Import getCountFromServer for aggregation query
+        const { getCountFromServer } = await import('firebase/firestore');
+        
+        // Count users with higher scores
+        const higherScoresQuery = query(
+          collection(db, `leaderboards/${mode}/scores`),
+          where('score', '>', userScore)
+        );
+        
+        const countSnapshot = await getCountFromServer(higherScoresQuery);
+        const rank = countSnapshot.data().count + 1;
+        
+        const { userRanks } = get();
+        userRanks.set(mode, rank);
+        set({ userRanks: new Map(userRanks) });
+        return;
+      } catch (countError) {
+        console.log('Count aggregation not available, falling back to document fetch');
+      }
+
+      // FALLBACK: Fetch only top 1001 documents if count() is not available
       const q = query(
         collection(db, `leaderboards/${mode}/scores`),
         orderBy('score', 'desc'),

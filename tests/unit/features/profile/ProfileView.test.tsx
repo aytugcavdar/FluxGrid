@@ -44,7 +44,7 @@ describe('ProfileView', () => {
           highestCombo: 8,
           longestSession: 300000, // 5 minutes
           totalPlaytime: 600000, // 10 minutes
-          skillUses: new Map(),
+          skillUses: {},
         },
         achievements: new Map(),
         progression: {

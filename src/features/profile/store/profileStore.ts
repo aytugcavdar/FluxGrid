@@ -35,7 +35,7 @@ const INITIAL_STATS: PlayerStats = {
   highestCombo: 0,
   longestSession: 0,
   totalPlaytime: 0,
-  skillUses: new Map<ActiveAbilityType, number>()
+  skillUses: {}
 };
 
 export const useProfileStore = create<ProfileStore>((set, get) => ({
@@ -47,10 +47,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
     if (savedProfile) {
       try {
         const parsed = JSON.parse(savedProfile);
-        // Convert skillUses array back to Map
-        if (parsed.stats.skillUses && Array.isArray(parsed.stats.skillUses)) {
-          parsed.stats.skillUses = new Map(parsed.stats.skillUses);
-        }
+        // skillUses is already a plain object from JSON
         // Convert achievements array back to Map
         if (parsed.achievements && Array.isArray(parsed.achievements)) {
           parsed.achievements = new Map(parsed.achievements);
@@ -129,9 +126,9 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
     const { profile } = get();
     if (!profile) return;
     
-    const skillUses = new Map(profile.stats.skillUses);
-    const current = skillUses.get(skill) || 0;
-    skillUses.set(skill, current + 1);
+    const skillUses = { ...profile.stats.skillUses };
+    const current = skillUses[skill] || 0;
+    skillUses[skill] = current + 1;
     
     const updatedProfile = {
       ...profile,
@@ -213,7 +210,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
         username: profile.username,
         stats: {
           ...profile.stats,
-          skillUses: Array.from(profile.stats.skillUses.entries())
+          skillUses: profile.stats.skillUses // Already a plain object
         },
         progression: {
           currentLevel: profile.progression.currentLevel,
@@ -248,7 +245,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
       ...profile,
       stats: {
         ...profile.stats,
-        skillUses: Array.from(profile.stats.skillUses.entries())
+        skillUses: profile.stats.skillUses // Already a plain object
       },
       achievements: Array.from(profile.achievements.entries()),
       unlockedAbilities: Array.from(profile.unlockedAbilities)

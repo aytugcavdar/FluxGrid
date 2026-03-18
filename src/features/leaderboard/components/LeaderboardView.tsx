@@ -51,6 +51,27 @@ export function LeaderboardView({ mode }: LeaderboardViewProps) {
     );
   }
 
+  // Empty state when no entries
+  if (!isLoading && entries.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto p-4">
+        <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
+          <div className="text-6xl mb-4">🏆</div>
+          <h2 className="text-2xl font-bold mb-2">Henüz skor yok</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6 text-center">
+            Bu modda henüz kimse skor göndermemiş. İlk sen ol!
+          </p>
+          <button
+            onClick={() => window.history.back()}
+            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-bold hover:opacity-90 transition-opacity"
+          >
+            Oyuna Başla
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-4">
       {/* User Stats Header */}
