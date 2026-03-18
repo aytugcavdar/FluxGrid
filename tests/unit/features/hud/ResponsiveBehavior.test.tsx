@@ -156,21 +156,21 @@ describe('HUD - Responsive Behavior and Safe Area Handling', () => {
       const row1 = mobileLayout?.children[0] as HTMLElement;
       const style = row1?.getAttribute('style');
       
-      // Row 1 should have gap: 8
+      // Row 1 should have gap: 6
       expect(style).toContain('gap');
-      expect(style).toContain('8');
+      expect(style).toContain('6');
     });
 
-    it('Row 2 uses gap-6 (6px) for element spacing', () => {
+    it('Row 2 uses gap-4 (4px) for element spacing', () => {
       const { container } = render(<HUD />);
       
       const mobileLayout = container.querySelector('.md\\:hidden');
       const row2 = mobileLayout?.children[1] as HTMLElement;
       const style = row2?.getAttribute('style');
       
-      // Row 2 should have gap: 6
+      // Row 2 should have gap: 4
       expect(style).toContain('gap');
-      expect(style).toContain('6');
+      expect(style).toContain('4');
     });
 
     it('skill buttons maintain consistent spacing', () => {
@@ -181,10 +181,10 @@ describe('HUD - Responsive Behavior and Safe Area Handling', () => {
       // Should have 3 skill buttons
       expect(skillButtons).toHaveLength(3);
       
-      // All buttons should have flexShrink: 0 to maintain spacing
+      // All buttons should have flex: 1 for equal width distribution
       skillButtons.forEach(button => {
-        const styles = window.getComputedStyle(button);
-        expect(styles.flexShrink).toBe('0');
+        const style = button.getAttribute('style');
+        expect(style).toContain('flex: 1');
       });
     });
   });
@@ -200,7 +200,7 @@ describe('HUD - Responsive Behavior and Safe Area Handling', () => {
       expect(rows?.length).toBe(2);
     });
 
-    it('Row 1 has fixed height of 44px', () => {
+    it('Row 1 has fixed height of 52px', () => {
       const { container } = render(<HUD />);
       
       const mobileLayout = container.querySelector('.md\\:hidden');
@@ -208,10 +208,10 @@ describe('HUD - Responsive Behavior and Safe Area Handling', () => {
       const style = row1?.getAttribute('style');
       
       expect(style).toContain('height');
-      expect(style).toContain('44');
+      expect(style).toContain('52');
     });
 
-    it('Row 2 has fixed height of 44px', () => {
+    it('Row 2 has fixed height of 40px', () => {
       const { container } = render(<HUD />);
       
       const mobileLayout = container.querySelector('.md\\:hidden');
@@ -219,7 +219,7 @@ describe('HUD - Responsive Behavior and Safe Area Handling', () => {
       const style = row2?.getAttribute('style');
       
       expect(style).toContain('height');
-      expect(style).toContain('44');
+      expect(style).toContain('40');
     });
 
     it('mobile layout uses flexbox for proper alignment', () => {

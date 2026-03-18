@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../../game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
-import { Zap, RefreshCw, Hammer, Bomb, Volume2, VolumeX, Home } from 'lucide-react';
+import { Zap, RefreshCw, Hammer, Volume2, VolumeX, Home, RotateCw } from 'lucide-react';
 import { FLUX_COST, ZEN_PALETTES } from '../../game/constants';
 import { SkillType } from '../../game/types';
 import { GameMode, AppState } from '@shared/types';
@@ -39,89 +39,18 @@ export const HUD: React.FC = () => {
 
     return (
         <>
-            {/* SKILL BANNER - Shatter veya Bomb aktifken göster */}
-            <AnimatePresence>
-                {(activeSkill === SkillType.SHATTER || activeSkill === SkillType.BOMB) && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        transition={{ duration: 0.2 }}
-                        style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            background: activeSkill === SkillType.SHATTER 
-                                ? 'linear-gradient(90deg, rgba(239,68,68,0.15), rgba(239,68,68,0.08))' 
-                                : 'linear-gradient(90deg, rgba(249,115,22,0.15), rgba(249,115,22,0.08))',
-                            border: `1px solid ${activeSkill === SkillType.SHATTER ? 'rgba(239,68,68,0.3)' : 'rgba(249,115,22,0.3)'}`,
-                            borderRadius: 12,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            marginBottom: 8
-                        }}
-                    >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <motion.div
-                                animate={{ scale: [1, 1.1, 1] }}
-                                transition={{ duration: 1, repeat: Infinity }}
-                                style={{
-                                    fontSize: 24,
-                                    lineHeight: 1
-                                }}
-                            >
-                                {activeSkill === SkillType.SHATTER ? '🔨' : '💣'}
-                            </motion.div>
-                            <div>
-                                <div style={{
-                                    fontSize: 14,
-                                    fontWeight: 700,
-                                    color: activeSkill === SkillType.SHATTER ? '#ef4444' : '#f97316',
-                                    marginBottom: 2
-                                }}>
-                                    {activeSkill === SkillType.SHATTER ? 'Hedef bloğa dokun' : 'Patlama merkezi seç'}
-                                </div>
-                                <div style={{
-                                    fontSize: 11,
-                                    color: 'rgba(255,255,255,0.4)'
-                                }}>
-                                    {activeSkill === SkillType.SHATTER ? 'Tek blok kır' : '3×3 alan temizle'}
-                                </div>
-                            </div>
-                        </div>
-                        <button
-                            onClick={handleCancelSkill}
-                            style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: 8,
-                                background: 'rgba(0,0,0,0.2)',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                color: 'rgba(255,255,255,0.6)'
-                            }}
-                        >
-                            ✕
-                        </button>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
             {/* MOBILE LAYOUT - 2 ROWS */}
-            <div className="md:hidden w-full h-full flex flex-col" style={{ gap: 2 }}>
-                {/* ROW 1: Home + Score/Mode/Progress + Timer/Moves + Mute */}
-                <div style={{ height: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '0 6px' }}>
-                    {/* Home button - 44×44px */}
+            <div className="md:hidden w-full h-full flex flex-col" style={{ gap: 4 }}>
+                {/* ROW 1: Home + Score/Flux + Timer/Moves + Mute */}
+                <div style={{ height: 52, display: 'flex', alignItems: 'center', gap: 6, padding: '0 6px' }}>
+                    {/* Home button - 32×32px */}
                     <button
                         onClick={() => { playClick(); setAppState(AppState.HOME); }}
                         style={{
-                            width: 44,
-                            height: 44,
-                            minWidth: 44,
-                            minHeight: 44,
+                            width: 32,
+                            height: 32,
+                            minWidth: 32,
+                            minHeight: 32,
                             borderRadius: 8,
                             border: `1px solid ${colors.hudBorder}`,
                             background: colors.hudBackground,
@@ -133,34 +62,58 @@ export const HUD: React.FC = () => {
                             cursor: 'pointer'
                         }}
                     >
-                        <Home size={18} />
+                        <Home size={16} />
                     </button>
 
-                    {/* Center content - Score + Mode + Progress */}
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                        {/* Score - 18px font */}
-                        <div style={{ fontSize: 18, fontWeight: 700, color: colors.textPrimary, lineHeight: 1 }}>
-                            {gameMode === GameMode.ZEN ? zenBlocksPlaced : score.toLocaleString()}
+                    {/* Center content - Score + Flux bar */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, padding: '0 4px' }}>
+                        {/* Score row */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <span style={{ fontSize: 18, fontWeight: 700, color: colors.textPrimary }}>
+                                {gameMode === GameMode.ZEN ? zenBlocksPlaced : score.toLocaleString()}
+                            </span>
+                            <span style={{ fontSize: 9, color: colors.textTertiary }}>
+                                {(gameMode === GameMode.ENDLESS || gameMode === GameMode.TIMED || gameMode === GameMode.SURVIVAL) && `en iyi: ${highScore.toLocaleString()}`}
+                                {gameMode === GameMode.CAREER && (currentLevelDef?.name ?? '')}
+                                {gameMode === GameMode.ZEN && 'blok'}
+                            </span>
                         </div>
                         
-                        {/* Mode name - 11px font */}
-                        <div style={{ fontSize: 11, color: colors.textTertiary, lineHeight: 1 }}>
-                            {(gameMode === GameMode.ENDLESS || gameMode === GameMode.TIMED) && `EN İYİ ${highScore.toLocaleString()}`}
-                            {gameMode === GameMode.CAREER && (currentLevelDef?.name ?? '')}
-                            {gameMode === GameMode.ZEN && 'BLOK'}
-                            {(gameMode === GameMode.SURVIVAL) && `EN İYİ ${highScore.toLocaleString()}`}
-                        </div>
-                        
-                        {/* Progress indicator - 3px decorative line */}
-                        <div style={{
-                            width: '80%',
-                            height: 3,
-                            background: gameMode === GameMode.CAREER && levelObjectives.length > 0
-                                ? (levelObjectives[0].current >= levelObjectives[0].target ? 'rgba(16,185,129,0.6)' : 'rgba(59,130,246,0.5)')
-                                : 'rgba(59,130,246,0.4)',
-                            borderRadius: 2,
-                            marginTop: 2
-                        }} />
+                        {/* Flux bar row */}
+                        {gameMode !== GameMode.ZEN ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <Zap size={10} color={flux >= 100 ? colors.surgeColor : colors.accentColor} fill={flux >= 100 ? colors.surgeColor : 'none'} />
+                                <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.07)', borderRadius: 2 }}>
+                                    <motion.div
+                                        style={{
+                                            height: '100%',
+                                            background: flux >= 80 ? colors.surgeColor : colors.accentColor,
+                                            borderRadius: 2
+                                        }}
+                                        animate={{ width: `${Math.min(flux, 100)}%` }}
+                                        transition={{ type: 'spring', stiffness: 40, damping: 15 }}
+                                    />
+                                </div>
+                                <span style={{ fontSize: 9, color: colors.textTertiary }}>{Math.floor(flux)}%</span>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                                    {ZEN_PALETTES[zenPaletteIndex].map((color, i) => (
+                                        <div key={i} style={{
+                                            width: 6,
+                                            height: 6,
+                                            borderRadius: '50%',
+                                            background: color,
+                                            opacity: 0.7
+                                        }} />
+                                    ))}
+                                </div>
+                                <span style={{ fontSize: 9, color: colors.textTertiary, fontWeight: 600 }}>
+                                    palet {zenPaletteIndex + 1}/4
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     {/* Timer/Moves pill - conditional */}
@@ -268,14 +221,14 @@ export const HUD: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Mute button - 44×44px */}
+                    {/* Mute button - 32×32px */}
                     <button
                         onClick={handleMute}
                         style={{
-                            width: 44,
-                            height: 44,
-                            minWidth: 44,
-                            minHeight: 44,
+                            width: 32,
+                            height: 32,
+                            minWidth: 32,
+                            minHeight: 32,
                             borderRadius: 8,
                             border: `1px solid ${colors.hudBorder}`,
                             background: colors.hudBackground,
@@ -286,70 +239,14 @@ export const HUD: React.FC = () => {
                             cursor: 'pointer'
                         }}
                     >
-                        {muted ? <VolumeX size={18} style={{ color: colors.textTertiary, opacity: 0.4 }} /> : <Volume2 size={18} style={{ color: colors.textTertiary }} />}
+                        {muted ? <VolumeX size={16} style={{ color: colors.textTertiary, opacity: 0.4 }} /> : <Volume2 size={16} style={{ color: colors.textTertiary }} />}
                     </button>
                 </div>
 
-                {/* ROW 2: Flux bar + Skill buttons */}
-                <div style={{ height: 44, display: 'flex', alignItems: 'center', gap: 6, padding: '0 6px' }}>
-                    {/* Flux Bar Container - flex:1 */}
-                    <div style={{ flex: 1, height: 44, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {isSurgeActive ? (
-                            // Surge Mode: Animated Text
-                            <motion.span
-                                animate={{ opacity: [1, 0.6, 1] }}
-                                transition={{ duration: 0.8, repeat: Infinity }}
-                                style={{ fontSize: 14, fontWeight: 900, letterSpacing: '0.1em', color: '#fbbf24' }}
-                            >
-                                ⚡ SURGE
-                            </motion.span>
-                        ) : gameMode === GameMode.ZEN ? (
-                            // ZEN mode: Palette dots
-                            <>
-                                <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                                    {ZEN_PALETTES[zenPaletteIndex].map((color, i) => (
-                                        <div key={i} style={{
-                                            width: 8,
-                                            height: 8,
-                                            borderRadius: '50%',
-                                            background: color,
-                                            opacity: 0.7
-                                        }} />
-                                    ))}
-                                </div>
-                                <span style={{
-                                    fontSize: 11,
-                                    color: 'rgba(255,255,255,0.3)',
-                                    fontWeight: 600
-                                }}>
-                                    palet {zenPaletteIndex + 1}/4
-                                </span>
-                            </>
-                        ) : (
-                            // Normal Mode: Flux Bar
-                            <>
-                                <Zap size={12} style={{ color: colors.accentColor, fill: flux >= 100 ? colors.accentColor : 'none' }} />
-                                <span style={{ fontSize: 11, fontWeight: 600, color: colors.textTertiary, lineHeight: 1 }}>
-                                    {Math.floor(flux)}%
-                                </span>
-                                <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 3 }}>
-                                    <motion.div
-                                        style={{
-                                            height: '100%',
-                                            background: flux >= 80 ? colors.surgeColor : colors.accentColor,
-                                            borderRadius: 3
-                                        }}
-                                        animate={{ width: `${Math.min(flux, 100)}%` }}
-                                        transition={{ type: 'spring', stiffness: 40, damping: 15 }}
-                                    />
-                                </div>
-                            </>
-                        )}
-                    </div>
-
-                    {/* Skill buttons */}
+                {/* ROW 2: Skill buttons */}
+                <div style={{ height: 40, display: 'flex', alignItems: 'center', gap: 4, padding: '0 6px' }}>
                     <MobileSkillButton
-                        icon={<RefreshCw size={16} />}
+                        icon={<RotateCw size={14} />}
                         cost={FLUX_COST.REROLL}
                         currentFlux={flux}
                         isActive={false}
@@ -360,7 +257,7 @@ export const HUD: React.FC = () => {
                     />
 
                     <MobileSkillButton
-                        icon={<Hammer size={16} />}
+                        icon={<Hammer size={14} />}
                         cost={FLUX_COST.SHATTER}
                         currentFlux={flux}
                         isActive={activeSkill === SkillType.SHATTER}
@@ -371,7 +268,13 @@ export const HUD: React.FC = () => {
                     />
 
                     <MobileSkillButton
-                        icon={<Bomb size={16} />}
+                        icon={
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                <circle cx="7" cy="8" r="5" stroke="currentColor" strokeWidth="1.2"/>
+                                <path d="M7 3L9 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                                <circle cx="9.5" cy="0.5" r="1" fill="currentColor"/>
+                            </svg>
+                        }
                         cost={FLUX_COST.BOMB}
                         currentFlux={flux}
                         isActive={activeSkill === SkillType.BOMB}
@@ -587,7 +490,13 @@ export const HUD: React.FC = () => {
                     />
 
                     <SkillButton
-                        icon={<Bomb size={14} />}
+                        icon={
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                <circle cx="7" cy="8" r="5" stroke="currentColor" strokeWidth="1.2"/>
+                                <path d="M7 3L9 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                                <circle cx="9.5" cy="0.5" r="1" fill="currentColor"/>
+                            </svg>
+                        }
                         cost={FLUX_COST.BOMB}
                         currentFlux={flux}
                         isActive={activeSkill === SkillType.BOMB}
@@ -614,32 +523,26 @@ const MobileSkillButton = ({ icon, cost, currentFlux, isActive, onClick, accentC
             disabled={disabled}
             data-testid="mobile-skill-button"
             style={{
-                width: 44,
-                height: 44,
-                minWidth: 44,
-                minHeight: 44,
+                flex: 1,
+                height: 36,
                 borderRadius: 8,
                 border: `1px solid ${isActive ? accentColor : (disabled ? 'rgba(255,255,255,0.04)' : accentBorder)}`,
                 background: isActive ? accentColor : (disabled ? 'rgba(255,255,255,0.02)' : accentBg),
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
                 position: 'relative',
                 opacity: disabled ? 0.4 : 1,
                 cursor: disabled ? 'not-allowed' : 'pointer',
-                transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                transform: isActive ? 'scale(1.02)' : 'scale(1)',
                 transition: 'all 0.2s ease',
-                padding: 0,
-                flexShrink: 0
+                padding: 0
             }}
         >
-            {/* Icon - visually smaller but centered in 44px area */}
+            {/* Icon */}
             <div 
                 data-testid="icon-container"
                 style={{ 
-                    width: 28, 
-                    height: 28, 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center',
@@ -657,9 +560,9 @@ const MobileSkillButton = ({ icon, cost, currentFlux, isActive, onClick, accentC
                     bottom: 2,
                     right: 2,
                     background: isActive ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.5)',
-                    borderRadius: 6,
-                    padding: '2px 4px',
-                    fontSize: 11,
+                    borderRadius: 4,
+                    padding: '1px 3px',
+                    fontSize: 9,
                     fontWeight: 600,
                     color: isActive ? 'white' : accentColor,
                     lineHeight: 1
@@ -667,29 +570,6 @@ const MobileSkillButton = ({ icon, cost, currentFlux, isActive, onClick, accentC
             >
                 {cost}
             </div>
-            
-            {/* Active Indicator */}
-            {isActive && (
-                <div 
-                    data-testid="active-indicator"
-                    style={{
-                        position: 'absolute',
-                        bottom: -14,
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: accentColor,
-                        whiteSpace: 'nowrap',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 2
-                    }}
-                >
-                    <span style={{ fontSize: 6 }}>●</span>
-                    AKTİF
-                </div>
-            )}
         </button>
     );
 };

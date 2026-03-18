@@ -23,6 +23,7 @@ import { startHeartbeat, stopHeartbeat } from '@utils/heartbeat';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { AppState, GameMode } from '@shared/types';
+import { SkillType } from '../features/game/types';
 import { X, User } from 'lucide-react';
 import { useCountUp } from '@shared/hooks/useCountUp';
 import { initializeFirebase } from '../services/firebase/config';
@@ -60,7 +61,7 @@ const App: React.FC = () => {
     isLevelComplete, nextLevel, currentLevelIndex,
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
     earnedStars, dailyClearHistory, highScore, stats, maxLevelReached, startLevel, bossType,
-    isFirstGame, guidedStep
+    isFirstGame, guidedStep, activeSkill, activateSkill
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors } = useThemeStore();
   const colors = getThemeColors();
@@ -626,7 +627,7 @@ const App: React.FC = () => {
               className="flex-none w-full max-w-4xl mx-auto" 
               style={{ 
                 padding: `calc(2px + env(safe-area-inset-top, 0px)) 4px 2px`,
-                height: `calc(var(--hud-height, 68px) + env(safe-area-inset-top, 0px))`
+                height: `calc(var(--hud-height, 92px) + env(safe-area-inset-top, 0px))`
               }}
             >
               <div style={{ height: '100%' }}>
@@ -636,6 +637,75 @@ const App: React.FC = () => {
 
             {/* Grid Area */}
             <main className="flex-1 relative flex items-center justify-center min-h-0 overflow-hidden">
+              {/* Active Skill Banner - Fixed overlay inside grid container */}
+              <AnimatePresence>
+                {(activeSkill === SkillType.SHATTER || activeSkill === SkillType.BOMB) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      left: 12,
+                      right: 12,
+                      zIndex: 25,
+                      pointerEvents: 'auto',
+                      padding: '10px 14px',
+                      background: activeSkill === SkillType.SHATTER 
+                        ? 'linear-gradient(90deg, rgba(239,68,68,0.15), rgba(239,68,68,0.08))' 
+                        : 'linear-gradient(90deg, rgba(249,115,22,0.15), rgba(249,115,22,0.08))',
+                      border: `1px solid ${activeSkill === SkillType.SHATTER ? 'rgba(239,68,68,0.3)' : 'rgba(249,115,22,0.3)'}`,
+                      borderRadius: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <motion.div
+                        animate={{ scale: [1, 1.1, 1] }}
+                        transition={{ duration: 1, repeat: Infinity }}
+                        style={{ fontSize: 20, lineHeight: 1 }}
+                      >
+                        {activeSkill === SkillType.SHATTER ? '🔨' : '💣'}
+                      </motion.div>
+                      <div>
+                        <div style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: activeSkill === SkillType.SHATTER ? '#ef4444' : '#f97316',
+                          marginBottom: 1
+                        }}>
+                          {activeSkill === SkillType.SHATTER ? 'Hedef bloğa dokun' : 'Patlama merkezi seç'}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
+                          {activeSkill === SkillType.SHATTER ? 'Tek blok kır' : '3×3 alan temizle'}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => { playClick(); activateSkill(activeSkill); }}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 6,
+                        background: 'rgba(0,0,0,0.2)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        color: 'rgba(255,255,255,0.6)',
+                        fontSize: 14
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <div 
                 ref={gridContainerRef}
                 style={{ 
@@ -723,7 +793,7 @@ const App: React.FC = () => {
               backgroundColor: colors.trayBackground,
               borderTop: `1px solid ${colors.hudBorder}`
             }}>
-              <div className="max-w-2xl mx-auto h-full flex flex-col" style={{ padding: '1px 6px' }}>
+              <div className="max-w-2xl mx-auto h-full flex flex-col" style={{ padding: '4px 6px' }}>
                 <div className="grid grid-cols-3 flex-1 min-h-0" style={{ gap: '4px' }}>
                   <AnimatePresence mode="popLayout">
                     {pieces.map((piece) => (
