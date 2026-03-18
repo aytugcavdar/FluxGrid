@@ -29,10 +29,9 @@ service cloud.firestore {
         allow read, write: if isAuthenticated() && isOwner(uid);
       }
       
-      // Achievements subcollection - authenticated users can read, but only Cloud Functions can write
+      // Achievements subcollection - authenticated users can read/write their own achievements
       match /achievements/{id} {
-        allow read: if isAuthenticated() && isOwner(uid);
-        allow write: if false;
+        allow read, write: if isAuthenticated() && isOwner(uid);
       }
     }
     

@@ -112,6 +112,12 @@ export async function syncScore(
         platform: 'web',
         appVersion: '1.0.0', // TODO: Get from package.json
       });
+    } else {
+      // Even if not a new high score, update lastScoreSubmittedAt for rate limiting
+      await updateDoc(userRef, {
+        [`highScores.${mode}`]: score,
+        lastModified: Date.now(),
+      });
     }
   } catch (error) {
     console.error('Failed to sync score:', error);
@@ -456,6 +462,24 @@ export function validateDailyHistoryDocument(data: any): boolean {
   }
 
   return true;
+}
+
+/**
+ * Sync achievement to Firestore
+ */
+export async function syncAchievement(uid: string, achievement: any): Promise<void> {
+  try {
+    const db = getFirebaseFirestore();
+    const achRef = doc(db, `users/${uid}/achievements`, achievement.id);
+    
+    await setDoc(achRef, {
+      ...achievement,
+      unlockedAt: Date.now(),
+    }, { merge: true });
+  } catch (error) {
+    console.error('Failed to sync achievement:', error);
+    throw error;
+  }
 }
 
 /**

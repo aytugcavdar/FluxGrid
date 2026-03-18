@@ -790,6 +790,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Handle just unlocked achievement
     const newUnlock = updatedAchievements.find((ach, i) => ach.unlocked && !get().achievements[i].unlocked);
+    
+    // Sync achievement to Firestore
+    if (newUnlock) {
+      import('../../../services/firebase/syncManager').then(({ syncAchievement }) => {
+        import('../../auth/store/authStore').then(({ useAuthStore }) => {
+          const user = useAuthStore.getState().user;
+          if (user) {
+            syncAchievement(user.uid, newUnlock).catch(console.error);
+          }
+        });
+      });
+    }
 
     // lastAction güncelle
 

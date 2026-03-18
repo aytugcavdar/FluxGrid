@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { unlockAudio, playGameOver, playClick } from '@utils/audio';
 import { generateShareText, shareResult } from '@utils/shareResult';
 import { getStreak, getDailyPlayedToday, getDayNumber } from '@utils/streakManager';
+import { startHeartbeat, stopHeartbeat } from '@utils/heartbeat';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { AppState, GameMode } from '@shared/types';
@@ -128,6 +129,28 @@ const App: React.FC = () => {
       (window as any).splashComplete();
       delete (window as any).splashComplete;
     }
+  }, []);
+
+  // Heartbeat management
+  useEffect(() => {
+    const { user } = useAuthStore.getState();
+    if (user) {
+      startHeartbeat(user.uid);
+    }
+
+    // Auth store değişikliklerini dinle
+    const unsub = useAuthStore.subscribe((state) => {
+      if (state.user) {
+        startHeartbeat(state.user.uid);
+      } else {
+        stopHeartbeat();
+      }
+    });
+
+    return () => {
+      stopHeartbeat();
+      unsub();
+    };
   }, []);
 
   // Warn before closing/refreshing if game is in progress

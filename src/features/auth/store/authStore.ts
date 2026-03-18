@@ -8,7 +8,8 @@ import {
   signOut as firebaseSignOut,
   User as FirebaseUser,
 } from 'firebase/auth';
-import { getFirebaseAuth } from '../../../services/firebase/config';
+import { doc, setDoc } from 'firebase/firestore';
+import { getFirebaseAuth, getFirebaseFirestore } from '../../../services/firebase/config';
 import { migrate } from '../../../services/firebase/migrationService';
 import { syncFromFirestore } from '../../../services/firebase/syncManager';
 import type { AuthStore, MigrationStatus } from '../types';
@@ -46,6 +47,16 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             isLoading: false,
             error: null,
           });
+
+          // Write user data to Firestore
+          const db = getFirebaseFirestore();
+          await setDoc(doc(db, 'users', result.user.uid), {
+            isAnonymous: result.user.isAnonymous,
+            displayName: result.user.displayName || 'Oyuncu',
+            photoURL: result.user.photoURL || null,
+            lastSeenAt: Date.now(),
+            deviceTokens: [],
+          }, { merge: true });
         } catch (error) {
           console.error('Failed to create anonymous user:', error);
           set({
@@ -61,6 +72,16 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           isLoading: false,
           error: null,
         });
+
+        // Write user data to Firestore
+        const db = getFirebaseFirestore();
+        await setDoc(doc(db, 'users', user.uid), {
+          isAnonymous: user.isAnonymous,
+          displayName: user.displayName || 'Oyuncu',
+          photoURL: user.photoURL || null,
+          lastSeenAt: Date.now(),
+          deviceTokens: [],
+        }, { merge: true });
 
         // If permanent user, sync Firestore → localStorage
         if (!user.isAnonymous) {

@@ -6,7 +6,6 @@ import { useAuthStore } from '../features/auth/store/authStore';
 import { GameMode, AppState } from '@shared/types';
 import { playClick } from '@utils/audio';
 import { getStreak, getDailyPlayedToday, getDayNumber } from '@utils/streakManager';
-import { useTranslation } from 'react-i18next';
 import { getFirebaseFirestore } from '../services/firebase/config';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
@@ -21,7 +20,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenThemeSelector,
   onOpenLeaderboard,
 }) => {
-  const { initGame, stats, highScore, maxLevelReached, startLevel, setAppState, flux } = useGameStore();
+  const { initGame, stats, highScore, maxLevelReached, startLevel, setAppState } = useGameStore();
   const [streak] = useState(getStreak);
   const [dailyPlayedToday] = useState(getDailyPlayedToday);
   const [selectedMode, setSelectedMode] = useState<GameMode>(GameMode.ENDLESS);
@@ -33,8 +32,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     try {
       const db = getFirebaseFirestore();
       
-      // Create timestamp for 5 minutes ago
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      // Create timestamp for 5 minutes ago (number format)
+      const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
       
       const usersQuery = query(
         collection(db, 'users'),
@@ -126,7 +125,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </button>
 
           {/* Online Pill */}
-          {onlineCount !== null && (
+          {onlineCount !== null && onlineCount > 0 && (
             <div
               style={{
                 padding: '4px 12px',
@@ -206,182 +205,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </motion.div>
 
-        {/* FLUX STRIP */}
+        {/* UNIFIED CTA CARD */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: 'easeOut', delay: 0.15 }}
           style={{
-            marginBottom: 16,
-            padding: '8px 12px',
-            borderRadius: 10,
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-          }}
-        >
-          <span style={{ fontSize: 10, fontWeight: 700, color: '#00d4ff', fontFamily: 'var(--font-display)' }}>
-            ⚡ FLUX ENERJİSİ
-          </span>
-          <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
-            <div
-              style={{
-                height: '100%',
-                width: `${flux}%`,
-                background: 'linear-gradient(90deg, #00d4ff, #a855f7)',
-                borderRadius: 3,
-                transition: 'width 0.3s ease',
-              }}
-            />
-          </div>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#00d4ff' }}>%{flux}</span>
-        </motion.div>
-
-        {/* STATS ROW */}
-        {stats && stats.gamesPlayed > 5 && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: 'easeOut', delay: 0.2 }}
-            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}
-          >
-            <div
-              style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: 10,
-                padding: '10px 8px',
-                textAlign: 'center',
-              }}
-            >
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: '#00d4ff' }}>
-                {highScore >= 1000 ? `${(highScore / 1000).toFixed(1)}k` : highScore}
-              </div>
-              <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>En iyi skor</div>
-            </div>
-            <div
-              style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: 10,
-                padding: '10px 8px',
-                textAlign: 'center',
-              }}
-            >
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'white' }}>
-                {stats.gamesPlayed}
-              </div>
-              <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>Oyun sayısı</div>
-            </div>
-            <div
-              style={{
-                background: streak > 0 ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.03)',
-                border: `1px solid ${streak > 0 ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.06)'}`,
-                borderRadius: 10,
-                padding: '10px 8px',
-                textAlign: 'center',
-              }}
-            >
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: streak > 0 ? '#f59e0b' : 'rgba(255,255,255,0.3)' }}>
-                {streak > 0 ? `🔥 ${streak}` : '--'}
-              </div>
-              <div style={{ fontSize: 8, color: streak > 0 ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.3)', marginTop: 2 }}>Streak</div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* DAILY STREAK BANNER - Always visible */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: 'easeOut', delay: 0.22 }}
-          style={{
             width: '100%',
-            padding: '12px 16px',
-            borderRadius: 12,
-            background: streak > 0 
-              ? (dailyPlayedToday 
-                  ? 'linear-gradient(90deg, rgba(16,185,129,0.12), rgba(16,185,129,0.06))' 
-                  : 'linear-gradient(90deg, rgba(245,158,11,0.15), rgba(245,158,11,0.08))')
-              : 'rgba(255,255,255,0.03)',
-            border: `1px solid ${streak > 0 
-              ? (dailyPlayedToday ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.3)') 
-              : 'rgba(255,255,255,0.06)'}`,
-            marginBottom: 12,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {streak > 0 ? (
-              <motion.div
-                animate={!dailyPlayedToday ? { scale: [1, 1.15, 1] } : {}}
-                transition={{ duration: 1.5, repeat: Infinity }}
-                style={{ fontSize: 28, lineHeight: 1 }}
-              >
-                🔥
-              </motion.div>
-            ) : (
-              <div style={{ fontSize: 24, lineHeight: 1, opacity: 0.4 }}>📅</div>
-            )}
-            <div>
-              <div style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color: streak > 0 
-                  ? (dailyPlayedToday ? '#34d399' : '#fbbf24')
-                  : 'rgba(255,255,255,0.4)',
-                marginBottom: 2
-              }}>
-                {streak > 0 
-                  ? `${streak} günlük seri!` 
-                  : 'Günlük seri başlat'}
-              </div>
-              <div style={{
-                fontSize: 11,
-                color: streak > 0 
-                  ? (dailyPlayedToday ? 'rgba(52,211,153,0.6)' : 'rgba(251,191,36,0.6)')
-                  : 'rgba(255,255,255,0.3)'
-              }}>
-                {dailyPlayedToday 
-                  ? 'Bugün tamamlandı ✓' 
-                  : (streak > 0 
-                      ? 'Serini kaybetmek üzeresin!' 
-                      : 'Her gün oyna, ödül kazan')}
-              </div>
-            </div>
-          </div>
-          {!dailyPlayedToday && (
-            <motion.div
-              animate={streak > 0 ? { opacity: [0.6, 1, 0.6] } : {}}
-              transition={{ duration: 2, repeat: Infinity }}
-              style={{
-                fontSize: 20,
-                color: streak > 0 ? '#fbbf24' : 'rgba(255,255,255,0.2)'
-              }}
-            >
-              →
-            </motion.div>
-          )}
-        </motion.div>
-
-        {/* MAIN CTA BUTTON */}
-        <motion.button
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: 'easeOut', delay: 0.25 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => { playClick(); initGame(selectedMode); }}
-          style={{
-            width: '100%',
-            padding: '20px 24px',
+            padding: '16px',
             borderRadius: 16,
             background: 'linear-gradient(135deg, rgba(0,212,255,0.10), rgba(168,85,247,0.10))',
             border: '1px solid rgba(0,212,255,0.25)',
-            cursor: 'pointer',
             position: 'relative',
             overflow: 'hidden',
             marginBottom: 8,
@@ -400,12 +234,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             }}
           />
           
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-            <div style={{ fontSize: 40, lineHeight: 1 }}>{selectedModeInfo.icon}</div>
+          {/* Upper section: Selected mode info */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+            <div style={{ fontSize: 36, lineHeight: 1 }}>{selectedModeInfo.icon}</div>
             <div
               style={{
                 fontFamily: 'var(--font-display)',
-                fontSize: 22,
+                fontSize: 20,
                 fontWeight: 900,
                 color: '#00d4ff',
                 textShadow: '0 0 20px rgba(0,212,255,0.4)',
@@ -415,25 +250,94 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               {selectedModeInfo.label}
             </div>
             {selectedModeBestScore > 0 && (
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.4)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.4)' }}>
                 En iyi: {selectedModeBestScore.toLocaleString()}
               </div>
             )}
           </div>
-        </motion.button>
+
+          {/* Lower section: Mode tabs + Play button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Mode tabs */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, flex: 1 }}>
+              {[GameMode.ENDLESS, GameMode.CAREER, GameMode.TIMED, GameMode.ZEN].map((mode) => {
+                const info = getModeInfo(mode);
+                const isActive = selectedMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => { playClick(); setSelectedMode(mode); }}
+                    style={{
+                      padding: '6px 4px',
+                      borderRadius: 8,
+                      background: isActive ? 'rgba(0,212,255,0.15)' : 'rgba(255,255,255,0.05)',
+                      border: `1px solid ${isActive ? 'rgba(0,212,255,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 2,
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <div style={{ fontSize: 16, lineHeight: 1 }}>{info.icon}</div>
+                    <div
+                      style={{
+                        fontSize: 7,
+                        fontFamily: 'var(--font-display)',
+                        fontWeight: 600,
+                        color: isActive ? '#00d4ff' : 'rgba(255,255,255,0.4)',
+                      }}
+                    >
+                      {info.label}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Play button */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => { playClick(); initGame(selectedMode); }}
+              style={{
+                padding: '12px 16px',
+                borderRadius: 10,
+                background: 'linear-gradient(135deg, #00d4ff, #a855f7)',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 14,
+                  fontWeight: 900,
+                  color: 'white',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                OYNA
+              </div>
+            </motion.button>
+          </div>
+        </motion.div>
 
         {/* CAREER CHIP */}
         {maxLevelReached > 0 && (
           <motion.button
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.3 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => { playClick(); startLevel(maxLevelReached + 1); }}
             style={{
               width: '100%',
-              marginTop: 8,
-              marginBottom: 16,
+              marginBottom: 12,
               padding: '6px 12px',
               borderRadius: 10,
               background: 'rgba(59,130,246,0.08)',
@@ -462,6 +366,116 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </span>
           </motion.button>
         )}
+
+        {/* COMPACT STREAK BANNER */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: 'easeOut', delay: 0.25 }}
+          style={{
+            width: '100%',
+            padding: '8px 10px',
+            borderRadius: '0 8px 8px 0',
+            background: 'rgba(255,255,255,0.03)',
+            border: `1px solid rgba(255,255,255,0.06)`,
+            borderLeft: `2px solid ${
+              streak > 0 && dailyPlayedToday
+                ? '#10b981'
+                : streak > 0 && !dailyPlayedToday
+                ? '#f59e0b'
+                : 'rgba(255,255,255,0.1)'
+            }`,
+            marginBottom: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 20, lineHeight: 1 }}>
+              {streak > 0 ? '🔥' : '📅'}
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: streak > 0
+                  ? (dailyPlayedToday ? '#34d399' : '#fbbf24')
+                  : 'rgba(255,255,255,0.4)',
+              }}
+            >
+              {streak > 0
+                ? `${streak} günlük seri${dailyPlayedToday ? ' ✓' : ''}`
+                : 'Günlük seri başlat'}
+            </div>
+          </div>
+          {!dailyPlayedToday && (
+            <div
+              style={{
+                fontSize: 16,
+                color: streak > 0 ? '#fbbf24' : 'rgba(255,255,255,0.2)',
+              }}
+            >
+              →
+            </div>
+          )}
+        </motion.div>
+
+        {/* STATS ROW */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, ease: 'easeOut', delay: 0.3 }}
+          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}
+        >
+          <div
+            style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 10,
+              padding: '10px 8px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: '#00d4ff' }}>
+              {highScore === 0 || !highScore
+                ? '—'
+                : highScore >= 1000
+                ? `${(highScore / 1000).toFixed(1)}k`
+                : highScore}
+            </div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>En iyi skor</div>
+          </div>
+          <div
+            style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 10,
+              padding: '10px 8px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'white' }}>
+              {stats?.gamesPlayed || '—'}
+            </div>
+            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>Oyun sayısı</div>
+          </div>
+          <div
+            style={{
+              background: streak > 0 ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${streak > 0 ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.06)'}`,
+              borderRadius: 10,
+              padding: '10px 8px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: streak > 0 ? '#f59e0b' : 'rgba(255,255,255,0.3)' }}>
+              {streak > 0 ? `🔥 ${streak}` : '—'}
+            </div>
+            <div style={{ fontSize: 8, color: streak > 0 ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.3)', marginTop: 2 }}>Streak</div>
+          </div>
+        </motion.div>
 
         {/* DAILY CARD */}
         <motion.button
@@ -504,63 +518,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
           {!dailyPlayedToday && <span style={{ fontSize: 14, color: 'rgba(245,158,11,0.6)' }}>→</span>}
         </motion.button>
-
-        {/* MODE TABS */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: 'easeOut', delay: 0.35 }}
-          style={{ marginBottom: 16 }}
-        >
-          <div
-            style={{
-              fontSize: 9,
-              letterSpacing: '0.15em',
-              fontFamily: 'var(--font-display)',
-              color: 'rgba(255,255,255,0.3)',
-              marginBottom: 8,
-              fontWeight: 400,
-            }}
-          >
-            MODLAR
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-            {[GameMode.ENDLESS, GameMode.CAREER, GameMode.TIMED, GameMode.ZEN].map((mode) => {
-              const info = getModeInfo(mode);
-              const isActive = selectedMode === mode;
-              return (
-                <button
-                  key={mode}
-                  onClick={() => { playClick(); setSelectedMode(mode); }}
-                  style={{
-                    padding: '10px 6px',
-                    borderRadius: 10,
-                    background: isActive ? 'rgba(0,212,255,0.06)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${isActive ? 'rgba(0,212,255,0.3)' : 'rgba(255,255,255,0.06)'}`,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 4,
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  <div style={{ fontSize: 20, lineHeight: 1 }}>{info.icon}</div>
-                  <div
-                    style={{
-                      fontSize: 9,
-                      fontFamily: 'var(--font-display)',
-                      fontWeight: 600,
-                      color: isActive ? '#00d4ff' : 'rgba(255,255,255,0.4)',
-                    }}
-                  >
-                    {info.label}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </motion.div>
 
         {/* BOTTOM NAV */}
         <motion.div

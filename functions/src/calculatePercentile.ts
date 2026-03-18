@@ -5,13 +5,29 @@ const db = admin.firestore();
 
 /**
  * Calculate user's percentile rank when they submit a score
- * Triggered on: leaderboards/{mode}/scores/{uid} onCreate
+ * Triggered on: leaderboards/{mode}/scores/{uid} onWrite
+ * Only processes non-suspicious scores
  */
 export const calculatePercentile = functions.firestore
   .document('leaderboards/{mode}/scores/{uid}')
-  .onCreate(async (snapshot, context) => {
+  .onWrite(async (change, context) => {
     const { mode, uid } = context.params;
-    const userScore = snapshot.data().score;
+    
+    // Get the data after the write
+    const data = change.after.data();
+    
+    // If document was deleted, skip
+    if (!data) {
+      return null;
+    }
+    
+    // If score is marked as suspicious, skip percentile calculation
+    if (data.suspicious === true) {
+      console.log(`Skipping percentile calculation for suspicious score: ${uid} in ${mode}`);
+      return null;
+    }
+    
+    const userScore = data.score;
 
     try {
       // Query all scores for this mode
