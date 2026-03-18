@@ -1,18 +1,47 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 4, 16);
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+    
+    function isValidScore(score) {
+      return score is int && score >= 0 && score <= 9999999;
+    }
+    
+    // Users collection - authenticated users can read/write their own documents
+    match /users/{uid} {
+      allow read, write: if isAuthenticated() && isOwner(uid);
+      
+      // ModeStats subcollection - authenticated users can read/write their own stats
+      match /modeStats/{mode} {
+        allow read, write: if isAuthenticated() && isOwner(uid);
+      }
+      
+      // DailyHistory subcollection - authenticated users can read/write their own history
+      match /dailyHistory/{date} {
+        allow read, write: if isAuthenticated() && isOwner(uid);
+      }
+      
+      // Achievements subcollection - authenticated users can read, but only Cloud Functions can write
+      match /achievements/{id} {
+        allow read: if isAuthenticated() && isOwner(uid);
+        allow write: if false;
+      }
+    }
+    
+    // Leaderboards - public read, authenticated write with validation
+    match /leaderboards/{mode}/scores/{uid} {
+      allow read: if true;
+      allow write: if isAuthenticated() 
+                   && isOwner(uid) 
+                   && isValidScore(request.resource.data.score);
     }
   }
 }

@@ -241,6 +241,26 @@ export const LevelMap: React.FC = () => {
                                 </div>
                               )}
                               
+                              {/* Boss badge */}
+                              {isBoss && (
+                                <div style={{
+                                  position: 'absolute',
+                                  top: -8,
+                                  left: '50%',
+                                  transform: 'translateX(-50%)',
+                                  background: '#ef4444',
+                                  color: 'white',
+                                  fontSize: 8,
+                                  fontWeight: 700,
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  letterSpacing: '0.05em',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                                }}>
+                                  BOSS
+                                </div>
+                              )}
+                              
                               <span
                                 style={{
                                   fontSize: 18,

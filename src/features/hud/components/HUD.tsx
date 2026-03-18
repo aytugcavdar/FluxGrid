@@ -14,7 +14,8 @@ export const HUD: React.FC = () => {
     const {
         score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive,
         currentLevelIndex, movesLeft, levelObjectives, gameMode, timeLeft, setAppState,
-        zenSessionTime, zenBlocksPlaced, survivalNextPush, survivalPushInterval, zenPaletteIndex, survivalTime
+        zenSessionTime, zenBlocksPlaced, survivalNextPush, survivalPushInterval, zenPaletteIndex, survivalTime,
+        bossType
     } = useGameStore();
     const colors = useThemeStore(state => state.getThemeColors());
     const [muted, setMuted] = useState(getMuted);
@@ -147,7 +148,7 @@ export const HUD: React.FC = () => {
                             {(gameMode === GameMode.ENDLESS || gameMode === GameMode.TIMED) && `EN İYİ ${highScore.toLocaleString()}`}
                             {gameMode === GameMode.CAREER && (currentLevelDef?.name ?? '')}
                             {gameMode === GameMode.ZEN && 'BLOK'}
-                            {(gameMode === GameMode.BLITZ || gameMode === GameMode.SURVIVAL) && `EN İYİ ${highScore.toLocaleString()}`}
+                            {(gameMode === GameMode.SURVIVAL) && `EN İYİ ${highScore.toLocaleString()}`}
                         </div>
                         
                         {/* Progress indicator - 3px decorative line */}
@@ -163,37 +164,29 @@ export const HUD: React.FC = () => {
                     </div>
 
                     {/* Timer/Moves pill - conditional */}
-                    {(gameMode === GameMode.TIMED || gameMode === GameMode.BLITZ) && (
+                    {(gameMode === GameMode.TIMED) && (
                         <div style={{
                             padding: '6px 12px',
                             borderRadius: 12,
-                            background: gameMode === GameMode.BLITZ 
-                                ? (timeLeft <= 5 ? 'rgba(239,68,68,0.15)' : timeLeft <= 15 ? 'rgba(249,115,22,0.12)' : timeLeft <= 25 ? 'rgba(245,158,11,0.12)' : 'rgba(59,130,246,0.1)')
-                                : (timeLeft <= 10 ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.12)'),
-                            border: gameMode === GameMode.BLITZ
-                                ? `1px solid ${timeLeft <= 5 ? 'rgba(239,68,68,0.3)' : timeLeft <= 15 ? 'rgba(249,115,22,0.25)' : timeLeft <= 25 ? 'rgba(245,158,11,0.25)' : 'rgba(59,130,246,0.2)'}`
-                                : `1px solid ${timeLeft <= 10 ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.25)'}`,
+                            background: (timeLeft <= 10 ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.12)'),
+                            border: `1px solid ${timeLeft <= 10 ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.25)'}`,
                             flexShrink: 0,
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
-                            animation: (gameMode === GameMode.BLITZ && timeLeft <= 5) || (gameMode === GameMode.TIMED && timeLeft <= 10) ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none'
+                            animation: (gameMode === GameMode.TIMED && timeLeft <= 10) ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none'
                         }}>
                             <div style={{ 
                                 fontSize: 16, 
                                 fontWeight: 700, 
-                                color: gameMode === GameMode.BLITZ
-                                    ? (timeLeft <= 5 ? '#ef4444' : timeLeft <= 15 ? '#f97316' : timeLeft <= 25 ? '#f59e0b' : '#3b82f6')
-                                    : (timeLeft <= 10 ? '#ef4444' : '#f59e0b'), 
+                                color: (timeLeft <= 10 ? '#ef4444' : '#f59e0b'), 
                                 lineHeight: 1 
                             }}>
                                 {timeLeft}
                             </div>
                             <div style={{ 
                                 fontSize: 11, 
-                                color: gameMode === GameMode.BLITZ
-                                    ? (timeLeft <= 5 ? 'rgba(239,68,68,0.6)' : timeLeft <= 15 ? 'rgba(249,115,22,0.6)' : timeLeft <= 25 ? 'rgba(245,158,11,0.6)' : 'rgba(59,130,246,0.6)')
-                                    : (timeLeft <= 10 ? 'rgba(239,68,68,0.6)' : 'rgba(245,158,11,0.6)'), 
+                                color: (timeLeft <= 10 ? 'rgba(239,68,68,0.6)' : 'rgba(245,158,11,0.6)'), 
                                 textAlign: 'center',
                                 marginTop: 2
                             }}>
@@ -206,25 +199,25 @@ export const HUD: React.FC = () => {
                         <div style={{
                             padding: '6px 12px',
                             borderRadius: 12,
-                            background: movesLeft <= 5 ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.05)',
-                            border: `1px solid ${movesLeft <= 5 ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                            background: (bossType === 'SPEED_SURGE' || movesLeft <= 10) ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.05)',
+                            border: `1px solid ${(bossType === 'SPEED_SURGE' || movesLeft <= 10) ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)'}`,
                             flexShrink: 0,
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
-                            animation: movesLeft <= 5 ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none'
+                            animation: (bossType === 'SPEED_SURGE' && movesLeft <= 10) ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none'
                         }}>
                             <div style={{ 
                                 fontSize: 16, 
                                 fontWeight: 700, 
-                                color: movesLeft <= 5 ? '#ef4444' : colors.textPrimary, 
+                                color: (bossType === 'SPEED_SURGE' || movesLeft <= 10) ? '#ef4444' : colors.textPrimary, 
                                 lineHeight: 1 
                             }}>
                                 {movesLeft}
                             </div>
                             <div style={{ 
                                 fontSize: 11, 
-                                color: movesLeft <= 5 ? 'rgba(239,68,68,0.6)' : colors.textTertiary, 
+                                color: (bossType === 'SPEED_SURGE' || movesLeft <= 10) ? 'rgba(239,68,68,0.6)' : colors.textTertiary, 
                                 textAlign: 'center',
                                 marginTop: 2
                             }}>
@@ -407,7 +400,6 @@ export const HUD: React.FC = () => {
                                 {gameMode === GameMode.ENDLESS && `Sonsuz Mod`}
                                 {gameMode === GameMode.TIMED && `Quantum Rush`}
                                 {gameMode === GameMode.ZEN && `ZEN Modu`}
-                                {gameMode === GameMode.BLITZ && `BLITZ`}
                                 {gameMode === GameMode.SURVIVAL && `SURVIVAL`}
                             </span>
                             {gameMode === GameMode.CAREER && currentLevelDef && (
@@ -418,15 +410,10 @@ export const HUD: React.FC = () => {
                             )}
                         </div>
 
-                        {gameMode === GameMode.TIMED || gameMode === GameMode.BLITZ ? (
+                        {gameMode === GameMode.TIMED ? (
                             <div className={clsx(
                                 "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-black tracking-tight",
-                                gameMode === GameMode.BLITZ
-                                    ? (timeLeft <= 5 ? "bg-rose-500/20 text-rose-400 animate-pulse" : 
-                                       timeLeft <= 15 ? "bg-orange-500/20 text-orange-400" :
-                                       timeLeft <= 25 ? "bg-amber-500/20 text-amber-400" :
-                                       "bg-blue-500/20 text-blue-400")
-                                    : (timeLeft <= 10 ? "bg-rose-500/20 text-rose-400 animate-pulse" : "bg-amber-500/20 text-amber-400")
+                                (timeLeft <= 10 ? "bg-rose-500/20 text-rose-400 animate-pulse" : "bg-amber-500/20 text-amber-400")
                             )}>
                                 <span>{timeLeft} Saniye</span>
                             </div>
@@ -437,7 +424,7 @@ export const HUD: React.FC = () => {
                         ) : (
                             <div className={clsx(
                                 "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold",
-                                (gameMode === GameMode.CAREER && movesLeft <= 5) ? "bg-rose-500/20 text-rose-400 animate-pulse" : "bg-white/5 text-white/40"
+                                (gameMode === GameMode.CAREER && (bossType === 'SPEED_SURGE' || movesLeft <= 10)) ? "bg-rose-500/20 text-rose-400 animate-pulse" : "bg-white/5 text-white/40"
                             )}>
                                 <span>{gameMode === GameMode.CAREER ? `${movesLeft} Hamle` : 'Sınırsız'}</span>
                             </div>

@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth';
 import { getFirebaseAuth } from '../../../services/firebase/config';
 import { migrate } from '../../../services/firebase/migrationService';
+import { syncFromFirestore } from '../../../services/firebase/syncManager';
 import type { AuthStore, MigrationStatus } from '../types';
 
 // Leaderboard thresholds for prompting sign-in
@@ -63,8 +64,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
         // If permanent user, sync Firestore → localStorage
         if (!user.isAnonymous) {
-          // TODO: Implement syncFromFirestore when sync manager is ready
-          // await syncFromFirestore(user.uid);
+          try {
+            await syncFromFirestore(user.uid);
+          } catch (error) {
+            console.error('Failed to sync from Firestore during auth:', error);
+            // Don't block auth flow if sync fails
+          }
         }
       }
     });
@@ -100,6 +105,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const migrationResult = await migrate(currentUser.uid);
       
       if (migrationResult.success) {
+        // Sync from Firestore after successful migration
+        try {
+          await syncFromFirestore(auth.currentUser?.uid || currentUser.uid);
+        } catch (syncError) {
+          console.error('Failed to sync after migration:', syncError);
+          // Don't fail the upgrade if sync fails
+        }
+        
         set({
           user: auth.currentUser,
           isAnonymous: false,
@@ -120,14 +133,33 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
       if (error.code === 'auth/credential-already-in-use') {
         // User already has a Google account, merge data
-        // TODO: Implement mergeAnonymousData when sync manager is ready
-        // await mergeAnonymousData(currentUser.uid, error.credential.user.uid);
+        const anonymousUid = currentUser.uid;
         
-        set({
-          error: 'Account already exists. Data will be merged.',
-          migrationStatus: 'failed',
-          isLoading: false,
-        });
+        // Call migrate to merge anonymous data with existing account
+        set({ migrationStatus: 'in_progress' });
+        const migrationResult = await migrate(anonymousUid);
+        
+        if (migrationResult.success) {
+          // Sync from Firestore after successful migration
+          try {
+            await syncFromFirestore(auth.currentUser?.uid || anonymousUid);
+          } catch (syncError) {
+            console.error('Failed to sync after credential merge:', syncError);
+            // Don't fail the upgrade if sync fails
+          }
+          
+          set({
+            error: 'Account already exists. Data has been merged.',
+            migrationStatus: 'complete',
+            isLoading: false,
+          });
+        } else {
+          set({
+            error: 'Account already exists. Data merge completed with errors.',
+            migrationStatus: 'failed',
+            isLoading: false,
+          });
+        }
       } else {
         set({
           error: error.message || 'Failed to upgrade account',

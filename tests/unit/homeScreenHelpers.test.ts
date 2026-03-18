@@ -320,12 +320,11 @@ describe('Home Screen Helpers', () => {
     it('returns correct Turkish names for all modes', () => {
       expect(getModeName(GameMode.ENDLESS)).toBe('Sonsuz');
       expect(getModeName(GameMode.TIMED)).toBe('Zamanlı');
-      expect(getModeName(GameMode.BLITZ)).toBe('Blitz');
       expect(getModeName(GameMode.ZEN)).toBe('Zen');
       expect(getModeName(GameMode.DAILY_CHALLENGE)).toBe('Günlük');
       expect(getModeName(GameMode.CAREER)).toBe('Kariyer');
-      expect(getModeName(GameMode.PUZZLE)).toBe('Bulmaca');
       expect(getModeName(GameMode.SURVIVAL)).toBe('Hayatta Kalma');
+      // BLITZ and PUZZLE modes removed
     });
   });
 });

@@ -35,7 +35,6 @@ export const generateShareText = (
     [GameMode.DAILY_CHALLENGE]: 'Günlük Bulmaca',
     [GameMode.ENDLESS]: 'Sonsuz Mod',
     [GameMode.TIMED]: 'Quantum Rush',
-    [GameMode.BLITZ]: 'Blitz',
     [GameMode.SURVIVAL]: 'Survival',
     [GameMode.ZEN]: 'Zen',
     [GameMode.CAREER]: 'Kariyer',

@@ -12,6 +12,7 @@ export enum AppState {
   PROFILE = 'PROFILE',
   TUTORIAL = 'TUTORIAL',
   PUZZLE_MAP = 'PUZZLE_MAP',
+  LEADERBOARD = 'LEADERBOARD',
 }
 
 // Game Modes
@@ -21,9 +22,7 @@ export enum GameMode {
   TIMED = 'TIMED',
   DAILY_CHALLENGE = 'DAILY_CHALLENGE',
   ZEN = 'ZEN',
-  BLITZ = 'BLITZ',
-  PUZZLE = 'PUZZLE',
-  SURVIVAL = 'SURVIVAL',
+  SURVIVAL = 'SURVIVAL', // Hidden from UI, kept for future
 }
 
 // Game Statistics

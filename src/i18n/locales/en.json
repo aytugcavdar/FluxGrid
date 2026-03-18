@@ -26,8 +26,6 @@
     "rushSub": "Be Fast, Earn Time",
     "zen": "ZEN",
     "zenSub": "No goals. No timer. Palette changes every 10 rows.",
-    "blitz": "BLITZ",
-    "blitzSub": "30 seconds. Each row adds 2 seconds.",
     "survival": "SURVIVAL",
     "survivalSub": "Clear before it fills. Rows are rising.",
     "career": "CAREER",
@@ -40,7 +38,6 @@
     "endless": "Endless",
     "rush": "Rush",
     "zen": "Zen",
-    "blitz": "Blitz",
     "survival": "Survival",
     "moves": "MOVES",
     "seconds": "S",
@@ -167,8 +164,6 @@
     "mirror": "Mirror piece appears with each placement!"
   },
   "modeSuggestions": {
-    "tryBlitz": "Try Blitz",
-    "blitzDesc": "30 seconds, instant thrill",
     "tryRush": "Try Rush",
     "rushDesc": "60 seconds, time per row",
     "trySurvival": "Try Survival",

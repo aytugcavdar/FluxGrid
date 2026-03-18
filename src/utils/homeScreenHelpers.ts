@@ -159,11 +159,9 @@ export function getModeName(mode: GameMode): string {
   const modeNames: Record<GameMode, string> = {
     [GameMode.ENDLESS]: 'Sonsuz',
     [GameMode.TIMED]: 'Zamanlı',
-    [GameMode.BLITZ]: 'Blitz',
     [GameMode.ZEN]: 'Zen',
     [GameMode.DAILY_CHALLENGE]: 'Günlük',
     [GameMode.CAREER]: 'Kariyer',
-    [GameMode.PUZZLE]: 'Bulmaca',
     [GameMode.SURVIVAL]: 'Hayatta Kalma',
   };
   

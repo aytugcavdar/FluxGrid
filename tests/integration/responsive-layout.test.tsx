@@ -25,6 +25,25 @@ vi.mock('@utils/audio', () => ({
   playClick: vi.fn(),
 }));
 
+// Mock Firebase Firestore
+vi.mock('firebase/firestore', () => ({
+  getFirestore: vi.fn(),
+  collection: vi.fn(),
+  query: vi.fn(),
+  where: vi.fn(),
+  onSnapshot: vi.fn((q, onNext, onError) => {
+    // Return empty snapshot by default
+    onNext({ size: 0 });
+    return vi.fn(); // unsubscribe function
+  }),
+}));
+
+// Mock Firebase config
+vi.mock('../services/firebase/config', () => ({
+  getFirebaseFirestore: vi.fn(() => ({})),
+  initializeFirebase: vi.fn(),
+}));
+
 // Mock streak manager
 vi.mock('@utils/streakManager', () => ({
   getStreak: vi.fn(() => 0),
@@ -124,36 +143,37 @@ describe('Responsive Layout Tests', () => {
       const { container } = render(<App />);
 
       // Verify home screen is rendered
-      expect(screen.getByText(/FLUX/i)).toBeInTheDocument();
+      const fluxElements = screen.getAllByText(/FLUX/i);
+      expect(fluxElements[0]).toBeInTheDocument();
       expect(screen.getByText(/GRID/i)).toBeInTheDocument();
       
-      // Verify primary action button is visible
-      const playButtons = screen.getAllByRole('button', { name: /OYNA/i });
-      expect(playButtons[0]).toBeInTheDocument();
+      // Verify primary action button is visible (shows mode name, not "OYNA")
+      const sonsuzElements = screen.getAllByText(/SONSUZ/i);
+      expect(sonsuzElements.length).toBeGreaterThan(0);
 
       // Verify layout container has proper max-width
       const layoutContainer = container.querySelector('.max-w-xs');
       expect(layoutContainer).toBeInTheDocument();
 
       // Verify bottom navigation is present
-      expect(screen.getByText(/Harita/i)).toBeInTheDocument();
-      expect(screen.getByText(/Modlar/i)).toBeInTheDocument();
+      expect(screen.getByText(/Görev Haritası/i)).toBeInTheDocument();
+      expect(screen.getByText(/Liderlik Tablosu/i)).toBeInTheDocument();
     });
 
     it('should render correctly on iPhone SE (375px)', () => {
       setViewportSize(375, 667);
-      setupUserState({ gamesPlayed: 5, highScore: 1500 });
+      setupUserState({ gamesPlayed: 6, highScore: 1500 }); // Changed to 6 games (> 5 threshold)
 
       render(<App />);
 
-      // Verify stats row is visible for returning users
+      // Verify stats row is visible for returning users (gamesPlayed > 5)
       expect(screen.getByText(/1.5k/i)).toBeInTheDocument(); // High score formatted
-      const gamesText = screen.getAllByText(/5/i).find(el => el.textContent === '5');
+      const gamesText = screen.getAllByText(/6/i).find(el => el.textContent === '6');
       expect(gamesText).toBeInTheDocument(); // Games played
 
-      // Verify primary action button shows returning user state
-      const continueButton = screen.getByRole('button', { name: /DEVAM ET|TEKRAR OYNA/i });
-      expect(continueButton).toBeInTheDocument();
+      // Verify primary action button shows mode name
+      const sonsuzElements = screen.getAllByText(/SONSUZ/i);
+      expect(sonsuzElements.length).toBeGreaterThan(0);
     });
 
     it('should render correctly on iPhone 12 Pro (390px)', () => {
@@ -164,7 +184,7 @@ describe('Responsive Layout Tests', () => {
 
       // Verify career chip is visible
       expect(screen.getByText(/kardan devam/i)).toBeInTheDocument();
-      expect(screen.getByText(/Seviye 6/i)).toBeInTheDocument();
+      expect(screen.getByText(/SEVİYE 6/i)).toBeInTheDocument();
 
       // Verify daily challenge card
       expect(screen.getByText(/Günlük Meydan Okuma/i)).toBeInTheDocument();
@@ -177,13 +197,15 @@ describe('Responsive Layout Tests', () => {
       render(<App />);
 
       // Verify all main sections are present
-      expect(screen.getByText(/FLUX/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /DEVAM ET|TEKRAR OYNA/i })).toBeInTheDocument();
+      const fluxElements = screen.getAllByText(/FLUX/i);
+      expect(fluxElements.length).toBeGreaterThan(0);
+      const sonsuzElements = screen.getAllByText(/SONSUZ/i);
+      expect(sonsuzElements.length).toBeGreaterThan(0);
       expect(screen.getByText(/Günlük Meydan Okuma/i)).toBeInTheDocument();
       
       // Verify bottom navigation
       const navButtons = screen.getAllByRole('button');
-      expect(navButtons.length).toBeGreaterThanOrEqual(4); // Primary + 3 nav buttons
+      expect(navButtons.length).toBeGreaterThanOrEqual(10); // Top bar + mode tabs + main CTA + daily + bottom nav
     });
   });
 
@@ -194,14 +216,13 @@ describe('Responsive Layout Tests', () => {
 
       render(<App />);
 
-      // Verify logo uses larger size on tablet
-      const logo = screen.getByText(/FLUX/i);
-      expect(logo).toBeInTheDocument();
-      expect(logo.className).toContain('md:text-5xl');
+      // Verify logo is rendered
+      const fluxElements = screen.getAllByText(/FLUX/i);
+      expect(fluxElements.length).toBeGreaterThan(0);
 
-      // Verify layout is centered
-      const playButtons = screen.getAllByText(/OYNA/i);
-      expect(playButtons[0]).toBeInTheDocument();
+      // Verify layout is centered with mode name
+      const sonsuzElements = screen.getAllByText(/SONSUZ/i);
+      expect(sonsuzElements.length).toBeGreaterThan(0);
     });
 
     it('should render correctly on iPad Pro (1024px)', () => {
@@ -211,27 +232,30 @@ describe('Responsive Layout Tests', () => {
       render(<App />);
 
       // Verify all elements are properly spaced
-      expect(screen.getByText(/FLUX/i)).toBeInTheDocument();
+      const fluxElements = screen.getAllByText(/FLUX/i);
+      expect(fluxElements.length).toBeGreaterThan(0);
       expect(screen.getByText(/10.0k/i)).toBeInTheDocument(); // High score
       expect(screen.getByText(/kardan devam/i)).toBeInTheDocument();
-      expect(screen.getByText(/Seviye 11/i)).toBeInTheDocument();
+      expect(screen.getByText(/SEVİYE 11/i)).toBeInTheDocument();
     });
   });
 
   describe('Desktop Viewport Tests', () => {
     it('should render correctly on laptop (1280px)', () => {
       setViewportSize(1280, 720);
-      setupUserState({ gamesPlayed: 5, highScore: 3000 });
+      setupUserState({ gamesPlayed: 6, highScore: 3000 }); // Changed to 6 games (> 5 threshold)
 
       render(<App />);
 
       // Verify content is centered with max-width
-      const container = screen.getByText(/FLUX/i).closest('.max-w-xs');
+      const fluxElements = screen.getAllByText(/FLUX/i);
+      const container = fluxElements[0].closest('.max-w-xs');
       expect(container).toBeInTheDocument();
 
-      // Verify all sections render
+      // Verify all sections render (stats row now visible with > 5 games)
       expect(screen.getByText(/3.0k/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /DEVAM ET|TEKRAR OYNA/i })).toBeInTheDocument();
+      const sonsuzElements = screen.getAllByText(/SONSUZ/i);
+      expect(sonsuzElements.length).toBeGreaterThan(0);
     });
 
     it('should render correctly on large desktop (1920px)', () => {
@@ -241,11 +265,12 @@ describe('Responsive Layout Tests', () => {
       render(<App />);
 
       // Verify layout maintains max-width constraint
-      expect(screen.getByText(/FLUX/i)).toBeInTheDocument();
+      const fluxElements = screen.getAllByText(/FLUX/i);
+      expect(fluxElements.length).toBeGreaterThan(0);
       expect(screen.getByText(/15.0k/i)).toBeInTheDocument();
       
       // Verify career chip
-      expect(screen.getByText(/Seviye 16/i)).toBeInTheDocument();
+      expect(screen.getByText(/SEVİYE 16/i)).toBeInTheDocument();
     });
   });
 
@@ -254,24 +279,23 @@ describe('Responsive Layout Tests', () => {
       setupUserState({ gamesPlayed: 5, highScore: 2000, maxLevelReached: 3 });
       const { container } = render(<App />);
 
-      // Check for margin/padding classes
+      // Check for margin/padding in inline styles
       const sections = container.querySelectorAll('[style*="margin"]');
       expect(sections.length).toBeGreaterThan(0);
 
-      // Verify logo has reduced margin
-      const logo = screen.getByText(/FLUX/i).closest('div');
-      expect(logo?.className).toContain('mb-3');
+      // Verify logo section has proper spacing
+      const fluxElements = screen.getAllByText(/FLUX/i);
+      expect(fluxElements.length).toBeGreaterThan(0);
     });
 
     it('should align primary action button to center', () => {
       setupUserState({ gamesPlayed: 0 });
       render(<App />);
 
-      const buttons = screen.getAllByRole('button', { name: /OYNA/i });
-      const button = buttons[0]; // Get the main play button
-      const buttonStyle = window.getComputedStyle(button);
+      const sonsuzElements = screen.getAllByText(/SONSUZ/i);
+      const button = sonsuzElements[0].closest('button');
       
-      // Button should have full width or centered alignment
+      // Button should exist and have proper styling
       expect(button).toBeInTheDocument();
     });
 
@@ -279,8 +303,8 @@ describe('Responsive Layout Tests', () => {
       setupUserState({ gamesPlayed: 0 });
       const { container } = render(<App />);
 
-      // Find bottom navigation container
-      const navContainer = container.querySelector('[style*="display: flex"]');
+      // Find bottom navigation container with grid layout
+      const navContainer = container.querySelector('[style*="display: grid"]');
       expect(navContainer).toBeInTheDocument();
     });
 
@@ -299,20 +323,20 @@ describe('Responsive Layout Tests', () => {
       setupUserState({ gamesPlayed: 0 });
       render(<App />);
 
-      const buttons = screen.getAllByRole('button', { name: /OYNA/i });
-      const button = buttons[0]; // Get the main play button
-      const buttonStyle = button.getAttribute('style');
+      const sonsuzElements = screen.getAllByText(/SONSUZ/i);
+      const button = sonsuzElements[0].closest('button');
+      const buttonStyle = button?.getAttribute('style');
       
-      // Should have purple theme colors for ENDLESS mode (with spaces in rgba)
-      expect(buttonStyle).toContain('rgba(167, 139, 250');
+      // Should have cyan/purple gradient for main CTA
+      expect(buttonStyle).toContain('linear-gradient');
     });
 
     it('should use consistent colors for stats cards', () => {
-      setupUserState({ gamesPlayed: 5, highScore: 2000 });
+      setupUserState({ gamesPlayed: 6, highScore: 2000 });
       const { container } = render(<App />);
 
-      // Stats cards should have consistent background (with spaces in rgba)
-      const statsCards = container.querySelectorAll('[style*="rgba(255, 255, 255, 0.04)"]');
+      // Stats cards should have consistent background (with spaces after commas)
+      const statsCards = container.querySelectorAll('[style*="rgba(255, 255, 255, 0.03)"]');
       expect(statsCards.length).toBeGreaterThan(0);
     });
 
@@ -323,7 +347,7 @@ describe('Responsive Layout Tests', () => {
       const dailyCard = screen.getByText(/Günlük Meydan Okuma/i).closest('button');
       const cardStyle = dailyCard?.getAttribute('style');
       
-      // Should have amber/orange theme for daily challenge (with spaces in rgba)
+      // Should have amber/orange theme for daily challenge (with spaces after commas)
       expect(cardStyle).toContain('rgba(245, 158, 11');
     });
 
@@ -334,7 +358,7 @@ describe('Responsive Layout Tests', () => {
       const careerChip = screen.getByText(/kardan devam/i).closest('button');
       const chipStyle = careerChip?.getAttribute('style');
       
-      // Should have blue theme for career (with spaces in rgba)
+      // Should have blue theme for career (with spaces after commas)
       expect(chipStyle).toContain('rgba(59, 130, 246');
     });
 
@@ -342,8 +366,8 @@ describe('Responsive Layout Tests', () => {
       setupUserState({ gamesPlayed: 0 });
       const { container } = render(<App />);
 
-      // Nav buttons should have consistent styling (with spaces in rgba)
-      const navButtons = container.querySelectorAll('[style*="rgba(255, 255, 255, 0.04)"]');
+      // Nav buttons should have consistent styling (with spaces after commas)
+      const navButtons = container.querySelectorAll('[style*="rgba(255, 255, 255, 0.03)"]');
       expect(navButtons.length).toBeGreaterThan(0);
     });
   });
@@ -353,32 +377,27 @@ describe('Responsive Layout Tests', () => {
       setupUserState({ gamesPlayed: 0 });
       render(<App />);
 
-      // Should show OYNA button
-      const buttons = screen.getAllByRole('button', { name: /OYNA/i });
-      expect(buttons[0]).toBeInTheDocument();
+      // Should show mode name (SONSUZ for ENDLESS mode)
+      const sonsuzElements = screen.getAllByText(/SONSUZ/i);
+      expect(sonsuzElements.length).toBeGreaterThan(0);
       
-      // Should show tutorial link
-      expect(screen.getByText(/nasıl oynanır/i)).toBeInTheDocument();
-      
-      // Should NOT show stats row
-      expect(screen.queryByText(/En İyi/i)).not.toBeInTheDocument();
+      // Should NOT show stats row (gamesPlayed <= 5)
+      expect(screen.queryByText(/En iyi skor/i)).not.toBeInTheDocument();
       
       // Should NOT show career chip
       expect(screen.queryByText(/kardan devam/i)).not.toBeInTheDocument();
     });
 
     it('should render correctly for returning user (5 games)', () => {
-      setupUserState({ gamesPlayed: 5, highScore: 2500, lastMode: GameMode.ENDLESS });
+      setupUserState({ gamesPlayed: 6, highScore: 2500, lastMode: GameMode.ENDLESS }); // Changed to 6 games (> 5 threshold)
       render(<App />);
 
-      // Should show DEVAM ET or TEKRAR OYNA
-      expect(screen.getByRole('button', { name: /DEVAM ET|TEKRAR OYNA/i })).toBeInTheDocument();
+      // Should show mode name
+      const sonsuzElements = screen.getAllByText(/SONSUZ/i);
+      expect(sonsuzElements.length).toBeGreaterThan(0);
       
-      // Should show stats row
+      // Should show stats row (gamesPlayed > 5)
       expect(screen.getByText(/2.5k/i)).toBeInTheDocument();
-      
-      // Should NOT show tutorial link
-      expect(screen.queryByText(/nasıl oynanır/i)).not.toBeInTheDocument();
     });
 
     it('should render correctly for user with career progress', () => {
@@ -387,7 +406,7 @@ describe('Responsive Layout Tests', () => {
 
       // Should show career chip
       expect(screen.getByText(/kardan devam/i)).toBeInTheDocument();
-      expect(screen.getByText(/Seviye 9/i)).toBeInTheDocument();
+      expect(screen.getByText(/SEVİYE 9/i)).toBeInTheDocument();
       
       // Should show stats
       expect(screen.getByText(/5.0k/i)).toBeInTheDocument();
@@ -401,28 +420,27 @@ describe('Responsive Layout Tests', () => {
       expect(screen.getByText(/20.0k/i)).toBeInTheDocument();
       const gamesText = screen.getAllByText(/25/i).find(el => el.textContent === '25');
       expect(gamesText).toBeInTheDocument();
-      expect(screen.getByText(/Seviye 16/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /DEVAM ET|TEKRAR OYNA/i })).toBeInTheDocument();
+      expect(screen.getByText(/SEVİYE 16/i)).toBeInTheDocument();
+      const sonsuzElements = screen.getAllByText(/SONSUZ/i);
+      expect(sonsuzElements.length).toBeGreaterThan(0);
     });
 
-    it('should hide stats for users with 2 or fewer games', () => {
+    it('should hide stats for users with 5 or fewer games', () => {
       setupUserState({ gamesPlayed: 2, highScore: 500 });
-      const { container } = render(<App />);
+      render(<App />);
 
-      // Stats row should not be visible (but high score shows in button)
-      // The stats cards should not be rendered for users with 2 or fewer games
-      const statsCards = container.querySelectorAll('[style*="En İyi Skor"]');
-      // Only the button should show high score, not the stats row
-      expect(screen.queryByText(/Oyun/i)).not.toBeInTheDocument();
+      // Stats row should not be visible for users with 5 or fewer games
+      expect(screen.queryByText(/En iyi skor/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Oyun sayısı/i)).not.toBeInTheDocument();
     });
 
-    it('should show stats for users with more than 2 games', () => {
-      setupUserState({ gamesPlayed: 3, highScore: 1000 });
+    it('should show stats for users with more than 5 games', () => {
+      setupUserState({ gamesPlayed: 6, highScore: 1000 });
       render(<App />);
 
       // Stats row should be visible
       expect(screen.getByText(/1.0k/i)).toBeInTheDocument();
-      const gamesText = screen.getAllByText(/3/i).find(el => el.textContent === '3');
+      const gamesText = screen.getAllByText(/6/i).find(el => el.textContent === '6');
       expect(gamesText).toBeInTheDocument();
     });
   });
@@ -432,30 +450,21 @@ describe('Responsive Layout Tests', () => {
       setupUserState({ gamesPlayed: 0 });
       render(<App />);
 
-      const logo = screen.getByText(/FLUX/i);
-      expect(logo.className).toContain('text-4xl');
-      expect(logo.className).toContain('md:text-5xl');
-      expect(logo.className).toContain('font-black');
-      expect(logo.className).toContain('italic');
+      const fluxElements = screen.getAllByText(/FLUX/i);
+      // Logo uses inline styles with Orbitron font
+      expect(fluxElements.length).toBeGreaterThan(0);
+      expect(fluxElements[0].parentElement?.getAttribute('style')).toContain('font-family');
     });
 
-    it('should render tagline with proper styling', () => {
-      setupUserState({ gamesPlayed: 0 });
-      render(<App />);
-
-      const tagline = screen.getByText(/Zen Puzzle/i);
-      expect(tagline).toBeInTheDocument();
-      expect(tagline.className).toContain('text-[8px]');
-      expect(tagline.className).toContain('uppercase');
-    });
+    // Tagline removed in task 11 - test removed
 
     it('should render primary button with proper border radius', () => {
       setupUserState({ gamesPlayed: 0 });
       render(<App />);
 
-      const buttons = screen.getAllByRole('button', { name: /OYNA/i });
-      const button = buttons[0]; // Get the main play button
-      const buttonStyle = button.getAttribute('style');
+      const sonsuzElements = screen.getAllByText(/SONSUZ/i);
+      const button = sonsuzElements[0].closest('button');
+      const buttonStyle = button?.getAttribute('style');
       
       expect(buttonStyle).toContain('border-radius: 16px');
     });
@@ -467,8 +476,8 @@ describe('Responsive Layout Tests', () => {
       const dailyCard = screen.getByText(/Günlük Meydan Okuma/i).closest('button');
       const cardStyle = dailyCard?.getAttribute('style');
       
-      // Should have reduced padding (8px 12px)
-      expect(cardStyle).toContain('padding: 8px 12px');
+      // Should have compact padding (10px 12px)
+      expect(cardStyle).toContain('padding: 10px 12px');
     });
 
     it('should render career chip with small size', () => {
@@ -484,11 +493,13 @@ describe('Responsive Layout Tests', () => {
 
     it('should render bottom navigation icons with proper size', () => {
       setupUserState({ gamesPlayed: 0 });
-      const { container } = render(<App />);
+      render(<App />);
 
-      // Find SVG icons in bottom navigation
-      const icons = container.querySelectorAll('svg[width="20"][height="20"]');
-      expect(icons.length).toBeGreaterThanOrEqual(3);
+      // Bottom navigation uses emoji icons, not SVG
+      const mapElements = screen.getAllByText(/🗺️/);
+      expect(mapElements.length).toBeGreaterThan(0);
+      const trophyElements = screen.getAllByText(/🏆/);
+      expect(trophyElements.length).toBeGreaterThan(0);
     });
   });
 
@@ -525,12 +536,12 @@ describe('Responsive Layout Tests', () => {
         const { container } = render(<App />);
 
         // Logo should be readable
-        const logo = screen.getByText(/FLUX/i);
-        expect(logo).toBeInTheDocument();
+        const fluxElements = screen.getAllByText(/FLUX/i);
+        expect(fluxElements.length).toBeGreaterThan(0);
         
-        // Button text should be readable
-        const buttons = screen.getAllByRole('button', { name: /OYNA/i });
-        expect(buttons[0]).toBeInTheDocument();
+        // Button text should be readable (mode name)
+        const sonsuzElements = screen.getAllByText(/SONSUZ/i);
+        expect(sonsuzElements.length).toBeGreaterThan(0);
         
         container.remove();
       });

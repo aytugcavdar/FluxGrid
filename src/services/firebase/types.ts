@@ -33,6 +33,7 @@ export interface UserData {
   // Preferences
   preferences: {
     theme: string;
+    language?: string;
     notifications: boolean;
   };
 

@@ -13,6 +13,8 @@ import { CareerPage } from '../features/career/components/CareerPage';
 import { Tutorial, shouldShowTutorial } from '@shared/components';
 import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
 import { ProfileView } from '../features/profile/components/ProfileView';
+import { LeaderboardView } from '../features/leaderboard/components/LeaderboardView';
+import { HomeScreen } from './HomeScreen';
 import { motion, AnimatePresence } from 'framer-motion';
 import { unlockAudio, playGameOver, playClick } from '@utils/audio';
 import { generateShareText, shareResult } from '@utils/shareResult';
@@ -41,13 +43,11 @@ interface TimePopup {
 const getModeIcon = (mode: GameMode): string => {
   const icons: Record<GameMode, string> = {
     [GameMode.ENDLESS]: '∞',
-    [GameMode.BLITZ]: '🔥',
     [GameMode.TIMED]: '⚡',
     [GameMode.SURVIVAL]: '🛡️',
     [GameMode.ZEN]: '☁️',
     [GameMode.CAREER]: '🎯',
     [GameMode.DAILY_CHALLENGE]: '📅',
-    [GameMode.PUZZLE]: '🧩',
   };
   return icons[mode] || '🎮';
 };
@@ -66,6 +66,8 @@ const App: React.FC = () => {
   const [showTutorial, setShowTutorial] = useState(shouldShowTutorial);
   const [showAbilities, setShowAbilities] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardMode, setLeaderboardMode] = useState<GameMode>(GameMode.ENDLESS);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [showBossIntro, setShowBossIntro] = useState(false);
   const [prevGameOver, setPrevGameOver] = useState(false);
@@ -85,6 +87,12 @@ const App: React.FC = () => {
   const [surgeWasUsed, setSurgeWasUsed] = useState(false);
   const [streak, setStreak] = useState(getStreak);
   const [dailyPlayedToday, setDailyPlayedToday] = useState(getDailyPlayedToday);
+  
+  // PWA Install Prompt
+  const deferredPromptRef = useRef<any>(null);
+  const [showPWAPrompt, setShowPWAPrompt] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [showIOSInstructions, setShowIOSInstructions] = useState(false);
   
   // Score display animation state
   const displayScore = useCountUp(score, 600, isGameOver);
@@ -117,6 +125,60 @@ const App: React.FC = () => {
       delete (window as any).splashComplete;
     }
   }, []);
+
+  // PWA Install Prompt - Capture beforeinstallprompt event
+  useEffect(() => {
+    // Check if already installed
+    const pwaInstalled = localStorage.getItem('pwa_installed') === 'true';
+    if (pwaInstalled) return;
+
+    // Detect iOS
+    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    setIsIOS(isIOSDevice);
+
+    // For iOS, check if already in standalone mode
+    if (isIOSDevice) {
+      const isStandalone = (navigator as any).standalone || window.matchMedia('(display-mode: standalone)').matches;
+      if (isStandalone) {
+        localStorage.setItem('pwa_installed', 'true');
+        return;
+      }
+    }
+
+    // For non-iOS, capture beforeinstallprompt event
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      deferredPromptRef.current = e;
+      console.log('PWA install prompt captured');
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  // Show PWA prompt on game over with good score
+  useEffect(() => {
+    if (isGameOver && score > 1000) {
+      const pwaInstalled = localStorage.getItem('pwa_installed') === 'true';
+      const iosInstructionsShown = localStorage.getItem('ios_pwa_instructions_shown') === 'true';
+      
+      if (!pwaInstalled) {
+        if (isIOS && !iosInstructionsShown) {
+          // Show iOS instructions once
+          setTimeout(() => setShowIOSInstructions(true), 1500);
+        } else if (deferredPromptRef.current) {
+          // Show PWA install button for non-iOS
+          setTimeout(() => setShowPWAPrompt(true), 1500);
+        }
+      }
+    } else {
+      setShowPWAPrompt(false);
+      setShowIOSInstructions(false);
+    }
+  }, [isGameOver, score, isIOS]);
 
   useEffect(() => {
     // We don't call initGame() here anymore to allow starting on the HOME screen.
@@ -167,8 +229,8 @@ const App: React.FC = () => {
         'daily': GameMode.DAILY_CHALLENGE,
         'timed': GameMode.TIMED,
         'zen': GameMode.ZEN,
-        'blitz': GameMode.BLITZ,
-        'survival': GameMode.SURVIVAL,
+        // 'blitz': removed - integrated into TIMED mode
+        // 'survival': hidden from UI but kept for future
       };
       
       const gameMode = modeMap[mode.toLowerCase()];
@@ -221,7 +283,7 @@ const App: React.FC = () => {
 
   // Global Timer Loop
   useEffect(() => {
-    if ((gameMode !== GameMode.TIMED && gameMode !== GameMode.ZEN && gameMode !== GameMode.BLITZ && gameMode !== GameMode.SURVIVAL) || appState !== AppState.GAME || isGameOver) return;
+    if ((gameMode !== GameMode.TIMED && gameMode !== GameMode.ZEN && gameMode !== GameMode.SURVIVAL) || appState !== AppState.GAME || isGameOver) return;
     const interval = setInterval(() => {
       tickTimer();
     }, 1000);
@@ -283,19 +345,8 @@ const App: React.FC = () => {
     prevSurgeRef.current = isSurgeActive;
   }, [isSurgeActive]);
 
-  // BLITZ mode time popups
-  useEffect(() => {
-    if (gameMode !== GameMode.BLITZ) return;
-    
-    const diff = timeLeft - prevTimeRef.current;
-    if (diff !== 0 && prevTimeRef.current !== 0) {
-      const id = timePopupIdRef.current++;
-      const isNegative = diff < 0;
-      setTimePopups(prev => [...prev.slice(-2), { id, value: Math.abs(diff), isNegative }]);
-      setTimeout(() => setTimePopups(prev => prev.filter(p => p.id !== id)), 900);
-    }
-    prevTimeRef.current = timeLeft;
-  }, [timeLeft, gameMode]);
+  // Time popups for TIMED mode (removed BLITZ)
+  // Note: BLITZ mechanics can be integrated into TIMED mode with a speed parameter in the future
 
   // Achievement notification timeout
   const { clearAchievementNotification } = useGameStore();
@@ -384,463 +435,11 @@ const App: React.FC = () => {
     <div className="game-container" onPointerDown={unlockAudio} style={{ background: colors.background }}>
       <AnimatePresence mode="wait">
         {appState === AppState.HOME && (
-          <ErrorBoundary
-            fallback={
-              <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6" style={{ backgroundColor: colors.cardBackground }}>
-                <div className="w-full max-w-xs">
-                  {/* Fallback UI without animations */}
-                  <div className="text-center mb-3">
-                    <h1 className="text-4xl md:text-5xl font-black italic tracking-tighter text-white mb-1 leading-none uppercase">
-                      FLUX<span className="text-blue-500">GRID</span>
-                    </h1>
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="h-[1px] w-6 bg-blue-500/40" />
-                      <span className="text-[8px] uppercase tracking-[0.3em] text-white/40 font-bold">Zen Puzzle</span>
-                      <div className="h-[1px] w-6 bg-blue-500/40" />
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => { playClick(); initGame(GameMode.ENDLESS); }}
-                    style={{
-                      width: '100%',
-                      padding: '20px 24px',
-                      borderRadius: 16,
-                      background: 'rgba(167,139,250,0.15)',
-                      border: '1px solid rgba(167,139,250,0.3)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 8,
-                      cursor: 'pointer',
-                      color: '#a78bfa',
-                      fontSize: 20,
-                      fontWeight: 800
-                    }}
-                  >
-                    {t('home.play')}
-                  </button>
-                  <p className="text-white/40 text-xs text-center mt-4">
-                    {t('game.errorOccurred')} - Animasyonlar devre dışı
-                  </p>
-                </div>
-              </div>
-            }
-          >
-          <motion.div
-            key="home"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 overflow-y-auto"
-            style={{ backgroundColor: colors.cardBackground }}
-          >
-            <div className="w-full max-w-xs">
-              {/* Logo Section */}
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, ease: "easeOut" }}
-                className="text-center mb-3 relative"
-              >
-                {/* Profile Button - Top Right */}
-                <button
-                  onClick={() => { playClick(); setShowProfile(true); }}
-                  className="absolute top-0 right-0 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
-                >
-                  <User size={20} className="text-white/60" />
-                </button>
-                
-                <h1 className="text-4xl md:text-5xl font-black italic tracking-tighter text-white mb-1 leading-none uppercase">
-                  FLUX<span className="text-blue-500">GRID</span>
-                </h1>
-                <div className="flex items-center justify-center gap-2">
-                  <div className="h-[1px] w-6 bg-blue-500/40" />
-                  <span className="text-[8px] uppercase tracking-[0.3em] text-white/40 font-bold">Zen Puzzle</span>
-                  <div className="h-[1px] w-6 bg-blue-500/40" />
-                </div>
-              </motion.div>
-
-              {/* Stats Row */}
-              {stats && typeof stats.gamesPlayed === 'number' && stats.gamesPlayed > 2 && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
-                  style={{ display: 'flex', gap: 6, margin: '8px 0 16px' }}
-                >
-                  <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '8px 0', textAlign: 'center' }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: '#60a5fa' }}>
-                      {highScore > 0 ? (highScore >= 1000 ? `${(highScore / 1000).toFixed(1)}k` : highScore) : '--'}
-                    </div>
-                    <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t('home.bestScore')}</div>
-                  </div>
-                  <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '8px 0', textAlign: 'center' }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: '#a78bfa' }}>
-                      {stats.gamesPlayed}
-                    </div>
-                    <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t('home.games')}</div>
-                  </div>
-                  <div style={{ flex: 1, background: streak > 0 ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.04)', border: `0.5px solid ${streak > 0 ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, padding: '8px 0', textAlign: 'center' }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: streak > 0 ? '#f59e0b' : 'rgba(255,255,255,0.3)' }}>
-                      {streak > 0 ? streak : '--'}
-                    </div>
-                    <div style={{ fontSize: 8, color: streak > 0 ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t('home.streak')}</div>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Primary Action Button */}
-              {(() => {
-                const primaryAction = (() => {
-                  // Build highScores object from localStorage with error handling
-                  const highScores: { [key: string]: number } = {};
-                  Object.values(GameMode).forEach(mode => {
-                    try {
-                      const stored = localStorage.getItem(`flux_highscore_${mode}`);
-                      if (stored) {
-                        const parsed = parseInt(stored, 10);
-                        if (!isNaN(parsed) && parsed >= 0) {
-                          highScores[mode] = parsed;
-                        } else {
-                          console.warn(`[Error Handling] Invalid high score for mode ${mode}: ${stored}`);
-                        }
-                      }
-                    } catch (e) {
-                      console.error(`[Error Handling] Failed to read high score for mode ${mode}:`, e);
-                    }
-                  });
-
-                  // Fallback for missing user data - default to new user state
-                  const isNewUser = !stats || typeof stats.gamesPlayed !== 'number' || stats.gamesPlayed === 0;
-                  
-                  if (!stats || typeof stats.gamesPlayed !== 'number') {
-                    console.warn('[Error Handling] Missing or corrupted user stats, defaulting to new user state');
-                  }
-                  
-                  if (isNewUser) {
-                    return {
-                      label: t('home.play'),
-                      mode: GameMode.ENDLESS,
-                      showTutorialLink: true,
-                    };
-                  }
-
-                  // Get last played mode from localStorage with error handling
-                  const modeStatsStr = localStorage.getItem('flux_mode_stats');
-                  let lastMode: GameMode | null = null;
-                  let highestMode: GameMode | null = null;
-                  
-                  if (modeStatsStr) {
-                    try {
-                      const modeStats = JSON.parse(modeStatsStr);
-                      const modes = Object.values(modeStats) as any[];
-                      
-                      if (modes.length > 0) {
-                        // Validate mode data
-                        const validModes = modes.filter(m => 
-                          m && 
-                          typeof m.mode === 'string' && 
-                          Object.values(GameMode).includes(m.mode) &&
-                          typeof m.lastPlayed === 'number' &&
-                          typeof m.highScore === 'number'
-                        );
-
-                        if (validModes.length !== modes.length) {
-                          console.warn('[Error Handling] Some mode stats entries were invalid and filtered out');
-                        }
-
-                        if (validModes.length > 0) {
-                          // Get last played
-                          const sortedByTime = [...validModes].sort((a, b) => b.lastPlayed - a.lastPlayed);
-                          lastMode = sortedByTime[0].mode;
-                          
-                          // Get highest scoring
-                          const sortedByScore = [...validModes].sort((a, b) => b.highScore - a.highScore);
-                          highestMode = sortedByScore[0].mode;
-                        }
-                      }
-                    } catch (e) {
-                      console.error('[Error Handling] Failed to parse mode stats, corrupted data detected:', e);
-                      // Clear corrupted data
-                      try {
-                        localStorage.removeItem('flux_mode_stats');
-                        console.info('[Error Handling] Cleared corrupted mode stats from localStorage');
-                      } catch (clearError) {
-                        console.error('[Error Handling] Failed to clear corrupted mode stats:', clearError);
-                      }
-                    }
-                  }
-
-                  // Fallback for invalid mode data - default to ENDLESS
-                  const selectedMode = lastMode || highestMode || GameMode.ENDLESS;
-                  
-                  // Validate selected mode
-                  if (!Object.values(GameMode).includes(selectedMode)) {
-                    console.warn(`[Error Handling] Invalid mode detected: ${selectedMode}, falling back to ENDLESS`);
-                    return {
-                      label: 'DEVAM ET',
-                      mode: GameMode.ENDLESS,
-                      score: highScores[GameMode.ENDLESS] || 0,
-                      showTutorialLink: false,
-                    };
-                  }
-
-                  const modeScore = highScores[selectedMode] || 0;
-
-                  return {
-                    label: modeScore > 0 ? 'TEKRAR OYNA' : 'DEVAM ET',
-                    mode: selectedMode,
-                    score: modeScore,
-                    showTutorialLink: false,
-                  };
-                })();
-
-                // Get mode display info
-                const getModeInfo = (mode: GameMode) => {
-                  const modeInfo: Record<GameMode, { icon: string; color: string; bg: string; border: string }> = {
-                    [GameMode.ENDLESS]: { icon: '∞', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)', border: 'rgba(167,139,250,0.3)' },
-                    [GameMode.TIMED]: { icon: '⚡', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)' },
-                    [GameMode.BLITZ]: { icon: '🔥', color: '#ef4444', bg: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.3)' },
-                    [GameMode.ZEN]: { icon: '☁', color: '#6b7280', bg: 'rgba(107,114,128,0.15)', border: 'rgba(107,114,128,0.3)' },
-                    [GameMode.DAILY_CHALLENGE]: { icon: '📅', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)' },
-                    [GameMode.CAREER]: { icon: '🗺️', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.3)' },
-                    [GameMode.SURVIVAL]: { icon: '💀', color: '#6b7280', bg: 'rgba(107,114,128,0.15)', border: 'rgba(107,114,128,0.3)' },
-                    [GameMode.PUZZLE]: { icon: '🧩', color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)', border: 'rgba(139,92,246,0.3)' },
-                  };
-                  return modeInfo[mode] || modeInfo[GameMode.ENDLESS];
-                };
-
-                const modeInfo = getModeInfo(primaryAction.mode);
-
-                return (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
-                    style={{ marginBottom: 16 }}
-                  >
-                    <motion.button
-                      onClick={() => { playClick(); initGame(primaryAction.mode); }}
-                      whileTap={{ scale: 0.97 }}
-                      style={{
-                        width: '100%',
-                        padding: '20px 24px',
-                        borderRadius: 16,
-                        background: modeInfo.bg,
-                        border: `1px solid ${modeInfo.border}`,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 8,
-                        cursor: 'pointer',
-                        position: 'relative',
-                        overflow: 'hidden'
-                      }}
-                    >
-                      <div style={{ fontSize: 32, lineHeight: 1 }}>{modeInfo.icon}</div>
-                      <div style={{ 
-                        fontSize: 20, 
-                        fontWeight: 800, 
-                        color: modeInfo.color, 
-                        letterSpacing: '.05em',
-                        textAlign: 'center'
-                      }}>
-                        {primaryAction.label}
-                      </div>
-                      {primaryAction.score !== undefined && primaryAction.score > 0 && (
-                        <div style={{ 
-                          fontSize: 14, 
-                          fontWeight: 600, 
-                          color: 'rgba(255,255,255,0.4)',
-                          textAlign: 'center'
-                        }}>
-                          {t('home.bestScore')}: {primaryAction.score.toLocaleString()}
-                        </div>
-                      )}
-                    </motion.button>
-                    
-                    {/* Tutorial link for new users */}
-                    {primaryAction.showTutorialLink && (
-                      <motion.button
-                        onClick={() => { playClick(); setShowTutorial(true); }}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.3, delay: 0.4 }}
-                        style={{
-                          width: '100%',
-                          marginTop: 8,
-                          padding: '8px 0',
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'rgba(255,255,255,0.4)',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          textAlign: 'center'
-                        }}
-                      >
-                        {t('home.howToPlay')}
-                      </motion.button>
-                    )}
-                    
-                    {/* Career Continuation Chip */}
-                    {maxLevelReached && typeof maxLevelReached === 'number' && maxLevelReached > 0 && (
-                      <motion.button
-                        onClick={() => { 
-                          playClick(); 
-                          const nextLevel = Math.max(1, maxLevelReached + 1);
-                          startLevel(nextLevel); 
-                        }}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        whileTap={{ scale: 0.97 }}
-                        transition={{ duration: 0.3, delay: 0.4, ease: "easeOut" }}
-                        style={{
-                          width: '100%',
-                          marginTop: 8,
-                          padding: '6px 12px',
-                          background: 'rgba(59,130,246,0.08)',
-                          border: '0.5px solid rgba(59,130,246,0.2)',
-                          borderRadius: 8,
-                          color: '#93c5fd',
-                          fontSize: 11,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          textAlign: 'center',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 6
-                        }}
-                      >
-                        <span>kardan devam</span>
-                        <span style={{ opacity: 0.6 }}>→</span>
-                        <span>Seviye {maxLevelReached + 1}</span>
-                      </motion.button>
-                    )}
-                  </motion.div>
-                );
-              })()}
-
-              {/* Daily Challenge Card */}
-              <motion.button
-                onClick={() => { playClick(); initGame(GameMode.DAILY_CHALLENGE); }}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
-                whileTap={{ scale: 0.97 }}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: 12,
-                  marginBottom: 12,
-                  background: dailyPlayedToday ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.1)',
-                  border: `0.5px solid ${dailyPlayedToday ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.25)'}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: dailyPlayedToday ? '#10b981' : '#f59e0b', flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: dailyPlayedToday ? '#34d399' : '#fbbf24' }}>
-                    {t('home.dailyChallenge', { day: getDayNumber() })}
-                  </div>
-                  <div style={{ fontSize: 8, color: dailyPlayedToday ? 'rgba(52,211,153,0.5)' : 'rgba(251,191,36,0.4)', marginTop: 1 }}>
-                    {dailyPlayedToday ? t('home.dailyPlayed') : t('home.dailyNotPlayed')}
-                  </div>
-                </div>
-                {!dailyPlayedToday && (
-                  <div style={{ fontSize: 9, color: 'rgba(245,158,11,0.6)' }}>→</div>
-                )}
-              </motion.button>
-
-
-
-              {/* Bottom Navigation */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.5, ease: "easeOut" }}
-                style={{ display: 'flex', gap: 6 }}
-              >
-                <button
-                  onClick={() => { playClick(); setAppState(AppState.LEVEL_MAP); }}
-                  style={{
-                    flex: 1,
-                    padding: '8px 0',
-                    borderRadius: 10,
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '0.5px solid rgba(255,255,255,0.06)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 4
-                  }}
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                    <circle cx="12" cy="10" r="3"/>
-                  </svg>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '.05em' }}>
-                    {t('home.map')}
-                  </span>
-                </button>
-                <button
-                  onClick={() => { playClick(); setAppState(AppState.MODES); }}
-                  style={{
-                    flex: 1,
-                    padding: '8px 0',
-                    borderRadius: 10,
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '0.5px solid rgba(255,255,255,0.06)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 4
-                  }}
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="7" height="7"/>
-                    <rect x="14" y="3" width="7" height="7"/>
-                    <rect x="14" y="14" width="7" height="7"/>
-                    <rect x="3" y="14" width="7" height="7"/>
-                  </svg>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '.05em' }}>
-                    {t('home.allModes')}
-                  </span>
-                </button>
-                <button
-                  onClick={() => { playClick(); setShowThemeSelector(true); }}
-                  style={{
-                    flex: 1,
-                    padding: '8px 0',
-                    borderRadius: 10,
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '0.5px solid rgba(255,255,255,0.06)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 4
-                  }}
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M12 1v6m0 6v6m5.2-13.2l-4.2 4.2m0 6l4.2 4.2M23 12h-6m-6 0H1m18.2 5.2l-4.2-4.2m0-6l4.2-4.2"/>
-                  </svg>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '.05em' }}>
-                    {t('home.settings')}
-                  </span>
-                </button>
-              </motion.div>
-            </div>
-          </motion.div>
-          </ErrorBoundary>
+          <HomeScreen
+            onOpenProfile={() => setShowProfile(true)}
+            onOpenThemeSelector={() => setShowThemeSelector(true)}
+            onOpenLeaderboard={(mode) => { setLeaderboardMode(mode); setShowLeaderboard(true); }}
+          />
         )}
 
         {appState === AppState.MODES && (
@@ -891,6 +490,20 @@ const App: React.FC = () => {
               </button>
 
               <button
+                onClick={() => { playClick(); initGame(GameMode.DAILY_CHALLENGE); }}
+                className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-amber-600/10 hover:border-amber-500/30 transition-all text-left overflow-hidden"
+              >
+                <div className="relative z-10">
+                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">{t('modes.dailyChallenge')}</span>
+                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">{t('modes.dailyChallengeSub')}</span>
+                </div>
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">📅</div>
+              </button>
+
+              {/* BLITZ mode removed - mechanics can be integrated into TIMED mode with speed parameter */}
+              
+              {/* ZEN mode hidden - can be re-enabled in future */}
+              {/* <button
                 onClick={() => { playClick(); initGame(GameMode.ZEN); }}
                 className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-purple-600/10 hover:border-purple-500/30 transition-all text-left overflow-hidden"
               >
@@ -899,20 +512,10 @@ const App: React.FC = () => {
                   <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">{t('modes.zenSub')}</span>
                 </div>
                 <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">☁️</div>
-              </button>
-
-              <button
-                onClick={() => { playClick(); initGame(GameMode.BLITZ); }}
-                className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-red-600/10 hover:border-red-500/30 transition-all text-left overflow-hidden"
-              >
-                <div className="relative z-10">
-                  <span className="block text-xl font-black text-white italic tracking-tight mb-1">{t('modes.blitz')}</span>
-                  <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">{t('modes.blitzSub')}</span>
-                </div>
-                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">⚡</div>
-              </button>
-
-              <button
+              </button> */}
+              
+              {/* SURVIVAL mode hidden for future use - uncomment to re-enable */}
+              {/* <button
                 onClick={() => { playClick(); initGame(GameMode.SURVIVAL); }}
                 className="group relative w-full p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-gray-600/10 hover:border-gray-500/30 transition-all text-left overflow-hidden"
               >
@@ -921,7 +524,7 @@ const App: React.FC = () => {
                   <span className="block text-[10px] text-white/40 font-bold uppercase tracking-widest">{t('modes.survivalSub')}</span>
                 </div>
                 <div className="absolute right-6 top-1/2 -translate-y-1/2 text-3xl opacity-20 group-hover:opacity-100 transition-opacity">💀</div>
-              </button>
+              </button> */}
 
               <button
                 onClick={() => { playClick(); setAppState(AppState.HOME); }}
@@ -1090,29 +693,6 @@ const App: React.FC = () => {
             <ComboFlash combo={combo} />
             <SurgeFlash active={showSurgeFlash} />
             {gameMode !== GameMode.ZEN && <ComboBar />}
-            
-            {/* BLITZ Time Popups */}
-            <div style={{ position: 'fixed', top: 80, right: 16, display: 'flex', flexDirection: 'column', gap: 4, pointerEvents: 'none', zIndex: 50 }}>
-              <AnimatePresence>
-                {timePopups.map(p => (
-                  <motion.div
-                    key={p.id}
-                    initial={{ opacity: 0, x: 20, scale: 0.8 }}
-                    animate={{ opacity: 1, x: 0, scale: 1 }}
-                    exit={{ opacity: 0, x: 20, scale: 0.6 }}
-                    transition={{ duration: 0.4 }}
-                    style={{
-                      fontSize: 16,
-                      fontWeight: 700,
-                      color: p.isNegative ? '#ef4444' : '#f59e0b',
-                      textAlign: 'right'
-                    }}
-                  >
-                    {p.isNegative ? '-' : '+'}{p.value}s
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
 
             <div className="fixed top-20 left-0 right-0 flex flex-col items-center gap-2 pointer-events-none z-50">
               <AnimatePresence mode="popLayout">
@@ -1167,7 +747,31 @@ const App: React.FC = () => {
       <AnimatePresence>
         {showTutorial && <Tutorial onComplete={() => setShowTutorial(false)} />}
         {showAbilities && <AbilityPanel onClose={() => setShowAbilities(false)} />}
-        {showProfile && <ProfileView onClose={() => setShowProfile(false)} />}
+        {showProfile && <ProfileView onClose={() => setShowProfile(false)} onOpenLeaderboard={(mode) => { setShowProfile(false); setLeaderboardMode(mode); setShowLeaderboard(true); }} />}
+        {showLeaderboard && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] bg-gray-900 overflow-y-auto"
+          >
+            <div className="sticky top-0 bg-gray-900/80 backdrop-blur-md z-10 px-6 py-8 flex items-center justify-between border-b border-white/5">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => { playClick(); setShowLeaderboard(false); }}
+                  className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/60 hover:text-white"
+                >
+                  <X size={20} />
+                </button>
+                <div>
+                  <h1 className="text-xl font-black text-white tracking-tight italic uppercase">LİDERLİK TABLOSU</h1>
+                  <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">{leaderboardMode}</p>
+                </div>
+              </div>
+            </div>
+            <LeaderboardView mode={leaderboardMode} />
+          </motion.div>
+        )}
       </AnimatePresence>
 
       <AnimatePresence>
@@ -1254,15 +858,14 @@ const App: React.FC = () => {
               className="bg-gray-800 border border-white/8 p-6 md:p-8 rounded-2xl shadow-2xl max-w-xs w-full text-center relative overflow-hidden"
             >
               {(() => {
-                // Mode suggestions
+                // Mode suggestions (BLITZ removed, SURVIVAL hidden)
                 const MODE_SUGGESTIONS: Record<string, { mode: GameMode; label: string; desc: string }> = {
-                  [GameMode.ENDLESS]: { mode: GameMode.BLITZ, label: 'Blitz\'i dene', desc: '30 saniye, anlık heyecan' },
-                  [GameMode.BLITZ]: { mode: GameMode.TIMED, label: 'Rush\'ı dene', desc: '60 saniye, satır başı süre' },
-                  [GameMode.TIMED]: { mode: GameMode.SURVIVAL, label: 'Survival\'ı dene', desc: 'Satırlar yükseliyor' },
-                  [GameMode.SURVIVAL]: { mode: GameMode.ZEN, label: 'Zen\'i dene', desc: 'Stressiz, sakin oyun' },
+                  [GameMode.ENDLESS]: { mode: GameMode.TIMED, label: 'Rush\'ı dene', desc: '60 saniye, satır başı süre' },
+                  [GameMode.TIMED]: { mode: GameMode.ZEN, label: 'Zen\'i dene', desc: 'Stressiz, sakin oyun' },
                   [GameMode.ZEN]: { mode: GameMode.ENDLESS, label: 'Sonsuz\'u dene', desc: 'Skor kovalama modu' },
                   [GameMode.CAREER]: { mode: GameMode.ENDLESS, label: 'Sonsuz\'u dene', desc: 'Kariyer arası dinlenme' },
                   [GameMode.DAILY_CHALLENGE]: { mode: GameMode.ENDLESS, label: 'Sonsuz\'u dene', desc: 'Bugünlük bitmedi' },
+                  [GameMode.SURVIVAL]: { mode: GameMode.ENDLESS, label: 'Sonsuz\'u dene', desc: 'Klasik mod' },
                 };
                 const suggestion = MODE_SUGGESTIONS[gameMode];
 
@@ -1389,6 +992,68 @@ const App: React.FC = () => {
                         <div className="text-xs text-gray-500">→</div>
                       </motion.button>
                     )}
+
+                    {/* PWA Install Prompt - Non-iOS */}
+                    {showPWAPrompt && deferredPromptRef.current && (
+                      <motion.button
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        onClick={async () => {
+                          playClick();
+                          const prompt = deferredPromptRef.current;
+                          if (prompt) {
+                            prompt.prompt();
+                            const { outcome } = await prompt.userChoice;
+                            if (outcome === 'accepted') {
+                              localStorage.setItem('pwa_installed', 'true');
+                              setShowPWAPrompt(false);
+                            }
+                            deferredPromptRef.current = null;
+                          }
+                        }}
+                        className="w-full mt-3 py-2 px-3 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all flex items-center gap-2"
+                      >
+                        <div className="text-lg">📱</div>
+                        <div className="flex-1 text-left">
+                          <div className="text-xs font-semibold text-blue-400">
+                            Ana Ekrana Ekle
+                          </div>
+                          <div className="text-[10px] text-blue-400/60">
+                            Hızlı erişim için
+                          </div>
+                        </div>
+                      </motion.button>
+                    )}
+
+                    {/* iOS PWA Instructions */}
+                    {showIOSInstructions && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-3 p-3 rounded-lg border border-blue-500/30 bg-blue-500/10 text-left"
+                      >
+                        <div className="flex items-start gap-2 mb-2">
+                          <div className="text-lg">📱</div>
+                          <div className="flex-1">
+                            <div className="text-xs font-semibold text-blue-400 mb-1">
+                              Ana Ekrana Ekle
+                            </div>
+                            <div className="text-[10px] text-blue-400/80 leading-relaxed">
+                              Safari'de <span className="font-bold">Paylaş</span> butonuna bas, sonra <span className="font-bold">Ana Ekrana Ekle</span>'yi seç
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              localStorage.setItem('ios_pwa_instructions_shown', 'true');
+                              setShowIOSInstructions(false);
+                            }}
+                            className="text-blue-400/60 hover:text-blue-400"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
                   </>
                 );
               })()}
@@ -1445,7 +1110,7 @@ const App: React.FC = () => {
               }}>
                 {bossType === 'ICE_STORM' ? 'Her 2 hamlede bir buz bloğu düşüyor!' :
                  bossType === 'BOMB_RAIN' ? 'Dikkat: Bombalar sahada!' :
-                 bossType === 'SPEED_SURGE' ? 'Daha az hamle, aynı hedef!' :
+                 bossType === 'SPEED_SURGE' ? `Sadece ${Math.floor((useGameStore.getState().movesLeft || 20) / 2)} hamlen var!` :
                  bossType === 'DARKNESS' ? 'Parça renkleri gizli — şansına güven!' :
                  'Her yerleştirmede ayna parça da geliyor!'}
               </div>

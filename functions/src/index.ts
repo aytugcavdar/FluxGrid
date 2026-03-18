@@ -6,3 +6,4 @@ admin.initializeApp();
 // Export Cloud Functions
 export { calculatePercentile } from './calculatePercentile';
 export { retentionAnalysis } from './retentionAnalysis';
+export { validateScore } from './validateScore';

@@ -8,6 +8,9 @@
 
 /* ─── Design Tokens ─── */
 :root {
+  --font-display: 'Orbitron', monospace;
+  --font-body: 'DM Sans', sans-serif;
+  
   --color-bg: #111827;
   --color-surface: #1f2937;
   --color-border: rgba(255, 255, 255, 0.06);
@@ -229,9 +232,19 @@ canvas {
   position: relative;
   overflow: hidden;
   background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
+  background-image:
+    linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: gridPulse 8s ease-in-out infinite;
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+@keyframes gridPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .game-hud {

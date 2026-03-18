@@ -51,8 +51,32 @@ export async function syncScore(
   photoURL: string | null
 ): Promise<void> {
   try {
+    // Validation 1: Score must be between 0 and 9,999,999
+    if (score < 0 || score > 9999999) {
+      console.warn(`Invalid score ${score} for user ${uid}. Score must be between 0 and 9,999,999.`);
+      return;
+    }
+
     const userRef = doc(db, 'users', uid);
     const leaderboardRef = doc(db, `leaderboards/${mode}/scores`, uid);
+
+    // Validation 2: Rate limiting - check if user submitted a score in the last 60 seconds
+    const leaderboardDoc = await getDoc(leaderboardRef);
+    if (leaderboardDoc.exists()) {
+      const lastSubmittedAt = leaderboardDoc.data()?.lastScoreSubmittedAt;
+      if (lastSubmittedAt) {
+        const lastSubmittedTimestamp = lastSubmittedAt instanceof Timestamp 
+          ? lastSubmittedAt.toMillis() 
+          : lastSubmittedAt;
+        const now = Date.now();
+        const timeSinceLastSubmit = now - lastSubmittedTimestamp;
+        
+        if (timeSinceLastSubmit < 60000) { // 60 seconds
+          console.warn(`Rate limit: User ${uid} submitted a score ${timeSinceLastSubmit}ms ago. Must wait 60 seconds between submissions.`);
+          return;
+        }
+      }
+    }
 
     // Update user's high score
     const userDoc = await getDoc(userRef);
@@ -72,6 +96,7 @@ export async function syncScore(
         photoURL,
         score,
         achievedAt: serverTimestamp(),
+        lastScoreSubmittedAt: Date.now(),
         platform: 'web',
         appVersion: '1.0.0', // TODO: Get from package.json
       });
@@ -213,11 +238,11 @@ export async function syncFromFirestore(uid: string): Promise<void> {
       }
 
       // Sync progression
-      if (userData.maxLevelReached) {
+      if (userData.maxLevelReached !== undefined) {
         localStorage.setItem('flux_max_level', userData.maxLevelReached.toString());
       }
 
-      if (userData.currentStreak) {
+      if (userData.currentStreak !== undefined) {
         localStorage.setItem('flux_daily_streak', userData.currentStreak.toString());
       }
 
@@ -226,11 +251,21 @@ export async function syncFromFirestore(uid: string): Promise<void> {
         localStorage.setItem('flux_theme', userData.preferences.theme);
       }
 
+      if (userData.preferences?.language) {
+        localStorage.setItem('flux_language', userData.preferences.language);
+      }
+
       // Mark last sync time
       localStorage.setItem('firebase_last_sync', Date.now().toString());
     } else if (localTimestamp > remoteTimestamp) {
       // Local is newer, push to Firestore
       await syncLocalToFirestore(uid);
+      
+      // Update sync timestamp after pushing to Firestore
+      localStorage.setItem('firebase_last_sync', Date.now().toString());
+    } else {
+      // Timestamps equal - update sync timestamp anyway
+      localStorage.setItem('firebase_last_sync', Date.now().toString());
     }
   } catch (error) {
     console.error('Failed to sync from Firestore:', error);
@@ -280,7 +315,6 @@ export async function syncLocalToFirestore(uid: string): Promise<void> {
     // Sync to Firestore
     if (Object.keys(gameData).length > 0) {
       await syncGameData(uid, gameData);
-      localStorage.setItem('firebase_last_sync', Date.now().toString());
     }
   } catch (error) {
     console.error('Failed to sync local to Firestore:', error);

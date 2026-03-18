@@ -10,6 +10,8 @@ import {
   setDoc,
   where,
   serverTimestamp,
+  startAfter,
+  DocumentSnapshot,
 } from 'firebase/firestore';
 import { getFirebaseFirestore } from '../../../services/firebase/config';
 import type { LeaderboardEntry, GameMode } from '../../../services/firebase/types';
@@ -22,11 +24,13 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
   leaderboards: new Map(),
   userRanks: new Map(),
   userPercentiles: new Map(),
+  lastVisible: null,
+  hasMore: false,
   isLoading: false,
   error: null,
 
   // Actions
-  fetchLeaderboard: async (mode: GameMode, limitCount = 100) => {
+  fetchLeaderboard: async (mode: GameMode, limitCount = 50) => {
     set({ isLoading: true, error: null });
 
     try {
@@ -42,10 +46,18 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
         rank: index + 1,
       } as LeaderboardEntry));
 
+      const lastVisible = snapshot.docs[snapshot.docs.length - 1];
+      const hasMore = snapshot.docs.length === limitCount;
+
       const { leaderboards } = get();
       leaderboards.set(mode, entries);
 
-      set({ leaderboards: new Map(leaderboards), isLoading: false });
+      set({ 
+        leaderboards: new Map(leaderboards), 
+        lastVisible,
+        hasMore,
+        isLoading: false 
+      });
     } catch (error) {
       console.error('Failed to fetch leaderboard:', error);
       set({
@@ -65,14 +77,25 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
 
       const userScore = userDoc.data().score;
 
-      // Count users with higher scores
+      // OPTIMIZED: Fetch only top 1001 documents instead of all users with higher scores
       const q = query(
         collection(db, `leaderboards/${mode}/scores`),
-        where('score', '>', userScore)
+        orderBy('score', 'desc'),
+        limit(1001)
       );
 
       const snapshot = await getDocs(q);
-      const rank = snapshot.size + 1;
+      const entries = snapshot.docs;
+
+      // Find user in top 1001
+      const userIndex = entries.findIndex(doc => doc.id === uid);
+
+      let rank: number | string;
+      if (userIndex !== -1) {
+        rank = userIndex + 1; // Exact rank in top 1000
+      } else {
+        rank = 'Top 1000+'; // User is outside top 1000
+      }
 
       const { userRanks } = get();
       userRanks.set(mode, rank);
@@ -139,7 +162,7 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
       await get().fetchUserRank(uid, mode);
       const userRank = get().userRanks.get(mode);
 
-      if (!userRank) {
+      if (!userRank || typeof userRank === 'string') {
         return [];
       }
 
@@ -170,5 +193,50 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  loadMore: async (mode: GameMode) => {
+    const { lastVisible, hasMore } = get();
+    if (!hasMore || !lastVisible) return;
+
+    set({ isLoading: true });
+
+    try {
+      const q = query(
+        collection(db, `leaderboards/${mode}/scores`),
+        orderBy('score', 'desc'),
+        startAfter(lastVisible),
+        limit(50)
+      );
+
+      const snapshot = await getDocs(q);
+      const currentEntries = get().leaderboards.get(mode) || [];
+      const startRank = currentEntries.length + 1;
+
+      const newEntries: LeaderboardEntry[] = snapshot.docs.map((doc, index) => ({
+        ...doc.data(),
+        rank: startRank + index,
+      } as LeaderboardEntry));
+
+      const allEntries = [...currentEntries, ...newEntries];
+      const newLastVisible = snapshot.docs[snapshot.docs.length - 1];
+      const newHasMore = snapshot.docs.length === 50;
+
+      const { leaderboards } = get();
+      leaderboards.set(mode, allEntries);
+
+      set({ 
+        leaderboards: new Map(leaderboards),
+        lastVisible: newLastVisible,
+        hasMore: newHasMore,
+        isLoading: false 
+      });
+    } catch (error) {
+      console.error('Failed to load more:', error);
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to load more',
+        isLoading: false 
+      });
+    }
   },
 }));

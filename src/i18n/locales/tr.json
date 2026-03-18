@@ -26,8 +26,6 @@
     "rushSub": "Hızlı Ol, Süre Kazan",
     "zen": "ZEN",
     "zenSub": "Hedef yok. Süre yok. Her 10 satırda palet değişir.",
-    "blitz": "BLITZ",
-    "blitzSub": "30 saniye. Her satır 2 saniye kazandırır.",
     "survival": "SURVIVAL",
     "survivalSub": "Grid dolmadan önce temizle. Satırlar yükseliyor.",
     "career": "KARİYER",
@@ -40,7 +38,6 @@
     "endless": "Sonsuz",
     "rush": "Rush",
     "zen": "Zen",
-    "blitz": "Blitz",
     "survival": "Survival",
     "moves": "HAMLE",
     "seconds": "SN",
@@ -167,8 +164,6 @@
     "mirror": "Her yerleştirmede ayna parça da geliyor!"
   },
   "modeSuggestions": {
-    "tryBlitz": "Blitz'i dene",
-    "blitzDesc": "30 saniye, anlık heyecan",
     "tryRush": "Rush'ı dene",
     "rushDesc": "60 saniye, satır başı süre",
     "trySurvival": "Survival'ı dene",

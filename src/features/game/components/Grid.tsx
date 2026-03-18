@@ -520,10 +520,12 @@ export const Grid: React.FC = () => {
         };
 
         // --- Render Loop ---
+        // IMPORTANT: All logic is in registerBeforeRender, NOT in runRenderLoop
+        // This prevents duplicate render calls and improves performance
         let time = 0;
 
         scene.registerBeforeRender(() => {
-            time += 0.02;
+            time += engine.getDeltaTime() / 1000; // Use actual delta time instead of fixed 0.02
             const { grid, draggedPiece, activeSkill, score, combo, lastAction } = stateRef.current;
 
             // Check for new shake events
@@ -623,11 +625,12 @@ export const Grid: React.FC = () => {
                                 : BABYLON.Color3.FromHexString("#38bdf8");
                             (mesh.material as BABYLON.StandardMaterial).emissiveColor = iceColor.scale(icePulse + 0.1);
                         }
-                        // Shatter skill aktifken normal bloklar için pulsate
-                        if (activeSkill === SkillType.SHATTER && cell.type === CellType.NORMAL) {
-                            const pulsate = 0.8 + Math.abs(Math.sin(time * 5)) * 0.4;
+                        // SHATTER skill: Show pulse on ALL filled cells
+                        if (activeSkill === SkillType.SHATTER && cell.filled && cell.type === CellType.NORMAL) {
+                            // Pulse opacity between 0.15 and 0.25
+                            const pulseAlpha = 0.15 + Math.abs(Math.sin(time * 5)) * 0.10;
                             (mesh.material as BABYLON.StandardMaterial).emissiveColor =
-                                BABYLON.Color3.FromHexString(cell.color).scale(pulsate);
+                                BABYLON.Color3.FromHexString("#ef4444").scale(pulseAlpha);
                         }
                     }
                 });
@@ -727,6 +730,94 @@ export const Grid: React.FC = () => {
                     });
                 }
             }
+            
+            // Skill overlay rendering (moved from separate renderLoop)
+            // Hide all skill overlays first
+            skillOverlayMeshesRef.current.forEach(m => m.isVisible = false);
+            
+            if (activeSkill && currentHover) {
+                if (activeSkill === SkillType.SHATTER) {
+                    // Emphasize the hovered cell with stronger overlay
+                    if (currentHover.x >= 0 && currentHover.x < GRID_SIZE && 
+                        currentHover.y >= 0 && currentHover.y < GRID_SIZE &&
+                        grid[currentHover.y][currentHover.x].filled) {
+                        
+                        // Reuse or create overlay
+                        let overlay = skillOverlayMeshesRef.current[0];
+                        if (!overlay) {
+                            overlay = BABYLON.MeshBuilder.CreateBox("shatter-overlay", {
+                                size: CELL_SIZE * 0.95,
+                                height: 0.7
+                            }, scene);
+                            overlay.position.y = 0.1;
+                            
+                            const mat = new BABYLON.StandardMaterial("shatterMat", scene);
+                            mat.emissiveColor = BABYLON.Color3.FromHexString("#ef4444");
+                            overlay.material = mat;
+                            overlay.isPickable = false;
+                            
+                            skillOverlayMeshesRef.current[0] = overlay;
+                        }
+                        
+                        overlay.position = getVectorPos(currentHover.x, currentHover.y);
+                        overlay.position.y = 0.1;
+                        (overlay.material as BABYLON.StandardMaterial).alpha = 0.6; // Stronger emphasis
+                        
+                        // Prominent red border
+                        overlay.enableEdgesRendering();
+                        overlay.edgesWidth = 6;
+                        overlay.edgesColor = new BABYLON.Color4(0.93, 0.27, 0.27, 1.0);
+                        
+                        overlay.isVisible = true;
+                    }
+                } else if (activeSkill === SkillType.BOMB) {
+                    // Highlight 3x3 area with enhanced visibility
+                    let overlayIndex = 0;
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            const x = currentHover.x + dx;
+                            const y = currentHover.y + dy;
+                            
+                            if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE) {
+                                // Reuse or create overlay
+                                let overlay = skillOverlayMeshesRef.current[overlayIndex];
+                                if (!overlay) {
+                                    overlay = BABYLON.MeshBuilder.CreateBox(`bomb-overlay-${overlayIndex}`, {
+                                        size: CELL_SIZE * 0.95,
+                                        height: 0.7
+                                    }, scene);
+                                    overlay.position.y = 0.1;
+                                    
+                                    const mat = new BABYLON.StandardMaterial(`bombMat-${overlayIndex}`, scene);
+                                    overlay.material = mat;
+                                    overlay.isPickable = false;
+                                    
+                                    skillOverlayMeshesRef.current[overlayIndex] = overlay;
+                                }
+                                
+                                overlay.position = getVectorPos(x, y);
+                                overlay.position.y = 0.1;
+                                
+                                const mat = overlay.material as BABYLON.StandardMaterial;
+                                const isCenter = (dx === 0 && dy === 0);
+                                
+                                // Center cell: opacity 0.7, surrounding: 0.3
+                                mat.alpha = isCenter ? 0.7 : 0.3;
+                                mat.emissiveColor = isCenter 
+                                    ? BABYLON.Color3.FromHexString("#f97316")  // Center: darker orange
+                                    : BABYLON.Color3.FromHexString("#fb923c"); // Surrounding: lighter orange
+                                
+                                // Faster animation: time * 12 instead of time * 8
+                                const pulse = 0.8 + Math.abs(Math.sin(time * 12)) * 0.2;
+                                mat.emissiveColor = mat.emissiveColor.scale(pulse);
+                                
+                                overlay.isVisible = true;
+                                overlayIndex++;
+                            }
+                        }
+                    }
+                }
+            }
         });
 
         const handleGlobalPointerMove = (e: PointerEvent) => {
@@ -776,94 +867,19 @@ export const Grid: React.FC = () => {
         window.addEventListener('pointermove', handleGlobalPointerMove);
         canvasRef.current.addEventListener('pointerup', handleCanvasPointerUp);
 
-        // Start render loop immediately
-        const renderLoop = () => {
-            const time = performance.now() / 1000;
-            
-            // Hide all skill overlays first
-            skillOverlayMeshesRef.current.forEach(m => m.isVisible = false);
-
-            const currentHover = hoverCoordRef.current;
-            const { activeSkill, grid } = stateRef.current;
-            
-            if (activeSkill && currentHover) {
-                if (activeSkill === SkillType.SHATTER) {
-                    // Highlight the single hovered cell
-                    if (currentHover.x >= 0 && currentHover.x < GRID_SIZE && 
-                        currentHover.y >= 0 && currentHover.y < GRID_SIZE &&
-                        grid[currentHover.y][currentHover.x].filled) {
-                        
-                        // Reuse or create overlay
-                        let overlay = skillOverlayMeshesRef.current[0];
-                        if (!overlay) {
-                            overlay = BABYLON.MeshBuilder.CreateBox("shatter-overlay", {
-                                size: CELL_SIZE * 0.95,
-                                height: 0.7
-                            }, scene);
-                            overlay.position.y = 0.1;
-                            
-                            const mat = new BABYLON.StandardMaterial("shatterMat", scene);
-                            mat.emissiveColor = BABYLON.Color3.FromHexString("#ef4444");
-                            overlay.material = mat;
-                            overlay.isPickable = false;
-                            
-                            skillOverlayMeshesRef.current[0] = overlay;
-                        }
-                        
-                        overlay.position = getVectorPos(currentHover.x, currentHover.y);
-                        overlay.position.y = 0.1;
-                        (overlay.material as BABYLON.StandardMaterial).alpha = 0.3 + Math.sin(time * 8) * 0.15;
-                        overlay.isVisible = true;
-                    }
-                } else if (activeSkill === SkillType.BOMB) {
-                    // Highlight 3x3 area
-                    let overlayIndex = 0;
-                    for (let dy = -1; dy <= 1; dy++) {
-                        for (let dx = -1; dx <= 1; dx++) {
-                            const x = currentHover.x + dx;
-                            const y = currentHover.y + dy;
-                            
-                            if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE) {
-                                // Reuse or create overlay
-                                let overlay = skillOverlayMeshesRef.current[overlayIndex];
-                                if (!overlay) {
-                                    overlay = BABYLON.MeshBuilder.CreateBox(`bomb-overlay-${overlayIndex}`, {
-                                        size: CELL_SIZE * 0.95,
-                                        height: 0.7
-                                    }, scene);
-                                    overlay.position.y = 0.1;
-                                    
-                                    const mat = new BABYLON.StandardMaterial(`bombMat-${overlayIndex}`, scene);
-                                    mat.emissiveColor = BABYLON.Color3.FromHexString("#f97316");
-                                    overlay.material = mat;
-                                    overlay.isPickable = false;
-                                    
-                                    skillOverlayMeshesRef.current[overlayIndex] = overlay;
-                                }
-                                
-                                overlay.position = getVectorPos(x, y);
-                                overlay.position.y = 0.1;
-                                (overlay.material as BABYLON.StandardMaterial).alpha = 0.25 + Math.sin(time * 8) * 0.1;
-                                overlay.isVisible = true;
-                                overlayIndex++;
-                            }
-                        }
-                    }
-                }
-            }
-            
+        // Start render loop - Babylon.js will call scene.render() automatically
+        engine.runRenderLoop(() => {
             scene.render();
-        };
-
-        // Start the render loop
-        engine.runRenderLoop(renderLoop);
+        });
 
         // Pause rendering when page is hidden to save resources
         const handleVisibilityChange = () => {
             if (document.hidden) {
                 engine.stopRenderLoop();
             } else {
-                engine.runRenderLoop(renderLoop);
+                engine.runRenderLoop(() => {
+                    scene.render();
+                });
             }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -945,6 +961,21 @@ export const Grid: React.FC = () => {
             }
         });
     }, [isSurgeActive]);
+
+    // ESC key listener for skill cancellation
+    useEffect(() => {
+        const handleEscapeKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && stateRef.current.activeSkill) {
+                const { activateSkill, activeSkill: currentSkill } = useGameStore.getState();
+                if (currentSkill) {
+                    activateSkill(currentSkill); // Toggle off
+                }
+            }
+        };
+        
+        document.addEventListener('keydown', handleEscapeKey);
+        return () => document.removeEventListener('keydown', handleEscapeKey);
+    }, []);
 
     return (
         <div className={clsx(

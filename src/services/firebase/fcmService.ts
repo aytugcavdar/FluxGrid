@@ -12,6 +12,14 @@ const db = getFirebaseFirestore();
 // VAPID key from Firebase Console > Project Settings > Cloud Messaging
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || '';
 
+// Validate VAPID key configuration
+if (!VAPID_KEY) {
+  console.warn(
+    'VITE_FIREBASE_VAPID_KEY not configured. ' +
+    'Get this from Firebase Console > Project Settings > Cloud Messaging'
+  );
+}
+
 /**
  * Request notification permission and get FCM token
  */

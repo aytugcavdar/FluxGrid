@@ -1,12 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useProfileStore } from '../store/profileStore';
-import { ChevronLeft, Download, User, TrendingUp, Clock, Target } from 'lucide-react';
+import { ChevronLeft, Download, User, TrendingUp, Clock, Target, Trophy } from 'lucide-react';
 import { playClick } from '../../../utils/audio';
 import { useAuthStore } from '../../auth/store/authStore';
+import { GameMode } from '@shared/types';
 import clsx from 'clsx';
 
-export const ProfileView: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+export const ProfileView: React.FC<{ onClose: () => void; onOpenLeaderboard: (mode: GameMode) => void }> = ({ onClose, onOpenLeaderboard }) => {
   const { profile, calculateDerivedStats, exportProfile } = useProfileStore();
   const { user, isAnonymous, signInWithGoogle, signOut } = useAuthStore();
 
@@ -117,6 +118,25 @@ export const ProfileView: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             </button>
           )}
         </div>
+
+        {/* Leaderboard Button */}
+        <button
+          onClick={() => { playClick(); onOpenLeaderboard(GameMode.ENDLESS); }}
+          className="w-full flex items-center justify-between p-6 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-3xl hover:from-amber-500/20 hover:to-orange-500/20 transition-all"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-500/20 rounded-full flex items-center justify-center">
+              <Trophy size={24} className="text-amber-400" />
+            </div>
+            <div className="text-left">
+              <h3 className="text-lg font-black text-white">LİDERLİK TABLOSU</h3>
+              <p className="text-xs text-white/40 uppercase tracking-widest">En İyi Oyuncular</p>
+            </div>
+          </div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(251,191,36,0.6)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
 
         {/* Quick Stats */}
         <div className="grid grid-cols-2 gap-3">

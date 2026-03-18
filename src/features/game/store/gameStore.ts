@@ -172,7 +172,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const isTimed = mode === GameMode.TIMED;
         const isDaily = mode === GameMode.DAILY_CHALLENGE;
         const isZen = mode === GameMode.ZEN;
-        const isBlitz = mode === GameMode.BLITZ;
         const isSurvival = mode === GameMode.SURVIVAL;
         const initialGrid = createEmptyGrid();
         
@@ -196,7 +195,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           unlockedAchievementId: null,
           appState: AppState.GAME,
           gameMode: mode,
-          timeLeft: isTimed ? 60 : isBlitz ? 30 : 0,
+          timeLeft: isTimed ? 60 : 0,
           difficultyTier: 0,
           // ZEN mode initialization
           zenSessionTime: isZen ? 0 : get().zenSessionTime,
@@ -352,20 +351,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
           return;
         }
         
-        // TIMED ve BLITZ modda timer'ı azalt
-        if (gameMode === GameMode.TIMED || gameMode === GameMode.BLITZ) {
+        // TIMED modda timer'ı azalt
+        if (gameMode === GameMode.TIMED) {
           // Play tick sound for last 10 seconds
           if (timeLeft <= 10 && timeLeft > 0) {
             playTick();
           }
           
           if (timeLeft <= 1) {
-            // BLITZ modda kalan süre bonusu ekle
-            if (gameMode === GameMode.BLITZ && timeLeft > 0) {
-              const timeBonus = timeLeft * POINTS.BLITZ_TIME_BONUS;
-              const newScore = get().score + timeBonus;
-              set({ score: newScore, highScore: Math.max(newScore, get().highScore) });
-            }
             playGameOver();
             set({ timeLeft: 0, isGameOver: true });
           } else {
@@ -835,8 +828,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (isSurgeActive) extraTime *= 1.5;
     }
     
-    // BLITZ mode time logic
-    if (get().gameMode === GameMode.BLITZ) {
+    // TIMED mode time logic
+    if (get().gameMode === GameMode.TIMED) {
       if (linesCleared > 0) {
         extraTime = linesCleared * 2; // +2 saniye per line
         if (comboMultiplier > 1) extraTime += 0.5; // +0.5 saniye per combo
@@ -868,6 +861,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
       achievements: updatedAchievements,
       unlockedAchievementId: newUnlock ? newUnlock.id : get().unlockedAchievementId
     });
+
+    // Sync maxLevelReached to Firestore when level is completed
+    if (levelFinished && gameMode === GameMode.CAREER) {
+      const newMaxLevel = Math.max(get().currentLevelIndex, get().maxLevelReached);
+      if (newMaxLevel > get().maxLevelReached) {
+        set({ maxLevelReached: newMaxLevel });
+        debouncedSave('flux_max_level', newMaxLevel.toString());
+        
+        // Sync to Firestore
+        import('../../../services/firebase/syncManager').then(({ syncGameData }) => {
+          import('../../auth/store/authStore').then(({ useAuthStore }) => {
+            const user = useAuthStore.getState().user;
+            if (user) {
+              syncGameData(user.uid, { maxLevelReached: newMaxLevel }).catch(err => 
+                console.error('Failed to sync maxLevelReached:', err)
+              );
+            }
+          });
+        });
+      }
+    }
 
     // Check difficulty tier progression (Endless mode only)
     if (gameMode === GameMode.ENDLESS) {
@@ -979,16 +993,77 @@ export const useGameStore = create<GameStore>((set, get) => ({
           
         case 'DARKNESS':
           // Parça renklerini gri yap (her hamlede)
-          const darkPieces = get().pieces.map(p => ({
-            ...p,
-            color: '#374151', // koyu gri — renk bilinmiyor hissi
-          }));
-          set({ pieces: darkPieces });
+          // Ama flux dolduğunda renkleri 1 saniye göster
+          const { flux, isSurgeActive } = get();
+          
+          if (flux >= 100 || isSurgeActive) {
+            // Flux dolu - renkleri göster (1 saniye sonra tekrar gizle)
+            setTimeout(() => {
+              if (get().bossType === 'DARKNESS') {
+                const darkPieces = get().pieces.map(p => ({
+                  ...p,
+                  color: '#374151', // koyu gri — renk bilinmiyor hissi
+                }));
+                set({ pieces: darkPieces });
+              }
+            }, 1000);
+          } else {
+            // Flux dolu değil - renkleri gizle
+            const darkPieces = get().pieces.map(p => ({
+              ...p,
+              color: '#374151', // koyu gri — renk bilinmiyor hissi
+            }));
+            set({ pieces: darkPieces });
+          }
           break;
           
         case 'MIRROR':
-          // Her yerleştirmede ayna parça da gelir (bu mekanik daha karmaşık, şimdilik skip)
-          // TODO: Implement mirror mechanic
+          // Her yerleştirmede aynı parçanın yatay mirror'ını rastgele boş bir pozisyona yerleştir
+          // Mirror parçayı oluştur (son yerleştirilen parçayı kullan)
+          const lastPiece = get().pieces[0]; // İlk parça son yerleştirilen olmalı
+          if (!lastPiece) break;
+          
+          const mirrorPiece = {
+            ...lastPiece,
+            shape: lastPiece.shape.map(row => [...row].reverse()), // Yatay mirror
+            id: uuidv4(),
+          };
+          
+          // Rastgele boş bir pozisyon bul
+          const emptyPositions: { x: number; y: number }[] = [];
+          for (let y = 0; y < GRID_SIZE; y++) {
+            for (let x = 0; x < GRID_SIZE; x++) {
+              if (get().canPlacePiece(get().grid, mirrorPiece, x, y)) {
+                emptyPositions.push({ x, y });
+              }
+            }
+          }
+          
+          // Eğer geçerli pozisyon varsa, rastgele birini seç ve yerleştir
+          if (emptyPositions.length > 0) {
+            const randomPos = emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
+            const mirrorGrid = get().grid.map(row => row.map(cell => ({ ...cell })));
+            
+            // Mirror parçayı yerleştir
+            mirrorPiece.shape.forEach((row, dy) => {
+              row.forEach((cell, dx) => {
+                if (cell) {
+                  const gridY = randomPos.y + dy;
+                  const gridX = randomPos.x + dx;
+                  if (gridY >= 0 && gridY < GRID_SIZE && gridX >= 0 && gridX < GRID_SIZE) {
+                    mirrorGrid[gridY][gridX] = {
+                      filled: true,
+                      color: mirrorPiece.color,
+                      id: uuidv4(),
+                      type: CellType.NORMAL,
+                    };
+                  }
+                }
+              });
+            });
+            
+            set({ grid: mirrorGrid });
+          }
           break;
       }
     }
