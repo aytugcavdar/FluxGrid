@@ -626,11 +626,17 @@ export const Grid: React.FC = () => {
                             (mesh.material as BABYLON.StandardMaterial).emissiveColor = iceColor.scale(icePulse + 0.1);
                         }
                         // SHATTER skill: Show pulse on ALL filled cells
-                        if (activeSkill === SkillType.SHATTER && cell.filled && cell.type === CellType.NORMAL) {
-                            // Pulse opacity between 0.15 and 0.25
-                            const pulseAlpha = 0.15 + Math.abs(Math.sin(time * 5)) * 0.10;
-                            (mesh.material as BABYLON.StandardMaterial).emissiveColor =
-                                BABYLON.Color3.FromHexString("#ef4444").scale(pulseAlpha);
+                        if (cell.type === CellType.NORMAL) {
+                            if (activeSkill === SkillType.SHATTER && cell.filled) {
+                                // Pulse opacity between 0.15 and 0.25
+                                const pulseAlpha = 0.15 + Math.abs(Math.sin(time * 5)) * 0.10;
+                                (mesh.material as BABYLON.StandardMaterial).emissiveColor =
+                                    BABYLON.Color3.FromHexString("#ef4444").scale(pulseAlpha);
+                            } else {
+                                // Reset to normal emissive color when SHATTER is not active
+                                const normalColor = BABYLON.Color3.FromHexString(cell.color);
+                                (mesh.material as BABYLON.StandardMaterial).emissiveColor = normalColor.scale(0.05);
+                            }
                         }
                     }
                 });
