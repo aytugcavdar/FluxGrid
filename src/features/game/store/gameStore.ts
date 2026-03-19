@@ -797,7 +797,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         import('../../auth/store/authStore').then(({ useAuthStore }) => {
           const user = useAuthStore.getState().user;
           if (user) {
-            syncAchievement(user.uid, newUnlock).catch(console.error);
+            syncAchievement(user.uid, {
+              ...newUnlock,
+              unlockedAt: newUnlock.unlocked ? Date.now() : null,
+            }).catch(console.error);
           }
         });
       });
@@ -933,7 +936,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
           import('../../auth/store/authStore').then(({ useAuthStore }) => {
             const user = useAuthStore.getState().user;
             if (user) {
-              syncGameData(user.uid, { maxLevelReached: newMaxLevel }).catch(err => 
+              syncGameData(user.uid, { 
+                progression: { 
+                  maxLevelReached: newMaxLevel,
+                  currentStreak: 0,
+                  longestStreak: 0,
+                  lastDailyDate: null,
+                } 
+              }).catch(err => 
                 console.error('Failed to sync maxLevelReached:', err)
               );
             }

@@ -4,15 +4,8 @@
       "collectionGroup": "scores",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "flagged", "order": "ASCENDING" },
         { "fieldPath": "score", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "scores",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "score", "order": "DESCENDING" },
-        { "fieldPath": "__name__", "order": "DESCENDING" }
       ]
     },
     {
@@ -24,10 +17,19 @@
       ]
     },
     {
-      "collectionGroup": "users",
-      "queryScope": "COLLECTION",
+      "collectionGroup": "careerProgress",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
-        { "fieldPath": "lastSeenAt", "order": "DESCENDING" }
+        { "fieldPath": "completed", "order": "ASCENDING" },
+        { "fieldPath": "stars", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pendingWrites",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
     }
   ],

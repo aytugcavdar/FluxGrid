@@ -4,567 +4,403 @@ import {
   getDoc,
   updateDoc,
   collection,
-  serverTimestamp,
-  Timestamp,
+  query,
+  where,
+  getDocs,
+  addDoc,
 } from 'firebase/firestore';
 import { getFirebaseFirestore } from './config';
-import type {
-  UserData,
-  GameData,
-  ModeStats,
-  DailyData,
-  GameMode,
+import { GameMode } from '@shared/types';
+import {
+  UserDocument,
+  UserDocumentUpdate,
+  LeaderboardEntry,
+  CareerProgressDocument,
+  DailyHistoryDocument,
+  AchievementDocument,
+  PendingWriteDocument,
+  PendingWriteType,
+  DEFAULT_USER_STATS,
+  detectPlatform,
 } from './types';
 
-const db = getFirebaseFirestore();
-
-/**
- * Sync game data to Firestore
- */
-export async function syncGameData(uid: string, data: GameData): Promise<void> {
+// 1. createOrUpdateUser
+export async function createOrUpdateUser(
+  uid: string,
+  data: Partial<UserDocument>
+): Promise<void> {
+  const db = getFirebaseFirestore();
   try {
-    const userRef = doc(db, 'users', uid);
-    
     await setDoc(
-      userRef,
+      doc(db, 'users', uid),
       {
         ...data,
-        lastSeenAt: serverTimestamp(),
-        lastModified: Date.now(),
+        schemaVersion: 2,
+        lastSeenAt: Date.now(),
       },
       { merge: true }
     );
   } catch (error) {
-    console.error('Failed to sync game data:', error);
+    console.error('createOrUpdateUser error:', error);
     throw error;
   }
 }
 
-/**
- * Sync score to Firestore and leaderboard
- */
+// 2. syncGameData
+export async function syncGameData(
+  uid: string,
+  update: UserDocumentUpdate
+): Promise<void> {
+  const db = getFirebaseFirestore();
+  try {
+    await updateDoc(doc(db, 'users', uid), update as any);
+  } catch (error) {
+    console.error('syncGameData error:', error);
+    throw error;
+  }
+}
+
+// 3. syncScore
 export async function syncScore(
   uid: string,
   mode: GameMode,
   score: number,
   displayName: string,
-  photoURL: string | null
+  photoURL: string | null,
+  sessionDurationSecs: number
 ): Promise<void> {
+  const db = getFirebaseFirestore();
+  
   try {
-    // Validation 1: Score must be between 0 and 9,999,999
+    // a) Validation
     if (score < 0 || score > 9999999) {
-      console.warn(`Invalid score ${score} for user ${uid}. Score must be between 0 and 9,999,999.`);
+      console.warn('syncScore: Invalid score', score);
       return;
     }
 
-    const userRef = doc(db, 'users', uid);
-    const leaderboardRef = doc(db, `leaderboards/${mode}/scores`, uid);
+    // b) Anti-cheat
+    if (score > 5000 && sessionDurationSecs < (score / 1000) * 8) {
+      console.warn('syncScore: Suspicious session duration', {
+        score,
+        sessionDurationSecs,
+      });
+      return;
+    }
 
-    // Validation 2: Rate limiting - only apply for same or lower scores
-    const leaderboardDoc = await getDoc(leaderboardRef);
-    let shouldApplyRateLimit = false;
+    // c) Mevcut leaderboard skorunu oku
+    const leaderboardDocRef = doc(db, 'leaderboards', mode, 'scores', uid);
+    const existingDoc = await getDoc(leaderboardDocRef);
+    const existingScore = existingDoc.exists() ? existingDoc.data()?.score ?? 0 : 0;
+
+    // d) Mevcut skorden yüksekse: LeaderboardEntry belgesi yaz
+    if (score > existingScore) {
+      const entry: LeaderboardEntry = {
+        uid,
+        displayName,
+        photoURL,
+        score,
+        achievedAt: Date.now(),
+        platform: detectPlatform(),
+        appVersion: import.meta.env.VITE_APP_VERSION || '1.0.0',
+        sessionDurationSecs,
+        flagged: false,
+      };
+      await setDoc(leaderboardDocRef, entry);
+    }
+
+    // e) users/{uid} highScores.{mode} güncelle (her zaman)
+    await updateDoc(doc(db, 'users', uid), {
+      [`highScores.${mode}`]: score,
+    });
+  } catch (error) {
+    console.error('syncScore error:', error);
+    throw error;
+  }
+}
+
+// 4. syncFromFirestore
+export async function syncFromFirestore(uid: string): Promise<void> {
+  const db = getFirebaseFirestore();
+  
+  try {
+    // a) doc(db, 'users', uid) oku
+    const userDocRef = doc(db, 'users', uid);
+    const userDoc = await getDoc(userDocRef);
+
+    // b) Belge yoksa return
+    if (!userDoc.exists()) {
+      return;
+    }
+
+    // c) userData al
+    const userData = userDoc.data() as UserDocument;
+
+    // d) localStorage'a yaz
+    localStorage.setItem(
+      'flux_stats',
+      JSON.stringify(userData.stats ?? DEFAULT_USER_STATS)
+    );
+    localStorage.setItem(
+      'flux_highscores',
+      JSON.stringify(userData.highScores ?? {})
+    );
     
-    if (leaderboardDoc.exists()) {
-      const existingScore = leaderboardDoc.data()?.score || 0;
+    const highScoreValues = Object.values(userData.highScores ?? {});
+    const maxHighScore = highScoreValues.length > 0 ? Math.max(...highScoreValues) : 0;
+    localStorage.setItem('flux_highscore', String(maxHighScore));
+    
+    localStorage.setItem(
+      'flux_max_level',
+      String(userData.progression?.maxLevelReached ?? 0)
+    );
+    localStorage.setItem(
+      'flux_daily_streak',
+      String(userData.progression?.currentStreak ?? 0)
+    );
+
+    // Theme ve language - mevcut değeri koru veya userData'dan al
+    if (userData.preferences?.theme) {
+      localStorage.setItem('flux_theme', userData.preferences.theme);
+    }
+    if (userData.preferences?.language) {
+      localStorage.setItem('flux_language', userData.preferences.language);
+    }
+  } catch (error) {
+    console.error('syncFromFirestore error:', error);
+    throw error;
+  }
+}
+
+// 5. syncCareerProgress
+export async function syncCareerProgress(
+  uid: string,
+  levelIndex: number,
+  data: Omit<CareerProgressDocument, 'levelIndex'>
+): Promise<void> {
+  const db = getFirebaseFirestore();
+  
+  try {
+    const key = String(levelIndex).padStart(3, '0');
+    await setDoc(
+      doc(db, 'users', uid, 'careerProgress', key),
+      { ...data, levelIndex: key },
+      { merge: true }
+    );
+  } catch (error) {
+    console.error('syncCareerProgress error:', error);
+    throw error;
+  }
+}
+
+// 6. syncDailyChallenge
+export async function syncDailyChallenge(
+  uid: string,
+  date: string,
+  score: number,
+  attempts: number,
+  currentStreak: number
+): Promise<void> {
+  const db = getFirebaseFirestore();
+  
+  try {
+    // users/{uid}/dailyHistory/{date} yaz
+    const dailyHistoryDoc: DailyHistoryDocument = {
+      date,
+      score,
+      attempts,
+      completedAt: Date.now(),
+      streakAtCompletion: currentStreak,
+    };
+    await setDoc(
+      doc(db, 'users', uid, 'dailyHistory', date),
+      dailyHistoryDoc,
+      { merge: true }
+    );
+
+    // longestStreak hesabı
+    const userDocRef = doc(db, 'users', uid);
+    const userDoc = await getDoc(userDocRef);
+    const existing = userDoc.data()?.progression?.longestStreak ?? 0;
+    const newLongest = Math.max(existing, currentStreak);
+
+    // users/{uid} progression güncelle
+    await updateDoc(userDocRef, {
+      'progression.currentStreak': currentStreak,
+      'progression.longestStreak': newLongest,
+      'progression.lastDailyDate': date,
+    });
+  } catch (error) {
+    console.error('syncDailyChallenge error:', error);
+    throw error;
+  }
+}
+
+// 7. syncAchievement
+export async function syncAchievement(
+  uid: string,
+  achievement: AchievementDocument
+): Promise<void> {
+  const db = getFirebaseFirestore();
+  
+  try {
+    await setDoc(
+      doc(db, 'users', uid, 'achievements', achievement.id),
+      achievement,
+      { merge: true }
+    );
+  } catch (error) {
+    console.error('syncAchievement error:', error);
+    throw error;
+  }
+}
+
+// 8. processPendingWrites
+export async function processPendingWrites(uid: string): Promise<void> {
+  const db = getFirebaseFirestore();
+  
+  try {
+    const pendingWritesRef = collection(db, 'users', uid, 'pendingWrites');
+    const q = query(pendingWritesRef, where('status', '==', 'pending'));
+    const snapshot = await getDocs(q);
+
+    for (const docSnapshot of snapshot.docs) {
+      const write = docSnapshot.data() as PendingWriteDocument;
+      const writeId = docSnapshot.id;
       
-      // If new score is higher, always allow immediately (no rate limit)
-      if (score > existingScore) {
-        shouldApplyRateLimit = false;
-      } else {
-        // For same or lower scores, apply rate limit
-        shouldApplyRateLimit = true;
-        const lastSubmittedAt = leaderboardDoc.data()?.lastScoreSubmittedAt;
+      try {
+        // Type'a göre ilgili sync fonksiyonunu çağır
+        switch (write.type) {
+          case 'score':
+            await syncScore(
+              uid,
+              write.payload.mode as GameMode,
+              write.payload.score as number,
+              write.payload.displayName as string,
+              write.payload.photoURL as string | null,
+              write.payload.sessionDurationSecs as number
+            );
+            break;
+          case 'career':
+            await syncCareerProgress(
+              uid,
+              write.payload.levelIndex as number,
+              write.payload.data as Omit<CareerProgressDocument, 'levelIndex'>
+            );
+            break;
+          case 'daily':
+            await syncDailyChallenge(
+              uid,
+              write.payload.date as string,
+              write.payload.score as number,
+              write.payload.attempts as number,
+              write.payload.currentStreak as number
+            );
+            break;
+          case 'stats':
+            await syncGameData(uid, write.payload as UserDocumentUpdate);
+            break;
+        }
+
+        // Başarılı - status:'done' güncelle
+        await updateDoc(doc(db, 'users', uid, 'pendingWrites', writeId), {
+          status: 'done',
+        });
+      } catch (error) {
+        console.error('processPendingWrites: write failed', error);
         
-        if (lastSubmittedAt) {
-          const lastSubmittedTimestamp = lastSubmittedAt instanceof Timestamp 
-            ? lastSubmittedAt.toMillis() 
-            : lastSubmittedAt;
-          const now = Date.now();
-          const timeSinceLastSubmit = now - lastSubmittedTimestamp;
-          
-          if (timeSinceLastSubmit < 60000) { // 60 seconds
-            console.warn(`Rate limit: User ${uid} submitted a score ${timeSinceLastSubmit}ms ago. Must wait 60 seconds between submissions.`);
-            return;
-          }
+        const newAttempts = write.attempts + 1;
+        
+        // 3 deneme sonrası status:'failed'
+        if (newAttempts >= 3) {
+          await updateDoc(doc(db, 'users', uid, 'pendingWrites', writeId), {
+            status: 'failed',
+            attempts: newAttempts,
+          });
+        } else {
+          await updateDoc(doc(db, 'users', uid, 'pendingWrites', writeId), {
+            attempts: newAttempts,
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('processPendingWrites error:', error);
+    throw error;
+  }
+}
+
+// 9. addToPendingWrites
+export async function addToPendingWrites(
+  uid: string,
+  type: PendingWriteType,
+  payload: Record<string, unknown>
+): Promise<void> {
+  const db = getFirebaseFirestore();
+  
+  try {
+    const pendingWrite: PendingWriteDocument = {
+      type,
+      payload,
+      createdAt: Date.now(),
+      attempts: 0,
+      status: 'pending',
+    };
+    
+    await addDoc(collection(db, 'users', uid, 'pendingWrites'), pendingWrite);
+  } catch (error) {
+    console.error('addToPendingWrites error:', error);
+    throw error;
+  }
+}
+
+// 10. syncLocalToFirestore (eski fonksiyon, uyumlu tut)
+export async function syncLocalToFirestore(uid: string): Promise<void> {
+  const db = getFirebaseFirestore();
+  
+  try {
+    const statsStr = localStorage.getItem('flux_stats');
+    const highScoresStr = localStorage.getItem('flux_highscores');
+    const maxLevelStr = localStorage.getItem('flux_max_level');
+
+    const update: UserDocumentUpdate = {};
+
+    if (statsStr) {
+      try {
+        update.stats = JSON.parse(statsStr);
+      } catch (e) {
+        console.warn('Failed to parse flux_stats', e);
+      }
+    }
+
+    if (highScoresStr) {
+      try {
+        update.highScores = JSON.parse(highScoresStr);
+      } catch (e) {
+        console.warn('Failed to parse flux_highscores', e);
+      }
+    }
+
+    if (maxLevelStr) {
+      const maxLevel = parseInt(maxLevelStr, 10);
+      if (!isNaN(maxLevel)) {
+        if (!update.progression) {
+          update.progression = {
+            maxLevelReached: maxLevel,
+            currentStreak: 0,
+            longestStreak: 0,
+            lastDailyDate: null,
+          };
+        } else {
+          update.progression.maxLevelReached = maxLevel;
         }
       }
     }
 
-    // Update user's high score
-    const userDoc = await getDoc(userRef);
-    const currentHighScores = userDoc.data()?.highScores || {};
-    const currentHighScore = currentHighScores[mode] || 0;
-
-    if (score > currentHighScore) {
-      await updateDoc(userRef, {
-        [`highScores.${mode}`]: score,
-        lastModified: Date.now(),
-      });
-
-      // Update leaderboard entry
-      await setDoc(leaderboardRef, {
-        uid,
-        displayName: displayName || 'Anonymous',
-        photoURL,
-        score,
-        achievedAt: serverTimestamp(),
-        lastScoreSubmittedAt: Date.now(),
-        platform: 'web',
-        appVersion: '1.0.0', // TODO: Get from package.json
-      });
-    } else {
-      // Even if not a new high score, update lastScoreSubmittedAt for rate limiting
-      await updateDoc(userRef, {
-        [`highScores.${mode}`]: score,
-        lastModified: Date.now(),
-      });
+    if (Object.keys(update).length > 0) {
+      await syncGameData(uid, update);
     }
   } catch (error) {
-    console.error('Failed to sync score:', error);
-    throw error;
-  }
-}
-
-/**
- * Sync mode-specific statistics
- */
-export async function syncModeStats(
-  uid: string,
-  mode: GameMode,
-  stats: Partial<ModeStats>
-): Promise<void> {
-  try {
-    const modeStatsRef = doc(db, `users/${uid}/modeStats`, mode);
-    
-    await setDoc(
-      modeStatsRef,
-      {
-        ...stats,
-        lastPlayedAt: serverTimestamp(),
-        lastModified: Date.now(),
-      },
-      { merge: true }
-    );
-  } catch (error) {
-    console.error('Failed to sync mode stats:', error);
-    throw error;
-  }
-}
-
-/**
- * Sync daily challenge completion with streak logic
- */
-export async function syncDailyChallenge(
-  uid: string,
-  date: string,
-  data: DailyData
-): Promise<void> {
-  try {
-    const dailyRef = doc(db, `users/${uid}/dailyHistory`, date);
-    const userRef = doc(db, 'users', uid);
-
-    // Calculate streak
-    const yesterday = new Date(date);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-    const yesterdayDoc = await getDoc(doc(db, `users/${uid}/dailyHistory`, yesterdayStr));
-    
-    let currentStreak = 1;
-    let longestStreak = data.longestStreak || 1;
-
-    if (yesterdayDoc.exists() && !data.freezeUsed) {
-      // Continue streak
-      const yesterdayData = yesterdayDoc.data();
-      currentStreak = (yesterdayData.currentStreak || 0) + 1;
-    } else if (!yesterdayDoc.exists() && !data.freezeUsed) {
-      // Streak broken, reset to 1
-      currentStreak = 1;
-    }
-
-    // Update longest streak if current exceeds it
-    if (currentStreak > longestStreak) {
-      longestStreak = currentStreak;
-    }
-
-    // Write daily history
-    await setDoc(dailyRef, {
-      ...data,
-      currentStreak,
-      longestStreak,
-      lastCompletedDate: date,
-      completedAt: serverTimestamp(),
-      lastModified: Date.now(),
-    });
-
-    // Update user document with streak info
-    await setDoc(
-      userRef,
-      {
-        currentStreak,
-        longestStreak,
-        lastModified: Date.now(),
-      },
-      { merge: true }
-    );
-  } catch (error) {
-    console.error('Failed to sync daily challenge:', error);
-    throw error;
-  }
-}
-
-/**
- * Load user data from Firestore
- */
-export async function loadUserData(uid: string): Promise<UserData | null> {
-  try {
-    const userRef = doc(db, 'users', uid);
-    const userDoc = await getDoc(userRef);
-
-    if (!userDoc.exists()) {
-      return null;
-    }
-
-    return userDoc.data() as UserData;
-  } catch (error) {
-    console.error('Failed to load user data:', error);
-    throw error;
-  }
-}
-
-/**
- * Sync data from Firestore to localStorage
- * Firebase is the source of truth - always overwrites localStorage
- */
-export async function syncFromFirestore(uid: string): Promise<void> {
-  try {
-    const userRef = doc(db, 'users', uid);
-    const userDoc = await getDoc(userRef);
-    
-    if (!userDoc.exists()) {
-      console.log('No user data found in Firebase');
-      return;
-    }
-
-    const userData = userDoc.data() as UserData;
-
-    // Firebase is the source of truth - always overwrite localStorage cache
-    
-    // Cache stats (read-only cache for offline access)
-    const stats = {
-      gamesPlayed: userData.totalGamesPlayed || 0,
-      totalScore: 0, // Will be calculated from highScores
-      linesCleared: 0, // TODO: Add to UserData type
-      blocksPlaced: 0, // TODO: Add to UserData type
-      maxCombo: 0, // TODO: Add to UserData type
-      totalTimePlayed: userData.totalTimePlayed || 0,
-      bombsExploded: 0, // TODO: Add to UserData type
-      iceBroken: 0, // TODO: Add to UserData type
-    };
-    localStorage.setItem('flux_stats', JSON.stringify(stats));
-
-    // Cache high scores
-    if (userData.highScores) {
-      localStorage.setItem('flux_highscores', JSON.stringify(userData.highScores));
-      
-      // Also set individual mode high scores for backward compatibility
-      Object.entries(userData.highScores).forEach(([mode, score]) => {
-        localStorage.setItem(`flux_highscore_${mode}`, score.toString());
-      });
-    }
-
-    // Cache max level
-    if (userData.maxLevelReached !== undefined) {
-      localStorage.setItem('flux_max_level', userData.maxLevelReached.toString());
-    }
-
-    // Cache daily streak
-    if (userData.currentStreak !== undefined) {
-      localStorage.setItem('flux_daily_streak', userData.currentStreak.toString());
-    }
-
-    // Cache achievements (fetch from subcollection)
-    try {
-      const achievementsRef = collection(db, `users/${uid}/achievements`);
-      const achievementsSnapshot = await getDoc(doc(achievementsRef.parent!, achievementsRef.id));
-      // TODO: Implement proper achievements fetching
-      // For now, just set empty array
-      localStorage.setItem('flux_achievements', JSON.stringify([]));
-    } catch (error) {
-      console.warn('Failed to fetch achievements:', error);
-      localStorage.setItem('flux_achievements', JSON.stringify([]));
-    }
-
-    // Cache player profile
-    const profile = {
-      displayName: userData.displayName,
-      photoURL: userData.photoURL,
-      createdAt: userData.createdAt,
-      lastSeenAt: userData.lastSeenAt,
-    };
-    localStorage.setItem('flux_player_profile', JSON.stringify(profile));
-
-    // Sync preferences (these are read-write)
-    if (userData.preferences?.theme) {
-      localStorage.setItem('flux_theme', userData.preferences.theme);
-    }
-
-    if (userData.preferences?.language) {
-      localStorage.setItem('flux_language', userData.preferences.language);
-    }
-
-    console.log('Successfully synced from Firebase to localStorage cache');
-  } catch (error) {
-    console.error('Failed to sync from Firestore:', error);
-    throw error;
-  }
-}
-
-/**
- * Sync local data to Firestore
- */
-export async function syncLocalToFirestore(uid: string): Promise<void> {
-  try {
-    const gameData: GameData = {};
-
-    // Collect high scores
-    const highScores: any = {};
-    const modes = ['endless', 'timed', 'blitz', 'zen', 'daily', 'survival'];
-    
-    modes.forEach((mode) => {
-      const score = localStorage.getItem(`flux_highscore_${mode}`);
-      if (score) {
-        highScores[mode] = parseInt(score, 10);
-      }
-    });
-
-    if (Object.keys(highScores).length > 0) {
-      gameData.highScores = highScores;
-    }
-
-    // Collect progression
-    const maxLevel = localStorage.getItem('flux_max_level');
-    if (maxLevel) {
-      gameData.maxLevelReached = parseInt(maxLevel, 10);
-    }
-
-    const streak = localStorage.getItem('flux_daily_streak');
-    if (streak) {
-      gameData.currentStreak = parseInt(streak, 10);
-    }
-
-    // Collect preferences
-    const theme = localStorage.getItem('flux_theme');
-    if (theme) {
-      gameData.preferences = { theme };
-    }
-
-    // Sync to Firestore
-    if (Object.keys(gameData).length > 0) {
-      await syncGameData(uid, gameData);
-    }
-  } catch (error) {
-    console.error('Failed to sync local to Firestore:', error);
-    throw error;
-  }
-}
-
-/**
- * Validate user document structure
- */
-export function validateUserDocument(data: any): boolean {
-  const requiredFields = [
-    'displayName',
-    'createdAt',
-    'lastSeenAt',
-    'platform',
-    'appVersion',
-    'isAnonymous',
-    'maxLevelReached',
-    'totalGamesPlayed',
-    'totalTimePlayed',
-    'currentStreak',
-    'longestStreak',
-    'highScores',
-  ];
-
-  for (const field of requiredFields) {
-    if (!(field in data)) {
-      console.error(`Missing required field in user document: ${field}`);
-      return false;
-    }
-  }
-
-  // Validate highScores structure
-  if (typeof data.highScores !== 'object') {
-    console.error('highScores must be an object');
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Validate mode stats document structure
- */
-export function validateModeStatsDocument(data: any): boolean {
-  const requiredFields = [
-    'mode',
-    'firstPlayedAt',
-    'lastPlayedAt',
-    'totalSessions',
-    'totalTimeSecs',
-    'avgSessionSecs',
-    'daysActive',
-    'highScore',
-    'avgScore',
-    'topPercentile',
-    'bestCombo',
-    'linesCleared',
-    'retryCount',
-    'avgRetriesPerSession',
-    'skillUsageRate',
-    'quitAfterFirstGame',
-    'peakHour',
-    'preferredDifficulty',
-  ];
-
-  for (const field of requiredFields) {
-    if (!(field in data)) {
-      console.error(`Missing required field in mode stats document: ${field}`);
-      return false;
-    }
-  }
-
-  // Validate daysActive is an array
-  if (!Array.isArray(data.daysActive)) {
-    console.error('daysActive must be an array');
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Validate daily history document structure
- */
-export function validateDailyHistoryDocument(data: any): boolean {
-  const requiredFields = [
-    'score',
-    'rank',
-    'attempts',
-    'timeToComplete',
-    'currentStreak',
-    'longestStreak',
-    'lastCompletedDate',
-    'freezeUsed',
-    'globalPercentile',
-    'shareCount',
-    'seedId',
-  ];
-
-  for (const field of requiredFields) {
-    if (!(field in data)) {
-      console.error(`Missing required field in daily history document: ${field}`);
-      return false;
-    }
-  }
-
-  return true;
-}
-
-/**
- * Sync achievement to Firestore
- */
-export async function syncAchievement(uid: string, achievement: any): Promise<void> {
-  try {
-    const db = getFirebaseFirestore();
-    const achRef = doc(db, `users/${uid}/achievements`, achievement.id);
-    
-    await setDoc(achRef, {
-      ...achievement,
-      unlockedAt: Date.now(),
-    }, { merge: true });
-  } catch (error) {
-    console.error('Failed to sync achievement:', error);
-    throw error;
-  }
-}
-
-/**
- * Track session and update timestamps
- */
-export async function trackSession(
-  uid: string,
-  mode: GameMode,
-  sessionDurationSecs: number
-): Promise<void> {
-  try {
-    const userRef = doc(db, 'users', uid);
-    const modeStatsRef = doc(db, `users/${uid}/modeStats`, mode);
-
-    // Get current date
-    const today = new Date().toISOString().split('T')[0];
-    const currentHour = new Date().getHours();
-
-    // Update user document
-    await setDoc(
-      userRef,
-      {
-        lastSeenAt: serverTimestamp(),
-        totalTimePlayed: sessionDurationSecs * 1000,
-        lastModified: Date.now(),
-      },
-      { merge: true }
-    );
-
-    // Get current mode stats
-    const modeStatsDoc = await getDoc(modeStatsRef);
-    const currentStats = modeStatsDoc.exists() ? modeStatsDoc.data() : {};
-
-    // Calculate new values
-    const totalSessions = (currentStats.totalSessions || 0) + 1;
-    const totalTimeSecs = (currentStats.totalTimeSecs || 0) + sessionDurationSecs;
-    const avgSessionSecs = totalTimeSecs / totalSessions;
-
-    // Update daysActive array
-    const daysActive = currentStats.daysActive || [];
-    if (!daysActive.includes(today)) {
-      daysActive.push(today);
-    }
-
-    // Track hour frequency for peakHour calculation
-    const hourFrequency = currentStats.hourFrequency || {};
-    hourFrequency[currentHour] = (hourFrequency[currentHour] || 0) + 1;
-
-    // Find peak hour
-    let peakHour = currentHour;
-    let maxFrequency = hourFrequency[currentHour];
-    for (const [hour, frequency] of Object.entries(hourFrequency)) {
-      const freq = typeof frequency === 'number' ? frequency : 0;
-      if (freq > maxFrequency) {
-        maxFrequency = freq;
-        peakHour = parseInt(hour, 10);
-      }
-    }
-
-    // Update mode stats
-    await setDoc(
-      modeStatsRef,
-      {
-        totalSessions,
-        totalTimeSecs,
-        avgSessionSecs,
-        daysActive,
-        hourFrequency,
-        peakHour,
-        lastPlayedAt: serverTimestamp(),
-        lastModified: Date.now(),
-      },
-      { merge: true }
-    );
-  } catch (error) {
-    console.error('Failed to track session:', error);
+    console.error('syncLocalToFirestore error:', error);
     throw error;
   }
 }

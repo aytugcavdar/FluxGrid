@@ -28,6 +28,7 @@ import { X, User } from 'lucide-react';
 import { useCountUp } from '@shared/hooks/useCountUp';
 import { initializeFirebase } from '../services/firebase/config';
 import { useAuthStore } from '../features/auth/store/authStore';
+import { detectPlatform } from '../services/firebase/types';
 
 interface ScorePopup {
   id: number;
@@ -109,6 +110,9 @@ const App: React.FC = () => {
   // Grid sizing with ResizeObserver for safe area compatibility
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [gridSize, setGridSize] = useState(0);
+  
+  // Game session timing for Firebase sync
+  const gameStartTimeRef = useRef<number>(0);
 
 
 
@@ -121,6 +125,17 @@ const App: React.FC = () => {
 
     // Initialize Firebase
     initializeFirebase();
+    
+    // Config kontrolü — initializeFirebase'den hemen sonra
+    import('../services/firebase/configService').then(({ getAppConfig, isMaintenanceMode }) => {
+      getAppConfig().then(config => {
+        if (isMaintenanceMode(config)) {
+          // Bakım modunu store veya state'e aktar
+          // Şimdilik console.warn yeterli, ileride UI eklenebilir
+          console.warn('App is in maintenance mode:', config?.maintenanceMessage);
+        }
+      });
+    });
     
     // Initialize auth
     useAuthStore.getState().initAuth();
@@ -237,72 +252,101 @@ const App: React.FC = () => {
     return () => window.removeEventListener('pointerdown', handleFirstTouch);
   }, []);
 
+  // Track game start time for session duration
+  useEffect(() => {
+    if (appState === AppState.GAME) {
+      gameStartTimeRef.current = Date.now();
+    }
+  }, [appState]);
+
   // Sync game data to Firebase when game ends
   useEffect(() => {
-    if (isGameOver && score > 0) {
-      const user = useAuthStore.getState().user;
-      if (user) {
-        // Import sync functions dynamically to avoid circular deps
-        import('../services/firebase/syncManager').then(({ syncScore, syncGameData }) => {
-          // Sync score to leaderboard with timeout protection
-          const syncPromises: Promise<any>[] = [];
-
-          syncPromises.push(
-            syncScore(
-              user.uid,
-              gameMode,
-              score,
-              user.displayName || 'Anonymous',
-              user.photoURL || null
-            ).catch(err => {
-              console.error('Failed to sync score:', err);
-              // Don't block game flow on Firebase errors
-            })
-          );
-
-          // Sync game stats
-          const gameData = {
-            highScores: { [gameMode]: score },
-            totalGamesPlayed: stats.gamesPlayed,
-            lastSeenAt: Date.now(),
-          };
-          
-          syncPromises.push(
-            syncGameData(user.uid, gameData).catch(err => {
-              console.error('Failed to sync game data:', err);
-              // Don't block game flow on Firebase errors
-            })
-          );
-
-          // Wait for syncs to complete, then update localStorage cache
-          Promise.allSettled(syncPromises).then(() => {
-            try {
-              // Update localStorage cache for offline access
-              // These are read-only caches updated after Firebase sync
-              
-              // Update high scores cache
-              const cachedHighScores = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
-              const currentHighScore = cachedHighScores[gameMode] || 0;
-              
-              if (score > currentHighScore) {
-                cachedHighScores[gameMode] = score;
-                localStorage.setItem('flux_highscores', JSON.stringify(cachedHighScores));
-                localStorage.setItem(`flux_highscore_${gameMode}`, score.toString());
-              }
-
-              // Update stats cache
-              const cachedStats = JSON.parse(localStorage.getItem('flux_stats') || '{}');
-              cachedStats.gamesPlayed = stats.gamesPlayed;
-              localStorage.setItem('flux_stats', JSON.stringify(cachedStats));
-            } catch (cacheError) {
-              console.warn('Failed to update localStorage cache:', cacheError);
-              // Don't block game flow on cache errors
-            }
-          });
-        });
+    if (!isGameOver || score === 0) return;
+    
+    const user = useAuthStore.getState().user;
+    if (!user) return;
+    
+    const sessionDurationSecs = Math.floor((Date.now() - gameStartTimeRef.current) / 1000);
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Tüm sync işlemleri ayrı import edilecek
+    import('../services/firebase/syncManager').then(({ syncGameData, syncScore, syncCareerProgress, syncDailyChallenge, addToPendingWrites }) => {
+      const statsPayload = {
+        [`highScores.${gameMode}`]: score,
+        stats: {
+          gamesPlayed: stats.gamesPlayed,
+          totalScore: stats.totalScore,
+          linesCleared: stats.linesCleared,
+          blocksPlaced: stats.blocksPlaced,
+          bombsExploded: stats.bombsExploded,
+          iceBroken: stats.iceBroken,
+          highestCombo: Math.max(combo, 0),
+          totalPlaytimeSecs: sessionDurationSecs,
+          skillUses: stats.skillUses ?? {},
+        },
+        lastPlatform: detectPlatform(),
+        lastAppVersion: import.meta.env.VITE_APP_VERSION || '1.0.0',
+        lastSeenAt: Date.now(),
+      };
+      
+      const syncPromises: Promise<void>[] = [
+        syncGameData(user.uid, statsPayload).catch(err => {
+          console.error('syncGameData failed:', err);
+          // Offline ise pendingWrites'a düş
+          addToPendingWrites(user.uid, 'stats', statsPayload).catch(() => {});
+        }),
+        
+        syncScore(
+          user.uid,
+          gameMode,
+          score,
+          user.displayName || 'Oyuncu',
+          user.photoURL || null,
+          sessionDurationSecs
+        ).catch(err => {
+          console.error('syncScore failed:', err);
+          addToPendingWrites(user.uid, 'score', {
+            mode: gameMode,
+            score,
+            sessionDurationSecs,
+          }).catch(() => {});
+        }),
+      ];
+      
+      // Kariyer modu
+      if (gameMode === GameMode.CAREER) {
+        syncPromises.push(
+          syncCareerProgress(user.uid, currentLevelIndex, {
+            completed: isLevelComplete,
+            stars: earnedStars,
+            bestScore: score,
+            attempts: 1,
+            completedAt: isLevelComplete ? Date.now() : null,
+          }).catch(err => console.error('syncCareerProgress failed:', err))
+        );
       }
-    }
-  }, [isGameOver, score, gameMode, stats.gamesPlayed]);
+      
+      // Günlük meydan okuma
+      if (gameMode === GameMode.DAILY_CHALLENGE) {
+        const currentStreak = getStreak();
+        syncPromises.push(
+          syncDailyChallenge(user.uid, today, score, 1, currentStreak)
+            .catch(err => console.error('syncDailyChallenge failed:', err))
+        );
+      }
+      
+      Promise.allSettled(syncPromises).then(() => {
+        // localStorage cache güncelle — sadece bu noktada
+        try {
+          const cached = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
+          if (score > (cached[gameMode] || 0)) {
+            cached[gameMode] = score;
+            localStorage.setItem('flux_highscores', JSON.stringify(cached));
+          }
+        } catch {}
+      });
+    });
+  }, [isGameOver]);
 
   // URL parameter handling for shortcuts
   useEffect(() => {

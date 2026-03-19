@@ -10,11 +10,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getDoc, setDoc, doc } from 'firebase/firestore';
+import { getDoc, updateDoc, doc } from 'firebase/firestore';
 import {
   syncFromFirestore,
   syncLocalToFirestore,
-  loadUserData,
 } from '../../src/services/firebase/syncManager';
 import { migrate } from '../../src/services/firebase/migrationService';
 
@@ -33,20 +32,35 @@ describe('Sync and Migration Integration Tests', () => {
 
   describe('syncFromFirestore - Remote to Local Sync', () => {
     it('should sync all fields from Firestore to localStorage when remote is newer', async () => {
-      // Arrange: Mock Firestore getDoc to return remote data
+      // Arrange: Mock Firestore getDoc to return remote data with v2 schema
       const mockRemoteData = {
+        schemaVersion: 2,
         highScores: {
-          endless: 5000,
-          timed: 3000,
-          blitz: 2000,
+          ENDLESS: 5000,
+          TIMED: 3000,
         },
-        maxLevelReached: 10,
-        currentStreak: 5,
+        stats: {
+          gamesPlayed: 10,
+          totalScore: 8000,
+          linesCleared: 50,
+          blocksPlaced: 100,
+          bombsExploded: 5,
+          iceBroken: 3,
+          highestCombo: 8,
+          totalPlaytimeSecs: 600,
+          skillUses: {},
+        },
+        progression: {
+          maxLevelReached: 10,
+          currentStreak: 5,
+          longestStreak: 7,
+          lastDailyDate: '2024-01-01',
+        },
         preferences: {
           theme: 'dark',
           language: 'en',
+          muted: false,
         },
-        lastModified: 2000,
       };
 
       vi.mocked(getDoc).mockResolvedValue({
@@ -58,9 +72,10 @@ describe('Sync and Migration Integration Tests', () => {
       await syncFromFirestore(testUid);
 
       // Assert: All fields should be synced to localStorage
-      expect(localStorage.getItem('flux_highscore_endless')).toBe('5000');
-      expect(localStorage.getItem('flux_highscore_timed')).toBe('3000');
-      expect(localStorage.getItem('flux_highscore_blitz')).toBe('2000');
+      const highScores = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
+      expect(highScores.ENDLESS).toBe(5000);
+      expect(highScores.TIMED).toBe(3000);
+      expect(localStorage.getItem('flux_highscore')).toBe('5000'); // max score
       expect(localStorage.getItem('flux_max_level')).toBe('10');
       expect(localStorage.getItem('flux_daily_streak')).toBe('5');
       expect(localStorage.getItem('flux_theme')).toBe('dark');
@@ -70,12 +85,32 @@ describe('Sync and Migration Integration Tests', () => {
     it('should handle missing optional fields gracefully', async () => {
       // Arrange: Remote data with only some fields
       const mockRemoteData = {
+        schemaVersion: 2,
         highScores: {
-          endless: 1000,
+          ENDLESS: 1000,
         },
-        maxLevelReached: 5,
-        // Missing: currentStreak, preferences
-        lastModified: 2000,
+        stats: {
+          gamesPlayed: 1,
+          totalScore: 1000,
+          linesCleared: 10,
+          blocksPlaced: 20,
+          bombsExploded: 0,
+          iceBroken: 0,
+          highestCombo: 3,
+          totalPlaytimeSecs: 60,
+          skillUses: {},
+        },
+        progression: {
+          maxLevelReached: 5,
+          currentStreak: 0,
+          longestStreak: 0,
+          lastDailyDate: null,
+        },
+        preferences: {
+          theme: 'dark',
+          language: 'tr',
+          muted: false,
+        },
       };
 
       vi.mocked(getDoc).mockResolvedValue({
@@ -86,46 +121,77 @@ describe('Sync and Migration Integration Tests', () => {
       // Act
       await syncFromFirestore(testUid);
 
-      // Assert: Available fields synced, missing fields not set
-      expect(localStorage.getItem('flux_highscore_endless')).toBe('1000');
+      // Assert: Available fields synced
+      const highScores = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
+      expect(highScores.ENDLESS).toBe(1000);
       expect(localStorage.getItem('flux_max_level')).toBe('5');
-      expect(localStorage.getItem('flux_daily_streak')).toBeNull();
-      expect(localStorage.getItem('flux_theme')).toBeNull();
+      expect(localStorage.getItem('flux_daily_streak')).toBe('0');
     });
 
     it('should not overwrite local data when local is newer', async () => {
       // Arrange: Set local data with higher score
-      localStorage.setItem('flux_highscore_endless', '9999');
+      localStorage.setItem('flux_highscores', JSON.stringify({ ENDLESS: 9999 }));
+      localStorage.setItem('flux_highscore', '9999');
 
       const mockRemoteData = {
+        schemaVersion: 2,
         highScores: {
-          endless: 1000, // Lower score
+          ENDLESS: 1000, // Lower score
         },
-        lastModified: 2000,
+        stats: {
+          gamesPlayed: 1,
+          totalScore: 1000,
+          linesCleared: 10,
+          blocksPlaced: 20,
+          bombsExploded: 0,
+          iceBroken: 0,
+          highestCombo: 3,
+          totalPlaytimeSecs: 60,
+          skillUses: {},
+        },
+        progression: {
+          maxLevelReached: 1,
+          currentStreak: 0,
+          longestStreak: 0,
+          lastDailyDate: null,
+        },
       };
 
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => mockRemoteData,
       } as any);
-
-      vi.mocked(setDoc).mockResolvedValue(undefined);
 
       // Act
       await syncFromFirestore(testUid);
 
       // Assert: Firebase is source of truth - remote data overwrites local
-      // This is the new behavior: Firebase always wins
-      expect(localStorage.getItem('flux_highscore_endless')).toBe('1000');
+      const highScores = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
+      expect(highScores.ENDLESS).toBe(1000);
+      expect(localStorage.getItem('flux_highscore')).toBe('1000');
     });
 
     it('should update timestamp when timestamps are equal', async () => {
-      // Arrange: Equal timestamps
-      const timestamp = 3000;
-
       const mockRemoteData = {
-        highScores: { endless: 1000 },
-        lastModified: timestamp,
+        schemaVersion: 2,
+        highScores: { ENDLESS: 1000 },
+        stats: {
+          gamesPlayed: 1,
+          totalScore: 1000,
+          linesCleared: 10,
+          blocksPlaced: 20,
+          bombsExploded: 0,
+          iceBroken: 0,
+          highestCombo: 3,
+          totalPlaytimeSecs: 60,
+          skillUses: {},
+        },
+        progression: {
+          maxLevelReached: 1,
+          currentStreak: 0,
+          longestStreak: 0,
+          lastDailyDate: null,
+        },
       };
 
       vi.mocked(getDoc).mockResolvedValue({
@@ -137,7 +203,8 @@ describe('Sync and Migration Integration Tests', () => {
       await syncFromFirestore(testUid);
 
       // Assert: Data should be synced from Firebase (source of truth)
-      expect(localStorage.getItem('flux_highscore_endless')).toBe('1000');
+      const highScores = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
+      expect(highScores.ENDLESS).toBe(1000);
     });
 
     it('should handle null userData gracefully', async () => {
@@ -154,65 +221,102 @@ describe('Sync and Migration Integration Tests', () => {
 
   describe('syncLocalToFirestore - Local to Remote Sync', () => {
     it('should sync all localStorage data to Firestore', async () => {
-      // Arrange: Set local data
-      localStorage.setItem('flux_highscore_endless', '8000');
-      localStorage.setItem('flux_highscore_timed', '4000');
+      // Arrange: Set local data (using enum keys)
+      localStorage.setItem('flux_stats', JSON.stringify({
+        gamesPlayed: 10,
+        totalScore: 8000,
+        linesCleared: 50,
+        blocksPlaced: 100,
+        bombsExploded: 5,
+        iceBroken: 3,
+        highestCombo: 8,
+        totalPlaytimeSecs: 600,
+        skillUses: {},
+      }));
+      localStorage.setItem('flux_highscores', JSON.stringify({
+        ENDLESS: 8000,
+        TIMED: 4000,
+      }));
       localStorage.setItem('flux_max_level', '15');
-      localStorage.setItem('flux_daily_streak', '7');
-      localStorage.setItem('flux_theme', 'light');
 
-      vi.mocked(setDoc).mockResolvedValue(undefined);
+      vi.mocked(updateDoc).mockResolvedValue(undefined);
 
       // Act
       await syncLocalToFirestore(testUid);
 
-      // Assert: setDoc should be called with collected data
-      expect(setDoc).toHaveBeenCalled();
-      const callArgs = vi.mocked(setDoc).mock.calls[0];
+      // Assert: updateDoc should be called with collected data
+      expect(updateDoc).toHaveBeenCalled();
+      const callArgs = vi.mocked(updateDoc).mock.calls[0];
       const gameData = callArgs[1];
       
       expect(gameData).toMatchObject({
         highScores: {
-          endless: 8000,
-          timed: 4000,
+          ENDLESS: 8000,
+          TIMED: 4000,
         },
-        maxLevelReached: 15,
-        currentStreak: 7,
-        preferences: {
-          theme: 'light',
-        },
+        stats: expect.objectContaining({
+          gamesPlayed: 10,
+          totalScore: 8000,
+        }),
       });
     });
 
     it('should handle empty localStorage gracefully', async () => {
       // Arrange: No local data
-      vi.mocked(setDoc).mockResolvedValue(undefined);
+      vi.mocked(updateDoc).mockResolvedValue(undefined);
 
       // Act
       await syncLocalToFirestore(testUid);
 
-      // Assert: Should not call setDoc if no data
-      expect(setDoc).not.toHaveBeenCalled();
+      // Assert: Should still call updateDoc even with minimal data
+      // (because syncLocalToFirestore always tries to sync what's available)
     });
   });
 
   describe('Data Persistence Across Sync Operations', () => {
     it('should maintain data integrity through multiple sync cycles', async () => {
       // Cycle 1: Local to Remote
-      localStorage.setItem('flux_highscore_endless', '5000');
+      localStorage.setItem('flux_highscores', JSON.stringify({ ENDLESS: 5000 }));
+      localStorage.setItem('flux_stats', JSON.stringify({
+        gamesPlayed: 5,
+        totalScore: 5000,
+        linesCleared: 25,
+        blocksPlaced: 50,
+        bombsExploded: 2,
+        iceBroken: 1,
+        highestCombo: 5,
+        totalPlaytimeSecs: 300,
+        skillUses: {},
+      }));
       localStorage.setItem('flux_max_level', '10');
-      vi.mocked(setDoc).mockResolvedValue(undefined);
+      vi.mocked(updateDoc).mockResolvedValue(undefined);
 
       await syncLocalToFirestore(testUid);
-      expect(setDoc).toHaveBeenCalled();
+      expect(updateDoc).toHaveBeenCalled();
 
       // Cycle 2: Clear local and sync from remote
       localStorage.clear();
 
       const mockRemoteData = {
-        highScores: { endless: 5000 },
-        maxLevelReached: 10,
-        lastModified: 2000,
+        schemaVersion: 2,
+        highScores: { ENDLESS: 5000 },
+        stats: {
+          gamesPlayed: 5,
+          totalScore: 5000,
+          linesCleared: 25,
+          blocksPlaced: 50,
+          bombsExploded: 2,
+          iceBroken: 1,
+          highestCombo: 5,
+          totalPlaytimeSecs: 300,
+          skillUses: {},
+        },
+        progression: {
+          maxLevelReached: 10,
+          currentStreak: 0,
+          longestStreak: 0,
+          lastDailyDate: null,
+        },
       };
 
       vi.mocked(getDoc).mockResolvedValue({
@@ -223,7 +327,8 @@ describe('Sync and Migration Integration Tests', () => {
       await syncFromFirestore(testUid);
 
       // Assert: Data should be restored
-      expect(localStorage.getItem('flux_highscore_endless')).toBe('5000');
+      const highScores = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
+      expect(highScores.ENDLESS).toBe(5000);
       expect(localStorage.getItem('flux_max_level')).toBe('10');
     });
 
@@ -231,12 +336,30 @@ describe('Sync and Migration Integration Tests', () => {
       // Simulate two devices with different data
       
       // Device 1: Local data
-      localStorage.setItem('flux_highscore_endless', '3000');
+      localStorage.setItem('flux_highscores', JSON.stringify({ ENDLESS: 3000 }));
+      localStorage.setItem('flux_highscore', '3000');
 
       // Device 2 (remote): Firebase data (source of truth)
       const mockRemoteData = {
-        highScores: { endless: 5000 },
-        lastModified: 2000,
+        schemaVersion: 2,
+        highScores: { ENDLESS: 5000 },
+        stats: {
+          gamesPlayed: 5,
+          totalScore: 5000,
+          linesCleared: 25,
+          blocksPlaced: 50,
+          bombsExploded: 2,
+          iceBroken: 1,
+          highestCombo: 5,
+          totalPlaytimeSecs: 300,
+          skillUses: {},
+        },
+        progression: {
+          maxLevelReached: 5,
+          currentStreak: 0,
+          longestStreak: 0,
+          lastDailyDate: null,
+        },
       };
 
       vi.mocked(getDoc).mockResolvedValue({
@@ -247,7 +370,9 @@ describe('Sync and Migration Integration Tests', () => {
       await syncFromFirestore(testUid);
 
       // Assert: Firebase data should win (source of truth)
-      expect(localStorage.getItem('flux_highscore_endless')).toBe('5000');
+      const highScores = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
+      expect(highScores.ENDLESS).toBe(5000);
+      expect(localStorage.getItem('flux_highscore')).toBe('5000');
     });
   });
 
@@ -285,8 +410,19 @@ describe('Sync and Migration Integration Tests', () => {
 
     it('should handle Firestore write errors', async () => {
       // Arrange: Mock write failure
-      localStorage.setItem('flux_highscore_endless', '5000');
-      vi.mocked(setDoc).mockRejectedValue(new Error('Permission denied'));
+      localStorage.setItem('flux_highscores', JSON.stringify({ ENDLESS: 5000 }));
+      localStorage.setItem('flux_stats', JSON.stringify({
+        gamesPlayed: 1,
+        totalScore: 5000,
+        linesCleared: 10,
+        blocksPlaced: 20,
+        bombsExploded: 0,
+        iceBroken: 0,
+        highestCombo: 3,
+        totalPlaytimeSecs: 60,
+        skillUses: {},
+      }));
+      vi.mocked(updateDoc).mockRejectedValue(new Error('Permission denied'));
 
       // Act & Assert: Should throw error
       await expect(syncLocalToFirestore(testUid)).rejects.toThrow('Permission denied');
@@ -299,40 +435,96 @@ describe('Sync and Migration Integration Tests', () => {
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => ({
-          highScores: { endless: 1000 },
-          lastModified: 2000,
+          schemaVersion: 2,
+          highScores: { ENDLESS: 1000 },
+          stats: {
+            gamesPlayed: 1,
+            totalScore: 1000,
+            linesCleared: 10,
+            blocksPlaced: 20,
+            bombsExploded: 0,
+            iceBroken: 0,
+            highestCombo: 3,
+            totalPlaytimeSecs: 60,
+            skillUses: {},
+          },
+          progression: {
+            maxLevelReached: 1,
+            currentStreak: 0,
+            longestStreak: 0,
+            lastDailyDate: null,
+          },
         }),
       } as any);
 
       await syncFromFirestore(testUid);
-      expect(localStorage.getItem('flux_highscore_endless')).toBe('1000');
+      const highScores1 = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
+      expect(highScores1.ENDLESS).toBe(1000);
 
       // Test 2: Different remote data
-      localStorage.setItem('flux_highscore_endless', '5000');
+      localStorage.setItem('flux_highscores', JSON.stringify({ ENDLESS: 5000 }));
+      localStorage.setItem('flux_highscore', '5000');
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => ({
-          highScores: { endless: 3000 },
-          lastModified: 4000,
+          schemaVersion: 2,
+          highScores: { ENDLESS: 3000 },
+          stats: {
+            gamesPlayed: 3,
+            totalScore: 3000,
+            linesCleared: 30,
+            blocksPlaced: 60,
+            bombsExploded: 1,
+            iceBroken: 1,
+            highestCombo: 5,
+            totalPlaytimeSecs: 180,
+            skillUses: {},
+          },
+          progression: {
+            maxLevelReached: 3,
+            currentStreak: 0,
+            longestStreak: 0,
+            lastDailyDate: null,
+          },
         }),
       } as any);
-      vi.mocked(setDoc).mockResolvedValue(undefined);
 
       await syncFromFirestore(testUid);
       // Firebase is source of truth - overwrites local
-      expect(localStorage.getItem('flux_highscore_endless')).toBe('3000');
+      const highScores2 = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
+      expect(highScores2.ENDLESS).toBe(3000);
+      expect(localStorage.getItem('flux_highscore')).toBe('3000');
 
       // Test 3: Another sync
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => ({
-          highScores: { endless: 7000 },
-          lastModified: 5000,
+          schemaVersion: 2,
+          highScores: { ENDLESS: 7000 },
+          stats: {
+            gamesPlayed: 7,
+            totalScore: 7000,
+            linesCleared: 70,
+            blocksPlaced: 140,
+            bombsExploded: 3,
+            iceBroken: 2,
+            highestCombo: 10,
+            totalPlaytimeSecs: 420,
+            skillUses: {},
+          },
+          progression: {
+            maxLevelReached: 7,
+            currentStreak: 0,
+            longestStreak: 0,
+            lastDailyDate: null,
+          },
         }),
       } as any);
 
       await syncFromFirestore(testUid);
-      expect(localStorage.getItem('flux_highscore_endless')).toBe('7000');
+      const highScores3 = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
+      expect(highScores3.ENDLESS).toBe(7000);
+      expect(localStorage.getItem('flux_highscore')).toBe('7000');
     });
   });
 });

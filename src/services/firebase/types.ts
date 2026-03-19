@@ -1,131 +1,168 @@
-import { Timestamp } from 'firebase/firestore';
-import { GameMode as SharedGameMode } from '@shared/types';
+import { GameMode } from '@shared/types';
 
-export type GameMode = SharedGameMode;
+// Cihaz kaydı — multi-platform FCM/APNs için
+export interface DeviceInfo {
+  token: string;
+  platform: 'web' | 'android' | 'ios';
+  appVersion: string;
+  addedAt: number;
+  lastSeenAt: number;
+}
 
-export interface UserData {
-  // Profile
+// Oyuncu istatistikleri map'i
+export interface UserStats {
+  gamesPlayed: number;
+  totalScore: number;
+  linesCleared: number;
+  blocksPlaced: number;
+  bombsExploded: number;
+  iceBroken: number;
+  highestCombo: number;
+  totalPlaytimeSecs: number;
+  skillUses: Record<string, number>;
+}
+
+// Kariyer ve streak
+export interface UserProgression {
+  maxLevelReached: number;
+  currentStreak: number;
+  longestStreak: number;
+  lastDailyDate: string | null; // 'YYYY-MM-DD'
+}
+
+// Kullanıcı tercihleri
+export interface UserPreferences {
+  theme: string;
+  language: string;
+  muted: boolean;
+}
+
+// Ana users/{uid} belgesi
+export interface UserDocument {
+  uid: string;
+  schemaVersion: number; // şu an: 2
   displayName: string;
   photoURL: string | null;
-  createdAt: Timestamp | number;
-  lastSeenAt: Timestamp | number;
-  platform: 'web' | 'pwa';
-  appVersion: string;
   isAnonymous: boolean;
-
-  // Progression
-  maxLevelReached: number;
-  totalGamesPlayed: number;
-  totalTimePlayed: number;
-  currentStreak: number;
-  longestStreak: number;
-
-  // High Scores
-  highScores: {
-    endless: number;
-    timed: number;
-    blitz: number;
-    zen: number;
-    daily_best: number;
-    survival?: number;
-  };
-
-  // Preferences
-  preferences: {
-    theme: string;
-    language?: string;
-    notifications: boolean;
-  };
-
-  // Metadata
+  createdAt: number;
+  lastSeenAt: number;
   onboardingComplete: boolean;
-  deviceTokens: string[];
-  lastModified: number;
+  devices: Record<string, DeviceInfo>; // key = token.substring(0,16)
+  highScores: Partial<Record<GameMode, number>>;
+  stats: UserStats;
+  progression: UserProgression;
+  preferences: UserPreferences;
+  lastPlatform: 'web' | 'android' | 'ios';
+  lastAppVersion: string;
+  deviceTokens?: string[]; // deprecated — migration için tutulacak
 }
 
-export interface GameData {
-  displayName?: string;
-  photoURL?: string | null;
-  platform?: 'web' | 'pwa';
-  appVersion?: string;
-  maxLevelReached?: number;
-  totalGamesPlayed?: number;
-  totalTimePlayed?: number;
-  currentStreak?: number;
-  longestStreak?: number;
-  highScores?: Partial<UserData['highScores']>;
-  preferences?: Partial<UserData['preferences']>;
-  onboardingComplete?: boolean;
-}
-
-export interface ModeStats {
-  mode: GameMode;
-  
-  // Time Data
-  firstPlayedAt: Timestamp | number;
-  lastPlayedAt: Timestamp | number;
-  totalSessions: number;
-  totalTimeSecs: number;
-  avgSessionSecs: number;
-  daysActive: string[];
-
-  // Performance
-  highScore: number;
-  avgScore: number;
-  topPercentile: number;
-  bestCombo: number;
-  linesCleared: number;
-
-  // Retention Signals
-  retryCount: number;
-  avgRetriesPerSession: number;
-  skillUsageRate: number;
-  quitAfterFirstGame: boolean;
-  peakHour: number;
-  preferredDifficulty: string;
-
-  // Metadata
-  lastModified: number;
-}
-
-export interface DailyData {
-  // Performance
-  score: number;
-  rank: number;
-  attempts: number;
-  timeToComplete: number;
-
-  // Streak
-  currentStreak: number;
-  longestStreak: number;
-  lastCompletedDate: string;
-  freezeUsed: boolean;
-
-  // Social
-  globalPercentile: number;
-  shareCount: number;
-  seedId: string;
-
-  // Metadata
-  lastModified: number;
-}
-
-export interface WriteOperation {
-  id: string;
-  timestamp: number;
-  type: 'score' | 'stats' | 'achievement' | 'daily';
-  uid: string;
-  data: any;
-  retries: number;
-}
-
+// Leaderboard skor belgesi — leaderboards/{mode}/scores/{uid}
 export interface LeaderboardEntry {
   uid: string;
   displayName: string;
   photoURL: string | null;
   score: number;
-  achievedAt: Timestamp | number;
-  platform: string;
+  achievedAt: number;
+  platform: 'web' | 'android' | 'ios';
   appVersion: string;
-  rank?: number;
+  sessionDurationSecs: number;
+  flagged: boolean;
+  rank?: number; // client tarafı hesaplanır, Firestore'da opsiyonel
 }
+
+// Leaderboard meta cache — leaderboards/{mode}/meta/summary
+export interface LeaderboardMeta {
+  top10: LeaderboardEntry[];
+  totalPlayers: number;
+  updatedAt: number;
+}
+
+// Günlük meydan okuma — dailyChallenges/{YYYY-MM-DD}
+export interface DailyChallengeDocument {
+  date: string;
+  seed: number;
+  createdAt: number;
+  totalPlayers: number;
+}
+
+// Kariyer seviye ilerlemesi — users/{uid}/careerProgress/{levelIndex}
+export interface CareerProgressDocument {
+  levelIndex: string; // '001' formatı
+  completed: boolean;
+  stars: number; // 0-3
+  bestScore: number;
+  attempts: number;
+  completedAt: number | null;
+}
+
+// Günlük geçmiş — users/{uid}/dailyHistory/{YYYY-MM-DD}
+export interface DailyHistoryDocument {
+  date: string;
+  score: number;
+  attempts: number;
+  completedAt: number;
+  streakAtCompletion: number;
+}
+
+// Başarım — users/{uid}/achievements/{id}
+export interface AchievementDocument {
+  id: string;
+  unlocked: boolean;
+  currentValue: number;
+  unlockedAt: number | null;
+}
+
+// Offline yazma kuyruğu — users/{uid}/pendingWrites/{writeId}
+export type PendingWriteType = 'score' | 'career' | 'daily' | 'stats';
+
+export interface PendingWriteDocument {
+  type: PendingWriteType;
+  payload: Record<string, unknown>;
+  createdAt: number;
+  attempts: number;
+  status: 'pending' | 'done' | 'failed';
+}
+
+// Uygulama konfigürasyonu — appConfig/v1
+export interface AppConfigDocument {
+  minVersionWeb: string;
+  minVersionAndroid: string;
+  minVersionIOS: string;
+  maintenanceMode: boolean;
+  maintenanceMessage: { tr: string; en: string } | null;
+  featureFlags: Record<string, boolean>;
+  updatedAt: number;
+}
+
+// Sync için kullanılan partial update tipi
+export type UserDocumentUpdate = Partial<Omit<UserDocument, 'uid' | 'createdAt' | 'schemaVersion'>>;
+
+// Platform yardımcı fonksiyonu
+export function detectPlatform(): 'web' | 'android' | 'ios' {
+  const ua = navigator.userAgent;
+  if (/android/i.test(ua)) return 'android';
+  if (/iphone|ipad|ipod/i.test(ua)) return 'ios';
+  return 'web';
+}
+
+// Default UserStats
+export const DEFAULT_USER_STATS: UserStats = {
+  gamesPlayed: 0,
+  totalScore: 0,
+  linesCleared: 0,
+  blocksPlaced: 0,
+  bombsExploded: 0,
+  iceBroken: 0,
+  highestCombo: 0,
+  totalPlaytimeSecs: 0,
+  skillUses: {},
+};
+
+// Default UserProgression
+export const DEFAULT_PROGRESSION: UserProgression = {
+  maxLevelReached: 0,
+  currentStreak: 0,
+  longestStreak: 0,
+  lastDailyDate: null,
+};

@@ -1,11 +1,12 @@
-import type { LeaderboardEntry, GameMode } from '../../../services/firebase/types';
+import type { LeaderboardEntry } from '../../../services/firebase/types';
+import type { GameMode } from '@shared/types';
 import type { DocumentSnapshot } from 'firebase/firestore';
 
 export type { LeaderboardEntry, GameMode };
 
 export interface LeaderboardState {
   leaderboards: Map<GameMode, LeaderboardEntry[]>;
-  userRanks: Map<GameMode, number | string>; // number or "Top 1000+"
+  userRanks: Map<GameMode, number | string | null>; // number, "Top 1000+", or null (no score)
   userPercentiles: Map<GameMode, number>;
   lastVisible: DocumentSnapshot | null; // For pagination
   hasMore: boolean; // Whether more entries exist

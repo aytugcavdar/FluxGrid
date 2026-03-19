@@ -1,19 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useLeaderboardStore } from '../store/leaderboardStore';
 import { useAuthStore } from '../../auth';
-import type { GameMode, LeaderboardEntry } from '../types';
+import { GameMode } from '@shared/types';
+import type { LeaderboardEntry } from '../types';
 
 interface LeaderboardViewProps {
   mode: GameMode;
 }
 
-type TabType = 'rankings' | 'stats' | 'nearby';
+type TabType = 'rankings' | 'stats';
 
 const MODE_CONFIG = [
-  { mode: 'endless' as GameMode, icon: '∞', label: 'Sonsuz' },
-  { mode: 'timed' as GameMode, icon: '⚡', label: 'Rush' },
-  { mode: 'daily' as GameMode, icon: '📅', label: 'Günlük' },
-  { mode: 'zen' as GameMode, icon: '☁️', label: 'Zen' },
+  { mode: GameMode.ENDLESS, icon: '∞', label: 'Sonsuz' },
+  { mode: GameMode.TIMED, icon: '⚡', label: 'Rush' },
+  { mode: GameMode.DAILY_CHALLENGE, icon: '📅', label: 'Günlük' },
+  { mode: GameMode.ZEN, icon: '☁️', label: 'Zen' },
 ];
 
 const TAB_CONFIG = [
@@ -46,7 +47,13 @@ export function LeaderboardView({ mode: initialMode }: LeaderboardViewProps) {
     : 0;
 
   useEffect(() => {
+    // Clear previous mode data when switching modes
+    const { leaderboards } = useLeaderboardStore.getState();
+    leaderboards.delete(selectedMode);
+    
     fetchLeaderboard(selectedMode);
+    
+    // Only fetch user rank if user is authenticated (not anonymous)
     if (user && !user.isAnonymous) {
       fetchUserRank(user.uid, selectedMode);
     }

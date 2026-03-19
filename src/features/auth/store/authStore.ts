@@ -12,6 +12,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { getFirebaseAuth, getFirebaseFirestore } from '../../../services/firebase/config';
 import { migrate } from '../../../services/firebase/migrationService';
 import { syncFromFirestore } from '../../../services/firebase/syncManager';
+import { DEFAULT_USER_STATS, DEFAULT_PROGRESSION, detectPlatform } from '../../../services/firebase/types';
 import type { AuthStore, MigrationStatus } from '../types';
 
 // Leaderboard thresholds for prompting sign-in
@@ -51,11 +52,25 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           // Write user data to Firestore
           const db = getFirebaseFirestore();
           await setDoc(doc(db, 'users', result.user.uid), {
+            uid: result.user.uid,
+            schemaVersion: 2,
             isAnonymous: result.user.isAnonymous,
             displayName: result.user.displayName || 'Oyuncu',
             photoURL: result.user.photoURL || null,
+            createdAt: Date.now(),
             lastSeenAt: Date.now(),
-            deviceTokens: [],
+            onboardingComplete: false,
+            devices: {},
+            highScores: {},
+            stats: DEFAULT_USER_STATS,
+            progression: DEFAULT_PROGRESSION,
+            preferences: {
+              theme: localStorage.getItem('flux_theme') || 'dark',
+              language: localStorage.getItem('flux_language') || 'tr',
+              muted: localStorage.getItem('flux_muted') === 'true',
+            },
+            lastPlatform: detectPlatform(),
+            lastAppVersion: import.meta.env.VITE_APP_VERSION || '1.0.0',
           }, { merge: true });
         } catch (error) {
           console.error('Failed to create anonymous user:', error);
@@ -76,15 +91,22 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         // Write user data to Firestore
         const db = getFirebaseFirestore();
         await setDoc(doc(db, 'users', user.uid), {
+          schemaVersion: 2,
           isAnonymous: user.isAnonymous,
           displayName: user.displayName || 'Oyuncu',
           photoURL: user.photoURL || null,
           lastSeenAt: Date.now(),
-          deviceTokens: [],
+          lastPlatform: detectPlatform(),
+          lastAppVersion: import.meta.env.VITE_APP_VERSION || '1.0.0',
         }, { merge: true });
 
         // If permanent user, sync Firestore → localStorage
         if (!user.isAnonymous) {
+          // Migrate user to v2 schema first
+          import('../../../services/firebase/migrationService').then(({ migrateUserToV2 }) => {
+            migrateUserToV2(user.uid).catch(err => console.error('Migration failed:', err));
+          });
+          
           try {
             await syncFromFirestore(user.uid);
           } catch (error) {

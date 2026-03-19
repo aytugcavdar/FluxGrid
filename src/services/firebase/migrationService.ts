@@ -1,6 +1,6 @@
-import { doc, setDoc, writeBatch, collection } from 'firebase/firestore';
+import { doc, setDoc, writeBatch, getDoc, updateDoc } from 'firebase/firestore';
 import { getFirebaseFirestore } from './config';
-import type { GameData } from './types';
+import { DEFAULT_USER_STATS, DEFAULT_PROGRESSION, detectPlatform } from './types';
 
 const db = getFirebaseFirestore();
 
@@ -12,6 +12,120 @@ export interface MigrationResult {
   migratedKeys: string[];
   failedKeys: string[];
   errors: Error[];
+}
+
+// v1 → v2 Schema Migration
+export async function migrateUserToV2(uid: string): Promise<void> {
+  const db = getFirebaseFirestore();
+  const userRef = doc(db, 'users', uid);
+  const userSnap = await getDoc(userRef);
+  
+  if (!userSnap.exists()) return;
+  
+  const data = userSnap.data();
+  
+  // Zaten v2 ise geç
+  if (data.schemaVersion >= 2) return;
+  
+  const updates: Record<string, unknown> = {
+    schemaVersion: 2,
+    lastPlatform: detectPlatform(),
+    lastAppVersion: import.meta.env.VITE_APP_VERSION || '1.0.0',
+  };
+  
+  // devices map yoksa oluştur, eski deviceTokens'ı dönüştür
+  if (!data.devices) {
+    const devices: Record<string, unknown> = {};
+    if (Array.isArray(data.deviceTokens)) {
+      data.deviceTokens.forEach((token: string) => {
+        const hash = token.substring(0, 16);
+        devices[hash] = {
+          token,
+          platform: 'web',
+          appVersion: '1.0.0',
+          addedAt: Date.now(),
+          lastSeenAt: Date.now(),
+        };
+      });
+    }
+    updates.devices = devices;
+  }
+  
+  // stats yoksa veya eksik alanlara default ekle
+  if (!data.stats) {
+    updates.stats = DEFAULT_USER_STATS;
+  } else {
+    // Eksik alanları doldur
+    const statsDefaults: Record<string, unknown> = {};
+    if (data.stats.linesCleared === undefined) statsDefaults['stats.linesCleared'] = 0;
+    if (data.stats.blocksPlaced === undefined) statsDefaults['stats.blocksPlaced'] = 0;
+    if (data.stats.bombsExploded === undefined) statsDefaults['stats.bombsExploded'] = 0;
+    if (data.stats.iceBroken === undefined) statsDefaults['stats.iceBroken'] = 0;
+    if (data.stats.highestCombo === undefined) statsDefaults['stats.highestCombo'] = 0;
+    if (data.stats.totalPlaytimeSecs === undefined) statsDefaults['stats.totalPlaytimeSecs'] = 0;
+    if (data.stats.skillUses === undefined) statsDefaults['stats.skillUses'] = {};
+    Object.assign(updates, statsDefaults);
+  }
+  
+  // progression yoksa oluştur
+  if (!data.progression) {
+    updates.progression = {
+      ...DEFAULT_PROGRESSION,
+      maxLevelReached: data.maxLevelReached || parseInt(localStorage.getItem('flux_max_level') || '0'),
+      currentStreak: parseInt(localStorage.getItem('flux_daily_streak') || '0'),
+    };
+  }
+  
+  // preferences yoksa oluştur
+  if (!data.preferences) {
+    updates.preferences = {
+      theme: data.theme || localStorage.getItem('flux_theme') || 'dark',
+      language: localStorage.getItem('flux_language') || 'tr',
+      muted: localStorage.getItem('flux_muted') === 'true',
+    };
+  }
+  
+  // highScores map yoksa veya eski lowercase key'leri dönüştür
+  if (!data.highScores) {
+    const hs: Record<string, number> = {};
+    // localStorage'dan oku
+    ['ENDLESS', 'TIMED', 'DAILY_CHALLENGE', 'ZEN', 'SURVIVAL', 'CAREER'].forEach(mode => {
+      const val = parseInt(localStorage.getItem(`flux_highscore_${mode}`) || '0');
+      if (val > 0) hs[mode] = val;
+    });
+    updates.highScores = hs;
+  } else {
+    // Eski lowercase key'leri büyük harfe dönüştür
+    const keyMap: Record<string, string> = {
+      endless: 'ENDLESS',
+      timed: 'TIMED',
+      daily_challenge: 'DAILY_CHALLENGE',
+      zen: 'ZEN',
+      survival: 'SURVIVAL',
+      career: 'CAREER',
+    };
+    const newHighScores = { ...data.highScores };
+    let changed = false;
+    Object.keys(keyMap).forEach(lower => {
+      if (newHighScores[lower] !== undefined) {
+        newHighScores[keyMap[lower]] = Math.max(
+          newHighScores[keyMap[lower]] || 0,
+          newHighScores[lower]
+        );
+        delete newHighScores[lower];
+        changed = true;
+      }
+    });
+    if (changed) updates.highScores = newHighScores;
+  }
+  
+  // onboardingComplete yoksa ekle
+  if (data.onboardingComplete === undefined) {
+    updates.onboardingComplete = localStorage.getItem('flux_onboard_v1') === 'true';
+  }
+  
+  await updateDoc(userRef, updates as any);
+  console.log(`[migration] User ${uid} migrated to v2`);
 }
 
 // Mapping of localStorage keys to Firestore paths

@@ -9,16 +9,13 @@ import {
   doc,
   setDoc,
   where,
-  serverTimestamp,
   startAfter,
-  DocumentSnapshot,
   getCountFromServer,
 } from 'firebase/firestore';
 import { getFirebaseFirestore } from '../../../services/firebase/config';
-import type { LeaderboardEntry, GameMode } from '../../../services/firebase/types';
+import { LeaderboardEntry } from '../../../services/firebase/types';
+import { GameMode } from '@shared/types';
 import type { LeaderboardStore } from '../types';
-
-const db = getFirebaseFirestore();
 
 export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
   // State
@@ -32,11 +29,12 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
 
   // Actions
   fetchLeaderboard: async (mode: GameMode, limitCount = 50) => {
+    const db = getFirebaseFirestore();
     set({ isLoading: true, error: null });
 
     try {
       // First, try to get cached meta/summary
-      const metaRef = doc(db, `leaderboards/${mode}/meta/summary`);
+      const metaRef = doc(db, 'leaderboards', mode, 'meta', 'summary');
       const metaDoc = await getDoc(metaRef);
 
       if (metaDoc.exists() && limitCount <= 10) {
@@ -60,7 +58,7 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
 
       // Fallback to full query if cache miss or need more than 10
       const q = query(
-        collection(db, `leaderboards/${mode}/scores`),
+        collection(db, 'leaderboards', mode, 'scores'),
         orderBy('score', 'desc'),
         limit(limitCount)
       );
@@ -93,11 +91,15 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
   },
 
   fetchUserRank: async (uid: string, mode: GameMode) => {
+    const db = getFirebaseFirestore();
     try {
-      const userDoc = await getDoc(doc(db, `leaderboards/${mode}/scores`, uid));
+      const userDoc = await getDoc(doc(db, 'leaderboards', mode, 'scores', uid));
 
       if (!userDoc.exists()) {
-        set({ isLoading: false });
+        // User has no score in this mode - set rank to null
+        const { userRanks } = get();
+        userRanks.set(mode, null);
+        set({ userRanks: new Map(userRanks), isLoading: false });
         return;
       }
 
@@ -106,7 +108,7 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
       // Try COUNT aggregation query
       try {
         const higherScoresQuery = query(
-          collection(db, `leaderboards/${mode}/scores`),
+          collection(db, 'leaderboards', mode, 'scores'),
           where('score', '>', userScore)
         );
         
@@ -127,7 +129,7 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
 
       // FALLBACK: Fetch only top 1001 documents if count() is not available
       const q = query(
-        collection(db, `leaderboards/${mode}/scores`),
+        collection(db, 'leaderboards', mode, 'scores'),
         orderBy('score', 'desc'),
         limit(1001)
       );
@@ -138,7 +140,7 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
       // Find user in top 1001
       const userIndex = entries.findIndex(doc => doc.id === uid);
 
-      let rank: number | string;
+      let rank: number | string | null;
       if (userIndex !== -1) {
         rank = userIndex + 1; // Exact rank in top 1000
       } else {
@@ -165,10 +167,11 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
     displayName: string,
     photoURL: string | null
   ) => {
+    const db = getFirebaseFirestore();
     set({ isLoading: true, error: null });
 
     try {
-      const leaderboardRef = doc(db, `leaderboards/${mode}/scores`, uid);
+      const leaderboardRef = doc(db, 'leaderboards', mode, 'scores', uid);
 
       // Check if user already has a score
       const existingDoc = await getDoc(leaderboardRef);
@@ -189,9 +192,11 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
         displayName: displayName || 'Anonymous',
         photoURL,
         score,
-        achievedAt: serverTimestamp(),
+        achievedAt: Date.now(),
         platform: 'web',
-        appVersion: '1.0.0', // TODO: Get from package.json
+        appVersion: import.meta.env.VITE_APP_VERSION || '1.0.0',
+        sessionDurationSecs: 0,
+        flagged: false,
       });
 
       // Refresh leaderboard
@@ -209,6 +214,7 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
   },
 
   getNearbyCompetitors: async (uid: string, mode: GameMode) => {
+    const db = getFirebaseFirestore();
     try {
       // Get user's rank first
       await get().fetchUserRank(uid, mode);
@@ -223,7 +229,7 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
 
       // Fetch leaderboard with enough entries
       const q = query(
-        collection(db, `leaderboards/${mode}/scores`),
+        collection(db, 'leaderboards', mode, 'scores'),
         orderBy('score', 'desc'),
         limit(endRank)
       );
@@ -248,6 +254,7 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
   },
 
   loadMore: async (mode: GameMode) => {
+    const db = getFirebaseFirestore();
     const { lastVisible, hasMore } = get();
     if (!hasMore || !lastVisible) return;
 
@@ -255,7 +262,7 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
 
     try {
       const q = query(
-        collection(db, `leaderboards/${mode}/scores`),
+        collection(db, 'leaderboards', mode, 'scores'),
         orderBy('score', 'desc'),
         startAfter(lastVisible),
         limit(50)
