@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useGameStore } from '@features/game/store/gameStore';
 import { GameMode, AppState } from '@shared/types';
-import { GRID_SIZE } from '@features/game/types';
+import { GRID_SIZE, SkillType } from '@features/game/types';
+import type { Piece } from '@features/game/types';
 
 describe('gameStore', () => {
   beforeEach(() => {
@@ -94,11 +95,11 @@ describe('gameStore', () => {
 
     it('should set dragged piece', () => {
       const store = useGameStore.getState();
-      const mockPiece = {
+      const mockPiece: Piece = {
         id: 'test-piece',
+        instanceId: 'test-instance-id',
         shape: [[1]],
         color: '#00d4ff',
-        type: 1 as const,
       };
       
       store.setDraggedPiece(mockPiece);
@@ -246,7 +247,7 @@ describe('gameStore', () => {
       store.initGame(GameMode.ENDLESS);
       
       const piecesBefore = useGameStore.getState().pieces;
-      store.activateSkill('REROLL');
+      store.activateSkill(SkillType.REROLL);
       
       const piecesAfter = useGameStore.getState().pieces;
       expect(piecesAfter.length).toBe(3);
@@ -257,17 +258,17 @@ describe('gameStore', () => {
       const store = useGameStore.getState();
       store.initGame(GameMode.ENDLESS);
       
-      store.activateSkill('SHATTER');
+      store.activateSkill(SkillType.SHATTER);
       
       const state = useGameStore.getState();
-      expect(state.activeSkill).toBe('SHATTER');
+      expect(state.activeSkill).toBe(SkillType.SHATTER);
     });
 
     it('should activate BOMB skill', () => {
       const store = useGameStore.getState();
       store.initGame(GameMode.ENDLESS);
       
-      store.activateSkill('BOMB');
+      store.activateSkill(SkillType.BOMB);
       
       const state = useGameStore.getState();
       // BOMB skill may require flux, check it was called without error
