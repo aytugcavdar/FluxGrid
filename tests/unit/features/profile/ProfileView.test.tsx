@@ -225,16 +225,13 @@ describe('ProfileView', () => {
   });
 
   describe('Interactions', () => {
-    it('should navigate to HOME when back button is clicked', () => {
-      const setAppState = vi.fn();
-      useGameStore.setState({ setAppState });
-
+    it('should call onClose when back button is clicked', () => {
       render(<ProfileView onClose={mockOnClose} onOpenLeaderboard={mockOnOpenLeaderboard} />);
 
       const backButton = screen.getAllByRole('button')[0];
       fireEvent.click(backButton);
 
-      expect(setAppState).toHaveBeenCalledWith('HOME');
+      expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
 
     it('should play click sound when export button is clicked', () => {
