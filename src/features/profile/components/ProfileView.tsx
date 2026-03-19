@@ -4,7 +4,7 @@ import { useAuthStore } from '../../auth/store/authStore';
 import { useGameStore } from '../../game/store/gameStore';
 import { ChevronLeft, Download, Flame } from 'lucide-react';
 import { playClick } from '../../../utils/audio';
-import { AppState, GameMode } from '@shared/types';
+import { GameMode } from '@shared/types';
 import clsx from 'clsx';
 
 interface ProfileViewProps {
@@ -16,7 +16,7 @@ type TabType = 'stats' | 'modes' | 'skills' | 'achievements';
 
 export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderboard }) => {
   const { user, isAnonymous } = useAuthStore();
-  const { stats, achievements, highScore, setAppState, maxLevelReached } = useGameStore();
+  const { stats, achievements, highScore, maxLevelReached } = useGameStore();
   const [activeTab, setActiveTab] = useState<TabType>('stats');
 
   // Use real data from gameStore
@@ -96,7 +96,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderb
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <button
-              onClick={() => { playClick(); setAppState(AppState.HOME); }}
+              onClick={() => { playClick(); onClose(); }}
               className="w-10 h-10 shrink-0 rounded-lg bg-gray-800/50 border border-gray-700/50 flex items-center justify-center text-gray-400 hover:text-cyan-400 hover:border-cyan-500/30 transition-all"
             >
               <ChevronLeft size={20} />
