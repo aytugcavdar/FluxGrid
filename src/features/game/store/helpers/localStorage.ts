@@ -6,10 +6,39 @@ import { safeExecute, ErrorCategory } from '../../../../utils/errorHandler';
 // Debounce timers
 let saveTimers: { [key: string]: ReturnType<typeof setTimeout> } = {};
 
+// Allowed localStorage keys (only these can be saved)
+const ALLOWED_KEYS = [
+  'flux_theme',
+  'flux_language',
+  'flux_muted',
+  'flux_onboard_v1',
+  'flux_daily_played',
+  'flux_daily_streak_date',
+  'pwa_installed',
+  'flux_highscore', // offline cache only
+  // Firebase cache keys (read-only, updated by Firebase sync)
+  'flux_stats',
+  'flux_achievements',
+  'flux_max_level',
+  'flux_daily_streak',
+  'flux_highscores',
+  'flux_player_profile',
+  'flux_level_progress',
+  'flux_passive_unlocks',
+  'flux_passive_equipped',
+];
+
 /**
  * Debounced localStorage save with error handling and requestIdleCallback optimization
+ * Only allows saving to whitelisted keys
  */
 export const debouncedSave = (key: string, value: string, delay: number = 500) => {
+  // Block saves to non-whitelisted keys
+  if (!ALLOWED_KEYS.includes(key)) {
+    console.warn(`[localStorage] Blocked save to non-whitelisted key: ${key}`);
+    return;
+  }
+
   if (saveTimers[key]) clearTimeout(saveTimers[key]);
   saveTimers[key] = setTimeout(() => {
     if ('requestIdleCallback' in window) {

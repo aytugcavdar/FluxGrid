@@ -7,6 +7,8 @@ const db = admin.firestore();
  * Calculate user's percentile rank when they submit a score
  * Triggered on: leaderboards/{mode}/scores/{uid} onWrite
  * Only processes non-suspicious scores
+ * 
+ * OPTIMIZED: Uses getCountFromServer() instead of fetching all documents
  */
 export const calculatePercentile = functions.firestore
   .document('leaderboards/{mode}/scores/{uid}')
@@ -30,19 +32,22 @@ export const calculatePercentile = functions.firestore
     const userScore = data.score;
 
     try {
-      // Query all scores for this mode
       const scoresRef = db.collection(`leaderboards/${mode}/scores`);
-      const allScores = await scoresRef.get();
-      const totalPlayers = allScores.size;
+
+      // Get total player count efficiently
+      const totalPlayersSnapshot = await scoresRef.count().get();
+      const totalPlayers = totalPlayersSnapshot.data().count;
 
       if (totalPlayers === 0) {
         return { percentile: 0 };
       }
 
-      // Count players with lower scores
-      const playersBelow = allScores.docs.filter(
-        (doc) => doc.data().score < userScore
-      ).length;
+      // Count players with lower scores efficiently
+      const playersBelowSnapshot = await scoresRef
+        .where('score', '<', userScore)
+        .count()
+        .get();
+      const playersBelow = playersBelowSnapshot.data().count;
 
       // Calculate percentile
       const percentile = Math.round((playersBelow / totalPlayers) * 100);
@@ -52,9 +57,9 @@ export const calculatePercentile = functions.firestore
         .doc(`users/${uid}/modeStats/${mode}`)
         .set({ topPercentile: percentile }, { merge: true });
 
-      console.log(`Calculated percentile for ${uid} in ${mode}: ${percentile}%`);
+      console.log(`Calculated percentile for ${uid} in ${mode}: ${percentile}% (${playersBelow}/${totalPlayers})`);
 
-      return { percentile };
+      return { percentile, totalPlayers, playersBelow };
     } catch (error) {
       console.error('Error calculating percentile:', error);
       throw error;

@@ -33,10 +33,7 @@ describe('Sync and Migration Integration Tests', () => {
 
   describe('syncFromFirestore - Remote to Local Sync', () => {
     it('should sync all fields from Firestore to localStorage when remote is newer', async () => {
-      // Arrange: Set old local timestamp
-      localStorage.setItem('firebase_last_sync', '1000');
-
-      // Mock Firestore getDoc to return remote data
+      // Arrange: Mock Firestore getDoc to return remote data
       const mockRemoteData = {
         highScores: {
           endless: 5000,
@@ -49,7 +46,7 @@ describe('Sync and Migration Integration Tests', () => {
           theme: 'dark',
           language: 'en',
         },
-        lastModified: 2000, // Newer than local
+        lastModified: 2000,
       };
 
       vi.mocked(getDoc).mockResolvedValue({
@@ -68,16 +65,10 @@ describe('Sync and Migration Integration Tests', () => {
       expect(localStorage.getItem('flux_daily_streak')).toBe('5');
       expect(localStorage.getItem('flux_theme')).toBe('dark');
       expect(localStorage.getItem('flux_language')).toBe('en');
-
-      // Verify timestamp was updated
-      const syncTimestamp = parseInt(localStorage.getItem('firebase_last_sync') || '0', 10);
-      expect(syncTimestamp).toBeGreaterThan(1000);
     });
 
     it('should handle missing optional fields gracefully', async () => {
       // Arrange: Remote data with only some fields
-      localStorage.setItem('firebase_last_sync', '1000');
-
       const mockRemoteData = {
         highScores: {
           endless: 1000,
@@ -103,15 +94,14 @@ describe('Sync and Migration Integration Tests', () => {
     });
 
     it('should not overwrite local data when local is newer', async () => {
-      // Arrange: Set newer local timestamp
-      localStorage.setItem('firebase_last_sync', '5000');
+      // Arrange: Set local data with higher score
       localStorage.setItem('flux_highscore_endless', '9999');
 
       const mockRemoteData = {
         highScores: {
           endless: 1000, // Lower score
         },
-        lastModified: 2000, // Older than local
+        lastModified: 2000,
       };
 
       vi.mocked(getDoc).mockResolvedValue({
@@ -124,17 +114,14 @@ describe('Sync and Migration Integration Tests', () => {
       // Act
       await syncFromFirestore(testUid);
 
-      // Assert: Local data should not be overwritten
-      expect(localStorage.getItem('flux_highscore_endless')).toBe('9999');
-      
-      // setDoc should be called to push local data to Firestore
-      expect(setDoc).toHaveBeenCalled();
+      // Assert: Firebase is source of truth - remote data overwrites local
+      // This is the new behavior: Firebase always wins
+      expect(localStorage.getItem('flux_highscore_endless')).toBe('1000');
     });
 
     it('should update timestamp when timestamps are equal', async () => {
       // Arrange: Equal timestamps
       const timestamp = 3000;
-      localStorage.setItem('firebase_last_sync', timestamp.toString());
 
       const mockRemoteData = {
         highScores: { endless: 1000 },
@@ -149,9 +136,8 @@ describe('Sync and Migration Integration Tests', () => {
       // Act
       await syncFromFirestore(testUid);
 
-      // Assert: Timestamp should still be updated
-      const newTimestamp = parseInt(localStorage.getItem('firebase_last_sync') || '0', 10);
-      expect(newTimestamp).toBeGreaterThanOrEqual(timestamp);
+      // Assert: Data should be synced from Firebase (source of truth)
+      expect(localStorage.getItem('flux_highscore_endless')).toBe('1000');
     });
 
     it('should handle null userData gracefully', async () => {
@@ -222,7 +208,6 @@ describe('Sync and Migration Integration Tests', () => {
 
       // Cycle 2: Clear local and sync from remote
       localStorage.clear();
-      localStorage.setItem('firebase_last_sync', '1000');
 
       const mockRemoteData = {
         highScores: { endless: 5000 },
@@ -242,14 +227,13 @@ describe('Sync and Migration Integration Tests', () => {
       expect(localStorage.getItem('flux_max_level')).toBe('10');
     });
 
-    it('should handle concurrent updates with last-write-wins strategy', async () => {
-      // Simulate two devices with different timestamps
+    it('should handle concurrent updates with Firebase as source of truth', async () => {
+      // Simulate two devices with different data
       
-      // Device 1: Older data
-      localStorage.setItem('firebase_last_sync', '1000');
+      // Device 1: Local data
       localStorage.setItem('flux_highscore_endless', '3000');
 
-      // Device 2 (remote): Newer data
+      // Device 2 (remote): Firebase data (source of truth)
       const mockRemoteData = {
         highScores: { endless: 5000 },
         lastModified: 2000,
@@ -262,7 +246,7 @@ describe('Sync and Migration Integration Tests', () => {
 
       await syncFromFirestore(testUid);
 
-      // Assert: Newer remote data should win
+      // Assert: Firebase data should win (source of truth)
       expect(localStorage.getItem('flux_highscore_endless')).toBe('5000');
     });
   });
@@ -310,9 +294,8 @@ describe('Sync and Migration Integration Tests', () => {
   });
 
   describe('Timestamp Invariant', () => {
-    it('should always update firebase_last_sync after successful sync', async () => {
-      // Test 1: Remote newer
-      localStorage.setItem('firebase_last_sync', '1000');
+    it('should always sync data from Firebase (source of truth)', async () => {
+      // Test 1: Remote data exists
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => ({
@@ -322,38 +305,34 @@ describe('Sync and Migration Integration Tests', () => {
       } as any);
 
       await syncFromFirestore(testUid);
-      let timestamp1 = parseInt(localStorage.getItem('firebase_last_sync') || '0', 10);
-      expect(timestamp1).toBeGreaterThan(1000);
+      expect(localStorage.getItem('flux_highscore_endless')).toBe('1000');
 
-      // Test 2: Local newer
-      localStorage.setItem('firebase_last_sync', '5000');
+      // Test 2: Different remote data
       localStorage.setItem('flux_highscore_endless', '5000');
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => ({
-          highScores: { endless: 1000 },
-          lastModified: 2000,
+          highScores: { endless: 3000 },
+          lastModified: 4000,
         }),
       } as any);
       vi.mocked(setDoc).mockResolvedValue(undefined);
 
       await syncFromFirestore(testUid);
-      let timestamp2 = parseInt(localStorage.getItem('firebase_last_sync') || '0', 10);
-      expect(timestamp2).toBeGreaterThanOrEqual(5000);
+      // Firebase is source of truth - overwrites local
+      expect(localStorage.getItem('flux_highscore_endless')).toBe('3000');
 
-      // Test 3: Equal timestamps
-      localStorage.setItem('firebase_last_sync', '3000');
+      // Test 3: Another sync
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => ({
-          highScores: { endless: 1000 },
-          lastModified: 3000,
+          highScores: { endless: 7000 },
+          lastModified: 5000,
         }),
       } as any);
 
       await syncFromFirestore(testUid);
-      let timestamp3 = parseInt(localStorage.getItem('firebase_last_sync') || '0', 10);
-      expect(timestamp3).toBeGreaterThanOrEqual(3000);
+      expect(localStorage.getItem('flux_highscore_endless')).toBe('7000');
     });
   });
 });

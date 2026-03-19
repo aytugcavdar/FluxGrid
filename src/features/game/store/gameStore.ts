@@ -8,7 +8,7 @@ import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStar
 import { handleError, safeExecute, ErrorCategory, ErrorSeverity } from '../../../utils/errorHandler';
 import { debouncedSave, safeLocalStorageGet, safeParseInt, safeJSONParse } from './helpers/localStorage';
 import { createEmptyGrid, processGrid } from './helpers/grid';
-import { getRandomPieces } from './helpers/pieces';
+import { getRandomPieces, getRandomPiecesSync } from './helpers/pieces';
 import { useThemeStore } from '@shared/store/themeStore';
 
 // Difficulty tier constants for Endless mode
@@ -180,7 +180,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         
         set({
           grid: initialGrid,
-          pieces: getRandomPieces(3, initialGrid, isDaily, isZen ? ZEN_PALETTES[0] : useThemeStore.getState().getPieceColors(), 0),
+          pieces: getRandomPiecesSync(3, initialGrid, isDaily, isZen ? ZEN_PALETTES[0] : useThemeStore.getState().getPieceColors(), 0),
           score: 0,
           flux: isZen ? 100 : 50,
           combo: 0,
@@ -269,7 +269,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     set({
       grid: initialGrid,
-      pieces: getRandomPieces(3, initialGrid, false, useThemeStore.getState().getPieceColors(), 0),
+      pieces: getRandomPiecesSync(3, initialGrid, false, useThemeStore.getState().getPieceColors(), 0),
       score: 0,
       flux: 50,
       combo: 0,
@@ -476,7 +476,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     
     set({
       grid: initialGrid,
-      pieces: getRandomPieces(3, initialGrid, isDaily, useThemeStore.getState().getPieceColors(), 0),
+      pieces: getRandomPiecesSync(3, initialGrid, isDaily, useThemeStore.getState().getPieceColors(), 0),
       flux: 50,
       currentLevelIndex: nextIdx,
       movesLeft: nextLevelDef.movesLimit || 0,
@@ -504,7 +504,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
         set({
           flux: flux - FLUX_COST.REROLL,
-          pieces: getRandomPieces(3, get().grid, get().gameMode === GameMode.DAILY_CHALLENGE, useThemeStore.getState().getPieceColors(), currentTier),
+          pieces: getRandomPiecesSync(3, get().grid, get().gameMode === GameMode.DAILY_CHALLENGE, useThemeStore.getState().getPieceColors(), currentTier),
           activeSkill: null
         });
         
@@ -853,7 +853,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const isZen = get().gameMode === GameMode.ZEN;
       const zenPalette = isZen ? ZEN_PALETTES[get().zenPaletteIndex] : undefined;
       const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
-      currentPieces = getRandomPieces(3, newGrid, isDaily, zenPalette ?? useThemeStore.getState().getPieceColors(), currentTier); // Use newGrid for density calculation
+      currentPieces = getRandomPiecesSync(3, newGrid, isDaily, zenPalette ?? useThemeStore.getState().getPieceColors(), currentTier); // Use newGrid for density calculation
     }
 
     // Ses + Titresim

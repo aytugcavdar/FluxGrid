@@ -123,6 +123,7 @@ export async function migrateStats(uid: string): Promise<void> {
 
 /**
  * Migrate achievements
+ * IDEMPOTENT: Uses achievement.id as document ID to prevent duplicates
  */
 export async function migrateAchievements(uid: string): Promise<void> {
   const achievementsData = localStorage.getItem('flux_achievements');
@@ -133,12 +134,16 @@ export async function migrateAchievements(uid: string): Promise<void> {
     if (Array.isArray(achievements)) {
       const batch = writeBatch(db);
       
-      achievements.forEach((achievement: any, index: number) => {
-        const achievementRef = doc(collection(db, `users/${uid}/achievements`));
+      achievements.forEach((achievement: any) => {
+        // Use achievement.id as document ID for idempotency
+        const achievementId = achievement.id || `achievement_${Date.now()}_${Math.random()}`;
+        const achievementRef = doc(db, `users/${uid}/achievements`, achievementId);
+        
+        // Use set with merge to prevent duplicates
         batch.set(achievementRef, {
           ...achievement,
           migratedAt: Date.now(),
-        });
+        }, { merge: true });
       });
 
       await batch.commit();

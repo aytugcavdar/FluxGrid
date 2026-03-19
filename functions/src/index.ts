@@ -7,3 +7,4 @@ admin.initializeApp();
 export { calculatePercentile } from './calculatePercentile';
 export { retentionAnalysis } from './retentionAnalysis';
 export { validateScore } from './validateScore';
+export { updateLeaderboardMeta } from './updateLeaderboardMeta';

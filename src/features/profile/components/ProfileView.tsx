@@ -1,19 +1,40 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { useProfileStore } from '../store/profileStore';
-import { ChevronLeft, Download, User, TrendingUp, Clock, Target, Trophy } from 'lucide-react';
-import { playClick } from '../../../utils/audio';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../../auth/store/authStore';
-import { GameMode } from '@shared/types';
+import { useGameStore } from '../../game/store/gameStore';
+import { ChevronLeft, Download, Flame } from 'lucide-react';
+import { playClick } from '../../../utils/audio';
+import { AppState, GameMode } from '@shared/types';
 import clsx from 'clsx';
 
-export const ProfileView: React.FC<{ onClose: () => void; onOpenLeaderboard: (mode: GameMode) => void }> = ({ onClose, onOpenLeaderboard }) => {
-  const { profile, calculateDerivedStats, exportProfile } = useProfileStore();
-  const { user, isAnonymous, signInWithGoogle, signOut } = useAuthStore();
+interface ProfileViewProps {
+  onClose: () => void;
+  onOpenLeaderboard: (mode: GameMode) => void;
+}
+
+type TabType = 'stats' | 'modes' | 'skills' | 'achievements';
+
+export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderboard }) => {
+  const { user, isAnonymous } = useAuthStore();
+  const { stats, achievements, highScore, setAppState, maxLevelReached } = useGameStore();
+  const [activeTab, setActiveTab] = useState<TabType>('stats');
+
+  // Use real data from gameStore
+  const derivedStats = {
+    currentStreak: 0, // TODO: Get from Firebase
+    longestStreak: 0, // TODO: Get from Firebase
+    averageScore: stats.gamesPlayed > 0 ? Math.floor(stats.totalScore / stats.gamesPlayed) : 0,
+  };
 
   const handleExport = () => {
     playClick();
-    const data = exportProfile();
+    // Export gameStore data instead of profile
+    const data = JSON.stringify({
+      stats,
+      achievements,
+      highScore,
+      exportedAt: Date.now(),
+    }, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -26,170 +47,443 @@ export const ProfileView: React.FC<{ onClose: () => void; onOpenLeaderboard: (mo
   const handleGoogleSignIn = async () => {
     playClick();
     try {
-      // Sign out anonymous user first
-      await signOut();
-      // Then sign in with Google
-      await signInWithGoogle();
+      await useAuthStore.getState().signInWithGoogle();
     } catch (error) {
       console.error('Google Sign-In failed:', error);
     }
   };
 
-  if (!profile) {
-    return null;
-  }
-
-  const derivedStats = calculateDerivedStats();
-
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) return `${hours}s ${minutes}d`;
-    return `${minutes}d`;
+  const formatPlaytime = (): string => {
+    // Oyun sayısı başına ortalama 2 dakika varsayalım
+    const estimatedMinutes = stats.gamesPlayed * 2;
+    const hours = Math.floor(estimatedMinutes / 60);
+    const minutes = estimatedMinutes % 60;
+    
+    if (hours > 0) return `${hours}s ${minutes}dk`;
+    return `${minutes}dk`;
   };
 
-  const statCards = [
-    { label: 'TOPLAM SKOR', value: profile.stats.totalScore.toLocaleString(), icon: <TrendingUp size={18} />, color: 'text-amber-400' },
-    { label: 'OYNANAN OYUN', value: profile.stats.gamesPlayed, icon: <Target size={18} />, color: 'text-blue-400' },
-    { label: 'OYUN SÜRESİ', value: `${derivedStats.playtimeHours}s ${derivedStats.playtimeMinutes}d`, icon: <Clock size={18} />, color: 'text-purple-400' },
-    { label: 'ORTALAMA SKOR', value: derivedStats.averageScore.toLocaleString(), icon: <TrendingUp size={18} />, color: 'text-emerald-400' },
+  const getInitials = (name: string): string => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const unlockedCount = achievements.filter(a => a.unlocked).length;
+  const totalCount = achievements.length;
+
+  const tabs = [
+    { id: 'stats' as TabType, label: 'İstatistik', icon: '📊' },
+    { id: 'modes' as TabType, label: 'Modlar', icon: '🎮' },
+    { id: 'skills' as TabType, label: 'Yetenekler', icon: '⚡' },
+    { id: 'achievements' as TabType, label: 'Başarımlar', icon: '🏆' },
+  ];
+
+  const modeConfigs = [
+    { mode: GameMode.ENDLESS, icon: '∞', label: 'Sonsuz', color: 'from-purple-500 to-pink-500' },
+    { mode: GameMode.TIMED, icon: '⚡', label: 'Rush', color: 'from-amber-500 to-orange-500' },
+    { mode: GameMode.DAILY_CHALLENGE, icon: '📅', label: 'Günlük', color: 'from-blue-500 to-cyan-500' },
+    { mode: GameMode.ZEN, icon: '☁️', label: 'Zen', color: 'from-green-500 to-emerald-500' },
   ];
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[80] bg-gray-900 overflow-y-auto"
-    >
+    <div className="fixed inset-0 z-[80] bg-[#060c17] overflow-y-auto">
       {/* Header */}
-      <div className="sticky top-0 bg-gray-900/80 backdrop-blur-md z-10 px-6 py-8 flex items-center justify-between border-b border-white/5">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onClose}
-            className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/60 hover:text-white"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <div>
-            <h1 className="text-xl font-black text-white tracking-tight italic uppercase">PROFİLİM</h1>
-            <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">İstatistikler ve Veriler</p>
+      <div className="sticky top-0 bg-[#060c17]/95 backdrop-blur-md z-10 px-4 py-4 border-b border-cyan-500/10">
+        <div className="max-w-4xl mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={() => { playClick(); setAppState(AppState.HOME); }}
+              className="w-10 h-10 shrink-0 rounded-lg bg-gray-800/50 border border-gray-700/50 flex items-center justify-center text-gray-400 hover:text-cyan-400 hover:border-cyan-500/30 transition-all"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-black text-white tracking-tight truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                PROFİLİM
+              </h1>
+              <p className="text-xs text-gray-500 truncate" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+                İSTATİSTİKLER · BAŞARIMLAR
+              </p>
+            </div>
           </div>
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 px-3 py-2 shrink-0 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 hover:bg-cyan-500/20 transition-all text-sm font-bold"
+          >
+            <Download size={16} />
+            <span className="hidden sm:inline">Dışa Aktar</span>
+          </button>
         </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 hover:bg-blue-500/20 transition-colors"
-        >
-          <Download size={16} />
-          <span className="text-xs font-bold">Dışa Aktar</span>
-        </button>
       </div>
 
-      <div className="max-w-md mx-auto p-6 space-y-8">
-        {/* Profile Header */}
-        <div className="bg-white/[0.03] border border-white/[0.05] p-6 rounded-3xl text-center">
-          <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            {user?.photoURL ? (
-              <img src={user.photoURL} alt="Profile" className="w-full h-full rounded-full" />
-            ) : (
-              <User size={32} className="text-blue-400" />
-            )}
-          </div>
-          <h2 className="text-2xl font-black text-white mb-1">
-            {user?.displayName || 'OYUNCU'}
-          </h2>
-          <p className="text-xs text-white/40 uppercase tracking-widest">
-            {isAnonymous ? 'Anonim Kullanıcı' : 'FluxGrid Ustası'}
-          </p>
+      <div className="max-w-4xl mx-auto p-3 sm:p-4 space-y-4 sm:space-y-6 pb-20">
+        {/* Profile Card */}
+        <div className="relative bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-gray-700/50 rounded-xl p-4 sm:p-6 overflow-hidden">
+          {/* Top gradient line */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-cyan-500" />
           
-          {/* Google Sign-In Button */}
-          {isAnonymous && (
-            <button
-              onClick={handleGoogleSignIn}
-              className="mt-4 w-full flex items-center justify-center gap-3 px-6 py-3 bg-white rounded-xl hover:bg-gray-100 transition-colors"
-            >
-              <svg width="18" height="18" viewBox="0 0 18 18">
-                <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
-                <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
-                <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.593.102-1.17.282-1.709V4.958H.957C.347 6.173 0 7.548 0 9c0 1.452.348 2.827.957 4.042l3.007-2.335z"/>
-                <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
-              </svg>
-              <span className="text-sm font-bold text-gray-900">Google ile Giriş Yap</span>
-            </button>
-          )}
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* Avatar with gradient ring */}
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full blur-sm" />
+              <div className="relative w-14 h-14 sm:w-16 sm:h-16 bg-gray-900 rounded-full flex items-center justify-center border-2 border-gray-800">
+                {user?.photoURL ? (
+                  <img src={user.photoURL} alt="Avatar" className="w-full h-full rounded-full" />
+                ) : (
+                  <span className="text-xl sm:text-2xl font-black text-cyan-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    {getInitials(user?.displayName || 'OYUNCU')}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="text-lg sm:text-xl font-black text-white truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  {user?.displayName || 'OYUNCU'}
+                </h2>
+                {!isAnonymous ? (
+                  <span className="px-2 py-0.5 bg-green-500/20 border border-green-500/30 rounded text-xs font-bold text-green-400">
+                    Google ile bağlı
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/30 rounded text-xs font-bold text-yellow-400">
+                    Anonim
+                  </span>
+                )}
+              </div>
+
+              {/* Mini stats */}
+              <div className="flex gap-3 text-xs text-gray-400 flex-wrap">
+                <span>{stats.gamesPlayed} oyun</span>
+                <span>{stats.linesCleared} satır</span>
+                <span><Flame size={12} className="inline" /> {derivedStats.currentStreak || 0} seri</span>
+                <span>{formatPlaytime()}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Leaderboard Button */}
+        {/* Anonymous User CTA */}
+        {isAnonymous && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-500/30 rounded-xl p-4"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <p className="text-sm text-yellow-200 mb-1 font-bold">Skorlarını kaydet ve sıralamaya gir</p>
+                <p className="text-xs text-yellow-400/60">
+                  Skorlarını kaydet · Sıralamaya gir · Cihazlar arası senkronize et
+                </p>
+              </div>
+              <button
+                onClick={handleGoogleSignIn}
+                className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg hover:bg-gray-100 transition-colors shrink-0"
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                  <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+                  <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.593.102-1.17.282-1.709V4.958H.957C.347 6.173 0 7.548 0 9c0 1.452.348 2.827.957 4.042l3.007-2.335z"/>
+                  <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+                </svg>
+                <span className="text-sm font-bold text-gray-900">Giriş Yap</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Leaderboard Teaser - TODO: Get real rank from Firebase */}
         <button
           onClick={() => { playClick(); onOpenLeaderboard(GameMode.ENDLESS); }}
-          className="w-full flex items-center justify-between p-6 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-3xl hover:from-amber-500/20 hover:to-orange-500/20 transition-all"
+          className="w-full bg-gradient-to-r from-amber-900/20 to-orange-900/20 border border-amber-500/30 rounded-xl p-4 sm:p-6 hover:from-amber-900/30 hover:to-orange-900/30 transition-all"
         >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-amber-500/20 rounded-full flex items-center justify-center">
-              <Trophy size={24} className="text-amber-400" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-amber-500/20 rounded-full flex items-center justify-center border-2 border-amber-500/30">
+                <span className="text-xl sm:text-2xl font-black text-amber-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                  ?
+                </span>
+              </div>
+              <div className="text-left">
+                <div className="text-base sm:text-lg font-bold text-white mb-1">Sıralamayı Gör</div>
+                <div className="text-xs sm:text-sm text-gray-400">Sonsuz modu</div>
+              </div>
             </div>
-            <div className="text-left">
-              <h3 className="text-lg font-black text-white">LİDERLİK TABLOSU</h3>
-              <p className="text-xs text-white/40 uppercase tracking-widest">En İyi Oyuncular</p>
-            </div>
+            <ChevronLeft size={20} className="text-amber-400 rotate-180 sm:w-6 sm:h-6" />
           </div>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(251,191,36,0.6)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 18 15 12 9 6"/>
-          </svg>
         </button>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-2 gap-3">
-          {statCards.map((stat, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.05 }}
-              className="bg-white/[0.03] border border-white/[0.05] p-5 rounded-2xl"
+        {/* Tabs */}
+        <div className="flex gap-1 sm:gap-2 border-b border-gray-800 overflow-x-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => { playClick(); setActiveTab(tab.id); }}
+              className={clsx(
+                "flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 font-bold transition-all text-xs sm:text-sm whitespace-nowrap",
+                activeTab === tab.id
+                  ? "text-cyan-400 border-b-2 border-cyan-400"
+                  : "text-gray-500 hover:text-gray-300"
+              )}
             >
-              <div className={stat.color}>{stat.icon}</div>
-              <div className="mt-4">
-                <p className="text-2xl font-black text-white leading-none">{stat.value}</p>
-                <p className="text-[8px] font-bold text-white/30 uppercase tracking-wider mt-1.5">{stat.label}</p>
-              </div>
-            </motion.div>
+              <span className="text-sm sm:text-base">{tab.icon}</span>
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
           ))}
         </div>
 
-        {/* Detailed Stats */}
-        <div>
-          <h3 className="text-xs font-black text-white/40 uppercase tracking-widest mb-4">DETAYLI İSTATİSTİKLER</h3>
-          <div className="bg-white/[0.03] border border-white/[0.05] rounded-2xl divide-y divide-white/5">
-            <StatRow label="Yerleştirilen Bloklar" value={profile.stats.blocksPlaced.toLocaleString()} />
-            <StatRow label="Temizlenen Satırlar" value={profile.stats.linesCleared.toLocaleString()} />
-            <StatRow label="Patlatılan Bombalar" value={profile.stats.bombsExploded.toLocaleString()} />
-            <StatRow label="Kırılan Buzlar" value={profile.stats.iceBroken.toLocaleString()} />
-            <StatRow label="En Yüksek Kombo" value={profile.stats.highestCombo.toString()} />
-            <StatRow label="En Uzun Oturum" value={`${Math.floor(profile.stats.longestSession / 60000)}d`} />
-          </div>
-        </div>
+        {/* Tab Content */}
+        <AnimatePresence mode="wait">
+          {activeTab === 'stats' && (
+            <motion.div
+              key="stats"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-3 sm:space-y-4 max-h-[55vh] sm:max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-cyan-500/20 scrollbar-track-transparent"
+            >
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                {/* Best Score - Highlighted */}
+                <div className="col-span-2 relative bg-gradient-to-br from-cyan-900/20 to-blue-900/20 border-2 border-cyan-500/30 p-4 sm:p-6 rounded-xl">
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-cyan-500" />
+                  <div className="text-xs text-cyan-400 mb-1 sm:mb-2 font-bold uppercase tracking-wider">En İyi Skor</div>
+                  <div className="text-4xl sm:text-5xl font-black text-cyan-400" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    {highScore.toLocaleString()}
+                  </div>
+                </div>
 
-        {/* Skill Usage */}
-        <div>
-          <h3 className="text-xs font-black text-white/40 uppercase tracking-widest mb-4">YETENEKLERİM</h3>
-          <div className="bg-white/[0.03] border border-white/[0.05] rounded-2xl divide-y divide-white/5">
-            {Object.entries(profile.stats.skillUses).map(([skill, count]) => (
-              <StatRow key={skill} label={skill} value={count.toString()} />
-            ))}
-            {Object.keys(profile.stats.skillUses).length === 0 && (
-              <div className="p-4 text-center text-white/40 text-sm">Henüz yetenek kullanılmadı</div>
-            )}
-          </div>
-        </div>
+                {/* Other Stats */}
+                <StatCard label="Oyun" value={stats.gamesPlayed.toString()} color="gray" />
+                <StatCard label="Yerleştirilen Blok" value={stats.blocksPlaced.toString()} color="purple" />
+                <StatCard label="Temizlenen Satır" value={stats.linesCleared.toString()} color="green" />
+                <StatCard label="Günlük Seri" value={`🔥 ${derivedStats.currentStreak || 0}`} color="orange" />
+                <StatCard label="Patlatılan Bomba" value={stats.bombsExploded.toString()} color="pink" />
+              </div>
+
+              {/* Total Play Time */}
+              <div className="bg-gray-800/50 border border-gray-700/50 p-5 rounded-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xs text-gray-400 uppercase tracking-wider">Toplam Oyun</div>
+                  <div className="text-2xl font-black text-white" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+                    {stats.gamesPlayed}
+                  </div>
+                </div>
+                <div className="w-full h-2 bg-gray-900 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-cyan-500 to-blue-500"
+                    style={{ width: `${Math.min(100, (stats.gamesPlayed / 100) * 100)}%` }}
+                  />
+                </div>
+                <div className="text-xs text-gray-500 mt-2">
+                  Tahmini süre: {formatPlaytime()}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'modes' && (
+            <motion.div
+              key="modes"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-3 sm:space-y-4 max-h-[55vh] sm:max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-cyan-500/20 scrollbar-track-transparent"
+            >
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                {modeConfigs.map((config) => {
+                  const score = 0; // TODO: Get from Firebase
+                  const rank = '-';
+                  const hasPlayed = score > 0;
+
+                  return (
+                    <div
+                      key={config.mode}
+                      className={clsx(
+                        "p-3 sm:p-4 rounded-xl border",
+                        hasPlayed
+                          ? `bg-gradient-to-br ${config.color} bg-opacity-10 border-opacity-30`
+                          : "bg-gray-800/30 border-gray-700/30"
+                      )}
+                    >
+                      <div className="text-2xl sm:text-3xl mb-1 sm:mb-2">{config.icon}</div>
+                      <div className="text-xs sm:text-sm font-bold text-white mb-1">{config.label}</div>
+                      {hasPlayed ? (
+                        <>
+                          <div className="text-2xl font-black text-white mb-1">{score.toLocaleString()}</div>
+                          <div className="text-xs text-gray-400">#{rank} sırada</div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-xs text-gray-500 mb-2">Oynanmadı</div>
+                          <button className="text-xs text-cyan-400 hover:text-cyan-300">Oyna →</button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Career Progress */}
+              <div className="bg-gray-800/50 border border-gray-700/50 p-5 rounded-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-sm text-gray-400">Kariyer İlerlemesi</div>
+                  <div className="text-lg font-bold text-white">Seviye {maxLevelReached || 1}</div>
+                </div>
+                <div className="w-full h-3 bg-gray-900 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-purple-500 to-pink-500" 
+                    style={{ width: `${Math.min(100, ((maxLevelReached || 1) / 100) * 100)}%` }} 
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'skills' && (
+            <motion.div
+              key="skills"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-2 sm:space-y-3 max-h-[55vh] sm:max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-cyan-500/20 scrollbar-track-transparent"
+            >
+              <SkillRow icon="🔄" name="Reroll" count={stats.skillUses?.REROLL || 0} color="green" />
+              <SkillRow icon="🔨" name="Shatter" count={stats.skillUses?.SHATTER || 0} color="red" />
+              <SkillRow icon="💣" name="Bomba" count={stats.skillUses?.BOMB || 0} color="orange" />
+
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-4 sm:mt-6">
+                <div className="bg-gray-800/50 border border-gray-700/50 p-3 sm:p-4 rounded-xl text-center">
+                  <div className="text-xl sm:text-2xl font-black text-cyan-400 mb-1">
+                    {(stats.skillUses?.REROLL || 0) + (stats.skillUses?.SHATTER || 0) + (stats.skillUses?.BOMB || 0)}
+                  </div>
+                  <div className="text-xs text-gray-400">Toplam Kullanım</div>
+                </div>
+                <div className="bg-gray-800/50 border border-gray-700/50 p-3 sm:p-4 rounded-xl text-center">
+                  <div className="text-xl sm:text-2xl font-black text-purple-400 mb-1">{stats.bombsExploded}</div>
+                  <div className="text-xs text-gray-400">Bomba Sayısı</div>
+                </div>
+                <div className="bg-gray-800/50 border border-gray-700/50 p-3 sm:p-4 rounded-xl text-center">
+                  <div className="text-xl sm:text-2xl font-black text-amber-400 mb-1">
+                    {stats.gamesPlayed > 0 ? Math.round(((stats.skillUses?.REROLL || 0) + (stats.skillUses?.SHATTER || 0) + (stats.skillUses?.BOMB || 0)) / stats.gamesPlayed) : 0}
+                  </div>
+                  <div className="text-xs text-gray-400">Ort/Oyun</div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'achievements' && (
+            <motion.div
+              key="achievements"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-3 sm:space-y-4 max-h-[55vh] sm:max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-cyan-500/20 scrollbar-track-transparent"
+            >
+              {/* Progress */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm text-gray-400">{unlockedCount} / {totalCount} açıldı</div>
+                  <div className="text-sm font-bold text-cyan-400">{Math.round((unlockedCount / totalCount) * 100)}%</div>
+                </div>
+                <div className="w-full h-2 bg-gray-900 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-green-500 to-emerald-500"
+                    style={{ width: `${(unlockedCount / totalCount) * 100}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Achievement List - Ultra compact for mobile */}
+              <div className="space-y-1.5">
+                {achievements.map((ach) => (
+                  <div
+                    key={ach.id}
+                    className={clsx(
+                      "flex items-center gap-2 p-2 rounded-lg border",
+                      ach.unlocked
+                        ? "bg-green-900/10 border-green-500/30"
+                        : "bg-gray-800/30 border-gray-700/30 opacity-40"
+                    )}
+                  >
+                    <div className={clsx(
+                      "w-6 h-6 rounded flex items-center justify-center text-sm shrink-0",
+                      ach.unlocked ? "bg-green-500/20" : "bg-gray-700/30 grayscale"
+                    )}>
+                      {ach.unlocked ? '✓' : '🔒'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-xs font-bold text-white truncate">{ach.name}</h3>
+                      <p className="text-xs text-gray-400 truncate">{ach.description}</p>
+                      {!ach.unlocked && ach.currentValue > 0 && (
+                        <div className="mt-1">
+                          <div className="w-full h-0.5 bg-gray-900 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-gray-600" 
+                              style={{ width: `${Math.min(100, (ach.currentValue / ach.targetValue) * 100)}%` }} 
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </motion.div>
+    </div>
   );
 };
 
-const StatRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="flex items-center justify-between p-4">
-    <span className="text-sm text-white/60">{label}</span>
-    <span className="text-lg font-bold text-white">{value}</span>
-  </div>
-);
+// Helper Components
+const StatCard: React.FC<{ label: string; value: string; color: string }> = ({ label, value, color }) => {
+  const colorMap: Record<string, { border: string; text: string; accent: string }> = {
+    gray: { border: 'border-gray-700/50', text: 'text-white', accent: 'bg-gray-500' },
+    purple: { border: 'border-purple-500/30', text: 'text-purple-400', accent: 'bg-purple-500' },
+    green: { border: 'border-green-500/30', text: 'text-green-400', accent: 'bg-green-500' },
+    orange: { border: 'border-orange-500/30', text: 'text-orange-400', accent: 'bg-orange-500' },
+    pink: { border: 'border-pink-500/30', text: 'text-pink-400', accent: 'bg-pink-500' },
+  };
+
+  const colors = colorMap[color] || colorMap.gray;
+
+  return (
+    <div className={clsx("relative bg-gray-800/50 border p-3 sm:p-4 rounded-xl", colors.border)}>
+      <div className={clsx("absolute top-0 left-0 right-0 h-1", colors.accent)} />
+      <div className="text-xs text-gray-400 mb-1 sm:mb-2">{label}</div>
+      <div className={clsx("text-2xl sm:text-3xl font-black", colors.text)} style={{ fontFamily: 'Rajdhani, sans-serif' }}>
+        {value}
+      </div>
+    </div>
+  );
+};
+
+const SkillRow: React.FC<{ icon: string; name: string; count: number; color: string }> = ({ icon, name, count, color }) => {
+  const colorMap: Record<string, string> = {
+    green: 'bg-green-500',
+    red: 'bg-red-500',
+    orange: 'bg-orange-500',
+  };
+
+  return (
+    <div className="flex items-center gap-2 sm:gap-3 bg-gray-800/50 border border-gray-700/50 p-3 sm:p-4 rounded-xl">
+      <div className="text-xl sm:text-2xl">{icon}</div>
+      <div className="flex-1">
+        <div className="text-xs sm:text-sm font-bold text-white mb-1 sm:mb-2">{name}</div>
+        <div className="w-full h-1.5 sm:h-2 bg-gray-900 rounded-full overflow-hidden">
+          <div className={clsx("h-full", colorMap[color])} style={{ width: `${Math.min(100, count)}%` }} />
+        </div>
+      </div>
+      <div className="text-base sm:text-lg font-bold text-white">{count}</div>
+    </div>
+  );
+};

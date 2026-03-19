@@ -14,8 +14,8 @@ export const validateScore = functions.firestore
 
     console.log(`Validating score for user ${uid} in mode ${mode}: ${score}`);
 
-    // Validation 1: Score must be a valid integer between 0 and 10,000,000
-    if (typeof score !== 'number' || score < 0 || score > 10000000) {
+    // Validation 1: Score must be a valid integer between 0 and 9,999,999
+    if (typeof score !== 'number' || score < 0 || score > 9999999) {
       console.warn(`Invalid score detected: ${score}. Deleting document.`);
       await snapshot.ref.delete();
       return;

@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   startAfter,
   DocumentSnapshot,
+  getCountFromServer,
 } from 'firebase/firestore';
 import { getFirebaseFirestore } from '../../../services/firebase/config';
 import type { LeaderboardEntry, GameMode } from '../../../services/firebase/types';
@@ -34,6 +35,30 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      // First, try to get cached meta/summary
+      const metaRef = doc(db, `leaderboards/${mode}/meta/summary`);
+      const metaDoc = await getDoc(metaRef);
+
+      if (metaDoc.exists() && limitCount <= 10) {
+        // Use cached top 10 if available and user only wants top 10
+        const metaData = metaDoc.data();
+        const entries: LeaderboardEntry[] = metaData.top10 || [];
+
+        const { leaderboards } = get();
+        leaderboards.set(mode, entries);
+
+        set({ 
+          leaderboards: new Map(leaderboards), 
+          lastVisible: null,
+          hasMore: metaData.totalPlayers > 10,
+          isLoading: false 
+        });
+        
+        console.log(`Loaded leaderboard from cache: ${mode}, ${entries.length} entries`);
+        return;
+      }
+
+      // Fallback to full query if cache miss or need more than 10
       const q = query(
         collection(db, `leaderboards/${mode}/scores`),
         orderBy('score', 'desc'),
@@ -72,17 +97,14 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
       const userDoc = await getDoc(doc(db, `leaderboards/${mode}/scores`, uid));
 
       if (!userDoc.exists()) {
+        set({ isLoading: false });
         return;
       }
 
       const userScore = userDoc.data().score;
 
-      // OPTIMIZED: Try to use count aggregation query first (faster on mobile)
+      // Try COUNT aggregation query
       try {
-        // Import getCountFromServer for aggregation query
-        const { getCountFromServer } = await import('firebase/firestore');
-        
-        // Count users with higher scores
         const higherScoresQuery = query(
           collection(db, `leaderboards/${mode}/scores`),
           where('score', '>', userScore)
@@ -93,10 +115,14 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
         
         const { userRanks } = get();
         userRanks.set(mode, rank);
-        set({ userRanks: new Map(userRanks) });
+        set({ userRanks: new Map(userRanks), isLoading: false });
         return;
       } catch (countError) {
-        console.log('Count aggregation not available, falling back to document fetch');
+        console.error('COUNT query failed, falling back to document fetch:', countError);
+        set({ 
+          error: 'Failed to calculate exact rank. Showing approximate position.',
+          isLoading: false 
+        });
       }
 
       // FALLBACK: Fetch only top 1001 documents if count() is not available
@@ -122,9 +148,13 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
       const { userRanks } = get();
       userRanks.set(mode, rank);
 
-      set({ userRanks: new Map(userRanks) });
+      set({ userRanks: new Map(userRanks), isLoading: false });
     } catch (error) {
       console.error('Failed to fetch user rank:', error);
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to fetch user rank',
+        isLoading: false 
+      });
     }
   },
 

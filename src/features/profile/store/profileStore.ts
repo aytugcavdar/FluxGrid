@@ -163,13 +163,15 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
 
   calculateDerivedStats: () => {
     const { profile } = get();
-    if (!profile) {
+    if (!profile || !profile.stats) {
       return {
         averageScore: 0,
         averageCombo: '0.00',
         playtimeHours: 0,
         playtimeMinutes: 0,
-        achievementCompletion: '0.0'
+        achievementCompletion: '0.0',
+        currentStreak: 0,
+        longestStreak: 0,
       };
     }
     
@@ -181,8 +183,8 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
       ? (profile.stats.highestCombo / profile.stats.linesCleared).toFixed(2)
       : '0.00';
     
-    const playtimeHours = Math.floor(profile.stats.totalPlaytime / 3600000);
-    const playtimeMinutes = Math.floor((profile.stats.totalPlaytime % 3600000) / 60000);
+    const playtimeHours = Math.floor((profile.stats.totalPlaytime || 0) / 3600000);
+    const playtimeMinutes = Math.floor(((profile.stats.totalPlaytime || 0) % 3600000) / 60000);
     
     const unlockedCount = Array.from(profile.achievements.values()).filter(a => a.unlocked).length;
     const totalCount = profile.achievements.size;
@@ -195,7 +197,9 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
       averageCombo,
       playtimeHours,
       playtimeMinutes,
-      achievementCompletion
+      achievementCompletion,
+      currentStreak: 0, // TODO: Get from Firebase
+      longestStreak: 0, // TODO: Get from Firebase
     };
   },
 

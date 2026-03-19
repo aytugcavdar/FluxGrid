@@ -233,58 +233,87 @@ export async function loadUserData(uid: string): Promise<UserData | null> {
 }
 
 /**
- * Sync data from Firestore to localStorage with conflict resolution
+ * Sync data from Firestore to localStorage
+ * Firebase is the source of truth - always overwrites localStorage
  */
 export async function syncFromFirestore(uid: string): Promise<void> {
   try {
-    const userData = await loadUserData(uid);
+    const userRef = doc(db, 'users', uid);
+    const userDoc = await getDoc(userRef);
     
-    if (!userData) {
+    if (!userDoc.exists()) {
+      console.log('No user data found in Firebase');
       return;
     }
 
-    const remoteTimestamp = userData.lastModified || 0;
-    const localTimestamp = parseInt(localStorage.getItem('firebase_last_sync') || '0', 10);
+    const userData = userDoc.data() as UserData;
 
-    // If remote is newer, overwrite local
-    if (remoteTimestamp > localTimestamp) {
-      // Sync high scores
-      if (userData.highScores) {
-        Object.entries(userData.highScores).forEach(([mode, score]) => {
-          localStorage.setItem(`flux_highscore_${mode}`, score.toString());
-        });
-      }
+    // Firebase is the source of truth - always overwrite localStorage cache
+    
+    // Cache stats (read-only cache for offline access)
+    const stats = {
+      gamesPlayed: userData.totalGamesPlayed || 0,
+      totalScore: 0, // Will be calculated from highScores
+      linesCleared: 0, // TODO: Add to UserData type
+      blocksPlaced: 0, // TODO: Add to UserData type
+      maxCombo: 0, // TODO: Add to UserData type
+      totalTimePlayed: userData.totalTimePlayed || 0,
+      bombsExploded: 0, // TODO: Add to UserData type
+      iceBroken: 0, // TODO: Add to UserData type
+    };
+    localStorage.setItem('flux_stats', JSON.stringify(stats));
 
-      // Sync progression
-      if (userData.maxLevelReached !== undefined) {
-        localStorage.setItem('flux_max_level', userData.maxLevelReached.toString());
-      }
-
-      if (userData.currentStreak !== undefined) {
-        localStorage.setItem('flux_daily_streak', userData.currentStreak.toString());
-      }
-
-      // Sync preferences
-      if (userData.preferences?.theme) {
-        localStorage.setItem('flux_theme', userData.preferences.theme);
-      }
-
-      if (userData.preferences?.language) {
-        localStorage.setItem('flux_language', userData.preferences.language);
-      }
-
-      // Mark last sync time
-      localStorage.setItem('firebase_last_sync', Date.now().toString());
-    } else if (localTimestamp > remoteTimestamp) {
-      // Local is newer, push to Firestore
-      await syncLocalToFirestore(uid);
+    // Cache high scores
+    if (userData.highScores) {
+      localStorage.setItem('flux_highscores', JSON.stringify(userData.highScores));
       
-      // Update sync timestamp after pushing to Firestore
-      localStorage.setItem('firebase_last_sync', Date.now().toString());
-    } else {
-      // Timestamps equal - update sync timestamp anyway
-      localStorage.setItem('firebase_last_sync', Date.now().toString());
+      // Also set individual mode high scores for backward compatibility
+      Object.entries(userData.highScores).forEach(([mode, score]) => {
+        localStorage.setItem(`flux_highscore_${mode}`, score.toString());
+      });
     }
+
+    // Cache max level
+    if (userData.maxLevelReached !== undefined) {
+      localStorage.setItem('flux_max_level', userData.maxLevelReached.toString());
+    }
+
+    // Cache daily streak
+    if (userData.currentStreak !== undefined) {
+      localStorage.setItem('flux_daily_streak', userData.currentStreak.toString());
+    }
+
+    // Cache achievements (fetch from subcollection)
+    try {
+      const achievementsRef = collection(db, `users/${uid}/achievements`);
+      const achievementsSnapshot = await getDoc(doc(achievementsRef.parent!, achievementsRef.id));
+      // TODO: Implement proper achievements fetching
+      // For now, just set empty array
+      localStorage.setItem('flux_achievements', JSON.stringify([]));
+    } catch (error) {
+      console.warn('Failed to fetch achievements:', error);
+      localStorage.setItem('flux_achievements', JSON.stringify([]));
+    }
+
+    // Cache player profile
+    const profile = {
+      displayName: userData.displayName,
+      photoURL: userData.photoURL,
+      createdAt: userData.createdAt,
+      lastSeenAt: userData.lastSeenAt,
+    };
+    localStorage.setItem('flux_player_profile', JSON.stringify(profile));
+
+    // Sync preferences (these are read-write)
+    if (userData.preferences?.theme) {
+      localStorage.setItem('flux_theme', userData.preferences.theme);
+    }
+
+    if (userData.preferences?.language) {
+      localStorage.setItem('flux_language', userData.preferences.language);
+    }
+
+    console.log('Successfully synced from Firebase to localStorage cache');
   } catch (error) {
     console.error('Failed to sync from Firestore:', error);
     throw error;
@@ -339,26 +368,6 @@ export async function syncLocalToFirestore(uid: string): Promise<void> {
     throw error;
   }
 }
-
-/**
- * Resolve conflict between local and remote data
- */
-export async function resolveConflict(
-  localData: any,
-  remoteData: any,
-  field: string
-): Promise<any> {
-  // Strategy: Last-write-wins with timestamp comparison
-  const localTimestamp = localData.lastModified || 0;
-  const remoteTimestamp = remoteData.lastModified || 0;
-
-  if (remoteTimestamp > localTimestamp) {
-    return remoteData[field];
-  } else {
-    return localData[field];
-  }
-}
-
 
 /**
  * Validate user document structure

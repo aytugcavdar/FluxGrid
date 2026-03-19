@@ -21,6 +21,8 @@ export class SeededRNG {
 }
 
 // Helper to get a daily integer seed (e.g., 20260309)
+// DEPRECATED: Use getDailySeedFromServer() from dailyChallengeService instead
+// This is kept for backward compatibility and offline fallback
 export const getDailySeed = (): number => {
   const d = new Date();
   return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();

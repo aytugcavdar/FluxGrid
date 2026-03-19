@@ -13,7 +13,7 @@ import { CareerPage } from '../features/career/components/CareerPage';
 import { Tutorial, shouldShowTutorial } from '@shared/components';
 import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
 import { ProfileView } from '../features/profile/components/ProfileView';
-import { LeaderboardView } from '../features/leaderboard/components/LeaderboardView';
+import { LeaderboardView } from '../features/leaderboard/components';
 import { HomeScreen } from './HomeScreen';
 import { motion, AnimatePresence } from 'framer-motion';
 import { unlockAudio, playGameOver, playClick } from '@utils/audio';
@@ -114,6 +114,11 @@ const App: React.FC = () => {
 
   // Initialize stores on mount
   useEffect(() => {
+    // Clean up deprecated localStorage keys
+    import('../utils/cleanupLocalStorage').then(({ cleanupDeprecatedKeys }) => {
+      cleanupDeprecatedKeys();
+    });
+
     // Initialize Firebase
     initializeFirebase();
     
@@ -239,14 +244,21 @@ const App: React.FC = () => {
       if (user) {
         // Import sync functions dynamically to avoid circular deps
         import('../services/firebase/syncManager').then(({ syncScore, syncGameData }) => {
-          // Sync score to leaderboard
-          syncScore(
-            user.uid,
-            gameMode,
-            score,
-            user.displayName || 'Anonymous',
-            user.photoURL || null
-          ).catch(err => console.error('Failed to sync score:', err));
+          // Sync score to leaderboard with timeout protection
+          const syncPromises: Promise<any>[] = [];
+
+          syncPromises.push(
+            syncScore(
+              user.uid,
+              gameMode,
+              score,
+              user.displayName || 'Anonymous',
+              user.photoURL || null
+            ).catch(err => {
+              console.error('Failed to sync score:', err);
+              // Don't block game flow on Firebase errors
+            })
+          );
 
           // Sync game stats
           const gameData = {
@@ -254,7 +266,39 @@ const App: React.FC = () => {
             totalGamesPlayed: stats.gamesPlayed,
             lastSeenAt: Date.now(),
           };
-          syncGameData(user.uid, gameData).catch(err => console.error('Failed to sync game data:', err));
+          
+          syncPromises.push(
+            syncGameData(user.uid, gameData).catch(err => {
+              console.error('Failed to sync game data:', err);
+              // Don't block game flow on Firebase errors
+            })
+          );
+
+          // Wait for syncs to complete, then update localStorage cache
+          Promise.allSettled(syncPromises).then(() => {
+            try {
+              // Update localStorage cache for offline access
+              // These are read-only caches updated after Firebase sync
+              
+              // Update high scores cache
+              const cachedHighScores = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
+              const currentHighScore = cachedHighScores[gameMode] || 0;
+              
+              if (score > currentHighScore) {
+                cachedHighScores[gameMode] = score;
+                localStorage.setItem('flux_highscores', JSON.stringify(cachedHighScores));
+                localStorage.setItem(`flux_highscore_${gameMode}`, score.toString());
+              }
+
+              // Update stats cache
+              const cachedStats = JSON.parse(localStorage.getItem('flux_stats') || '{}');
+              cachedStats.gamesPlayed = stats.gamesPlayed;
+              localStorage.setItem('flux_stats', JSON.stringify(cachedStats));
+            } catch (cacheError) {
+              console.warn('Failed to update localStorage cache:', cacheError);
+              // Don't block game flow on cache errors
+            }
+          });
         });
       }
     }

@@ -76,7 +76,7 @@ export const retentionAnalysis = functions.pubsub
           notifications.push(
             admin
               .messaging()
-              .sendMulticast(message)
+              .sendEachForMulticast(message)
               .then(async (response) => {
                 console.log(`Sent notification to ${uid}: ${response.successCount} successful`);
                 

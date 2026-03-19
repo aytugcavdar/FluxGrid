@@ -1,6 +1,9 @@
 /**
  * Daily Streak Manager for FluxGrid
  * Tracks consecutive days of Daily Challenge completion
+ * 
+ * NOTE: Streak data is now managed by Firebase.
+ * This module reads from localStorage cache (updated by Firebase sync).
  */
 
 export const STREAK_KEY = 'flux_daily_streak';
@@ -8,11 +11,14 @@ export const STREAK_DATE_KEY = 'flux_daily_streak_date';
 export const DAILY_PLAYED_KEY = 'flux_daily_played';
 
 /**
- * Get current streak count
+ * Get current streak count from Firebase cache
+ * This is a read-only cache updated by Firebase sync
  */
 export const getStreak = (): number => {
   try {
-    return parseInt(localStorage.getItem(STREAK_KEY) || '0') || 0;
+    // Read from Firebase cache in localStorage
+    const cached = localStorage.getItem(STREAK_KEY);
+    return parseInt(cached || '0') || 0;
   } catch {
     return 0;
   }
@@ -21,33 +27,22 @@ export const getStreak = (): number => {
 /**
  * Check and update streak based on last play date
  * Call this when Daily Challenge is completed
+ * 
+ * NOTE: This now only updates local tracking.
+ * Actual streak is calculated and stored in Firebase.
  */
 export const checkAndUpdateStreak = (): number => {
   try {
     const today = new Date().toDateString();
     const lastDate = localStorage.getItem(STREAK_DATE_KEY);
-    const yesterday = new Date(Date.now() - 86400000).toDateString();
     
-    let currentStreak = getStreak();
-
-    if (lastDate === today) {
-      // Already played today, streak unchanged
-      return currentStreak;
-    }
-
-    if (lastDate === yesterday) {
-      // Continuing from yesterday
-      currentStreak += 1;
-    } else if (lastDate !== today) {
-      // Missed 1+ days, reset to 1
-      currentStreak = 1;
-    }
-
-    localStorage.setItem(STREAK_KEY, currentStreak.toString());
+    // Update local date tracking
     localStorage.setItem(STREAK_DATE_KEY, today);
     localStorage.setItem(DAILY_PLAYED_KEY, today);
 
-    return currentStreak;
+    // Return current streak from Firebase cache
+    // The actual streak calculation happens in Firebase
+    return getStreak();
   } catch {
     return 0;
   }

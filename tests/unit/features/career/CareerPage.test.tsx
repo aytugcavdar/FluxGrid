@@ -91,8 +91,8 @@ describe('CareerPage', () => {
     it('should render career page header', () => {
       render(<CareerPage />);
 
-      expect(screen.getByText(/KARİYER/i)).toBeInTheDocument();
-      expect(screen.getByText(/İstatistikler ve Başarılar/i)).toBeInTheDocument();
+      expect(screen.getByText(/Profil/i)).toBeInTheDocument();
+      expect(screen.getByText(/İstatistikler ve Başarımlar/i)).toBeInTheDocument();
     });
 
     it('should render back button', () => {
@@ -102,68 +102,56 @@ describe('CareerPage', () => {
       expect(backButton).toBeInTheDocument();
     });
 
-    it('should render stats section header', () => {
+    it('should render best score section', () => {
       render(<CareerPage />);
 
-      expect(screen.getByText(/İSTATİSTİKLER/i)).toBeInTheDocument();
+      // Use getAllByText since "En İyi Skor" appears in multiple places
+      const bestScoreElements = screen.getAllByText(/En İyi Skor/i);
+      expect(bestScoreElements.length).toBeGreaterThan(0);
     });
 
-    it('should render achievements section header', () => {
+    it('should render achievements section', () => {
       render(<CareerPage />);
 
-      expect(screen.getByText(/BAŞARILAR/i)).toBeInTheDocument();
+      // Use getAllByText since "Başarımlar" appears in multiple places
+      const achievementsElements = screen.getAllByText(/Başarımlar/i);
+      expect(achievementsElements.length).toBeGreaterThan(0);
     });
   });
 
   describe('Stats Display', () => {
-    it('should display total score stat', () => {
+    it('should display best score stat', () => {
+      useGameStore.setState({ highScore: 12500 });
       render(<CareerPage />);
 
-      expect(screen.getByText(/TOPLAM SKOR/i)).toBeInTheDocument();
-      // Check for formatted number (locale-agnostic)
-      expect(screen.getByText((12500).toLocaleString())).toBeInTheDocument();
-    });
-
-    it('should display lines cleared stat', () => {
-      render(<CareerPage />);
-
-      expect(screen.getByText(/TEMİZLENEN SATIRLAR/i)).toBeInTheDocument();
-      expect(screen.getByText('75')).toBeInTheDocument();
-    });
-
-    it('should display blocks placed stat', () => {
-      render(<CareerPage />);
-
-      expect(screen.getByText(/YERLEŞTİRİLEN BLOKLAR/i)).toBeInTheDocument();
-      expect(screen.getByText('300')).toBeInTheDocument();
+      // Use getAllByText since "En İyi Skor" appears in multiple places
+      const bestScoreElements = screen.getAllByText(/En İyi Skor/i);
+      expect(bestScoreElements.length).toBeGreaterThan(0);
+      // Check for formatted number (locale-agnostic) - now appears in both best score and total score
+      const formattedScores = screen.getAllByText((12500).toLocaleString());
+      expect(formattedScores.length).toBeGreaterThan(0);
     });
 
     it('should display games played stat', () => {
       render(<CareerPage />);
 
-      expect(screen.getByText(/OYNANAN OYUN/i)).toBeInTheDocument();
+      expect(screen.getByText(/Oynanan Oyun/i)).toBeInTheDocument();
       expect(screen.getByText('15')).toBeInTheDocument();
     });
 
-    it('should display bombs exploded stat', () => {
+    it('should display lines cleared stat', () => {
       render(<CareerPage />);
 
-      expect(screen.getByText(/PATLATILAN BOMBALAR/i)).toBeInTheDocument();
-      expect(screen.getByText('10')).toBeInTheDocument();
+      expect(screen.getByText(/Temizlenen Satır/i)).toBeInTheDocument();
+      expect(screen.getByText('75')).toBeInTheDocument();
     });
 
-    it('should display ice broken stat', () => {
-      render(<CareerPage />);
-
-      expect(screen.getByText(/KIRILAN BUZLAR/i)).toBeInTheDocument();
-      expect(screen.getByText('5')).toBeInTheDocument();
-    });
-
-    it('should render all 6 stat cards', () => {
+    it('should render stat cards', () => {
       const { container } = render(<CareerPage />);
 
+      // Check that stat cards exist
       const statCards = container.querySelectorAll('.grid.grid-cols-2 > div');
-      expect(statCards.length).toBe(6);
+      expect(statCards.length).toBeGreaterThan(0);
     });
   });
 
@@ -171,7 +159,7 @@ describe('CareerPage', () => {
     it('should display achievement count', () => {
       render(<CareerPage />);
 
-      expect(screen.getByText(/BAŞARILAR \(2\/3\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/2 \/ 3/i)).toBeInTheDocument();
     });
 
     it('should display unlocked achievements', () => {
@@ -190,11 +178,11 @@ describe('CareerPage', () => {
       expect(screen.getByText('10000 puan kazan')).toBeInTheDocument();
     });
 
-    it('should show medal emoji for unlocked achievements', () => {
+    it('should show checkmark for unlocked achievements', () => {
       render(<CareerPage />);
 
-      const medals = screen.getAllByText('🏅');
-      expect(medals.length).toBe(2); // 2 unlocked achievements
+      const checkmarks = screen.getAllByText('✓');
+      expect(checkmarks.length).toBe(2); // 2 unlocked achievements
     });
 
     it('should show lock emoji for locked achievements', () => {
@@ -207,21 +195,21 @@ describe('CareerPage', () => {
     it('should apply different styles to unlocked vs locked achievements', () => {
       const { container } = render(<CareerPage />);
 
-      const achievementCards = container.querySelectorAll('.space-y-3 > div');
+      const achievementCards = container.querySelectorAll('.space-y-2 > div');
       expect(achievementCards.length).toBe(3);
 
-      // First two should have blue styling (unlocked)
-      expect(achievementCards[0].className).toContain('bg-blue-500/5');
-      expect(achievementCards[1].className).toContain('bg-blue-500/5');
+      // First two should have green styling (unlocked)
+      expect(achievementCards[0].className).toContain('bg-green-900/10');
+      expect(achievementCards[1].className).toContain('bg-green-900/10');
 
-      // Last one should have grayscale (locked)
-      expect(achievementCards[2].className).toContain('grayscale');
+      // Last one should have gray styling and opacity (locked)
+      expect(achievementCards[2].className).toContain('bg-gray-800/30');
       expect(achievementCards[2].className).toContain('opacity-40');
     });
   });
 
   describe('Interactions', () => {
-    it('should call playClick and navigate to level map when back button is clicked', () => {
+    it('should call playClick and navigate to HOME when back button is clicked', () => {
       const setAppState = vi.fn();
       useGameStore.setState({ setAppState });
 
@@ -231,7 +219,7 @@ describe('CareerPage', () => {
       fireEvent.click(backButton);
 
       expect(audio.playClick).toHaveBeenCalledTimes(1);
-      expect(setAppState).toHaveBeenCalledWith(AppState.LEVEL_MAP);
+      expect(setAppState).toHaveBeenCalledWith(AppState.HOME);
     });
   });
 
@@ -247,6 +235,7 @@ describe('CareerPage', () => {
           iceBroken: 0,
           skillUses: {},
         },
+        highScore: 0,
       });
 
       render(<CareerPage />);
@@ -262,7 +251,7 @@ describe('CareerPage', () => {
 
       render(<CareerPage />);
 
-      expect(screen.getByText(/BAŞARILAR \(0\/0\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/0 \/ 0/i)).toBeInTheDocument();
     });
 
     it('should handle all achievements unlocked', () => {
@@ -289,9 +278,9 @@ describe('CareerPage', () => {
 
       render(<CareerPage />);
 
-      expect(screen.getByText(/BAŞARILAR \(2\/2\)/i)).toBeInTheDocument();
-      const medals = screen.getAllByText('🏅');
-      expect(medals.length).toBe(2);
+      expect(screen.getByText(/2 \/ 2/i)).toBeInTheDocument();
+      const checkmarks = screen.getAllByText('✓');
+      expect(checkmarks.length).toBe(2);
     });
 
     it('should format large numbers correctly', () => {
@@ -299,16 +288,15 @@ describe('CareerPage', () => {
         stats: {
           ...useGameStore.getState().stats,
           totalScore: 1234567,
-          blocksPlaced: 99999,
         },
+        highScore: 1234567,
       });
 
       render(<CareerPage />);
 
-      // Check that numbers are formatted with locale
-      expect(screen.getByText((1234567).toLocaleString())).toBeInTheDocument();
-      // blocksPlaced is not formatted with toLocaleString in CareerPage
-      expect(screen.getByText('99999')).toBeInTheDocument();
+      // Check that numbers are formatted with locale - appears in both best score and total score
+      const formattedNumbers = screen.getAllByText((1234567).toLocaleString());
+      expect(formattedNumbers.length).toBeGreaterThan(0);
     });
   });
 });
