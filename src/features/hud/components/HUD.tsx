@@ -43,15 +43,15 @@ export const HUD: React.FC = () => {
             <div className="md:hidden w-full h-full flex flex-col" style={{ gap: 4 }}>
                 {/* ROW 1: Home + Score/Flux + Timer/Moves + Mute */}
                 <div style={{ height: 52, display: 'flex', alignItems: 'center', gap: 6, padding: '0 6px' }}>
-                    {/* Home button - 32×32px */}
+                    {/* Home button - 36×36px */}
                     <button
                         onClick={() => { playClick(); setAppState(AppState.HOME); }}
                         style={{
-                            width: 32,
-                            height: 32,
-                            minWidth: 32,
-                            minHeight: 32,
-                            borderRadius: 8,
+                            width: 36,
+                            height: 36,
+                            minWidth: 36,
+                            minHeight: 36,
+                            borderRadius: 9,
                             border: `1px solid ${colors.hudBorder}`,
                             background: colors.hudBackground,
                             display: 'flex',
@@ -69,9 +69,25 @@ export const HUD: React.FC = () => {
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, padding: '0 4px' }}>
                         {/* Score row */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <span style={{ fontSize: 18, fontWeight: 700, color: colors.textPrimary }}>
-                                {gameMode === GameMode.ZEN ? zenBlocksPlaced : score.toLocaleString()}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <span style={{ fontSize: 18, fontWeight: 700, color: colors.textPrimary }}>
+                                    {gameMode === GameMode.ZEN ? zenBlocksPlaced : score.toLocaleString()}
+                                </span>
+                                {isSurgeActive && (
+                                    <span style={{
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        color: '#f59e0b',
+                                        background: 'rgba(245,158,11,0.15)',
+                                        border: '0.5px solid rgba(245,158,11,0.3)',
+                                        padding: '2px 6px',
+                                        borderRadius: 8,
+                                        marginLeft: 6
+                                    }}>
+                                        ⚡ 2×
+                                    </span>
+                                )}
+                            </div>
                             <span style={{ fontSize: 9, color: colors.textTertiary }}>
                                 {(gameMode === GameMode.ENDLESS || gameMode === GameMode.TIMED || gameMode === GameMode.SURVIVAL) && `en iyi: ${highScore.toLocaleString()}`}
                                 {gameMode === GameMode.CAREER && (currentLevelDef?.name ?? '')}
@@ -82,16 +98,16 @@ export const HUD: React.FC = () => {
                         {/* Flux bar row */}
                         {gameMode !== GameMode.ZEN ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                <Zap size={10} color={flux >= 100 ? colors.surgeColor : colors.accentColor} fill={flux >= 100 ? colors.surgeColor : 'none'} />
-                                <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.07)', borderRadius: 2 }}>
+                                <Zap size={10} color={flux >= 100 || isSurgeActive ? '#f59e0b' : (flux >= 80 ? '#f59e0b' : '#3b82f6')} fill={flux >= 100 || isSurgeActive ? '#f59e0b' : 'none'} />
+                                <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 3 }}>
                                     <motion.div
                                         style={{
                                             height: '100%',
-                                            background: flux >= 80 ? colors.surgeColor : colors.accentColor,
-                                            borderRadius: 2
+                                            background: flux >= 100 || isSurgeActive ? '#f59e0b' : (flux >= 80 ? '#f59e0b' : '#3b82f6'),
+                                            borderRadius: 3,
+                                            transition: 'width .25s, background .3s'
                                         }}
                                         animate={{ width: `${Math.min(flux, 100)}%` }}
-                                        transition={{ type: 'spring', stiffness: 40, damping: 15 }}
                                     />
                                 </div>
                                 <span style={{ fontSize: 9, color: colors.textTertiary }}>{Math.floor(flux)}%</span>
@@ -121,30 +137,30 @@ export const HUD: React.FC = () => {
                         <div style={{
                             padding: '6px 12px',
                             borderRadius: 12,
-                            background: (timeLeft <= 10 ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.12)'),
-                            border: `1px solid ${timeLeft <= 10 ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.25)'}`,
+                            background: (timeLeft <= 10 ? 'rgba(239,68,68,0.15)' : timeLeft <= 30 ? 'rgba(249,115,22,0.12)' : 'rgba(245,158,11,0.1)'),
+                            border: `1px solid ${timeLeft <= 10 ? 'rgba(239,68,68,0.35)' : timeLeft <= 30 ? 'rgba(249,115,22,0.3)' : 'rgba(245,158,11,0.25)'}`,
                             flexShrink: 0,
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
+                            minWidth: 34,
                             animation: (gameMode === GameMode.TIMED && timeLeft <= 10) ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none'
                         }}>
-                            <div style={{ 
-                                fontSize: 16, 
+                            <span style={{ 
+                                fontSize: 15, 
                                 fontWeight: 700, 
-                                color: (timeLeft <= 10 ? '#ef4444' : '#f59e0b'), 
+                                color: (timeLeft <= 10 ? '#ef4444' : timeLeft <= 30 ? '#f97316' : '#f59e0b'), 
                                 lineHeight: 1 
                             }}>
                                 {timeLeft}
-                            </div>
-                            <div style={{ 
-                                fontSize: 11, 
-                                color: (timeLeft <= 10 ? 'rgba(239,68,68,0.6)' : 'rgba(245,158,11,0.6)'), 
-                                textAlign: 'center',
-                                marginTop: 2
+                            </span>
+                            <span style={{ 
+                                fontSize: 8, 
+                                color: `${timeLeft <= 10 ? '#ef4444' : timeLeft <= 30 ? '#f97316' : '#f59e0b'}70`, 
+                                marginTop: 1
                             }}>
                                 SN
-                            </div>
+                            </span>
                         </div>
                     )}
 
@@ -221,15 +237,15 @@ export const HUD: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Mute button - 32×32px */}
+                    {/* Mute button - 36×36px */}
                     <button
                         onClick={handleMute}
                         style={{
-                            width: 32,
-                            height: 32,
-                            minWidth: 32,
-                            minHeight: 32,
-                            borderRadius: 8,
+                            width: 36,
+                            height: 36,
+                            minWidth: 36,
+                            minHeight: 36,
+                            borderRadius: 9,
                             border: `1px solid ${colors.hudBorder}`,
                             background: colors.hudBackground,
                             display: 'flex',
@@ -244,9 +260,9 @@ export const HUD: React.FC = () => {
                 </div>
 
                 {/* ROW 2: Skill buttons */}
-                <div style={{ height: 40, display: 'flex', alignItems: 'center', gap: 4, padding: '0 6px' }}>
+                <div style={{ height: 48, display: 'flex', alignItems: 'center', gap: 4, padding: '0 6px' }}>
                     <MobileSkillButton
-                        icon={<RotateCw size={14} />}
+                        icon={<RotateCw size={17} />}
                         cost={FLUX_COST.REROLL}
                         currentFlux={flux}
                         isActive={false}
@@ -254,10 +270,12 @@ export const HUD: React.FC = () => {
                         accentColor="#10b981"
                         accentBg={gameMode === GameMode.ZEN ? 'rgba(255,255,255,0.06)' : 'rgba(16,185,129,0.1)'}
                         accentBorder="rgba(16,185,129,0.2)"
+                        label="Yenile"
+                        desc="Tüm parçaları değiştir"
                     />
 
                     <MobileSkillButton
-                        icon={<Hammer size={14} />}
+                        icon={<Hammer size={17} />}
                         cost={FLUX_COST.SHATTER}
                         currentFlux={flux}
                         isActive={activeSkill === SkillType.SHATTER}
@@ -265,11 +283,13 @@ export const HUD: React.FC = () => {
                         accentColor="#ef4444"
                         accentBg={gameMode === GameMode.ZEN ? 'rgba(255,255,255,0.06)' : 'rgba(239,68,68,0.1)'}
                         accentBorder="rgba(239,68,68,0.2)"
+                        label="Kır"
+                        desc="Bir bloğa dokun → kır"
                     />
 
                     <MobileSkillButton
                         icon={
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <svg width="17" height="17" viewBox="0 0 14 14" fill="none">
                                 <circle cx="7" cy="8" r="5" stroke="currentColor" strokeWidth="1.2"/>
                                 <path d="M7 3L9 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
                                 <circle cx="9.5" cy="0.5" r="1" fill="currentColor"/>
@@ -282,8 +302,48 @@ export const HUD: React.FC = () => {
                         accentColor="#f97316"
                         accentBg={gameMode === GameMode.ZEN ? 'rgba(255,255,255,0.06)' : 'rgba(249,115,22,0.1)'}
                         accentBorder="rgba(249,115,22,0.2)"
+                        label="Bomba"
+                        desc="3×3 alanı temizle"
                     />
                 </div>
+
+                {/* FLUX EKSIKLIK HINT */}
+                {flux < 75 && flux >= 40 && (
+                    <div style={{ textAlign: 'center', fontSize: 9, color: 'rgba(249,115,22,0.5)', marginTop: 2, padding: '0 6px' }}>
+                        Bomba için +{75 - flux}⚡ daha
+                    </div>
+                )}
+                {flux < 40 && flux >= 20 && (
+                    <div style={{ textAlign: 'center', fontSize: 9, color: 'rgba(239,68,68,0.5)', marginTop: 2, padding: '0 6px' }}>
+                        Kır için +{40 - flux}⚡ daha
+                    </div>
+                )}
+                {flux < 20 && (
+                    <div style={{ textAlign: 'center', fontSize: 9, color: 'rgba(16,185,129,0.5)', marginTop: 2, padding: '0 6px' }}>
+                        Yenile için +{20 - flux}⚡ daha
+                    </div>
+                )}
+
+                {/* SURGE INLINE BANNER */}
+                {isSurgeActive && (
+                    <div style={{
+                        margin: '0 0 4px',
+                        padding: '4px 0',
+                        borderRadius: 7,
+                        textAlign: 'center',
+                        background: 'rgba(245,158,11,0.1)',
+                        border: '0.5px solid rgba(245,158,11,0.25)'
+                    }}>
+                        <span style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: '#f59e0b',
+                            letterSpacing: '.06em'
+                        }}>
+                            ⚡ SURGE AKTİF — satır temizlemede 2× puan
+                        </span>
+                    </div>
+                )}
             </div>
 
             {/* DESKTOP LAYOUT */}
@@ -477,6 +537,7 @@ export const HUD: React.FC = () => {
                         onClick={() => handleSkill(SkillType.REROLL)}
                         colorClass="text-emerald-400 border-emerald-500/20 bg-emerald-900/10"
                         activeClass="bg-emerald-500 text-white"
+                        desc="Tüm parçaları değiştir"
                     />
 
                     <SkillButton
@@ -487,6 +548,7 @@ export const HUD: React.FC = () => {
                         onClick={() => handleSkill(SkillType.SHATTER)}
                         colorClass="text-rose-400 border-rose-500/20 bg-rose-900/10"
                         activeClass="bg-rose-500 text-white ring-2 ring-rose-400/50"
+                        desc="Bir bloğa dokun → kır"
                     />
 
                     <SkillButton
@@ -503,6 +565,7 @@ export const HUD: React.FC = () => {
                         onClick={() => handleSkill(SkillType.BOMB)}
                         colorClass="text-orange-400 border-orange-500/20 bg-orange-900/10"
                         activeClass="bg-orange-500 text-white ring-2 ring-orange-400/50"
+                        desc="3×3 alanı temizle"
                     />
                 </div>
 
@@ -514,67 +577,98 @@ export const HUD: React.FC = () => {
     );
 };
 
-const MobileSkillButton = ({ icon, cost, currentFlux, isActive, onClick, accentColor, accentBg, accentBorder }: any) => {
-    const disabled = currentFlux < cost && !isActive;
+const MobileSkillButton = ({ icon, cost, currentFlux, isActive, onClick, accentColor, accentBg, accentBorder, label, desc }: any) => {
+    const canUse = currentFlux >= cost || isActive;
+    const disabled = !canUse && !isActive;
     
     return (
-        <button
-            onClick={() => { playClick(); onClick(); }}
-            disabled={disabled}
-            data-testid="mobile-skill-button"
-            style={{
-                flex: 1,
-                height: 36,
-                borderRadius: 8,
-                border: `1px solid ${isActive ? accentColor : (disabled ? 'rgba(255,255,255,0.04)' : accentBorder)}`,
-                background: isActive ? accentColor : (disabled ? 'rgba(255,255,255,0.02)' : accentBg),
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-                opacity: disabled ? 0.4 : 1,
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                transform: isActive ? 'scale(1.02)' : 'scale(1)',
-                transition: 'all 0.2s ease',
-                padding: 0
-            }}
-        >
-            {/* Icon */}
-            <div 
-                data-testid="icon-container"
-                style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <button
+                onClick={() => { playClick(); onClick(); }}
+                disabled={disabled}
+                data-testid="mobile-skill-button"
+                style={{
+                    width: '100%',
+                    minHeight: 44,
+                    borderRadius: 8,
+                    border: isActive ? `1px solid ${accentColor}` : (disabled ? '0.5px solid rgba(255,255,255,0.06)' : `0.5px solid ${accentBorder}`),
+                    background: isActive ? `${accentColor}20` : (disabled ? 'rgba(255,255,255,0.02)' : accentBg),
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
                     justifyContent: 'center',
-                    color: isActive ? 'white' : (disabled ? 'rgba(255,255,255,0.2)' : accentColor)
+                    position: 'relative',
+                    opacity: disabled ? 0.35 : 1,
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    transform: isActive ? 'scale(1.02)' : 'scale(1)',
+                    transition: 'all .15s',
+                    padding: '6px 4px 4px',
+                    gap: 2
                 }}
             >
-                {icon}
-            </div>
-            
-            {/* Flux Cost Badge - positioned at bottom right */}
-            <div 
-                data-testid="cost-badge"
-                style={{
-                    position: 'absolute',
-                    bottom: 2,
-                    right: 2,
-                    background: isActive ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.5)',
-                    borderRadius: 4,
-                    padding: '1px 3px',
+                {/* Icon */}
+                <div 
+                    data-testid="icon-container"
+                    style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        fontSize: 17,
+                        color: canUse ? accentColor : 'rgba(255,255,255,0.2)'
+                    }}
+                >
+                    {icon}
+                </div>
+                
+                {/* Label */}
+                <span style={{
                     fontSize: 9,
                     fontWeight: 600,
-                    color: isActive ? 'white' : accentColor,
+                    color: isActive ? 'white' : (canUse ? accentColor : 'rgba(255,255,255,0.2)'),
                     lineHeight: 1
-                }}
-            >
-                {cost}
-            </div>
-        </button>
+                }}>
+                    {label}
+                </span>
+                
+                {/* Cost + ⚡ */}
+                <div style={{
+                    fontSize: 8,
+                    color: `${accentColor}70`,
+                    lineHeight: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                }}>
+                    <span>{cost}</span>
+                    <span>⚡</span>
+                </div>
+            </button>
+            
+            {/* Active Description Strip */}
+            {isActive && (
+                <div style={{
+                    width: '100%',
+                    padding: '3px 5px',
+                    background: `${accentColor}12`,
+                    borderTop: `0.5px solid ${accentColor}20`,
+                    borderRadius: '0 0 8px 8px',
+                    textAlign: 'center',
+                    marginTop: -8
+                }}>
+                    <span style={{
+                        fontSize: 8,
+                        color: accentColor,
+                        lineHeight: 1.4
+                    }}>
+                        {desc}
+                    </span>
+                </div>
+            )}
+        </div>
     );
 };
 
-const SkillButton = ({ icon, cost, currentFlux, isActive, onClick, colorClass, activeClass, mobile }: any) => {
+const SkillButton = ({ icon, cost, currentFlux, isActive, onClick, colorClass, activeClass, mobile, desc }: any) => {
     const disabled = currentFlux < cost && !isActive;
     const isAffordable = currentFlux >= cost && !isActive;
 
@@ -582,6 +676,7 @@ const SkillButton = ({ icon, cost, currentFlux, isActive, onClick, colorClass, a
         <button
             onClick={() => { playClick(); onClick(); }}
             disabled={disabled}
+            title={desc}
             className={clsx(
                 "rounded border transition-all relative overflow-hidden",
                 mobile ? "w-7 h-full" : "w-11 h-full",

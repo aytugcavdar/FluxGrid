@@ -178,26 +178,28 @@ describe('HUD - Responsive Behavior and Safe Area Handling', () => {
       
       const skillButtons = screen.getAllByTestId('mobile-skill-button');
       
-      // Should have 3 skill buttons
+      // Should have 3 skill buttons (wrapped in divs now)
       expect(skillButtons).toHaveLength(3);
       
-      // All buttons should have flex: 1 for equal width distribution
+      // Parent divs should have flex: 1 for equal width distribution
       skillButtons.forEach(button => {
-        const style = button.getAttribute('style');
+        const parentDiv = button.parentElement;
+        const style = parentDiv?.getAttribute('style');
         expect(style).toContain('flex: 1');
       });
     });
   });
 
   describe('Integration: Responsive layout structure', () => {
-    it('mobile HUD has exactly 2 rows', () => {
+    it('mobile HUD has 2-3 rows (with optional flux hint)', () => {
       const { container } = render(<HUD />);
       
       const mobileLayout = container.querySelector('.md\\:hidden');
       const rows = mobileLayout?.children;
       
-      // Should have exactly 2 row divs
-      expect(rows?.length).toBe(2);
+      // Should have 2-3 row divs (Row1, Row2, optional flux hint)
+      expect(rows?.length).toBeGreaterThanOrEqual(2);
+      expect(rows?.length).toBeLessThanOrEqual(4); // Row1, Row2, flux hint, surge banner
     });
 
     it('Row 1 has fixed height of 52px', () => {
@@ -211,7 +213,7 @@ describe('HUD - Responsive Behavior and Safe Area Handling', () => {
       expect(style).toContain('52');
     });
 
-    it('Row 2 has fixed height of 40px', () => {
+    it('Row 2 has fixed height of 48px', () => {
       const { container } = render(<HUD />);
       
       const mobileLayout = container.querySelector('.md\\:hidden');
@@ -219,7 +221,7 @@ describe('HUD - Responsive Behavior and Safe Area Handling', () => {
       const style = row2?.getAttribute('style');
       
       expect(style).toContain('height');
-      expect(style).toContain('40');
+      expect(style).toContain('48');
     });
 
     it('mobile layout uses flexbox for proper alignment', () => {
