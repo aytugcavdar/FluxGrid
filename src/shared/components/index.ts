@@ -1,1 +1,1 @@
-export { Tutorial, shouldShowTutorial } from './Tutorial';
+export { shouldShowTutorial } from './Tutorial';

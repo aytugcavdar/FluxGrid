@@ -22,10 +22,24 @@ export const CareerPage: React.FC = () => {
     { mode: GameMode.ZEN, icon: '☁️', label: 'Zen', color: 'from-green-500 to-emerald-500' },
   ];
 
-  // Get high score for a mode (placeholder - will come from Firebase)
-  const getModeHighScore = (): number => {
-    // TODO: Get from Firebase highScores
-    return 0;
+  // Get high score for a mode from localStorage
+  const getModeHighScore = (mode: GameMode): number => {
+    try {
+      const stored = localStorage.getItem('flux_highscores');
+      if (!stored) return 0;
+      const scores = JSON.parse(stored);
+      return scores[mode] || 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  // Format score with k notation
+  const formatScore = (score: number): string => {
+    if (score >= 1000) {
+      return `${(score / 1000).toFixed(1)}k`;
+    }
+    return score.toLocaleString();
   };
 
   // Get rank for a mode (placeholder - will come from Firebase)
@@ -143,7 +157,7 @@ export const CareerPage: React.FC = () => {
           <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Mod Bazlı En İyi Skorlar</h2>
           <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
             {modeConfigs.map((config, i) => {
-              const score = getModeHighScore();
+              const score = getModeHighScore(config.mode);
               const rank = getModeRank();
               const hasPlayed = score > 0;
 
@@ -164,7 +178,7 @@ export const CareerPage: React.FC = () => {
                   <div className="text-sm font-bold text-white mb-1">{config.label}</div>
                   {hasPlayed ? (
                     <>
-                      <div className="text-2xl font-black text-white mb-1">{score.toLocaleString()}</div>
+                      <div className="text-2xl font-black text-white mb-1">{formatScore(score)}</div>
                       <div className="text-xs text-gray-400">#{rank} sırada</div>
                     </>
                   ) : (

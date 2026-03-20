@@ -178,6 +178,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
         // Check if this is the first game (onboarding)
         const isOnboarding = safeLocalStorageGet('flux_onboard_v1', '') !== 'true';
         
+        // DEBUG: Log onboarding status
+        console.log('🎮 Tutorial Debug:', {
+          isOnboarding,
+          localStorageValue: safeLocalStorageGet('flux_onboard_v1', ''),
+          willShowTutorial: isOnboarding
+        });
+        
         set({
           grid: initialGrid,
           pieces: getRandomPiecesSync(3, initialGrid, isDaily, isZen ? ZEN_PALETTES[0] : useThemeStore.getState().getPieceColors(), 0),
@@ -224,9 +231,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
             const targetPiece = pieces[0];
             // Find first valid position (bottom-left corner preferred)
             let target: { x: number; y: number; pieceIndex: number } | null = null;
+            const canPlace = get().canPlacePiece;
             outer: for (let y = GRID_SIZE - 1; y >= 0; y--) {
               for (let x = 0; x < GRID_SIZE; x++) {
-                if (get().canPlacePiece(initialGrid, targetPiece, x, y)) {
+                if (canPlace(initialGrid, targetPiece, x, y)) {
                   target = { x, y, pieceIndex: 0 };
                   break outer;
                 }
@@ -1208,11 +1216,47 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Step 1: İlk parçayı bırak
     // Step 2: Satır temizle (otomatik ilerler)
     // Step 3: Flux göster ve tamamla
+    if (nextStep === 2) {
+      // Adım 2: Satır doldurmaya yönlendir
+      // Dolu olmaya en yakın satırı bul
+      const rowFill = Array(GRID_SIZE).fill(0).map((_, y) => 
+        grid[y].filter(c => c.filled).length
+      );
+      const bestRowIndex = rowFill.indexOf(Math.max(...rowFill));
+      
+      // O satırda boş olan ilk hücreye parça yerleştir
+      const targetPiece = pieces[0];
+      if (targetPiece) {
+        let target: { x: number; y: number; pieceIndex: number } | null = null;
+        
+        // Önce en dolu satırda boş yer ara
+        for (let x = 0; x < GRID_SIZE; x++) {
+          if (get().canPlacePiece(grid, targetPiece, x, bestRowIndex)) {
+            target = { x, y: bestRowIndex, pieceIndex: 0 };
+            break;
+          }
+        }
+        
+        // Bulamazsa herhangi bir geçerli pozisyon bul
+        if (!target) {
+          outer: for (let y = GRID_SIZE - 1; y >= 0; y--) {
+            for (let x = 0; x < GRID_SIZE; x++) {
+              if (get().canPlacePiece(grid, targetPiece, x, y)) {
+                target = { x, y, pieceIndex: 0 };
+                break outer;
+              }
+            }
+          }
+        }
+        
+        set({ guidedStep: nextStep, guidedTarget: target });
+      }
+      return;
+    }
+    
     if (nextStep === 3) {
-      // Flux barına 30 puan ekle ve mesaj göster
-      const newFlux = Math.min(100, flux + 30);
+      // Adım 3: Flux barını göster ve tamamla
       set({ 
-        flux: newFlux,
         guidedStep: nextStep,
         guidedTarget: null
       });

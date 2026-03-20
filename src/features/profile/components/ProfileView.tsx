@@ -89,6 +89,26 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderb
     { mode: GameMode.ZEN, icon: '☁️', label: 'Zen', color: 'from-green-500 to-emerald-500' },
   ];
 
+  // Get high score for a mode from localStorage
+  const getHighScoreForMode = (mode: GameMode): number => {
+    try {
+      const stored = localStorage.getItem('flux_highscores');
+      if (!stored) return 0;
+      const scores = JSON.parse(stored);
+      return scores[mode] || 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  // Format score with k notation
+  const formatScore = (score: number): string => {
+    if (score >= 1000) {
+      return `${(score / 1000).toFixed(1)}k`;
+    }
+    return score.toLocaleString();
+  };
+
   return (
     <div className="fixed inset-0 z-[80] bg-[#060c17] overflow-y-auto">
       {/* Header */}
@@ -298,7 +318,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderb
             >
               <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 {modeConfigs.map((config) => {
-                  const score = 0; // TODO: Get from Firebase
+                  const score = getHighScoreForMode(config.mode);
                   const rank = '-';
                   const hasPlayed = score > 0;
 
@@ -316,12 +336,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderb
                       <div className="text-xs sm:text-sm font-bold text-white mb-1">{config.label}</div>
                       {hasPlayed ? (
                         <>
-                          <div className="text-2xl font-black text-white mb-1">{score.toLocaleString()}</div>
+                          <div className="text-2xl font-black text-white mb-1">{formatScore(score)}</div>
                           <div className="text-xs text-gray-400">#{rank} sırada</div>
                         </>
                       ) : (
                         <>
-                          <div className="text-xs text-gray-500 mb-2">Oynanmadı</div>
+                          <div className="text-xs text-gray-500 mb-2">Henüz oynanmadı</div>
                           <button className="text-xs text-cyan-400 hover:text-cyan-300">Oyna →</button>
                         </>
                       )}

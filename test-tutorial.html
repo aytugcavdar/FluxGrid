@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tutorial Test Helper</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            font-weight: 600;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .danger {
+            background: #ef4444;
+        }
+        .danger:hover {
+            background: #dc2626;
+        }
+        .info {
+            background: #10b981;
+        }
+        .info:hover {
+            background: #059669;
+        }
+        .status {
+            background: #374151;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-family: monospace;
+        }
+        h1 {
+            color: #3b82f6;
+        }
+        .warning {
+            background: #fbbf24;
+            color: #1a1a1a;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 FluxGrid Tutorial Test Helper</h1>
+    
+    <div class="status" id="status">
+        Durum yükleniyor...
+    </div>
+    
+    <h2>Tutorial Kontrolü</h2>
+    <button onclick="checkTutorial()" class="info">Tutorial Durumunu Kontrol Et</button>
+    <button onclick="resetTutorial()">Tutorial'ı Sıfırla</button>
+    <button onclick="resetAndReload()">Sıfırla ve Yenile</button>
+    
+    <h2>localStorage Yönetimi</h2>
+    <button onclick="showAllData()" class="info">Tüm Verileri Göster</button>
+    <button onclick="clearAll()" class="danger">⚠️ Tüm Verileri Sil</button>
+    
+    <div class="warning">
+        ⚠️ "Tüm Verileri Sil" butonu skorlarınızı, istatistiklerinizi ve tüm ilerlemenizi silecektir!
+    </div>
+    
+    <h2>Hızlı Testler</h2>
+    <button onclick="testScenario1()">Senaryo 1: Yeni Oyuncu</button>
+    <button onclick="testScenario2()">Senaryo 2: Eski Oyuncu</button>
+
+    <script>
+        function updateStatus() {
+            const onboarding = localStorage.getItem('flux_onboard_v1');
+            const stats = localStorage.getItem('flux_stats');
+            const highscore = localStorage.getItem('flux_highscore');
+            
+            let statusHTML = '<strong>Tutorial Durumu:</strong><br>';
+            statusHTML += `flux_onboard_v1: ${onboarding || 'YOK (Tutorial gösterilecek)'}<br><br>`;
+            statusHTML += `<strong>Diğer Veriler:</strong><br>`;
+            statusHTML += `Yüksek Skor: ${highscore || '0'}<br>`;
+            statusHTML += `İstatistikler: ${stats ? 'Var' : 'Yok'}<br>`;
+            statusHTML += `<br><strong>Toplam localStorage Anahtarı:</strong> ${localStorage.length}`;
+            
+            document.getElementById('status').innerHTML = statusHTML;
+        }
+        
+        function checkTutorial() {
+            const value = localStorage.getItem('flux_onboard_v1');
+            if (value === 'true') {
+                alert('❌ Tutorial KAPALI\n\nTutorial daha önce tamamlanmış. "Tutorial\'ı Sıfırla" butonuna tıklayın.');
+            } else {
+                alert('✅ Tutorial AÇIK\n\nYeni oyun başlattığınızda tutorial gösterilecek.');
+            }
+            updateStatus();
+        }
+        
+        function resetTutorial() {
+            localStorage.removeItem('flux_onboard_v1');
+            alert('✅ Tutorial sıfırlandı!\n\nŞimdi sayfayı yenileyin ve yeni oyun başlatın.');
+            updateStatus();
+        }
+        
+        function resetAndReload() {
+            localStorage.removeItem('flux_onboard_v1');
+            alert('Tutorial sıfırlandı, sayfa yenilenecek...');
+            window.location.reload();
+        }
+        
+        function showAllData() {
+            let data = 'localStorage İçeriği:\n\n';
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                data += `${key}: ${value}\n\n`;
+            }
+            console.log(data);
+            alert('Tüm veriler konsola yazdırıldı. F12 ile konsolu açın.');
+        }
+        
+        function clearAll() {
+            if (confirm('⚠️ UYARI!\n\nTÜM verileriniz silinecek:\n- Skorlar\n- İstatistikler\n- Başarımlar\n- Tutorial durumu\n\nEmin misiniz?')) {
+                localStorage.clear();
+                alert('✅ Tüm veriler silindi!\n\nSayfa yenilenecek...');
+                window.location.reload();
+            }
+        }
+        
+        function testScenario1() {
+            // Yeni oyuncu: Tutorial gösterilmeli
+            localStorage.clear();
+            alert('✅ Senaryo 1 hazır: YENİ OYUNCU\n\nSayfa yenilenecek, tutorial başlayacak.');
+            window.location.reload();
+        }
+        
+        function testScenario2() {
+            // Eski oyuncu: Tutorial gösterilmemeli
+            localStorage.setItem('flux_onboard_v1', 'true');
+            localStorage.setItem('flux_highscore', '5000');
+            localStorage.setItem('flux_stats', JSON.stringify({
+                gamesPlayed: 10,
+                blocksPlaced: 100,
+                linesCleared: 50,
+                totalScore: 15000,
+                bombsExploded: 5,
+                iceBroken: 0,
+                skillUses: {}
+            }));
+            alert('✅ Senaryo 2 hazır: ESKİ OYUNCU\n\nSayfa yenilenecek, tutorial gösterilmeyecek.');
+            window.location.reload();
+        }
+        
+        // Sayfa yüklendiğinde durumu göster
+        updateStatus();
+    </script>
+</body>
+</html>

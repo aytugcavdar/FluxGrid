@@ -10,7 +10,6 @@ import { useProfileStore } from '../features/profile/store/profileStore';
 import { HUD, ScorePopups, ChainCounter, PerfectBonus, SurgeFlash, ComboFlash, DragOverlay, ComboBar } from '@features/hud';
 import { LevelMap } from '../features/career/components/LevelMap';
 import { CareerPage } from '../features/career/components/CareerPage';
-import { Tutorial, shouldShowTutorial } from '@shared/components';
 import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
 import { ProfileView } from '../features/profile/components/ProfileView';
 import { LeaderboardView } from '../features/leaderboard/components';
@@ -66,7 +65,6 @@ const App: React.FC = () => {
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors } = useThemeStore();
   const colors = getThemeColors();
-  const [showTutorial, setShowTutorial] = useState(shouldShowTutorial);
   const [showAbilities, setShowAbilities] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
@@ -823,7 +821,7 @@ const App: React.FC = () => {
                   pointerEvents: 'none',
                   zIndex: 25,
                 }}>
-                  {/* Guided message banner */}
+                  {/* Guided message banner - Mobile optimized */}
                   <motion.div
                     key={guidedStep}
                     initial={{ opacity: 0, y: -10 }}
@@ -831,45 +829,101 @@ const App: React.FC = () => {
                     style={{
                       position: 'absolute',
                       top: 8,
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      background: 'rgba(59,130,246,0.9)',
+                      left: 8,
+                      right: 60,
+                      background: guidedStep === 1 ? 'rgba(59,130,246,0.95)' : guidedStep === 2 ? 'rgba(249,115,22,0.95)' : 'rgba(16,185,129,0.95)',
                       backdropFilter: 'blur(8px)',
-                      borderRadius: 20,
-                      padding: '6px 16px',
-                      fontSize: 12,
+                      borderRadius: 16,
+                      padding: '10px 12px',
+                      fontSize: 11,
                       fontWeight: 700,
                       color: 'white',
-                      whiteSpace: 'nowrap',
-                      letterSpacing: '.02em',
+                      letterSpacing: '.01em',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 6,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                     }}
                   >
-                    {guidedStep === 1 && 'Alttaki parçayı sürükle ve ızgaraya bırak'}
-                    {guidedStep === 2 && 'Bir satırı tamamen doldur'}
-                    {guidedStep === 3 && 'İşte böyle! Flux ile yetenek kullanabilirsin'}
+                    <div style={{ 
+                      textAlign: 'center', 
+                      lineHeight: '1.3',
+                      maxWidth: '100%',
+                      wordWrap: 'break-word',
+                      whiteSpace: 'normal',
+                    }}>
+                      {guidedStep === 1 && 'Parçayı sürükle, yeşil alana bırak'}
+                      {guidedStep === 2 && 'Satırı tamamen doldur'}
+                      {guidedStep === 3 && '⚡ Flux dolunca REROLL kullan'}
+                    </div>
+                    
+                    {/* Step indicator dots */}
+                    <div style={{ display: 'flex', gap: 5 }}>
+                      {[1, 2, 3].map(step => (
+                        <div
+                          key={step}
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: '50%',
+                            background: step === guidedStep ? 'white' : 'rgba(255,255,255,0.35)',
+                            transition: 'all 0.3s',
+                            boxShadow: step === guidedStep ? '0 0 8px rgba(255,255,255,0.5)' : 'none',
+                          }}
+                        />
+                      ))}
+                    </div>
                   </motion.div>
                   
-                  {/* Skip button */}
+                  {/* Skip button - Mobile optimized */}
                   <button
-                    onClick={() => useGameStore.getState().completeGuidedMode()}
+                    onClick={() => { playClick(); useGameStore.getState().completeGuidedMode(); }}
                     style={{
                       position: 'absolute',
                       top: 8,
-                      right: 12,
-                      background: 'rgba(255,255,255,0.08)',
-                      border: '0.5px solid rgba(255,255,255,0.12)',
-                      borderRadius: 10,
-                      padding: '4px 10px',
-                      fontSize: 10,
-                      color: 'rgba(255,255,255,0.4)',
+                      right: 8,
+                      background: 'rgba(255,255,255,0.12)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      borderRadius: 12,
+                      padding: '10px 12px',
+                      fontSize: 11,
+                      color: 'rgba(255,255,255,0.7)',
                       cursor: 'pointer',
                       pointerEvents: 'auto',
-                      fontWeight: 600,
+                      fontWeight: 700,
                       letterSpacing: '.05em',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                      minWidth: 48,
+                      textAlign: 'center',
                     }}
                   >
                     ATLA
                   </button>
+                  
+                  {/* REROLL button highlight for step 3 */}
+                  {guidedStep === 3 && (
+                    <motion.div
+                      animate={{ 
+                        boxShadow: [
+                          '0 0 0 0 rgba(16,185,129,0)',
+                          '0 0 0 8px rgba(16,185,129,0.4)',
+                          '0 0 0 0 rgba(16,185,129,0)',
+                        ]
+                      }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                      style={{
+                        position: 'absolute',
+                        bottom: 'calc(var(--tray-height, 90px) + env(safe-area-inset-bottom, 0px) + 52px)',
+                        left: 12,
+                        width: 'calc(33.333% - 8px)',
+                        height: 48,
+                        borderRadius: 8,
+                        border: '2px solid rgba(16,185,129,0.6)',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                  )}
                 </div>
               )}
             </main>
@@ -968,7 +1022,6 @@ const App: React.FC = () => {
       {/* Persistence and Global Overlays */}
       <DragOverlay />
       <AnimatePresence>
-        {showTutorial && <Tutorial onComplete={() => setShowTutorial(false)} />}
         {showAbilities && <AbilityPanel onClose={() => setShowAbilities(false)} />}
         {showProfile && <ProfileView onClose={() => setShowProfile(false)} onOpenLeaderboard={(mode) => { setShowProfile(false); setLeaderboardMode(mode); setShowLeaderboard(true); }} />}
         {showLeaderboard && (
