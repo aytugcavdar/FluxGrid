@@ -872,6 +872,11 @@ export const Grid: React.FC = () => {
                     const shatterFn = useGameStore.getState().useShatter;
                     shatterFn(hover.x, hover.y);
                 }
+            } else if (activeSkill === SkillType.BOMB && hover) {
+                if (hover.x >= 0 && hover.x < GRID_SIZE && hover.y >= 0 && hover.y < GRID_SIZE) {
+                    const bombFn = useGameStore.getState().useBomb;
+                    bombFn(hover.x, hover.y);
+                }
             }
             // Note: Piece placement is handled by window handler
         };

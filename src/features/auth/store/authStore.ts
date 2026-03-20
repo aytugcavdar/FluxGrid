@@ -4,7 +4,7 @@ import {
   signInAnonymously,
   GoogleAuthProvider,
   signInWithPopup,
-  linkWithCredential,
+  linkWithPopup,
   signOut as firebaseSignOut,
   User as FirebaseUser,
 } from 'firebase/auth';
@@ -130,17 +130,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
 
-      // Create Google provider and sign in
+      // Create Google provider and link with popup
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-
-      if (!credential) {
-        throw new Error('Failed to get Google credential');
-      }
-
-      // Link anonymous account with Google credential
-      await linkWithCredential(currentUser, credential);
+      const result = await linkWithPopup(currentUser, provider);
+      // result.user is now the user linked with Google account
 
       // Trigger migration
       set({ migrationStatus: 'in_progress' });

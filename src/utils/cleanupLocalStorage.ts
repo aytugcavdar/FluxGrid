@@ -9,7 +9,6 @@ export function cleanupDeprecatedKeys() {
     'firebase_write_queue',
     'firebase_failed_queue',
     'signin_dismiss_count',
-    'flux_survival_highscore',
     'ios_pwa_instructions_shown',
     'flux_mode_stats',
   ];
