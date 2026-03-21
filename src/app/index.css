@@ -250,11 +250,6 @@ canvas {
   animation: gridPulse 8s ease-in-out infinite;
 }
 
-.game-container > * {
-  position: relative;
-  z-index: 1;
-}
-
 @keyframes gridPulse {
   0%, 100% { opacity: 0.5; }
   50% { opacity: 1; }
