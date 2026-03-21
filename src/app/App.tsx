@@ -61,7 +61,7 @@ const App: React.FC = () => {
     isLevelComplete, nextLevel, currentLevelIndex,
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
     earnedStars, dailyClearHistory, highScore, stats, maxLevelReached, startLevel, bossType,
-    isFirstGame, guidedStep, activeSkill, activateSkill
+    isFirstGame, guidedStep, activeSkill, activateSkill, activeEvent, darkZoneCells
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors } = useThemeStore();
   const colors = getThemeColors();
@@ -799,7 +799,8 @@ const App: React.FC = () => {
                   height: '100%', 
                   display: 'flex', 
                   alignItems: 'center', 
-                  justifyContent: 'center' 
+                  justifyContent: 'center',
+                  position: 'relative'
                 }}
               >
                 <div style={{ 
@@ -807,9 +808,50 @@ const App: React.FC = () => {
                   height: gridSize > 0 ? gridSize : '100%', 
                   maxWidth: gridSize > 0 ? gridSize : '100vmin', 
                   maxHeight: gridSize > 0 ? gridSize : '100vmin', 
-                  aspectRatio: '1/1' 
+                  aspectRatio: '1/1',
+                  position: 'relative'
                 }}>
                   <Grid />
+                  
+                  {/* DARKNESS Event Overlay */}
+                  {activeEvent === 'DARKNESS' && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        pointerEvents: 'none',
+                        zIndex: 20,
+                      }}
+                    >
+                      {darkZoneCells.map(({ row, col }) => {
+                        // Grid 10x10, her hücre eşit büyüklükte
+                        // CSS grid pozisyonunu hesapla
+                        const cellPercent = 100 / 10;
+                        return (
+                          <div
+                            key={`${row}-${col}`}
+                            style={{
+                              position: 'absolute',
+                              left: `${col * cellPercent}%`,
+                              top: `${row * cellPercent}%`,
+                              width: `${cellPercent}%`,
+                              height: `${cellPercent}%`,
+                              background: 'rgba(30, 30, 30, 0.88)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 14,
+                              color: 'rgba(255,255,255,0.3)',
+                              fontWeight: 700,
+                              borderRadius: 2,
+                            }}
+                          >
+                            ?
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
               

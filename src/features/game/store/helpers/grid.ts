@@ -139,17 +139,38 @@ export const processGrid = (initialGrid: GridState): {
         currentGrid[y][x] = { filled: false, color: '' };
       });
 
-      // Apply Gravity
+      // Apply Gravity (ICE blocks stay in place)
       for (let x = 0; x < GRID_SIZE; x++) {
-        const stack: GridCell[] = [];
+        // 1. Find ICE cells and their Y positions
+        const icePositions = new Map<number, GridCell>();
         for (let y = 0; y < GRID_SIZE; y++) {
-          if (currentGrid[y][x].filled) stack.push(currentGrid[y][x]);
+          const cell = currentGrid[y][x];
+          if (cell.filled && cell.type === CellType.ICE) {
+            icePositions.set(y, { ...cell });
+          }
         }
+        
+        // 2. Collect non-ICE filled cells
+        const normalStack: GridCell[] = [];
+        for (let y = 0; y < GRID_SIZE; y++) {
+          const cell = currentGrid[y][x];
+          if (cell.filled && cell.type !== CellType.ICE) {
+            normalStack.push({ ...cell });
+          }
+        }
+        
+        // 3. Build result column: ICE stays at their Y, normal blocks fill from bottom
+        let normalIndex = normalStack.length - 1;
         for (let y = GRID_SIZE - 1; y >= 0; y--) {
-          const popped = stack.pop();
-          if (popped) {
-            currentGrid[y][x] = popped;
+          if (icePositions.has(y)) {
+            // ICE block stays at this position
+            currentGrid[y][x] = icePositions.get(y)!;
+          } else if (normalIndex >= 0) {
+            // Fill with normal block from stack
+            currentGrid[y][x] = normalStack[normalIndex];
+            normalIndex--;
           } else {
+            // Empty cell
             currentGrid[y][x] = { filled: false, color: '' };
           }
         }

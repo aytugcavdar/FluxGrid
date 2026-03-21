@@ -10,12 +10,19 @@ import { generateLevel } from '../../career/utils/levelGenerator';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const EVENT_CONFIG = {
+    ICE_STORM: { label: 'Buz Fırtınası', color: '#185FA5', bg: 'rgba(56,138,221,0.12)' },
+    DARKNESS:  { label: 'Karanlık Bölge', color: '#888780', bg: 'rgba(136,135,128,0.12)' },
+    QUAKE:     { label: 'Deprem!', color: '#D85A30', bg: 'rgba(216,90,48,0.12)' },
+    MIRROR:    { label: 'Ayna Modu', color: '#D4537E', bg: 'rgba(212,83,126,0.12)' },
+};
+
 export const HUD: React.FC = () => {
     const {
         score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive,
         currentLevelIndex, movesLeft, levelObjectives, gameMode, timeLeft, setAppState,
         zenSessionTime, zenBlocksPlaced, survivalNextPush, survivalPushInterval, zenPaletteIndex, survivalTime,
-        bossType
+        bossType, activeEvent, eventMovesRemaining
     } = useGameStore();
     const colors = useThemeStore(state => state.getThemeColors());
     const [muted, setMuted] = useState(getMuted);
@@ -36,11 +43,20 @@ export const HUD: React.FC = () => {
     };
 
     const currentLevelDef = gameMode === GameMode.CAREER ? generateLevel(currentLevelIndex) : null;
+    
+    // Calculate HUD height dynamically based on active event
+    const hudHeight = activeEvent ? 128 : 100; // 100 (base) + 28 (event banner)
 
     return (
         <>
             {/* MOBILE LAYOUT - 2 ROWS */}
-            <div className="md:hidden w-full h-full flex flex-col" style={{ gap: 4 }}>
+            <div 
+                className="md:hidden w-full h-full flex flex-col" 
+                style={{ 
+                    gap: 4,
+                    '--hud-height': `${hudHeight}px`
+                } as React.CSSProperties}
+            >
                 {/* ROW 1: Home + Score/Flux + Timer/Moves + Mute */}
                 <div style={{ height: 52, display: 'flex', alignItems: 'center', gap: 6, padding: '0 6px' }}>
                     {/* Home button - 36×36px */}
@@ -258,6 +274,28 @@ export const HUD: React.FC = () => {
                         {muted ? <VolumeX size={16} style={{ color: colors.textTertiary, opacity: 0.4 }} /> : <Volume2 size={16} style={{ color: colors.textTertiary }} />}
                     </button>
                 </div>
+
+                {/* Event Banner - Between ROW 1 and ROW 2 */}
+                {activeEvent && (
+                    <div style={{
+                        height: 28,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0 8px',
+                        background: EVENT_CONFIG[activeEvent].bg,
+                        borderBottom: `1px solid ${EVENT_CONFIG[activeEvent].color}40`,
+                    }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: EVENT_CONFIG[activeEvent].color }}>
+                            {EVENT_CONFIG[activeEvent].label}
+                        </span>
+                        {eventMovesRemaining < 9999 && (
+                            <span style={{ fontSize: 11, color: EVENT_CONFIG[activeEvent].color, opacity: 0.7 }}>
+                                {eventMovesRemaining} hamle
+                            </span>
+                        )}
+                    </div>
+                )}
 
                 {/* ROW 2: Skill buttons */}
                 <div style={{ height: 48, display: 'flex', alignItems: 'center', gap: 4, padding: '0 6px' }}>

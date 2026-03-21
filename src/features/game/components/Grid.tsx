@@ -15,14 +15,15 @@ const GRID_OFFSET = ((GRID_SIZE - 1) * TOTAL_CELL_SIZE) / 2;
 const GHOST_POOL_SIZE = 25;
 const SKILL_OVERLAY_POOL_SIZE = 10;
 const GUIDED_HIGHLIGHT_POOL_SIZE = 25;
+const DARK_OVERLAY_POOL_SIZE = 6; // 2 rows × 3 cols max
 
 export const Grid: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, guidedTarget, pieces } = useGameStore();
+    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent, darkZoneCells } = useGameStore();
     const { getThemeColors } = useThemeStore();
 
-    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces });
-    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces]);
+    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent, darkZoneCells });
+    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent, darkZoneCells }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent, darkZoneCells]);
 
     const [hoverCoord, setHoverCoord] = useState<{ x: number, y: number } | null>(null);
     const hoverCoordRef = useRef<{ x: number, y: number } | null>(null);
@@ -31,6 +32,7 @@ export const Grid: React.FC = () => {
     const meshMapRef = useRef<Map<string, BABYLON.Mesh>>(new Map());
     const ghostMeshesRef = useRef<BABYLON.Mesh[]>([]);
     const guidedHighlightMeshesRef = useRef<BABYLON.Mesh[]>([]);
+    const darkOverlayMeshesRef = useRef<BABYLON.Mesh[]>([]);
     const ambientParticlesRef = useRef<BABYLON.Mesh[]>([]);
     const lastScoreRef = useRef(0);
     const glowLayerRef = useRef<BABYLON.GlowLayer | null>(null);
@@ -51,6 +53,9 @@ export const Grid: React.FC = () => {
         
         // Reduced motion preference
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        
+        // Disable animations on low-end devices or when reduced motion is preferred
+        const disableAnimations = prefersReducedMotion || isLowEndDevice;
 
         // Engine configuration based on device capability
         const engine = new BABYLON.Engine(canvasRef.current, true, {
@@ -321,10 +326,30 @@ export const Grid: React.FC = () => {
             return pool;
         };
 
+        const initDarkOverlayPool = (scene: BABYLON.Scene) => {
+            const pool: BABYLON.Mesh[] = [];
+            for (let i = 0; i < DARK_OVERLAY_POOL_SIZE; i++) {
+                const overlay = BABYLON.MeshBuilder.CreateBox(`dark-overlay-${i}`, 
+                    { size: CELL_SIZE * 0.92, height: 0.7 }, 
+                    scene
+                );
+                const mat = new BABYLON.StandardMaterial(`dark-mat-${i}`, scene);
+                mat.diffuseColor = BABYLON.Color3.FromHexString("#444441");
+                mat.alpha = 0.85;
+                mat.specularColor = BABYLON.Color3.Black();
+                overlay.material = mat;
+                overlay.isPickable = false;
+                overlay.isVisible = false;
+                pool.push(overlay);
+            }
+            return pool;
+        };
+
         // Initialize pools
         ghostMeshesRef.current = initGhostPool(scene);
         skillOverlayMeshesRef.current = initSkillOverlayPool(scene);
         guidedHighlightMeshesRef.current = initGuidedHighlightPool(scene);
+        darkOverlayMeshesRef.current = initDarkOverlayPool(scene);
 
 
         // --- Logic Helpers ---
@@ -592,9 +617,18 @@ export const Grid: React.FC = () => {
             // 0. Animate Particles — skip (particles removed)
 
             // 1. Sync Active Grid
+            const { darkZoneCells: dzc, activeEvent: ae } = stateRef.current;
             const activeIds = new Set<string>();
+            
+            // Hide all dark overlays first
+            darkOverlayMeshesRef.current.forEach(m => m.isVisible = false);
+            let darkOverlayIndex = 0;
+            
             grid.forEach((row, y) => {
                 row.forEach((cell, x) => {
+                    // Check if this cell is in dark zone
+                    const isDarkCell = ae === 'DARKNESS' && dzc.some(dz => dz.row === y && dz.col === x);
+                    
                     if (cell.filled && cell.id) {
                         activeIds.add(cell.id);
                         const targetPos = getVectorPos(x, y);
@@ -604,6 +638,13 @@ export const Grid: React.FC = () => {
                             mesh.position = targetPos.clone();
                             mesh.position.y = 12; // Drop from higher
                             meshMap.set(cell.id, mesh);
+                        }
+
+                        // Hide mesh if in dark zone
+                        if (isDarkCell) {
+                            mesh.isVisible = false;
+                        } else {
+                            mesh.isVisible = true;
                         }
 
                         // Update material if health changed (for ICE)
@@ -618,33 +659,40 @@ export const Grid: React.FC = () => {
                         // Smooth landing
                         mesh.position = BABYLON.Vector3.Lerp(mesh.position, targetPos, 0.25);
 
-                        // Bomba bloğu animate - tehlike nabzı
-                        if (cell.type === CellType.BOMB && mesh.material) {
-                            const bombPulse = 0.25 + Math.abs(Math.sin(time * 4)) * 0.4;
-                            (mesh.material as BABYLON.StandardMaterial).emissiveColor =
-                                BABYLON.Color3.FromHexString("#f59e0b").scale(bombPulse);
-                        }
-                        // Buz bloğu animate - soğuk parıltı
-                        if (cell.type === CellType.ICE && mesh.material) {
-                            const icePulse = 0.15 + Math.abs(Math.sin(time * 2)) * 0.2;
-                            const iceColor = cell.health === 1
-                                ? BABYLON.Color3.FromHexString("#60a5fa")
-                                : BABYLON.Color3.FromHexString("#38bdf8");
-                            (mesh.material as BABYLON.StandardMaterial).emissiveColor = iceColor.scale(icePulse + 0.1);
-                        }
-                        // SHATTER skill: Show pulse on ALL filled cells
-                        if (cell.type === CellType.NORMAL) {
-                            if (activeSkill === SkillType.SHATTER && cell.filled) {
-                                // Pulse opacity between 0.15 and 0.25
-                                const pulseAlpha = 0.15 + Math.abs(Math.sin(time * 5)) * 0.10;
+                        // Animasyonlar sadece yüksek performanslı cihazlarda
+                        if (!disableAnimations) {
+                            // Bomba bloğu animate - tehlike nabzı (daha yavaş, mobil için optimize)
+                            if (cell.type === CellType.BOMB && mesh.material) {
+                                const bombPulse = 0.3 + Math.abs(Math.sin(time * 2)) * 0.2; // Yavaşlatıldı: 4 -> 2
+                                (mesh.material as BABYLON.StandardMaterial).emissiveColor =
+                                    BABYLON.Color3.FromHexString("#f59e0b").scale(bombPulse);
+                            }
+                            // Buz bloğu animate - soğuk parıltı (daha yavaş)
+                            else if (cell.type === CellType.ICE && mesh.material) {
+                                const icePulse = 0.15 + Math.abs(Math.sin(time * 1)) * 0.15; // Yavaşlatıldı: 2 -> 1
+                                const iceColor = cell.health === 1
+                                    ? BABYLON.Color3.FromHexString("#60a5fa")
+                                    : BABYLON.Color3.FromHexString("#38bdf8");
+                                (mesh.material as BABYLON.StandardMaterial).emissiveColor = iceColor.scale(icePulse + 0.1);
+                            }
+                            // SHATTER skill: Show pulse on ALL filled cells (sadece skill aktifken)
+                            else if (cell.type === CellType.NORMAL && activeSkill === SkillType.SHATTER && cell.filled) {
+                                // Pulse opacity between 0.15 and 0.25 (daha yavaş)
+                                const pulseAlpha = 0.15 + Math.abs(Math.sin(time * 3)) * 0.10; // Yavaşlatıldı: 5 -> 3
                                 (mesh.material as BABYLON.StandardMaterial).emissiveColor =
                                     BABYLON.Color3.FromHexString("#ef4444").scale(pulseAlpha);
-                            } else {
-                                // Reset to normal emissive color when SHATTER is not active
-                                const normalColor = BABYLON.Color3.FromHexString(cell.color);
-                                (mesh.material as BABYLON.StandardMaterial).emissiveColor = normalColor.scale(0.05);
                             }
                         }
+                    }
+                    
+                    // Show dark overlay for dark zone cells
+                    if (isDarkCell && darkOverlayIndex < DARK_OVERLAY_POOL_SIZE) {
+                        const overlay = darkOverlayMeshesRef.current[darkOverlayIndex];
+                        const targetPos = getVectorPos(x, y);
+                        overlay.position = targetPos.clone();
+                        overlay.position.y = 0.35;
+                        overlay.isVisible = true;
+                        darkOverlayIndex++;
                     }
                 });
             });
@@ -672,8 +720,8 @@ export const Grid: React.FC = () => {
                     ? BABYLON.Color3.FromHexString(draggedPiece.color)
                     : BABYLON.Color3.FromHexString("#ef4444");
 
-                // Pulse factor for ghost breathing effect
-                const ghostY = 0.35 + Math.sin(time * 6) * 0.06;
+                // Pulse factor for ghost breathing effect (daha yavaş)
+                const ghostY = 0.35 + Math.sin(time * 3) * 0.04; // Yavaşlatıldı: 6 -> 3, azaltıldı: 0.06 -> 0.04
 
                 let ghostIndex = 0;
                 draggedPiece.shape.forEach((row, dy) => {
@@ -713,8 +761,8 @@ export const Grid: React.FC = () => {
             if (guidedTarget && !draggedPiece) {
                 const targetPiece = currentPieces[guidedTarget.pieceIndex];
                 if (targetPiece) {
-                    const pulseAlpha = 0.3 + Math.sin(time * 4) * 0.15;
-                    const pulseY = 0.4 + Math.sin(time * 3) * 0.08;
+                    const pulseAlpha = 0.3 + Math.sin(time * 2) * 0.1; // Yavaşlatıldı: 4 -> 2, azaltıldı: 0.15 -> 0.1
+                    const pulseY = 0.4 + Math.sin(time * 1.5) * 0.05; // Yavaşlatıldı: 3 -> 1.5, azaltıldı: 0.08 -> 0.05
                     
                     let highlightIndex = 0;
                     targetPiece.shape.forEach((row, dy) => {
@@ -820,8 +868,8 @@ export const Grid: React.FC = () => {
                                     ? BABYLON.Color3.FromHexString("#f97316")  // Center: darker orange
                                     : BABYLON.Color3.FromHexString("#fb923c"); // Surrounding: lighter orange
                                 
-                                // Faster animation: time * 12 instead of time * 8
-                                const pulse = 0.8 + Math.abs(Math.sin(time * 12)) * 0.2;
+                                // Mobil için optimize edilmiş animasyon hızı
+                                const pulse = 0.8 + Math.abs(Math.sin(time * 6)) * 0.15; // Yavaşlatıldı: 12 -> 6, azaltıldı: 0.2 -> 0.15
                                 mat.emissiveColor = mat.emissiveColor.scale(pulse);
                                 
                                 overlay.isVisible = true;

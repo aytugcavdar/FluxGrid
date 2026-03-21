@@ -79,6 +79,11 @@ export interface GameStore {
   bossType: string | null;        // Aktif boss tipi
   bossMoveCounter: number;        // Boss mekanik sayacı
 
+  // Event System State
+  activeEvent: 'ICE_STORM' | 'DARKNESS' | 'QUAKE' | 'MIRROR' | null;
+  eventMovesRemaining: number;
+  darkZoneCells: Array<{row: number; col: number}>;
+
   // Actions
   initGame: (mode?: GameMode) => void;
   nextLevel: () => void;
@@ -165,6 +170,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   bossType: null,
   bossMoveCounter: 0,
 
+  // Event System Initial State
+  activeEvent: null,
+  eventMovesRemaining: 0,
+  darkZoneCells: [],
+
   initGame: (mode = GameMode.CAREER) => {
     const success = safeExecute(
       () => {
@@ -177,13 +187,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         
         // Check if this is the first game (onboarding)
         const isOnboarding = safeLocalStorageGet('flux_onboard_v1', '') !== 'true';
-        
-        // DEBUG: Log onboarding status
-        console.log('🎮 Tutorial Debug:', {
-          isOnboarding,
-          localStorageValue: safeLocalStorageGet('flux_onboard_v1', ''),
-          willShowTutorial: isOnboarding
-        });
         
         set({
           grid: initialGrid,
@@ -221,7 +224,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
           guidedTarget: null,
           // Boss Level initialization
           bossType: null,
-          bossMoveCounter: 0
+          bossMoveCounter: 0,
+          // Event System initialization
+          activeEvent: null,
+          eventMovesRemaining: 0,
+          darkZoneCells: []
         });
         
         // Calculate guided target for first piece if this is onboarding
@@ -1022,6 +1029,171 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Only check movesLeft for CAREER mode
     if (get().gameMode === GameMode.CAREER && get().movesLeft <= 0 && !levelFinished) {
       set({ isGameOver: true });
+    }
+
+    // Check for tier events (Endless mode)
+    console.log('[EVENT CHECK] score:', newScore, 'tier:', get().difficultyTier);
+    
+    // checkTierEvent helper function (inline)
+    const checkTierEvent = (score: number, currentTier: number) => {
+      const TIER_THRESHOLDS = [0, 2000, 5000, 10000, 20000];
+      const TIER_EVENTS = ['ICE_STORM', 'DARKNESS', 'QUAKE', 'MIRROR'];
+      
+      const newTier = TIER_THRESHOLDS.filter(t => score >= t).length - 1;
+      
+      if (newTier > currentTier && newTier >= 1 && newTier <= 4) {
+        const eventName = TIER_EVENTS[newTier - 1];
+        console.log('[EVENT FIRED]', eventName, 'at score', score);
+        
+        const duration = eventName === 'MIRROR' ? 9999
+          : eventName === 'DARKNESS' ? 8
+          : eventName === 'QUAKE' ? 1
+          : 5;  // ICE_STORM
+        
+        set({
+          activeEvent: eventName as any,
+          eventMovesRemaining: duration,
+          difficultyTier: newTier
+        });
+        
+        // QUAKE için anında uygula
+        if (eventName === 'QUAKE') {
+          const quakeGrid = get().grid.map(row => row.map(cell => ({ ...cell })));
+          
+          for (let r = 0; r < GRID_SIZE; r++) {
+            // SAĞDAN SOLA gitmek zorundayız — sola kaydırma için kritik
+            for (let c = 1; c < GRID_SIZE; c++) {
+              const cell = quakeGrid[r][c];
+              if (cell.filled && cell.type !== CellType.ICE && cell.type !== CellType.STONE) {
+                if (c === 1 && quakeGrid[r][0].filled && quakeGrid[r][0].type !== CellType.ICE) {
+                  quakeGrid[r][0] = { ...cell };
+                  quakeGrid[r][c] = { filled: false, color: '' };
+                } else if (!quakeGrid[r][c - 1].filled) {
+                  quakeGrid[r][c - 1] = { ...cell };
+                  quakeGrid[r][c] = { filled: false, color: '' };
+                } else if (quakeGrid[r][c - 1].type === CellType.ICE) {
+                  // Buz varsa o blok kayamaz, atla
+                } else {
+                  quakeGrid[r][c - 1] = { ...cell };
+                  quakeGrid[r][c] = { filled: false, color: '' };
+                }
+              }
+            }
+            // c=0'daki NORMAL bloğu sil (kenardan düştü)
+            if (quakeGrid[r][0].filled && quakeGrid[r][0].type !== CellType.ICE && quakeGrid[r][0].type !== CellType.STONE) {
+              quakeGrid[r][0] = { filled: false, color: '' };
+            }
+          }
+          
+          set({ grid: quakeGrid });
+        }
+        
+        // DARKNESS için karanlık zone belirle
+        if (eventName === 'DARKNESS') {
+          const startRow = Math.floor(Math.random() * 4);
+          const startCol = Math.floor(Math.random() * 5);
+          const cells: Array<{row: number; col: number}> = [];
+          for (let r = startRow; r < startRow + 2; r++) {
+            for (let c = startCol; c < startCol + 3; c++) {
+              cells.push({ row: r, col: c });
+            }
+          }
+          set({ darkZoneCells: cells });
+        }
+      }
+    };
+    
+    checkTierEvent(newScore, get().difficultyTier);
+
+    // --- Aktif olay tick ---
+    const { activeEvent, eventMovesRemaining } = get();
+    if (activeEvent && eventMovesRemaining > 0) {
+      if (activeEvent === 'ICE_STORM') {
+        // Rastgele boş bir hücreye buz bloğu ekle
+        const emptyPositions: {x: number; y: number}[] = [];
+        const currentGrid = get().grid;
+        for (let y = 0; y < GRID_SIZE; y++) {
+          for (let x = 0; x < GRID_SIZE; x++) {
+            if (!currentGrid[y][x].filled) emptyPositions.push({ x, y });
+          }
+        }
+        if (emptyPositions.length > 0) {
+          const pos = emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
+          const iceGrid = get().grid.map(row => row.map(c => ({ ...c })));
+          iceGrid[pos.y][pos.x] = {
+            filled: true,
+            color: '#7dd3fc',
+            id: uuidv4(),
+            type: CellType.ICE,
+            health: 2,
+          };
+          set({ grid: iceGrid });
+        }
+      }
+      
+      if (activeEvent === 'MIRROR') {
+        const mirrorShape = piece.shape.map((row: number[]) => [...row].reverse());
+        const currentGrid = get().grid;
+        
+        // Tüm geçerli pozisyonları bul, en alttaki + en sağdaki tercih et
+        let bestPos: { x: number; y: number } | null = null;
+        let bestScore = -1;
+        
+        for (let y = 0; y <= GRID_SIZE - mirrorShape.length; y++) {
+          for (let x = 0; x <= GRID_SIZE - mirrorShape[0].length; x++) {
+            // Basit çakışma kontrolü — canPlacePiece yerine elle kontrol
+            let fits = true;
+            for (let dy = 0; dy < mirrorShape.length && fits; dy++) {
+              for (let dx = 0; dx < mirrorShape[0].length && fits; dx++) {
+                if (mirrorShape[dy][dx] === 1) {
+                  const gy = y + dy, gx = x + dx;
+                  if (gy >= GRID_SIZE || gx >= GRID_SIZE || currentGrid[gy][gx].filled) {
+                    fits = false;
+                  }
+                }
+              }
+            }
+            
+            if (!fits) continue;
+            
+            // Skor: aşağı ve sağda olması tercih edilsin (oyuncunun yerleştirdiği yerin uzağı)
+            const score = y * 10 + x;
+            if (score > bestScore) {
+              bestScore = score;
+              bestPos = { x, y };
+            }
+          }
+        }
+        
+        if (bestPos) {
+          const mirrorGrid = currentGrid.map((row: any[]) => row.map((c: any) => ({ ...c })));
+          mirrorShape.forEach((row: number[], dy: number) =>
+            row.forEach((v: number, dx: number) => {
+              if (v) {
+                mirrorGrid[bestPos!.y + dy][bestPos!.x + dx] = {
+                  filled: true,
+                  color: piece.color,
+                  id: uuidv4(),
+                  type: CellType.NORMAL,
+                };
+              }
+            })
+          );
+          
+          // processGrid çalıştır — satır temizleme olabilir
+          const { grid: processedMirrorGrid } = processGrid(mirrorGrid);
+          set({ grid: processedMirrorGrid });
+        }
+      }
+      
+      // Sayacı azalt, olay bittiyse temizle (MIRROR hariç - sürekli aktif)
+      const newRemaining = eventMovesRemaining - 1;
+      if (newRemaining <= 0 && activeEvent !== 'MIRROR') {
+        set({ activeEvent: null, eventMovesRemaining: 0, darkZoneCells: [] });
+      } else if (activeEvent !== 'MIRROR') {
+        set({ eventMovesRemaining: newRemaining });
+      }
+      // MIRROR hiç bitmez — eventMovesRemaining değişmez
     }
 
     get().checkGameOver();
