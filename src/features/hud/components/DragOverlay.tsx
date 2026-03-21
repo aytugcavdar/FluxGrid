@@ -19,6 +19,12 @@ export const DragOverlay: React.FC = () => {
 
   const isMobile = window.innerWidth < 768;
   const isSmallPhone = window.innerWidth < 400;
+  
+  // Native mobile app detection
+  const isNativeApp = !!(window as any).ReactNativeWebView || 
+                     !!(window as any).Capacitor || 
+                     /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  
   const yOffset = getDragYOffset();
   const cellSize = isSmallPhone ? 28 : isMobile ? 32 : 42;
   const gap = isSmallPhone ? 1.5 : 2;
@@ -51,7 +57,7 @@ export const DragOverlay: React.FC = () => {
                   backgroundColor: cell
                     ? (draggedPiece.type === 'ICE' ? '#93c5fd' : draggedPiece.type === 'BOMB' ? '#f87171' : draggedPiece.color)
                     : 'transparent',
-                  boxShadow: cell ? `0 2px 8px ${draggedPiece.color}30` : 'none',
+                  boxShadow: cell && !isNativeApp ? `0 2px ${isMobile ? 4 : 8}px ${draggedPiece.color}30` : 'none',
                   border: cell ? `1px solid ${draggedPiece.color}40` : 'none',
                   opacity: cell ? 0.9 : 0,
                 }}

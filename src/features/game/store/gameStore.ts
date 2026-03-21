@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { GridState, Piece, PieceShape, GRID_SIZE, GridCell, SkillType, CellType, ObjectiveType, LevelObjective, Achievement } from '../types';
 import { AppState, GameStats, GameMode } from '@shared/types';
-import { SHAPES, POINTS, FLUX_COST, COLORS, STONE_BLOCK, EXPANDED_ACHIEVEMENTS, ZEN_PALETTES } from '../constants';
+import { SHAPES, POINTS, FLUX_COST, COLORS, STONE_BLOCK, EXPANDED_ACHIEVEMENTS, ZEN_PALETTES, TIER_SCORE_MULTIPLIERS } from '../constants';
 import { generateLevel } from '../../career/utils/levelGenerator';
 import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playTick, playHaptic } from '../../../utils/audio';
 import { handleError, safeExecute, ErrorCategory, ErrorSeverity } from '../../../utils/errorHandler';
@@ -741,11 +741,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const colorBonusMultiplier = (linesCleared > 0 && colorBonus) ? POINTS.COLOR_BONUS_MULTIPLIER : 1;
     // Surge bonusu: flux=100 iken aktif
     const surgeMultiplier = (linesCleared > 0 && isSurgeActive) ? POINTS.SURGE_MULTIPLIER : 1;
+    // Tier çarpanı: Endless modda zorluk seviyesine göre
+    const tierMultiplier = gameMode === GameMode.ENDLESS
+      ? (TIER_SCORE_MULTIPLIERS[get().difficultyTier] ?? 1.0)
+      : 1.0;
 
     const basePoints = (blocksPlaced * POINTS.BLOCK_PLACED) +
                        (linesCleared * POINTS.LINE_CLEARED) +
                        (comboMultiplier * POINTS.COMBO_MULTIPLIER);
-    const pointsGained = Math.round(basePoints * colorBonusMultiplier * surgeMultiplier);
+    const pointsGained = Math.round(basePoints * colorBonusMultiplier * surgeMultiplier * tierMultiplier);
     
     // ZEN modda skor güncellenmez
     const newScore = gameMode === GameMode.ZEN ? 0 : (score + pointsGained);
@@ -1032,7 +1036,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     // Check for tier events (Endless mode)
-    console.log('[EVENT CHECK] score:', newScore, 'tier:', get().difficultyTier);
     
     // checkTierEvent helper function (inline)
     const checkTierEvent = (score: number, currentTier: number) => {
@@ -1043,9 +1046,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       
       if (newTier > currentTier && newTier >= 1 && newTier <= 4) {
         const eventName = TIER_EVENTS[newTier - 1];
-        console.log('[EVENT FIRED]', eventName, 'at score', score);
         
-        const duration = eventName === 'MIRROR' ? 9999
+        const duration = eventName === 'MIRROR' ? 15
           : eventName === 'DARKNESS' ? 8
           : eventName === 'QUAKE' ? 1
           : 5;  // ICE_STORM
@@ -1056,32 +1058,50 @@ export const useGameStore = create<GameStore>((set, get) => ({
           difficultyTier: newTier
         });
         
-        // QUAKE için anında uygula
+        // QUAKE için anında uygula - temiz gravity-left algoritması
         if (eventName === 'QUAKE') {
           const quakeGrid = get().grid.map(row => row.map(cell => ({ ...cell })));
           
+          // Her satır için ayrı ayrı işle
           for (let r = 0; r < GRID_SIZE; r++) {
-            // SAĞDAN SOLA gitmek zorundayız — sola kaydırma için kritik
-            for (let c = 1; c < GRID_SIZE; c++) {
+            // 1. Sabit blokları (ICE/STONE) ve hareketli blokları ayır
+            const fixedBlocks: Array<{ col: number; cell: any }> = [];
+            const floatingBlocks: any[] = [];
+            
+            for (let c = 0; c < GRID_SIZE; c++) {
               const cell = quakeGrid[r][c];
-              if (cell.filled && cell.type !== CellType.ICE && cell.type !== CellType.STONE) {
-                if (c === 1 && quakeGrid[r][0].filled && quakeGrid[r][0].type !== CellType.ICE) {
-                  quakeGrid[r][0] = { ...cell };
-                  quakeGrid[r][c] = { filled: false, color: '' };
-                } else if (!quakeGrid[r][c - 1].filled) {
-                  quakeGrid[r][c - 1] = { ...cell };
-                  quakeGrid[r][c] = { filled: false, color: '' };
-                } else if (quakeGrid[r][c - 1].type === CellType.ICE) {
-                  // Buz varsa o blok kayamaz, atla
+              if (cell.filled) {
+                if (cell.type === CellType.ICE || cell.type === CellType.STONE) {
+                  fixedBlocks.push({ col: c, cell: { ...cell } });
                 } else {
-                  quakeGrid[r][c - 1] = { ...cell };
-                  quakeGrid[r][c] = { filled: false, color: '' };
+                  floatingBlocks.push({ ...cell });
                 }
               }
             }
-            // c=0'daki NORMAL bloğu sil (kenardan düştü)
-            if (quakeGrid[r][0].filled && quakeGrid[r][0].type !== CellType.ICE && quakeGrid[r][0].type !== CellType.STONE) {
-              quakeGrid[r][0] = { filled: false, color: '' };
+            
+            // 2. Satırı temizle
+            for (let c = 0; c < GRID_SIZE; c++) {
+              quakeGrid[r][c] = { filled: false, color: '' };
+            }
+            
+            // 3. Sabit blokları orijinal pozisyonlarına yerleştir
+            fixedBlocks.forEach(({ col, cell }) => {
+              quakeGrid[r][col] = cell;
+            });
+            
+            // 4. Hareketli blokları soldan başlayarak doldur (sabit pozisyonları atla)
+            let writeIndex = 0;
+            for (const block of floatingBlocks) {
+              // Bir sonraki boş pozisyonu bul
+              while (writeIndex < GRID_SIZE && quakeGrid[r][writeIndex].filled) {
+                writeIndex++;
+              }
+              
+              // Eğer grid'in sonuna geldiyse, blok düşer (kaybolur)
+              if (writeIndex >= GRID_SIZE) break;
+              
+              quakeGrid[r][writeIndex] = block;
+              writeIndex++;
             }
           }
           
@@ -1186,14 +1206,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
       }
       
-      // Sayacı azalt, olay bittiyse temizle (MIRROR hariç - sürekli aktif)
+      // Sayacı azalt, olay bittiyse temizle
       const newRemaining = eventMovesRemaining - 1;
-      if (newRemaining <= 0 && activeEvent !== 'MIRROR') {
+      if (newRemaining <= 0) {
         set({ activeEvent: null, eventMovesRemaining: 0, darkZoneCells: [] });
-      } else if (activeEvent !== 'MIRROR') {
+      } else {
         set({ eventMovesRemaining: newRemaining });
       }
-      // MIRROR hiç bitmez — eventMovesRemaining değişmez
     }
 
     get().checkGameOver();

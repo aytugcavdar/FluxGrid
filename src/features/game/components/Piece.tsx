@@ -20,6 +20,14 @@ export const Piece: React.FC<Props> = ({ piece }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Detect mobile device
+  const isMobile = windowWidth < 768;
+  
+  // Native mobile app detection
+  const isNativeApp = !!(window as any).ReactNativeWebView || 
+                     !!(window as any).Capacitor || 
+                     /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
   // Check if this is the guided piece
   const pieceIndex = pieces.findIndex(p => p.instanceId === piece.instanceId);
   const isGuidedPiece = guidedTarget?.pieceIndex === pieceIndex;
@@ -57,8 +65,8 @@ export const Piece: React.FC<Props> = ({ piece }) => {
             key={`${y}-${x}`}
             className={clsx(
               "rounded-sm transition-all duration-300",
-              filled && p.type === CellType.ICE && "animate-pulse",
-              filled && p.type === CellType.BOMB && "animate-pulse"
+              filled && p.type === CellType.ICE && !isNativeApp && "animate-pulse",
+              filled && p.type === CellType.BOMB && !isNativeApp && "animate-pulse"
             )}
             style={{
               width: blockSize,
@@ -66,8 +74,8 @@ export const Piece: React.FC<Props> = ({ piece }) => {
               backgroundColor: filled
                 ? (p.type === CellType.ICE ? '#a5f3fc' : p.type === CellType.BOMB ? '#ef4444' : p.color)
                 : 'transparent',
-              boxShadow: filled
-                ? `0 0 ${windowWidth < 768 ? 3 : 4}px ${p.type === CellType.ICE ? '#93c5fd' : p.type === CellType.BOMB ? '#f87171' : p.color}40`
+              boxShadow: filled && !isNativeApp
+                ? `0 0 ${isMobile ? 2 : 4}px ${p.type === CellType.ICE ? '#93c5fd' : p.type === CellType.BOMB ? '#f87171' : p.color}40`
                 : 'none',
               opacity: filled ? 1 : 0,
             }}

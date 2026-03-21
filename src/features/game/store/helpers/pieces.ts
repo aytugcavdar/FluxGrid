@@ -79,8 +79,15 @@ export const getRandomPiecesSync = (
 
     const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
 
+    // RESCUE MECHANISM: Tüm tier'larda yoğunluk >75% olunca küçük parça zorla
+    const RESCUE_DENSITY_THRESHOLD = 0.75;
+    if (density > RESCUE_DENSITY_THRESHOLD && !isDaily && i === 0) {
+      // İlk parçayı küçük yap (1-2 blok)
+      const smallShapes = SHAPES.filter(s => s.shape.flat().filter(v => v === 1).length <= 2);
+      selectedShape = smallShapes[Math.floor(randVal * smallShapes.length)] || SHAPES[0];
+    }
     // Difficulty tier logic (only for Endless mode, tier > 0)
-    if (tier >= 4) {
+    else if (tier >= 4) {
       // Tier 4 (20000+): Only large and complex shapes
       const largeShapes = SHAPES.filter(s => {
         const blockCount = s.shape.flat().filter(v => v === 1).length;

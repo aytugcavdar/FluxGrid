@@ -51,11 +51,16 @@ export const Grid: React.FC = () => {
         const isLowEndDevice = deviceMemory <= 2 || navigator.hardwareConcurrency <= 2;
         const isMobile = window.innerWidth < 768;
         
+        // Native mobile app detection (React Native WebView or Capacitor)
+        const isNativeApp = !!(window as any).ReactNativeWebView || 
+                           !!(window as any).Capacitor || 
+                           /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        
         // Reduced motion preference
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         
-        // Disable animations on low-end devices or when reduced motion is preferred
-        const disableAnimations = prefersReducedMotion || isLowEndDevice;
+        // Disable animations on low-end devices, native apps, or when reduced motion is preferred
+        const disableAnimations = prefersReducedMotion || isLowEndDevice || isNativeApp;
 
         // Engine configuration based on device capability
         const engine = new BABYLON.Engine(canvasRef.current, true, {
@@ -168,8 +173,8 @@ export const Grid: React.FC = () => {
             dirLight.intensity = 0;
         }
 
-        // Glow layer - completely disabled on low-end devices
-        if (!isLowEndDevice) {
+        // Glow layer - completely disabled on low-end devices and native mobile apps
+        if (!isLowEndDevice && !isNativeApp) {
             const glowLayer = new BABYLON.GlowLayer("glow", scene, {
                 mainTextureSamples: 2,
                 blurKernelSize: 16
@@ -555,9 +560,11 @@ export const Grid: React.FC = () => {
         // IMPORTANT: All logic is in registerBeforeRender, NOT in runRenderLoop
         // This prevents duplicate render calls and improves performance
         let time = 0;
+        let frameCount = 0; // Frame counter for throttling animations
 
         scene.registerBeforeRender(() => {
             time += engine.getDeltaTime() / 1000; // Use actual delta time instead of fixed 0.02
+            frameCount++;
             const { grid, draggedPiece, activeSkill, score, combo, lastAction } = stateRef.current;
 
             // Check for new shake events
@@ -624,6 +631,9 @@ export const Grid: React.FC = () => {
             darkOverlayMeshesRef.current.forEach(m => m.isVisible = false);
             let darkOverlayIndex = 0;
             
+            // Throttle animations: only update emissive colors every 3 frames (20fps instead of 60fps)
+            const shouldUpdateAnimations = !disableAnimations && (frameCount % 3 === 0);
+            
             grid.forEach((row, y) => {
                 row.forEach((cell, x) => {
                     // Check if this cell is in dark zone
@@ -659,8 +669,8 @@ export const Grid: React.FC = () => {
                         // Smooth landing
                         mesh.position = BABYLON.Vector3.Lerp(mesh.position, targetPos, 0.25);
 
-                        // Animasyonlar sadece yüksek performanslı cihazlarda
-                        if (!disableAnimations) {
+                        // Animasyonlar sadece yüksek performanslı cihazlarda ve throttled
+                        if (shouldUpdateAnimations) {
                             // Bomba bloğu animate - tehlike nabzı (daha yavaş, mobil için optimize)
                             if (cell.type === CellType.BOMB && mesh.material) {
                                 const bombPulse = 0.3 + Math.abs(Math.sin(time * 2)) * 0.2; // Yavaşlatıldı: 4 -> 2
@@ -868,9 +878,11 @@ export const Grid: React.FC = () => {
                                     ? BABYLON.Color3.FromHexString("#f97316")  // Center: darker orange
                                     : BABYLON.Color3.FromHexString("#fb923c"); // Surrounding: lighter orange
                                 
-                                // Mobil için optimize edilmiş animasyon hızı
-                                const pulse = 0.8 + Math.abs(Math.sin(time * 6)) * 0.15; // Yavaşlatıldı: 12 -> 6, azaltıldı: 0.2 -> 0.15
-                                mat.emissiveColor = mat.emissiveColor.scale(pulse);
+                                // Mobil için optimize edilmiş animasyon hızı - throttled
+                                if (shouldUpdateAnimations) {
+                                    const pulse = 0.8 + Math.abs(Math.sin(time * 6)) * 0.15; // Yavaşlatıldı: 12 -> 6, azaltıldı: 0.2 -> 0.15
+                                    mat.emissiveColor = mat.emissiveColor.scale(pulse);
+                                }
                                 
                                 overlay.isVisible = true;
                                 overlayIndex++;
