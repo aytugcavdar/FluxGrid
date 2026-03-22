@@ -6,6 +6,7 @@ import { Piece, PieceShape, GridState, GRID_SIZE, CellType } from '../../types';
 import { SHAPES } from '../../constants';
 import { SeededRNG, getDailySeed } from '@utils/seededRng';
 import { getDailySeedFromServer, getCachedDailySeed, cacheDailySeed } from '../../../../services/firebase/dailyChallengeService';
+import { GameMode } from '@shared/types';
 
 let currentDailyRNG: SeededRNG | null = null;
 let dailySeedPromise: Promise<number> | null = null;
@@ -41,7 +42,8 @@ export const getRandomPiecesSync = (
   grid?: GridState, 
   isDaily?: boolean,
   colors?: string[],
-  difficultyTier?: number
+  difficultyTier?: number,
+  gameMode?: GameMode
 ): Piece[] => {
   const newPieces: Piece[] = [];
   const tier = difficultyTier ?? 0;
@@ -161,11 +163,20 @@ export const getRandomPiecesSync = (
       }
     }
     
-    // 15% chance for a special piece
+    // Special block type selection
     let type: CellType = CellType.NORMAL;
     const specialRand = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
-    if (specialRand > 0.92) type = CellType.BOMB; // 8% chance
-    else if (specialRand > 0.85) type = CellType.ICE; // 7% chance
+    
+    // TIMED MODE: 8% chance for CHRONO blocks (replaces normal special blocks)
+    if (gameMode === GameMode.TIMED) {
+      if (specialRand > 0.92) {
+        type = CellType.CHRONO;  // 8% chance
+      }
+    } else {
+      // OTHER MODES: Original special block logic
+      if (specialRand > 0.92) type = CellType.BOMB;      // 8% chance
+      else if (specialRand > 0.85) type = CellType.ICE;  // 7% chance
+    }
 
     // Use custom colors if provided, otherwise use the shape's default color
     const pieceColor = colors ? colors[i % colors.length] : selectedShape.color;
@@ -187,13 +198,15 @@ export const getRandomPiecesSync = (
  * @param isDaily Whether to use seeded RNG for daily challenge
  * @param colors Optional color palette to use instead of default COLORS
  * @param difficultyTier Optional difficulty tier (0-4) for Endless mode
+ * @param gameMode Optional game mode for mode-specific piece generation
  */
 export const getRandomPieces = async (
   count: number, 
   grid?: GridState, 
   isDaily?: boolean,
   colors?: string[],
-  difficultyTier?: number
+  difficultyTier?: number,
+  gameMode?: GameMode
 ): Promise<Piece[]> => {
   const newPieces: Piece[] = [];
   const tier = difficultyTier ?? 0;
@@ -299,11 +312,20 @@ export const getRandomPieces = async (
       }
     }
     
-    // 15% chance for a special piece
+    // Special block type selection
     let type: CellType = CellType.NORMAL;
     const specialRand = isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
-    if (specialRand > 0.92) type = CellType.BOMB; // 8% chance
-    else if (specialRand > 0.85) type = CellType.ICE; // 7% chance
+    
+    // TIMED MODE: 8% chance for CHRONO blocks (replaces normal special blocks)
+    if (gameMode === GameMode.TIMED) {
+      if (specialRand > 0.92) {
+        type = CellType.CHRONO;  // 8% chance
+      }
+    } else {
+      // OTHER MODES: Original special block logic
+      if (specialRand > 0.92) type = CellType.BOMB;      // 8% chance
+      else if (specialRand > 0.85) type = CellType.ICE;  // 7% chance
+    }
 
     // Use custom colors if provided, otherwise use the shape's default color
     const pieceColor = colors ? colors[i % colors.length] : selectedShape.color;

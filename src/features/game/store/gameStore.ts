@@ -84,6 +84,11 @@ export interface GameStore {
   eventMovesRemaining: number;
   darkZoneCells: Array<{row: number; col: number}>;
 
+  // Timed Mode State
+  timedBoostMovesLeft: number;    // COMBO_RUSH moves remaining (0 = inactive)
+  maxCombo: number;                // Highest combo achieved in current game
+  chronoBonus: number;             // Total seconds gained from CHRONO blocks
+
   // Actions
   initGame: (mode?: GameMode) => void;
   nextLevel: () => void;
@@ -175,6 +180,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   eventMovesRemaining: 0,
   darkZoneCells: [],
 
+  // Timed Mode Initial State
+  timedBoostMovesLeft: 0,
+  maxCombo: 0,
+  chronoBonus: 0,
+
   initGame: (mode = GameMode.CAREER) => {
     const success = safeExecute(
       () => {
@@ -190,7 +200,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         
         set({
           grid: initialGrid,
-          pieces: getRandomPiecesSync(3, initialGrid, isDaily, isZen ? ZEN_PALETTES[0] : useThemeStore.getState().getPieceColors(), 0),
+          pieces: getRandomPiecesSync(3, initialGrid, isDaily, isZen ? ZEN_PALETTES[0] : useThemeStore.getState().getPieceColors(), 0, mode),
           score: 0,
           flux: isZen ? 100 : 50,
           combo: 0,
@@ -228,7 +238,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
           // Event System initialization
           activeEvent: null,
           eventMovesRemaining: 0,
-          darkZoneCells: []
+          darkZoneCells: [],
+          // Timed Mode initialization
+          timedBoostMovesLeft: 0,
+          maxCombo: 0,
+          chronoBonus: 0
         });
         
         // Calculate guided target for first piece if this is onboarding
@@ -284,7 +298,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     set({
       grid: initialGrid,
-      pieces: getRandomPiecesSync(3, initialGrid, false, useThemeStore.getState().getPieceColors(), 0),
+      pieces: getRandomPiecesSync(3, initialGrid, false, useThemeStore.getState().getPieceColors(), 0, GameMode.CAREER),
       score: 0,
       flux: 50,
       combo: 0,
@@ -491,7 +505,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     
     set({
       grid: initialGrid,
-      pieces: getRandomPiecesSync(3, initialGrid, isDaily, useThemeStore.getState().getPieceColors(), 0),
+      pieces: getRandomPiecesSync(3, initialGrid, isDaily, useThemeStore.getState().getPieceColors(), 0, get().gameMode),
       flux: 50,
       currentLevelIndex: nextIdx,
       movesLeft: nextLevelDef.movesLimit || 0,
@@ -519,7 +533,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
         set({
           flux: flux - FLUX_COST.REROLL,
-          pieces: getRandomPiecesSync(3, get().grid, get().gameMode === GameMode.DAILY_CHALLENGE, useThemeStore.getState().getPieceColors(), currentTier),
+          pieces: getRandomPiecesSync(3, get().grid, get().gameMode === GameMode.DAILY_CHALLENGE, useThemeStore.getState().getPieceColors(), currentTier, get().gameMode),
           activeSkill: null
         });
         
@@ -556,7 +570,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     tempGrid[0][x] = { filled: false, color: '' };
 
     // Process grid for chain reactions
-    const { grid: finalGrid, totalLinesCleared } = processGrid(tempGrid);
+    const { grid: finalGrid, totalLinesCleared, actions } = processGrid(tempGrid);
 
     const newCombo = totalLinesCleared > 0 ? get().combo + 1 : get().combo; // Don't reset combo on skill use, just add if it clears
     const extraScore = totalLinesCleared * POINTS.LINE_CLEARED * (newCombo > 0 ? newCombo : 1);
@@ -624,7 +638,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     // Process grid for chain reactions
-    const { grid: finalGrid, totalLinesCleared } = processGrid(tempGrid);
+    const { grid: finalGrid, totalLinesCleared, actions } = processGrid(tempGrid);
     
     const newCombo = totalLinesCleared > 0 ? get().combo + 1 : get().combo;
     const extraScore = totalLinesCleared * POINTS.LINE_CLEARED * (newCombo > 0 ? newCombo : 1);
@@ -711,7 +725,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     // 3. Process Grid
-    const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken } = processGrid(tempGrid);
+    const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken, actions } = processGrid(tempGrid);
+
+    // Handle CHRONO_BONUS actions
+    let chronoBonusSeconds = 0;
+    actions.forEach(action => {
+      if (action.type === 'CHRONO_BONUS') {
+        chronoBonusSeconds += action.seconds;
+      }
+    });
 
     // ZEN mode: Blok sayısını artır
     // ZEN modda blok sayısını artır ve palette rotation kontrol et
@@ -732,9 +754,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // 4. Puan hesaplama (ZEN modda skip edilir)
     // Combo: ZEN'de combo sıfırlanmaz, diğer modlarda satır temizlenmezse sıfırlanır
-    const newCombo = gameMode === GameMode.ZEN 
+    let newCombo = gameMode === GameMode.ZEN 
       ? combo + (linesCleared > 0 ? 1 : 0)
       : (linesCleared > 0 ? combo + 1 : 0);
+    
+    // COMBO_RUSH logic for Timed mode
+    const isTimedMode = gameMode === GameMode.TIMED;
+    const isComboRushActive = get().timedBoostMovesLeft > 0;
+    
+    if (isTimedMode) {
+      // Activate COMBO_RUSH when combo reaches 4
+      if (newCombo >= 4 && !isComboRushActive) {
+        set({ timedBoostMovesLeft: 3 });
+      }
+      
+      // During COMBO_RUSH, prevent combo from dropping to 0
+      if (isComboRushActive && linesCleared === 0) {
+        newCombo = Math.max(combo, 1);
+      }
+      
+      // Decrement COMBO_RUSH counter
+      if (isComboRushActive) {
+        set({ timedBoostMovesLeft: Math.max(0, get().timedBoostMovesLeft - 1) });
+      }
+    }
+    
     const comboMultiplier = newCombo;
 
     // Renk bonusu: tek renk satır/sütun temizleme
@@ -745,11 +789,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const tierMultiplier = gameMode === GameMode.ENDLESS
       ? (TIER_SCORE_MULTIPLIERS[get().difficultyTier] ?? 1.0)
       : 1.0;
+    // Final seconds multiplier: Timed modda son 10 saniyede 1.5x
+    const isFinalSeconds = gameMode === GameMode.TIMED && get().timeLeft <= 10;
+    const finalSecondsMultiplier = isFinalSeconds ? 1.5 : 1.0;
 
     const basePoints = (blocksPlaced * POINTS.BLOCK_PLACED) +
                        (linesCleared * POINTS.LINE_CLEARED) +
                        (comboMultiplier * POINTS.COMBO_MULTIPLIER);
-    const pointsGained = Math.round(basePoints * colorBonusMultiplier * surgeMultiplier * tierMultiplier);
+    const pointsGained = Math.floor(basePoints * colorBonusMultiplier * surgeMultiplier * tierMultiplier * finalSecondsMultiplier);
     
     // ZEN modda skor güncellenmez
     const newScore = gameMode === GameMode.ZEN ? 0 : (score + pointsGained);
@@ -875,7 +922,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const isZen = get().gameMode === GameMode.ZEN;
       const zenPalette = isZen ? ZEN_PALETTES[get().zenPaletteIndex] : undefined;
       const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
-      currentPieces = getRandomPiecesSync(3, newGrid, isDaily, zenPalette ?? useThemeStore.getState().getPieceColors(), currentTier); // Use newGrid for density calculation
+      currentPieces = getRandomPiecesSync(3, newGrid, isDaily, zenPalette ?? useThemeStore.getState().getPieceColors(), currentTier, get().gameMode); // Use newGrid for density calculation
     }
 
     // Ses + Titresim
@@ -919,6 +966,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (previousCombo > 0 && newCombo === 0) {
         extraTime = -1; // -1 saniye ceza
       }
+      // Add CHRONO bonus
+      extraTime += chronoBonusSeconds;
+      
       // Timer'ı 60 saniyede cap'le
       const newTimeLeft = Math.min(60, Math.max(0, get().timeLeft + extraTime));
       extraTime = newTimeLeft - get().timeLeft; // Gerçek değişimi hesapla
@@ -926,6 +976,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Calculate new movesLeft - only decrement in CAREER mode
     const newMovesLeft = get().gameMode === GameMode.CAREER ? (get().movesLeft - 1) : get().movesLeft;
+
+    // Update maxCombo
+    const newMaxCombo = Math.max(get().maxCombo, newCombo);
 
     set({
       grid: newGrid,
@@ -940,7 +993,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       levelObjectives: updatedObjectives,
       isLevelComplete: levelFinished,
       achievements: updatedAchievements,
-      unlockedAchievementId: newUnlock ? newUnlock.id : get().unlockedAchievementId
+      unlockedAchievementId: newUnlock ? newUnlock.id : get().unlockedAchievementId,
+      chronoBonus: get().chronoBonus + chronoBonusSeconds,
+      maxCombo: newMaxCombo
     });
 
     // Sync maxLevelReached to Firestore when level is completed
@@ -970,6 +1025,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         });
       }
     }
+
+    // Kademe kontrolünden ÖNCE eski değeri sakla
+    const prevDifficultyTier = get().difficultyTier;
 
     // Check difficulty tier progression (Endless mode only)
     if (gameMode === GameMode.ENDLESS) {
@@ -1123,7 +1181,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     };
     
-    checkTierEvent(newScore, get().difficultyTier);
+    // Check for tier events (Endless mode only)
+    if (get().gameMode === GameMode.ENDLESS) {
+      checkTierEvent(newScore, prevDifficultyTier);
+    }
 
     // --- Aktif olay tick ---
     const { activeEvent, eventMovesRemaining } = get();
@@ -1201,7 +1262,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           );
           
           // processGrid çalıştır — satır temizleme olabilir
-          const { grid: processedMirrorGrid } = processGrid(mirrorGrid);
+          const { grid: processedMirrorGrid, actions: mirrorActions } = processGrid(mirrorGrid);
           set({ grid: processedMirrorGrid });
         }
       }

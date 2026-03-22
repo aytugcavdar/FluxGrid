@@ -21,6 +21,7 @@ export const processGrid = (initialGrid: GridState): {
   colorBonus: boolean;
   bombsExploded: number;
   iceBroken: number;
+  actions: Array<{ type: string; [key: string]: any }>;
 } => {
   let currentGrid = initialGrid.map(row => row.map(cell => ({ ...cell })));
   let totalLinesCleared = 0;
@@ -29,6 +30,7 @@ export const processGrid = (initialGrid: GridState): {
   let colorBonus = false;
   let bombsExploded = 0;
   let iceBroken = 0;
+  const actions: Array<{ type: string; [key: string]: any }> = [];
 
   do {
     linesClearedInPass = 0;
@@ -134,10 +136,27 @@ export const processGrid = (initialGrid: GridState): {
       }
 
       // Execute Clears
+      let chronoBlocksCleared = 0;
       finalCellsToClear.forEach(key => {
         const [x, y] = key.split(',').map(Number);
+        const cell = currentGrid[y][x];
+        
+        // Count CHRONO blocks before clearing
+        if (cell.type === CellType.CHRONO) {
+          chronoBlocksCleared++;
+        }
+        
         currentGrid[y][x] = { filled: false, color: '' };
       });
+      
+      // Add CHRONO_BONUS action if any CHRONO blocks were cleared
+      if (chronoBlocksCleared > 0) {
+        actions.push({
+          type: 'CHRONO_BONUS',
+          seconds: chronoBlocksCleared * 5,
+          count: chronoBlocksCleared
+        });
+      }
 
       // Apply Gravity (ICE blocks stay in place)
       for (let x = 0; x < GRID_SIZE; x++) {
@@ -178,5 +197,5 @@ export const processGrid = (initialGrid: GridState): {
     }
   } while (linesClearedInPass > 0);
 
-  return { grid: currentGrid, totalLinesCleared, chainCount, colorBonus, bombsExploded, iceBroken };
+  return { grid: currentGrid, totalLinesCleared, chainCount, colorBonus, bombsExploded, iceBroken, actions };
 };

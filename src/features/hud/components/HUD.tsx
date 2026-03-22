@@ -22,7 +22,7 @@ export const HUD: React.FC = () => {
         score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive,
         currentLevelIndex, movesLeft, levelObjectives, gameMode, timeLeft, setAppState,
         zenSessionTime, zenBlocksPlaced, survivalNextPush, survivalPushInterval, zenPaletteIndex, survivalTime,
-        bossType, activeEvent, eventMovesRemaining
+        bossType, activeEvent, eventMovesRemaining, timedBoostMovesLeft
     } = useGameStore();
     const colors = useThemeStore(state => state.getThemeColors());
     const [muted, setMuted] = useState(getMuted);
@@ -85,7 +85,7 @@ export const HUD: React.FC = () => {
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, padding: '0 4px' }}>
                         {/* Score row */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                 <span style={{ fontSize: 18, fontWeight: 700, color: colors.textPrimary }}>
                                     {gameMode === GameMode.ZEN ? zenBlocksPlaced : score.toLocaleString()}
                                 </span>
@@ -97,11 +97,45 @@ export const HUD: React.FC = () => {
                                         background: 'rgba(245,158,11,0.15)',
                                         border: '0.5px solid rgba(245,158,11,0.3)',
                                         padding: '2px 6px',
-                                        borderRadius: 8,
-                                        marginLeft: 6
+                                        borderRadius: 8
                                     }}>
                                         ⚡ 2×
                                     </span>
+                                )}
+                                {gameMode === GameMode.TIMED && timedBoostMovesLeft > 0 && (
+                                    <motion.span
+                                        initial={{ scale: 0.8, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        exit={{ scale: 0.8, opacity: 0 }}
+                                        style={{
+                                            fontSize: 10,
+                                            fontWeight: 700,
+                                            color: '#10b981',
+                                            background: 'rgba(16,185,129,0.15)',
+                                            border: '0.5px solid rgba(16,185,129,0.3)',
+                                            padding: '2px 6px',
+                                            borderRadius: 8
+                                        }}
+                                    >
+                                        🔥 RUSH
+                                    </motion.span>
+                                )}
+                                {gameMode === GameMode.TIMED && timeLeft <= 10 && timeLeft > 0 && (
+                                    <motion.span
+                                        animate={{ scale: [1, 1.05, 1] }}
+                                        transition={{ duration: 0.5, repeat: Infinity }}
+                                        style={{
+                                            fontSize: 10,
+                                            fontWeight: 700,
+                                            color: '#ef4444',
+                                            background: 'rgba(239,68,68,0.15)',
+                                            border: '0.5px solid rgba(239,68,68,0.3)',
+                                            padding: '2px 6px',
+                                            borderRadius: 8
+                                        }}
+                                    >
+                                        ×1.5
+                                    </motion.span>
                                 )}
                             </div>
                             <span style={{ fontSize: 9, color: colors.textTertiary }}>

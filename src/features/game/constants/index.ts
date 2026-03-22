@@ -70,6 +70,14 @@ export const STONE_BLOCK = {
   appearance: 'matte' as const,
 };
 
+// CHRONO Block (Timed Mode)
+export const CHRONO_BLOCK = {
+  color: '#fbbf24',  // Golden/amber color
+  icon: '⏱️',         // Clock emoji or custom SVG
+  glowColor: '#fef3c7',  // Light golden glow
+  type: 'CHRONO' as const,
+};
+
 // Achievements
 import type { Achievement } from '../types';
 

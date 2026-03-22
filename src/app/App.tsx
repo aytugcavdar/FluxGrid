@@ -61,7 +61,8 @@ const App: React.FC = () => {
     isLevelComplete, nextLevel, currentLevelIndex,
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
     earnedStars, dailyClearHistory, highScore, stats, maxLevelReached, startLevel, bossType,
-    isFirstGame, guidedStep, activeSkill, activateSkill, activeEvent, darkZoneCells
+    isFirstGame, guidedStep, activeSkill, activateSkill, activeEvent, darkZoneCells,
+    maxCombo, chronoBonus
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors } = useThemeStore();
   const colors = getThemeColors();
@@ -1263,18 +1264,43 @@ const App: React.FC = () => {
                     {/* Stats Chips - Only show if not CAREER mode */}
                     {gameMode !== GameMode.CAREER && stats && (
                       <div className="flex gap-2 mb-4">
-                        <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
-                          <div className="text-sm font-bold text-blue-400">
-                            {combo > 0 ? `x${combo}` : '--'}
-                          </div>
-                          <div className="text-[10px] text-gray-500 uppercase">Max Combo</div>
-                        </div>
-                        <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
-                          <div className="text-sm font-bold text-purple-400">
-                            {stats.linesCleared || 0}
-                          </div>
-                          <div className="text-[10px] text-gray-500 uppercase">Satır</div>
-                        </div>
+                        {gameMode === GameMode.TIMED ? (
+                          <>
+                            <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                              <div className="text-sm font-bold text-amber-400">
+                                {maxCombo > 0 ? `x${maxCombo}` : '--'}
+                              </div>
+                              <div className="text-[10px] text-gray-500 uppercase">Max Combo</div>
+                            </div>
+                            <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                              <div className="text-sm font-bold text-purple-400">
+                                {stats.linesCleared || 0}
+                              </div>
+                              <div className="text-[10px] text-gray-500 uppercase">Satır</div>
+                            </div>
+                            <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                              <div className="text-sm font-bold text-blue-400">
+                                +{chronoBonus}s
+                              </div>
+                              <div className="text-[10px] text-gray-500 uppercase">Chrono</div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                              <div className="text-sm font-bold text-blue-400">
+                                {combo > 0 ? `x${combo}` : '--'}
+                              </div>
+                              <div className="text-[10px] text-gray-500 uppercase">Max Combo</div>
+                            </div>
+                            <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                              <div className="text-sm font-bold text-purple-400">
+                                {stats.linesCleared || 0}
+                              </div>
+                              <div className="text-[10px] text-gray-500 uppercase">Satır</div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
 

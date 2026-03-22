@@ -12,6 +12,7 @@ export enum CellType {
   ICE = 'ICE',
   BOMB = 'BOMB',
   STONE = 'STONE',
+  CHRONO = 'CHRONO',
 }
 
 // Grid & Cells
