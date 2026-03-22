@@ -74,10 +74,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   // Get best score for selected mode
   const getModeBestScore = (mode: GameMode) => {
     try {
-      const stored = localStorage.getItem(`flux_highscore_${mode}`);
+      const stored = localStorage.getItem('flux_highscores');
       if (stored) {
-        const parsed = parseInt(stored, 10);
-        return !isNaN(parsed) && parsed >= 0 ? parsed : 0;
+        const scores = JSON.parse(stored);
+        const val = scores[mode];
+        return typeof val === 'number' && val >= 0 ? val : 0;
       }
     } catch (e) {
       console.error('Failed to read high score:', e);

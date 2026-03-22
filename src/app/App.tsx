@@ -80,7 +80,7 @@ const App: React.FC = () => {
   
   // Score display animation state
   const displayScore = useCountUp(score, 600, isGameOver);
-  const isNewRecord = score >= highScore && highScore > 0;
+  const isNewRecord = score > 0 && score >= (highScore || 0);
   const [showRecordBadge, setShowRecordBadge] = useState(false);
   const [showButtons, setShowButtons] = useState(false);
   

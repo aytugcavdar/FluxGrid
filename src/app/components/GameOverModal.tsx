@@ -189,7 +189,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               <>
                 <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
                   <div className="text-sm font-bold text-blue-400">
-                    {combo > 0 ? `x${combo}` : '--'}
+                    {maxCombo > 0 ? `x${maxCombo}` : '--'}
                   </div>
                   <div className="text-[10px] text-gray-500 uppercase">Max Combo</div>
                 </div>

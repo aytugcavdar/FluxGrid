@@ -31,10 +31,22 @@ export function checkTierEvent(
       : eventName === 'QUAKE' ? 3
       : 5;  // ICE_STORM
     
+    const tierNames: Record<number, string> = {
+      1: 'Gelişmiş',
+      2: 'Uzman',
+      3: 'Usta',
+      4: 'Efsane',
+    };
+    
     set({
       activeEvent: eventName as any,
       eventMovesRemaining: duration,
-      difficultyTier: newTier
+      difficultyTier: newTier,
+      lastAction: {
+        type: 'MILESTONE',
+        tier: newTier,
+        tierName: tierNames[newTier] ?? `Tier ${newTier}`,
+      },
     });
     
     // QUAKE için anında uygula - temiz gravity-left algoritması
