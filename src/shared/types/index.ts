@@ -7,8 +7,6 @@ export enum AppState {
   HOME = 'HOME',
   MODES = 'MODES',
   GAME = 'GAME',
-  LEVEL_MAP = 'LEVEL_MAP',
-  CAREER = 'CAREER',
   PROFILE = 'PROFILE',
   TUTORIAL = 'TUTORIAL',
   PUZZLE_MAP = 'PUZZLE_MAP',
@@ -17,12 +15,10 @@ export enum AppState {
 
 // Game Modes
 export enum GameMode {
-  CAREER = 'CAREER',
   ENDLESS = 'ENDLESS',
   TIMED = 'TIMED',
   DAILY_CHALLENGE = 'DAILY_CHALLENGE',
   ZEN = 'ZEN',
-  SURVIVAL = 'SURVIVAL', // Hidden from UI, kept for future
 }
 
 // Game Statistics

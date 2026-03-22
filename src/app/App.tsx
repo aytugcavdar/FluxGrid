@@ -6,13 +6,11 @@ import { useAbilityStore } from '../features/abilities/store/abilityStore';
 import { usePassiveAbilityStore } from '../features/abilities/store/passiveAbilityStore';
 import { useProfileStore } from '../features/profile/store/profileStore';
 import { DragOverlay } from '@features/hud';
-import { LevelMap } from '../features/career/components/LevelMap';
-import { CareerPage } from '../features/career/components/CareerPage';
 import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
 import { ProfileView } from '../features/profile/components/ProfileView';
 import { LeaderboardView } from '../features/leaderboard/components';
 import { HomeScreen } from './HomeScreen';
-import { GameOverModal, ModesScreen, GameScreen } from './components';
+import { GameOverModal, GameScreen } from './components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { unlockAudio, playGameOver, playClick } from '@utils/audio';
 import { generateShareText, shareResult } from '@utils/shareResult';
@@ -45,10 +43,9 @@ const App: React.FC = () => {
   const { t, i18n } = useTranslation();
   const {
     initGame, pieces, isGameOver, resetGame, score, combo, lastAction, isSurgeActive,
-    isLevelComplete, nextLevel, currentLevelIndex,
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
-    earnedStars, dailyClearHistory, highScore, stats, bossType,
-    isFirstGame, guidedStep, activeSkill, activateSkill,
+    dailyClearHistory, highScore, stats,
+    activeSkill, activateSkill,
     maxCombo, chronoBonus, timedBoostMovesLeft
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors } = useThemeStore();
@@ -58,7 +55,6 @@ const App: React.FC = () => {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboardMode, setLeaderboardMode] = useState<GameMode>(GameMode.ENDLESS);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
-  const [showBossIntro, setShowBossIntro] = useState(false);
   const [prevGameOver, setPrevGameOver] = useState(false);
   const [scorePopups, setScorePopups] = useState<ScorePopup[]>([]);
   const prevScoreRef = useRef(0);
@@ -101,9 +97,6 @@ const App: React.FC = () => {
     gameMode,
     combo,
     stats,
-    currentLevelIndex,
-    isLevelComplete,
-    earnedStars,
   });
 
 
@@ -217,7 +210,7 @@ const App: React.FC = () => {
 
   // Global Timer Loop
   useEffect(() => {
-    if ((gameMode !== GameMode.TIMED && gameMode !== GameMode.ZEN && gameMode !== GameMode.SURVIVAL) || appState !== AppState.GAME || isGameOver) return;
+    if ((gameMode !== GameMode.TIMED && gameMode !== GameMode.ZEN) || appState !== AppState.GAME || isGameOver) return;
     const interval = setInterval(() => {
       tickTimer();
     }, 1000);
@@ -399,15 +392,6 @@ const App: React.FC = () => {
     localStorage.setItem('flux_language', lang);
   };
 
-  // Boss intro animation
-  useEffect(() => {
-    if (appState === AppState.GAME && bossType) {
-      setShowBossIntro(true);
-      const t = setTimeout(() => setShowBossIntro(false), 2500);
-      return () => clearTimeout(t);
-    }
-  }, [appState, bossType]);
-
   return (
     <div className="game-container" onPointerDown={unlockAudio} style={{ background: colors.background }}>
       <AnimatePresence mode="wait">
@@ -419,33 +403,11 @@ const App: React.FC = () => {
           />
         )}
 
-        {appState === AppState.MODES && (
-          <ModesScreen
-            onSelectMode={(mode) => initGame(mode)}
-            onBack={() => setAppState(AppState.HOME)}
-            onNavigateToLevelMap={() => setAppState(AppState.LEVEL_MAP)}
-          />
-        )}
-
-        {appState === AppState.LEVEL_MAP && (
-          <motion.div key="map" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <LevelMap />
-          </motion.div>
-        )}
-
-        {appState === AppState.CAREER && (
-          <motion.div key="career" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <CareerPage />
-          </motion.div>
-        )}
-
         {appState === AppState.GAME && (
           <GameScreen
             pieces={pieces}
             combo={combo}
             gameMode={gameMode}
-            isFirstGame={isFirstGame}
-            guidedStep={guidedStep}
             activeSkill={activeSkill}
             activateSkill={activateSkill}
             gridContainerRef={gridContainerRef}
@@ -492,59 +454,6 @@ const App: React.FC = () => {
               </div>
             </div>
             <LeaderboardView mode={leaderboardMode} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isLevelComplete && gameMode === GameMode.CAREER && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-blue-900/40 backdrop-blur-md p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8, y: 30 }}
-              animate={{ scale: 1, y: 0 }}
-              className="bg-gray-800 border-2 border-blue-500/30 p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center"
-            >
-              <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="text-4xl">🏆</motion.span>
-              </div>
-              <h2 className="text-3xl font-black text-white mb-2 italic tracking-tight">TEBRİKLER!</h2>
-              <p className="text-blue-400 text-sm font-bold uppercase tracking-widest mb-6">Seviye {currentLevelIndex} Tamamlandı</p>
-              
-              {/* Stars Animation */}
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
-                {[1, 2, 3].map(s => (
-                  <motion.svg
-                    key={s}
-                    width="32"
-                    height="32"
-                    viewBox="0 0 10 10"
-                    initial={{ scale: 0, rotate: -30 }}
-                    animate={{ scale: earnedStars >= s ? 1 : 0.5, rotate: 0 }}
-                    transition={{ delay: s * 0.15, type: 'spring', stiffness: 200 }}
-                  >
-                    <polygon
-                      points="5,0 6.5,3.5 10,3.5 7.5,6 8.5,10 5,7.5 1.5,10 2.5,6 0,3.5 3.5,3.5"
-                      fill={earnedStars >= s ? '#f59e0b' : 'rgba(255,255,255,0.1)'}
-                    />
-                  </motion.svg>
-                ))}
-              </div>
-              
-              <div className="bg-white/5 rounded-2xl p-4 mb-8">
-                <p className="text-gray-400 text-xs uppercase tracking-widest mb-1">Kazanılan Skor</p>
-                <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
-              </div>
-              <button onClick={nextLevel} className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black tracking-widest transition-all shadow-lg">SONRAKİ SEVİYE</button>
-              <button
-                onClick={() => setAppState(AppState.LEVEL_MAP)}
-                className="w-full mt-3 py-3 rounded-2xl bg-white/5 text-white/40 text-[10px] font-bold tracking-widest uppercase"
-              >Haritaya Dön</button>
-            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -605,63 +514,6 @@ const App: React.FC = () => {
             setShowIOSInstructions(false);
           }}
         />
-      </AnimatePresence>
-      
-      {/* Boss Intro Overlay */}
-      <AnimatePresence>
-        {showBossIntro && bossType && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 65,
-              background: 'rgba(0,0,0,0.85)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              pointerEvents: 'none',
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.5, y: 30 }}
-              animate={{ scale: 1, y: 0 }}
-              transition={{ type: 'spring', stiffness: 200 }}
-              style={{ textAlign: 'center' }}
-            >
-              <div style={{ fontSize: 48, marginBottom: 12 }}>
-                {bossType === 'ICE_STORM' ? '❄️' :
-                 bossType === 'BOMB_RAIN' ? '💣' :
-                 bossType === 'SPEED_SURGE' ? '⚡' :
-                 bossType === 'FOG' ? '🌫️' : '🪞'}
-              </div>
-              <div style={{
-                fontSize: 28,
-                fontWeight: 700,
-                color: '#ef4444',
-                letterSpacing: '-0.02em',
-              }}>
-                BOSS SEVİYE
-              </div>
-              <div style={{
-                fontSize: 13,
-                color: 'rgba(255,255,255,0.6)',
-                marginTop: 8,
-                maxWidth: 240,
-                textAlign: 'center',
-              }}>
-                {bossType === 'ICE_STORM' ? 'Her 2 hamlede bir buz bloğu düşüyor!' :
-                 bossType === 'BOMB_RAIN' ? 'Dikkat: Bombalar sahada!' :
-                 bossType === 'SPEED_SURGE' ? `Sadece ${Math.floor((useGameStore.getState().movesLeft || 20) / 2)} hamlen var!` :
-                 bossType === 'FOG' ? 'Parçaların rengi 5 hamle boyunca gizli!' :
-                 'Her yerleştirmede ayna parça da geliyor!'}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
       </AnimatePresence>
       
       {/* Theme Selector Modal */}

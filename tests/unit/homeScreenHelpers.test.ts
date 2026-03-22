@@ -322,9 +322,6 @@ describe('Home Screen Helpers', () => {
       expect(getModeName(GameMode.TIMED)).toBe('Zamanlı');
       expect(getModeName(GameMode.ZEN)).toBe('Zen');
       expect(getModeName(GameMode.DAILY_CHALLENGE)).toBe('Günlük');
-      expect(getModeName(GameMode.CAREER)).toBe('Kariyer');
-      expect(getModeName(GameMode.SURVIVAL)).toBe('Hayatta Kalma');
-      // BLITZ and PUZZLE modes removed
     });
   });
 });

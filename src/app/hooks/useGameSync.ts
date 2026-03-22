@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { GameMode, GameStats, AppState } from '@shared/types';
 import { useGameStore } from '@features/game/store/gameStore';
 import { useAuthStore } from '@features/auth/store/authStore';
-import { syncGameData, syncScore, syncCareerProgress, syncDailyChallenge, addToPendingWrites } from '../../services/firebase/syncManager';
+import { syncGameData, syncScore, syncDailyChallenge, addToPendingWrites } from '../../services/firebase/syncManager';
 import { detectPlatform } from '../../services/firebase/types';
 import { getStreak } from '@utils/streakManager';
 
@@ -12,13 +12,10 @@ interface GameSyncParams {
   gameMode: GameMode;
   combo: number;
   stats: GameStats;
-  currentLevelIndex: number;
-  isLevelComplete: boolean;
-  earnedStars: number;
 }
 
 export function useGameSync(params: GameSyncParams): void {
-  const { isGameOver, score, gameMode, combo, stats, currentLevelIndex, isLevelComplete, earnedStars } = params;
+  const { isGameOver, score, gameMode, combo, stats } = params;
   const { appState } = useGameStore();
   const gameStartTimeRef = useRef<number>(0);
 
@@ -80,19 +77,6 @@ export function useGameSync(params: GameSyncParams): void {
       }),
     ];
     
-    // Kariyer modu
-    if (gameMode === GameMode.CAREER) {
-      syncPromises.push(
-        syncCareerProgress(user.uid, currentLevelIndex, {
-          completed: isLevelComplete,
-          stars: earnedStars,
-          bestScore: score,
-          attempts: 1,
-          completedAt: isLevelComplete ? Date.now() : null,
-        }).catch(err => console.error('syncCareerProgress failed:', err))
-      );
-    }
-    
     // Günlük meydan okuma
     if (gameMode === GameMode.DAILY_CHALLENGE) {
       const currentStreak = getStreak();
@@ -112,5 +96,5 @@ export function useGameSync(params: GameSyncParams): void {
         }
       } catch {}
     });
-  }, [isGameOver, score, gameMode, combo, stats, currentLevelIndex, isLevelComplete, earnedStars]);
+  }, [isGameOver, score, gameMode, combo, stats]);
 }

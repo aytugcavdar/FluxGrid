@@ -9,9 +9,12 @@ interface Props {
 }
 
 export const Piece: React.FC<Props> = ({ piece }) => {
-  const { setDraggedPiece, draggedPiece, guidedTarget, guidedStep, pieces } = useGameStore();
+  const { setDraggedPiece, draggedPiece, pieces, activeEvent } = useGameStore();
   const ref = useRef<HTMLDivElement>(null);
   const [windowWidth, setWindowWidth] = React.useState(window.innerWidth);
+  
+  // FOG event: hide shape, show only block count
+  const isFogActive = activeEvent === 'FOG';
 
   // Update window width on resize for responsive block size
   React.useEffect(() => {
@@ -27,10 +30,6 @@ export const Piece: React.FC<Props> = ({ piece }) => {
   const isNativeApp = !!(window as any).ReactNativeWebView || 
                      !!(window as any).Capacitor || 
                      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-  // Check if this is the guided piece
-  const pieceIndex = pieces.findIndex(p => p.instanceId === piece.instanceId);
-  const isGuidedPiece = guidedTarget?.pieceIndex === pieceIndex;
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -48,6 +47,35 @@ export const Piece: React.FC<Props> = ({ piece }) => {
   };
 
   const renderShape = (p: PieceType) => {
+    // FOG event: Show only block count as dots
+    if (isFogActive) {
+      const blockCount = p.shape.flat().filter(v => v === 1).length;
+      return (
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          gap: 6,
+          flexWrap: 'wrap',
+          maxWidth: '80px'
+        }}>
+          {Array.from({ length: blockCount }).map((_, i) => (
+            <div 
+              key={i} 
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                boxShadow: '0 0 4px rgba(255, 255, 255, 0.2)'
+              }} 
+            />
+          ))}
+        </div>
+      );
+    }
+    
+    // Normal render
     // Responsive block size calculation - updates on window resize
     const blockSize = Math.max(12, Math.min(22, windowWidth / 28));
     const gap = windowWidth < 400 ? 1 : windowWidth < 768 ? 1.5 : 2;
@@ -87,15 +115,8 @@ export const Piece: React.FC<Props> = ({ piece }) => {
 
   const isDragging = draggedPiece?.instanceId === piece.instanceId;
 
-  // Wrapper component for guided animation
-  const PieceWrapper = isGuidedPiece ? motion.div : 'div';
-  const wrapperProps = isGuidedPiece ? {
-    animate: { scale: [1, 1.05, 1] },
-    transition: { duration: 1.2, repeat: Infinity }
-  } : {};
-
   return (
-    <PieceWrapper {...wrapperProps} style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div
         ref={ref}
         onPointerDown={handlePointerDown}
@@ -122,27 +143,6 @@ export const Piece: React.FC<Props> = ({ piece }) => {
 
         {renderShape(piece)}
       </div>
-      
-      {/* Guided finger indicator */}
-      {isGuidedPiece && guidedStep === 1 && (
-        <motion.div
-          style={{
-            position: 'absolute',
-            bottom: -20,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            pointerEvents: 'none',
-            zIndex: 100
-          }}
-          animate={{ y: [0, -8, 0] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
-        >
-          <svg width="20" height="24" viewBox="0 0 20 24" fill="none">
-            <path d="M10 2C10 2 10 18 10 18" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.6"/>
-            <path d="M6 14L10 18L14 14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
-          </svg>
-        </motion.div>
-      )}
-    </PieceWrapper>
+    </div>
   );
 };

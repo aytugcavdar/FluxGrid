@@ -37,9 +37,7 @@ const getModeIcon = (mode: GameMode): string => {
   const icons: Record<GameMode, string> = {
     [GameMode.ENDLESS]: '∞',
     [GameMode.TIMED]: '⚡',
-    [GameMode.SURVIVAL]: '🛡️',
     [GameMode.ZEN]: '☁️',
-    [GameMode.CAREER]: '🎯',
     [GameMode.DAILY_CHALLENGE]: '📅',
   };
   return icons[mode] || '🎮';
@@ -77,9 +75,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
     [GameMode.ENDLESS]: { mode: GameMode.TIMED, label: 'Zamanlı Modu Dene', desc: '60 saniye içinde en yüksek skoru yap' },
     [GameMode.TIMED]: { mode: GameMode.ZEN, label: 'Zen Modunu Dene', desc: 'Stressiz, zamansız oyun deneyimi' },
     [GameMode.ZEN]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Sınırsız oyun, skor rekorları kır' },
-    [GameMode.CAREER]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Rahatla ve serbest oyna' },
     [GameMode.DAILY_CHALLENGE]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Günlük meydan okuma sonrası pratik yap' },
-    [GameMode.SURVIVAL]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Klasik oyun deneyimi' },
   };
   const suggestion = MODE_SUGGESTIONS[gameMode];
 
@@ -165,8 +161,8 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           </div>
         )}
 
-        {/* Stats Chips - Only show if not CAREER mode */}
-        {gameMode !== GameMode.CAREER && stats && (
+        {/* Stats Chips */}
+        {stats && (
           <div className="flex gap-2 mb-4">
             {gameMode === GameMode.TIMED ? (
               <>

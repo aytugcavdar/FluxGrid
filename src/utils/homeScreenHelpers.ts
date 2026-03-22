@@ -161,8 +161,6 @@ export function getModeName(mode: GameMode): string {
     [GameMode.TIMED]: 'Zamanlı',
     [GameMode.ZEN]: 'Zen',
     [GameMode.DAILY_CHALLENGE]: 'Günlük',
-    [GameMode.CAREER]: 'Kariyer',
-    [GameMode.SURVIVAL]: 'Hayatta Kalma',
   };
   
   return modeNames[mode] || mode;

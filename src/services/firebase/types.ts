@@ -86,16 +86,6 @@ export interface DailyChallengeDocument {
   totalPlayers: number;
 }
 
-// Kariyer seviye ilerlemesi — users/{uid}/careerProgress/{levelIndex}
-export interface CareerProgressDocument {
-  levelIndex: string; // '001' formatı
-  completed: boolean;
-  stars: number; // 0-3
-  bestScore: number;
-  attempts: number;
-  completedAt: number | null;
-}
-
 // Günlük geçmiş — users/{uid}/dailyHistory/{YYYY-MM-DD}
 export interface DailyHistoryDocument {
   date: string;
@@ -114,7 +104,7 @@ export interface AchievementDocument {
 }
 
 // Offline yazma kuyruğu — users/{uid}/pendingWrites/{writeId}
-export type PendingWriteType = 'score' | 'career' | 'daily' | 'stats';
+export type PendingWriteType = 'score' | 'daily' | 'stats';
 
 export interface PendingWriteDocument {
   type: PendingWriteType;

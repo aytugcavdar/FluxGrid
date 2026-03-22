@@ -45,10 +45,6 @@ service cloud.firestore {
         allow read, write: if isAuthenticated() && isOwner(uid);
       }
       
-      match /careerProgress/{levelIndex} {
-        allow read, write: if isAuthenticated() && isOwner(uid);
-      }
-      
       match /dailyHistory/{date} {
         allow read, write: if isAuthenticated() && isOwner(uid);
       }

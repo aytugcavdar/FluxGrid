@@ -32,8 +32,6 @@ describe('Piece', () => {
     vi.clearAllMocks();
     useGameStore.setState({
       draggedPiece: null,
-      guidedTarget: null,
-      guidedStep: 0,
       pieces: [mockPiece],
     });
   });
@@ -152,32 +150,6 @@ describe('Piece', () => {
 
   describe('Guided Mode', () => {
     it('should not show guided indicator when not guided', () => {
-      const { container } = render(<Piece piece={mockPiece} />);
-      
-      const svg = container.querySelector('svg');
-      expect(svg).not.toBeInTheDocument();
-    });
-
-    it('should show guided indicator when piece is guided', () => {
-      useGameStore.setState({
-        guidedTarget: { pieceIndex: 0, x: 0, y: 0 },
-        guidedStep: 1,
-        pieces: [mockPiece],
-      });
-
-      const { container } = render(<Piece piece={mockPiece} />);
-      
-      const svg = container.querySelector('svg');
-      expect(svg).toBeInTheDocument();
-    });
-
-    it('should not show guided indicator when guidedStep is not 1', () => {
-      useGameStore.setState({
-        guidedTarget: { pieceIndex: 0, x: 0, y: 0 },
-        guidedStep: 2,
-        pieces: [mockPiece],
-      });
-
       const { container } = render(<Piece piece={mockPiece} />);
       
       const svg = container.querySelector('svg');

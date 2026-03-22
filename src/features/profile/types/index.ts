@@ -3,7 +3,12 @@
  */
 import type { ActiveAbilityType, PassiveAbilityType } from '../../abilities/types';
 import type { Achievement } from '../../game/types';
-import type { ProgressionState } from '../../career/types';
+
+// Simple progression state (career removed)
+export interface ProgressionState {
+  level: number;
+  experience: number;
+}
 
 export interface PlayerProfile {
   username: string;

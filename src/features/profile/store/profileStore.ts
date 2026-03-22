@@ -1,8 +1,7 @@
 import { create } from 'zustand';
-import { PlayerProfile, PlayerStats } from '../types';
+import { PlayerProfile, PlayerStats, ProgressionState } from '../types';
 import { ActiveAbilityType, PassiveAbilityType } from '@features/abilities/types';
 import { Achievement } from '@features/game/types';
-import { ProgressionState } from '@features/career/types';
 
 interface ProfileStore {
   profile: PlayerProfile | null;
@@ -70,11 +69,8 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
       lastPlayed: Date.now(),
       stats: { ...INITIAL_STATS },
       progression: {
-        currentLevel: 0,
-        maxLevelReached: 0,
-        levelProgress: new Map(),
-        unlockedAbilities: new Set(),
-        totalScore: 0
+        level: 0,
+        experience: 0
       },
       unlockedAbilities: new Set(),
       equippedPassives: [],
@@ -217,9 +213,8 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
           skillUses: profile.stats.skillUses // Already a plain object
         },
         progression: {
-          currentLevel: profile.progression.currentLevel,
-          maxLevelReached: profile.progression.maxLevelReached,
-          totalScore: profile.progression.totalScore
+          level: profile.progression.level,
+          experience: profile.progression.experience
         },
         achievements: Array.from(profile.achievements.values())
           .filter(a => a.unlocked)

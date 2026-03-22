@@ -62,14 +62,6 @@ export const POINTS = {
   BLITZ_TIME_BONUS: 100,
 };
 
-// SURVIVAL Mode Stone Block
-export const STONE_BLOCK = {
-  color: '#4b5563',
-  type: 'STONE' as const,
-  clearable: true,
-  appearance: 'matte' as const,
-};
-
 // CHRONO Block (Timed Mode)
 export const CHRONO_BLOCK = {
   color: '#fbbf24',  // Golden/amber color

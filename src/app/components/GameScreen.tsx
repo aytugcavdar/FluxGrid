@@ -27,8 +27,6 @@ interface GameScreenProps {
   pieces: any[];
   combo: number;
   gameMode: GameMode;
-  isFirstGame: boolean;
-  guidedStep: number;
   activeSkill: SkillType | null;
   activateSkill: (skill: SkillType) => void;
   gridContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -50,8 +48,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   pieces,
   combo,
   gameMode,
-  isFirstGame,
-  guidedStep,
   activeSkill,
   activateSkill,
   gridContainerRef,
@@ -185,116 +181,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             <Grid />
           </div>
         </div>
-        
-        {/* Guided Experience Overlay */}
-        {isFirstGame && guidedStep > 0 && (
-          <div style={{
-            position: 'absolute',
-            top: 0, left: 0, right: 0, bottom: 0,
-            pointerEvents: 'none',
-            zIndex: 25,
-          }}>
-            <motion.div
-              key={guidedStep}
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                position: 'absolute',
-                top: 8,
-                left: 8,
-                right: 60,
-                background: guidedStep === 1 ? 'rgba(59,130,246,0.95)' : guidedStep === 2 ? 'rgba(249,115,22,0.95)' : 'rgba(16,185,129,0.95)',
-                backdropFilter: 'blur(8px)',
-                borderRadius: 16,
-                padding: '10px 12px',
-                fontSize: 11,
-                fontWeight: 700,
-                color: 'white',
-                letterSpacing: '.01em',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 6,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              }}
-            >
-              <div style={{ 
-                textAlign: 'center', 
-                lineHeight: '1.3',
-                maxWidth: '100%',
-                wordWrap: 'break-word',
-                whiteSpace: 'normal',
-              }}>
-                {guidedStep === 1 && 'Parçayı sürükle, yeşil alana bırak'}
-                {guidedStep === 2 && 'Satırı tamamen doldur'}
-                {guidedStep === 3 && '⚡ Flux dolunca REROLL kullan'}
-              </div>
-              
-              <div style={{ display: 'flex', gap: 5 }}>
-                {[1, 2, 3].map(step => (
-                  <div
-                    key={step}
-                    style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: '50%',
-                      background: step === guidedStep ? 'white' : 'rgba(255,255,255,0.35)',
-                      transition: 'all 0.3s',
-                      boxShadow: step === guidedStep ? '0 0 8px rgba(255,255,255,0.5)' : 'none',
-                    }}
-                  />
-                ))}
-              </div>
-            </motion.div>
-            
-            <button
-              onClick={() => { playClick(); useGameStore.getState().completeGuidedMode(); }}
-              style={{
-                position: 'absolute',
-                top: 8,
-                right: 8,
-                background: 'rgba(255,255,255,0.12)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: 12,
-                padding: '10px 12px',
-                fontSize: 11,
-                color: 'rgba(255,255,255,0.7)',
-                cursor: 'pointer',
-                pointerEvents: 'auto',
-                fontWeight: 700,
-                letterSpacing: '.05em',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                minWidth: 48,
-                textAlign: 'center',
-              }}
-            >
-              ATLA
-            </button>
-            
-            {guidedStep === 3 && (
-              <motion.div
-                animate={{ 
-                  boxShadow: [
-                    '0 0 0 0 rgba(16,185,129,0)',
-                    '0 0 0 8px rgba(16,185,129,0.4)',
-                    '0 0 0 0 rgba(16,185,129,0)',
-                  ]
-                }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-                style={{
-                  position: 'absolute',
-                  bottom: 'calc(var(--tray-height, 90px) + env(safe-area-inset-bottom, 0px) + 52px)',
-                  left: 12,
-                  width: 'calc(33.333% - 8px)',
-                  height: 48,
-                  borderRadius: 8,
-                  border: '2px solid rgba(16,185,129,0.6)',
-                  pointerEvents: 'none',
-                }}
-              />
-            )}
-          </div>
-        )}
       </main>
 
       {/* Piece Tray */}

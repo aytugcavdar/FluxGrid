@@ -27,8 +27,8 @@ export function checkTierEvent(
     const eventName = TIER_EVENTS[newTier - 1];
     
     const duration = eventName === 'MIRROR' ? 15
-      : eventName === 'FOG' ? 5
-      : eventName === 'QUAKE' ? 1
+      : eventName === 'FOG' ? 8
+      : eventName === 'QUAKE' ? 3
       : 5;  // ICE_STORM
     
     set({

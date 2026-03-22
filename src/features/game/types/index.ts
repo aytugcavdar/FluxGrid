@@ -52,39 +52,6 @@ export enum SkillType {
   GRAVITY_FLUSH = 'GRAVITY_FLUSH',
 }
 
-// Objectives
-export enum ObjectiveType {
-  SCORE = 'SCORE',
-  BREAK_ICE = 'BREAK_ICE',
-  USE_BOMB = 'USE_BOMB',
-  CLEAR_LINES = 'CLEAR_LINES',
-  CHAIN_REACTION = 'CHAIN_REACTION',
-}
-
-export interface LevelObjective {
-  type: ObjectiveType;
-  target: number;
-  current: number;
-}
-
-// Level Definition
-export interface LevelDef {
-  index: number;
-  name: string;
-  objectives: LevelObjective[];
-  movesLimit?: number;
-  rewardFlux?: number;
-  isPuzzle?: boolean;
-  initialGrid?: GridState;
-  fixedPieces?: PieceShape[];
-  targetRows?: number[];
-  targetCols?: number[];
-  starThresholds: [number, number, number]; // [1star, 2star, 3star] score thresholds
-  isBoss?: boolean;
-  bossType?: 'ICE_STORM' | 'BOMB_RAIN' | 'SPEED_SURGE' | 'FOG' | 'MIRROR';
-  bossDescription?: string;
-}
-
 // Achievements
 export interface Achievement {
   id: string;

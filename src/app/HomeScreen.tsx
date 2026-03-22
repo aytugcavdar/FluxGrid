@@ -20,7 +20,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenThemeSelector,
   onOpenLeaderboard,
 }) => {
-  const { initGame, stats, highScore, maxLevelReached, startLevel, setAppState } = useGameStore();
+  const { initGame, stats, highScore, maxLevelReached, setAppState } = useGameStore();
   const [streak] = useState(getStreak);
   const [dailyPlayedToday] = useState(getDailyPlayedToday);
   const [selectedMode, setSelectedMode] = useState<GameMode>(GameMode.ENDLESS);
@@ -62,11 +62,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const getModeInfo = (mode: GameMode) => {
     const modeInfo: Record<GameMode, { icon: string; label: string; color: string }> = {
       [GameMode.ENDLESS]: { icon: '∞', label: 'SONSUZ', color: '#00d4ff' },
-      [GameMode.CAREER]: { icon: '🗺️', label: 'KARİYER', color: '#3b82f6' },
       [GameMode.TIMED]: { icon: '⚡', label: 'TIMED', color: '#f59e0b' },
       [GameMode.ZEN]: { icon: '☁️', label: 'ZEN', color: '#6b7280' },
       [GameMode.DAILY_CHALLENGE]: { icon: '📅', label: 'GÜNLÜK', color: '#f59e0b' },
-      [GameMode.SURVIVAL]: { icon: '💀', label: 'HAYATTA KAL', color: '#6b7280' },
     };
     return modeInfo[mode] || modeInfo[GameMode.ENDLESS];
   };
@@ -260,7 +258,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {/* Mode tabs */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, flex: 1 }}>
-              {[GameMode.ENDLESS, GameMode.CAREER, GameMode.TIMED, GameMode.ZEN].map((mode) => {
+              {[GameMode.ENDLESS, GameMode.TIMED, GameMode.ZEN, GameMode.DAILY_CHALLENGE].map((mode) => {
                 const info = getModeInfo(mode);
                 const isActive = selectedMode === mode;
                 return (
@@ -326,46 +324,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </motion.button>
           </div>
         </motion.div>
-
-        {/* CAREER CHIP */}
-        {maxLevelReached > 0 && (
-          <motion.button
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => { playClick(); startLevel(maxLevelReached + 1); }}
-            style={{
-              width: '100%',
-              marginBottom: 12,
-              padding: '6px 12px',
-              borderRadius: 10,
-              background: 'rgba(59,130,246,0.08)',
-              border: '0.5px solid rgba(59,130,246,0.2)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#93c5fd',
-            }}
-          >
-            <span>kaldığın yerden devam et</span>
-            <span style={{ opacity: 0.6 }}>→</span>
-            <span
-              style={{
-                padding: '2px 8px',
-                borderRadius: 6,
-                background: 'rgba(59,130,246,0.15)',
-                fontWeight: 700,
-              }}
-            >
-              SEVİYE {maxLevelReached + 1}
-            </span>
-          </motion.button>
-        )}
 
         {/* COMPACT STREAK BANNER */}
         <motion.div
@@ -527,7 +485,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}
         >
           <button
-            onClick={() => { playClick(); setAppState(AppState.LEVEL_MAP); }}
+            onClick={() => { playClick(); onOpenLeaderboard(GameMode.ENDLESS); }}
             style={{
               padding: '12px 16px',
               borderRadius: 10,

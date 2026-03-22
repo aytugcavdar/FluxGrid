@@ -6,13 +6,12 @@ import { FLUX_COST, ZEN_PALETTES } from '../../game/constants';
 import { SkillType } from '../../game/types';
 import { GameMode, AppState } from '@shared/types';
 import { getMuted, toggleMute, playClick, playSkill } from '../../../utils/audio';
-import { generateLevel } from '../../career/utils/levelGenerator';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const EVENT_CONFIG = {
     ICE_STORM: { label: 'Buz Fırtınası', color: '#185FA5', bg: 'rgba(56,138,221,0.12)' },
-    FOG:       { label: 'Sis', color: '#888780', bg: 'rgba(136,135,128,0.12)' },
+    FOG:       { label: 'Sis — Şekiller Gizlendi!', color: '#888780', bg: 'rgba(136,135,128,0.12)' },
     QUAKE:     { label: 'Deprem!', color: '#D85A30', bg: 'rgba(216,90,48,0.12)' },
     MIRROR:    { label: 'Ayna Modu', color: '#D4537E', bg: 'rgba(212,83,126,0.12)' },
 };
@@ -20,9 +19,9 @@ const EVENT_CONFIG = {
 export const HUD: React.FC = () => {
     const {
         score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive,
-        currentLevelIndex, movesLeft, levelObjectives, gameMode, timeLeft, setAppState,
-        zenSessionTime, zenBlocksPlaced, survivalNextPush, survivalPushInterval, zenPaletteIndex, survivalTime,
-        bossType, activeEvent, eventMovesRemaining, timedBoostMovesLeft
+        gameMode, timeLeft, setAppState,
+        zenSessionTime, zenBlocksPlaced, zenPaletteIndex,
+        activeEvent, eventMovesRemaining, timedBoostMovesLeft
     } = useGameStore();
     const colors = useThemeStore(state => state.getThemeColors());
     const [muted, setMuted] = useState(getMuted);
@@ -41,8 +40,6 @@ export const HUD: React.FC = () => {
         playClick();
         activateSkill(activeSkill!); // Toggle off
     };
-
-    const currentLevelDef = gameMode === GameMode.CAREER ? generateLevel(currentLevelIndex) : null;
     
     // Calculate HUD height dynamically based on active event
     const hudHeight = activeEvent ? 128 : 100; // 100 (base) + 28 (event banner)
@@ -139,8 +136,7 @@ export const HUD: React.FC = () => {
                                 )}
                             </div>
                             <span style={{ fontSize: 9, color: colors.textTertiary }}>
-                                {(gameMode === GameMode.ENDLESS || gameMode === GameMode.TIMED || gameMode === GameMode.SURVIVAL) && `en iyi: ${highScore.toLocaleString()}`}
-                                {gameMode === GameMode.CAREER && (currentLevelDef?.name ?? '')}
+                                {(gameMode === GameMode.ENDLESS || gameMode === GameMode.TIMED) && `en iyi: ${highScore.toLocaleString()}`}
                                 {gameMode === GameMode.ZEN && 'blok'}
                             </span>
                         </div>
@@ -215,37 +211,6 @@ export const HUD: React.FC = () => {
                         </div>
                     )}
 
-                    {gameMode === GameMode.CAREER && (
-                        <div style={{
-                            padding: '6px 12px',
-                            borderRadius: 12,
-                            background: (bossType === 'SPEED_SURGE' || movesLeft <= 10) ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.05)',
-                            border: `1px solid ${(bossType === 'SPEED_SURGE' || movesLeft <= 10) ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)'}`,
-                            flexShrink: 0,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            animation: (bossType === 'SPEED_SURGE' && movesLeft <= 10) ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none'
-                        }}>
-                            <div style={{ 
-                                fontSize: 16, 
-                                fontWeight: 700, 
-                                color: (bossType === 'SPEED_SURGE' || movesLeft <= 10) ? '#ef4444' : colors.textPrimary, 
-                                lineHeight: 1 
-                            }}>
-                                {movesLeft}
-                            </div>
-                            <div style={{ 
-                                fontSize: 11, 
-                                color: (bossType === 'SPEED_SURGE' || movesLeft <= 10) ? 'rgba(239,68,68,0.6)' : colors.textTertiary, 
-                                textAlign: 'center',
-                                marginTop: 2
-                            }}>
-                                HAMLE
-                            </div>
-                        </div>
-                    )}
-
                     {gameMode === GameMode.ZEN && (
                         <div style={{ 
                             fontSize: 11, 
@@ -255,36 +220,6 @@ export const HUD: React.FC = () => {
                             fontWeight: 600
                         }}>
                             {Math.floor(zenSessionTime / 60)}:{(zenSessionTime % 60).toString().padStart(2, '0')}
-                        </div>
-                    )}
-
-                    {gameMode === GameMode.SURVIVAL && (
-                        <div style={{
-                            padding: '6px 12px',
-                            borderRadius: 12,
-                            background: 'rgba(107,114,128,0.15)',
-                            border: '1px solid rgba(107,114,128,0.25)',
-                            flexShrink: 0,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center'
-                        }}>
-                            <div style={{ 
-                                fontSize: 16, 
-                                fontWeight: 700, 
-                                color: '#9ca3af', 
-                                lineHeight: 1 
-                            }}>
-                                {survivalNextPush}
-                            </div>
-                            <div style={{ 
-                                fontSize: 11, 
-                                color: 'rgba(156,163,175,0.6)', 
-                                textAlign: 'center',
-                                marginTop: 2
-                            }}>
-                                SN
-                            </div>
                         </div>
                     )}
 
@@ -432,16 +367,11 @@ export const HUD: React.FC = () => {
                     <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-2 overflow-hidden">
                             <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider truncate">
-                                {gameMode === GameMode.CAREER && `Seviye ${currentLevelIndex}`}
                                 {gameMode === GameMode.ENDLESS && `Sonsuz Mod`}
                                 {gameMode === GameMode.TIMED && `Quantum Rush`}
                                 {gameMode === GameMode.ZEN && `ZEN Modu`}
-                                {gameMode === GameMode.SURVIVAL && `SURVIVAL`}
                             </span>
-                            {gameMode === GameMode.CAREER && currentLevelDef && (
-                                <span className="text-xs text-white/60 truncate font-medium">- {currentLevelDef.name}</span>
-                            )}
-                            {(gameMode !== GameMode.CAREER && gameMode !== GameMode.ZEN) && (
+                            {gameMode !== GameMode.ZEN && (
                                 <span className="text-xs text-white/40 truncate font-medium italic">En İyi: {highScore.toLocaleString()}</span>
                             )}
                         </div>
@@ -458,91 +388,19 @@ export const HUD: React.FC = () => {
                                 <span>⏱ {Math.floor(zenSessionTime / 60)}:{(zenSessionTime % 60).toString().padStart(2, '0')}</span>
                             </div>
                         ) : (
-                            <div className={clsx(
-                                "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold",
-                                (gameMode === GameMode.CAREER && (bossType === 'SPEED_SURGE' || movesLeft <= 10)) ? "bg-rose-500/20 text-rose-400 animate-pulse" : "bg-white/5 text-white/40"
-                            )}>
-                                <span>{gameMode === GameMode.CAREER ? `${movesLeft} Hamle` : 'Sınırsız'}</span>
+                            <div className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold bg-white/5 text-white/40">
+                                <span>Sınırsız</span>
                             </div>
                         )}
                     </div>
 
                     <div className="flex gap-4 overflow-x-auto no-scrollbar">
-                        {gameMode === GameMode.CAREER ? levelObjectives.map((obj, i) => (
-                            <div key={i} className="flex flex-col flex-shrink-0 min-w-[70px]">
-                                <div className="flex justify-between items-end mb-0.5">
-                                    <span className="text-[8px] uppercase text-white/30 truncate mr-2">
-                                        {obj.type === 'SCORE' ? 'Puan' :
-                                            obj.type === 'CLEAR_LINES' ? 'Satır' :
-                                                obj.type === 'BREAK_ICE' ? 'Buz' :
-                                                    obj.type === 'CHAIN_REACTION' ? 'Zincir' : obj.type}
-                                    </span>
-                                    <span className={clsx(
-                                        "text-[9px] font-mono",
-                                        obj.current >= obj.target ? "text-emerald-400 font-bold" : "text-white/60"
-                                    )}>
-                                        {obj.current}/{obj.target}
-                                    </span>
-                                </div>
-                                <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                    <motion.div
-                                        initial={{ width: 0 }}
-                                        animate={{ width: `${(obj.current / obj.target) * 100}%` }}
-                                        className={clsx(
-                                            "h-full rounded-full",
-                                            obj.current >= obj.target ? "bg-emerald-500" : "bg-blue-500/60"
-                                        )}
-                                    />
-                                </div>
-                            </div>
-                        )) : gameMode === GameMode.ZEN ? (
+                        {gameMode === GameMode.ZEN ? (
                             <div className="flex items-center gap-2">
                                 <span className="text-[20px] font-black text-purple-400 italic tracking-tight">
                                     🧱 {zenBlocksPlaced}
                                 </span>
                                 <span className="text-[9px] text-white/20 uppercase tracking-widest font-bold">Blok</span>
-                            </div>
-                        ) : gameMode === GameMode.SURVIVAL ? (
-                            <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[20px] font-black text-white italic tracking-tight">
-                                        {score.toLocaleString()}
-                                    </span>
-                                    <span className="text-[9px] text-white/20 uppercase tracking-widest font-bold">Skor</span>
-                                </div>
-                                <div style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 2,
-                                    background: 'rgba(255,255,255,0.03)',
-                                    borderRadius: 6,
-                                    border: '0.5px solid rgba(255,255,255,0.06)',
-                                    padding: '4px 8px',
-                                    minWidth: 80
-                                }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', fontWeight: 500 }}>SONRAKI SATIR</span>
-                                        <span style={{
-                                            fontSize: 11,
-                                            fontWeight: 700,
-                                            color: survivalNextPush <= 3 ? '#ef4444' : '#9ca3af'
-                                        }}>
-                                            {survivalNextPush}s
-                                        </span>
-                                    </div>
-                                    <div style={{ height: 3, background: 'rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
-                                        <div style={{
-                                            height: '100%',
-                                            width: `${((survivalPushInterval - survivalNextPush) / survivalPushInterval) * 100}%`,
-                                            background: survivalNextPush <= 3 ? '#ef4444' : '#6b7280',
-                                            borderRadius: 2,
-                                            transition: 'width 1s linear'
-                                        }} />
-                                    </div>
-                                </div>
-                                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
-                                    {Math.floor(survivalTime / 60)}:{(survivalTime % 60).toString().padStart(2, '0')} hayatta
-                                </span>
                             </div>
                         ) : (
                             <div className="flex items-center gap-2">

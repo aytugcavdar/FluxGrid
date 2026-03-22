@@ -15,7 +15,6 @@ import {
   UserDocument,
   UserDocumentUpdate,
   LeaderboardEntry,
-  CareerProgressDocument,
   DailyHistoryDocument,
   AchievementDocument,
   PendingWriteDocument,
@@ -171,28 +170,7 @@ export async function syncFromFirestore(uid: string): Promise<void> {
   }
 }
 
-// 5. syncCareerProgress
-export async function syncCareerProgress(
-  uid: string,
-  levelIndex: number,
-  data: Omit<CareerProgressDocument, 'levelIndex'>
-): Promise<void> {
-  const db = getFirebaseFirestore();
-  
-  try {
-    const key = String(levelIndex).padStart(3, '0');
-    await setDoc(
-      doc(db, 'users', uid, 'careerProgress', key),
-      { ...data, levelIndex: key },
-      { merge: true }
-    );
-  } catch (error) {
-    console.error('syncCareerProgress error:', error);
-    throw error;
-  }
-}
-
-// 6. syncDailyChallenge
+// 5. syncDailyChallenge
 export async function syncDailyChallenge(
   uid: string,
   date: string,
@@ -235,7 +213,7 @@ export async function syncDailyChallenge(
   }
 }
 
-// 7. syncAchievement
+// 6. syncAchievement
 export async function syncAchievement(
   uid: string,
   achievement: AchievementDocument
@@ -254,7 +232,7 @@ export async function syncAchievement(
   }
 }
 
-// 8. processPendingWrites
+// 7. processPendingWrites
 export async function processPendingWrites(uid: string): Promise<void> {
   const db = getFirebaseFirestore();
   
@@ -278,13 +256,6 @@ export async function processPendingWrites(uid: string): Promise<void> {
               write.payload.displayName as string,
               write.payload.photoURL as string | null,
               write.payload.sessionDurationSecs as number
-            );
-            break;
-          case 'career':
-            await syncCareerProgress(
-              uid,
-              write.payload.levelIndex as number,
-              write.payload.data as Omit<CareerProgressDocument, 'levelIndex'>
             );
             break;
           case 'daily':
@@ -329,7 +300,7 @@ export async function processPendingWrites(uid: string): Promise<void> {
   }
 }
 
-// 9. addToPendingWrites
+// 8. addToPendingWrites
 export async function addToPendingWrites(
   uid: string,
   type: PendingWriteType,
@@ -353,7 +324,7 @@ export async function addToPendingWrites(
   }
 }
 
-// 10. syncLocalToFirestore (eski fonksiyon, uyumlu tut)
+// 9. syncLocalToFirestore (eski fonksiyon, uyumlu tut)
 export async function syncLocalToFirestore(uid: string): Promise<void> {
   const db = getFirebaseFirestore();
   

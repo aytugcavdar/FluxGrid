@@ -35,9 +35,7 @@ export const generateShareText = (
     [GameMode.DAILY_CHALLENGE]: 'Günlük Bulmaca',
     [GameMode.ENDLESS]: 'Sonsuz Mod',
     [GameMode.TIMED]: 'Quantum Rush',
-    [GameMode.SURVIVAL]: 'Survival',
     [GameMode.ZEN]: 'Zen',
-    [GameMode.CAREER]: 'Kariyer',
   }[mode] ?? mode;
 
   // Emoji grid oluştur (6 satır x 4 sütun)

@@ -18,11 +18,11 @@ const GUIDED_HIGHLIGHT_POOL_SIZE = 25;
 
 export const Grid: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent } = useGameStore();
+    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent } = useGameStore();
     const { getThemeColors } = useThemeStore();
 
-    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent });
-    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent]);
+    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent });
+    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent]);
 
     const [hoverCoord, setHoverCoord] = useState<{ x: number, y: number } | null>(null);
     const hoverCoordRef = useRef<{ x: number, y: number } | null>(null);
@@ -717,44 +717,6 @@ export const Grid: React.FC = () => {
                         }
                     });
                 });
-            }
-            
-            // 3. Guided Experience Highlighting
-            guidedHighlightMeshesRef.current.forEach(m => { m.isVisible = false; });
-            
-            const { guidedTarget, pieces: currentPieces } = stateRef.current;
-            if (guidedTarget && !draggedPiece) {
-                const targetPiece = currentPieces[guidedTarget.pieceIndex];
-                if (targetPiece) {
-                    const pulseAlpha = 0.3 + Math.sin(time * 2) * 0.1; // Yavaşlatıldı: 4 -> 2, azaltıldı: 0.15 -> 0.1
-                    const pulseY = 0.4 + Math.sin(time * 1.5) * 0.05; // Yavaşlatıldı: 3 -> 1.5, azaltıldı: 0.08 -> 0.05
-                    
-                    let highlightIndex = 0;
-                    targetPiece.shape.forEach((row, dy) => {
-                        row.forEach((val, dx) => {
-                            if (val === 1 && highlightIndex < GUIDED_HIGHLIGHT_POOL_SIZE) {
-                                const gx = guidedTarget.x + dx;
-                                const gy = guidedTarget.y + dy;
-                                
-                                if (gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE) {
-                                    const highlight = guidedHighlightMeshesRef.current[highlightIndex++];
-                                    highlight.position = getVectorPos(gx, gy);
-                                    highlight.position.y = pulseY;
-                                    
-                                    const mat = highlight.material as BABYLON.StandardMaterial;
-                                    mat.alpha = pulseAlpha;
-                                    
-                                    // Bright green edges
-                                    highlight.enableEdgesRendering();
-                                    highlight.edgesWidth = 4.0;
-                                    highlight.edgesColor = new BABYLON.Color4(0.06, 0.73, 0.51, 0.9);
-                                    
-                                    highlight.isVisible = true;
-                                }
-                            }
-                        });
-                    });
-                }
             }
             
             // Skill overlay rendering (moved from separate renderLoop)
