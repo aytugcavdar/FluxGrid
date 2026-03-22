@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const EVENT_CONFIG = {
     ICE_STORM: { label: 'Buz Fırtınası', color: '#185FA5', bg: 'rgba(56,138,221,0.12)' },
-    DARKNESS:  { label: 'Karanlık Bölge', color: '#888780', bg: 'rgba(136,135,128,0.12)' },
+    FOG:       { label: 'Sis', color: '#888780', bg: 'rgba(136,135,128,0.12)' },
     QUAKE:     { label: 'Deprem!', color: '#D85A30', bg: 'rgba(216,90,48,0.12)' },
     MIRROR:    { label: 'Ayna Modu', color: '#D4537E', bg: 'rgba(212,83,126,0.12)' },
 };
@@ -117,7 +117,7 @@ export const HUD: React.FC = () => {
                                             borderRadius: 8
                                         }}
                                     >
-                                        🔥 RUSH
+                                        RUSH ×{timedBoostMovesLeft}
                                     </motion.span>
                                 )}
                                 {gameMode === GameMode.TIMED && timeLeft <= 10 && timeLeft > 0 && (
@@ -187,26 +187,27 @@ export const HUD: React.FC = () => {
                         <div style={{
                             padding: '6px 12px',
                             borderRadius: 12,
-                            background: (timeLeft <= 10 ? 'rgba(239,68,68,0.15)' : timeLeft <= 30 ? 'rgba(249,115,22,0.12)' : 'rgba(245,158,11,0.1)'),
-                            border: `1px solid ${timeLeft <= 10 ? 'rgba(239,68,68,0.35)' : timeLeft <= 30 ? 'rgba(249,115,22,0.3)' : 'rgba(245,158,11,0.25)'}`,
+                            background: (timeLeft <= 10 ? 'rgba(239,68,68,0.12)' : timeLeft <= 30 ? 'rgba(249,115,22,0.1)' : 'rgba(59,130,246,0.08)'),
+                            border: `1px solid ${timeLeft <= 10 ? 'rgba(239,68,68,0.55)' : timeLeft <= 30 ? 'rgba(249,115,22,0.45)' : 'rgba(59,130,246,0.35)'}`,
                             flexShrink: 0,
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
                             minWidth: 34,
-                            animation: (gameMode === GameMode.TIMED && timeLeft <= 10) ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none'
+                            animation: (gameMode === GameMode.TIMED && timeLeft <= 10) ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none',
+                            transition: 'background 0.5s ease, border-color 0.5s ease'
                         }}>
                             <span style={{ 
                                 fontSize: 15, 
                                 fontWeight: 700, 
-                                color: (timeLeft <= 10 ? '#ef4444' : timeLeft <= 30 ? '#f97316' : '#f59e0b'), 
+                                color: (timeLeft <= 10 ? '#ef4444' : timeLeft <= 30 ? '#f97316' : '#3b82f6'), 
                                 lineHeight: 1 
                             }}>
                                 {timeLeft}
                             </span>
                             <span style={{ 
                                 fontSize: 8, 
-                                color: `${timeLeft <= 10 ? '#ef4444' : timeLeft <= 30 ? '#f97316' : '#f59e0b'}70`, 
+                                color: `${timeLeft <= 10 ? '#ef4444' : timeLeft <= 30 ? '#f97316' : '#3b82f6'}70`, 
                                 marginTop: 1
                             }}>
                                 SN
@@ -447,8 +448,8 @@ export const HUD: React.FC = () => {
 
                         {gameMode === GameMode.TIMED ? (
                             <div className={clsx(
-                                "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-black tracking-tight",
-                                (timeLeft <= 10 ? "bg-rose-500/20 text-rose-400 animate-pulse" : "bg-amber-500/20 text-amber-400")
+                                "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-black tracking-tight transition-all duration-500",
+                                (timeLeft <= 10 ? "bg-rose-500/20 text-rose-400 animate-pulse" : timeLeft <= 30 ? "bg-orange-500/20 text-orange-400" : "bg-blue-500/20 text-blue-400")
                             )}>
                                 <span>{timeLeft} Saniye</span>
                             </div>

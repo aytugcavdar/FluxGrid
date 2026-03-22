@@ -15,15 +15,14 @@ const GRID_OFFSET = ((GRID_SIZE - 1) * TOTAL_CELL_SIZE) / 2;
 const GHOST_POOL_SIZE = 25;
 const SKILL_OVERLAY_POOL_SIZE = 10;
 const GUIDED_HIGHLIGHT_POOL_SIZE = 25;
-const DARK_OVERLAY_POOL_SIZE = 6; // 2 rows × 3 cols max
 
 export const Grid: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent, darkZoneCells } = useGameStore();
+    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent } = useGameStore();
     const { getThemeColors } = useThemeStore();
 
-    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent, darkZoneCells });
-    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent, darkZoneCells }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent, darkZoneCells]);
+    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent });
+    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, guidedTarget, pieces, activeEvent]);
 
     const [hoverCoord, setHoverCoord] = useState<{ x: number, y: number } | null>(null);
     const hoverCoordRef = useRef<{ x: number, y: number } | null>(null);
@@ -32,7 +31,6 @@ export const Grid: React.FC = () => {
     const meshMapRef = useRef<Map<string, BABYLON.Mesh>>(new Map());
     const ghostMeshesRef = useRef<BABYLON.Mesh[]>([]);
     const guidedHighlightMeshesRef = useRef<BABYLON.Mesh[]>([]);
-    const darkOverlayMeshesRef = useRef<BABYLON.Mesh[]>([]);
     const ambientParticlesRef = useRef<BABYLON.Mesh[]>([]);
     const lastScoreRef = useRef(0);
     const glowLayerRef = useRef<BABYLON.GlowLayer | null>(null);
@@ -331,30 +329,10 @@ export const Grid: React.FC = () => {
             return pool;
         };
 
-        const initDarkOverlayPool = (scene: BABYLON.Scene) => {
-            const pool: BABYLON.Mesh[] = [];
-            for (let i = 0; i < DARK_OVERLAY_POOL_SIZE; i++) {
-                const overlay = BABYLON.MeshBuilder.CreateBox(`dark-overlay-${i}`, 
-                    { size: CELL_SIZE * 0.92, height: 0.7 }, 
-                    scene
-                );
-                const mat = new BABYLON.StandardMaterial(`dark-mat-${i}`, scene);
-                mat.diffuseColor = BABYLON.Color3.FromHexString("#444441");
-                mat.alpha = 0.85;
-                mat.specularColor = BABYLON.Color3.Black();
-                overlay.material = mat;
-                overlay.isPickable = false;
-                overlay.isVisible = false;
-                pool.push(overlay);
-            }
-            return pool;
-        };
-
         // Initialize pools
         ghostMeshesRef.current = initGhostPool(scene);
         skillOverlayMeshesRef.current = initSkillOverlayPool(scene);
         guidedHighlightMeshesRef.current = initGuidedHighlightPool(scene);
-        darkOverlayMeshesRef.current = initDarkOverlayPool(scene);
 
 
         // --- Logic Helpers ---
@@ -624,21 +602,13 @@ export const Grid: React.FC = () => {
             // 0. Animate Particles — skip (particles removed)
 
             // 1. Sync Active Grid
-            const { darkZoneCells: dzc, activeEvent: ae } = stateRef.current;
             const activeIds = new Set<string>();
-            
-            // Hide all dark overlays first
-            darkOverlayMeshesRef.current.forEach(m => m.isVisible = false);
-            let darkOverlayIndex = 0;
             
             // Throttle animations: only update emissive colors every 3 frames (20fps instead of 60fps)
             const shouldUpdateAnimations = !disableAnimations && (frameCount % 3 === 0);
             
             grid.forEach((row, y) => {
                 row.forEach((cell, x) => {
-                    // Check if this cell is in dark zone
-                    const isDarkCell = ae === 'DARKNESS' && dzc.some(dz => dz.row === y && dz.col === x);
-                    
                     if (cell.filled && cell.id) {
                         activeIds.add(cell.id);
                         const targetPos = getVectorPos(x, y);
@@ -650,12 +620,7 @@ export const Grid: React.FC = () => {
                             meshMap.set(cell.id, mesh);
                         }
 
-                        // Hide mesh if in dark zone
-                        if (isDarkCell) {
-                            mesh.isVisible = false;
-                        } else {
-                            mesh.isVisible = true;
-                        }
+                        mesh.isVisible = true;
 
                         // Update material if health changed (for ICE)
                         if (cell.type === CellType.ICE && cell.health === 1 && mesh.material) {
@@ -693,16 +658,6 @@ export const Grid: React.FC = () => {
                                     BABYLON.Color3.FromHexString("#ef4444").scale(pulseAlpha);
                             }
                         }
-                    }
-                    
-                    // Show dark overlay for dark zone cells
-                    if (isDarkCell && darkOverlayIndex < DARK_OVERLAY_POOL_SIZE) {
-                        const overlay = darkOverlayMeshesRef.current[darkOverlayIndex];
-                        const targetPos = getVectorPos(x, y);
-                        overlay.position = targetPos.clone();
-                        overlay.position.y = 0.35;
-                        overlay.isVisible = true;
-                        darkOverlayIndex++;
                     }
                 });
             });

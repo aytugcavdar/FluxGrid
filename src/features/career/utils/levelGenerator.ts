@@ -86,7 +86,7 @@ export const generateLevel = (levelIndex: number): LevelDef => {
       'ICE_STORM',    // Seviye 10: Grid'e sürekli buz blok düşer
       'BOMB_RAIN',    // Seviye 20: Her 3 hamlede bir bomba bloğu
       'SPEED_SURGE',  // Seviye 30: Moves limit yarıya inmiş, hedef aynı
-      'DARKNESS',     // Seviye 40: Parça renklerini gizler
+      'FOG',          // Seviye 40: Parça renklerini gizler
       'MIRROR',       // Seviye 50: Her yerleştirmede ayna parça da gelir
     ] as const;
     
@@ -94,7 +94,7 @@ export const generateLevel = (levelIndex: number): LevelDef => {
       ICE_STORM: 'Her 2 hamlede bir buz bloğu düşüyor!',
       BOMB_RAIN: 'Dikkat: Bombalar sahada!',
       SPEED_SURGE: 'Daha az hamle, aynı hedef!',
-      DARKNESS: 'Parça renkleri gizli — şansına güven!',
+      FOG: 'Parçaların rengi 5 hamle boyunca gizli!',
       MIRROR: 'Her yerleştirmede ayna parça da geliyor!',
     };
     

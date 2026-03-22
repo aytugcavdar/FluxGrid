@@ -45,6 +45,17 @@ export default defineConfig(({ mode }) => {
           '@shared':   path.resolve(__dirname, './src/shared'),
           '@utils':    path.resolve(__dirname, './src/utils'),
         }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              'babylon': ['babylonjs'],
+              'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+              'vendor': ['react', 'react-dom', 'framer-motion', 'zustand']
+            }
+          }
+        }
       }
     };
 });

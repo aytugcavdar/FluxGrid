@@ -183,7 +183,7 @@ describe('Responsive Layout Tests', () => {
       render(<App />);
 
       // Verify career chip is visible
-      expect(screen.getByText(/kardan devam/i)).toBeInTheDocument();
+      expect(screen.getByText(/kaldığın yerden devam et/i)).toBeInTheDocument();
       expect(screen.getByText(/SEVİYE 6/i)).toBeInTheDocument();
 
       // Verify daily challenge card
@@ -235,7 +235,7 @@ describe('Responsive Layout Tests', () => {
       const fluxElements = screen.getAllByText(/FLUX/i);
       expect(fluxElements.length).toBeGreaterThan(0);
       expect(screen.getByText(/10.0k/i)).toBeInTheDocument(); // High score
-      expect(screen.getByText(/kardan devam/i)).toBeInTheDocument();
+      expect(screen.getByText(/kaldığın yerden devam et/i)).toBeInTheDocument();
       expect(screen.getByText(/SEVİYE 11/i)).toBeInTheDocument();
     });
   });
@@ -361,7 +361,7 @@ describe('Responsive Layout Tests', () => {
       setupUserState({ gamesPlayed: 5, maxLevelReached: 5 });
       render(<App />);
 
-      const careerChip = screen.getByText(/kardan devam/i).closest('button');
+      const careerChip = screen.getByText(/kaldığın yerden devam et/i).closest('button');
       const chipStyle = careerChip?.getAttribute('style');
       
       // Should have blue theme for career (with spaces after commas)
@@ -391,7 +391,7 @@ describe('Responsive Layout Tests', () => {
       expect(screen.getByText(/En iyi skor/i)).toBeInTheDocument();
       
       // Should NOT show career chip
-      expect(screen.queryByText(/kardan devam/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/kaldığın yerden devam et/i)).not.toBeInTheDocument();
     });
 
     it('should render correctly for returning user (5 games)', () => {
@@ -411,7 +411,7 @@ describe('Responsive Layout Tests', () => {
       render(<App />);
 
       // Should show career chip
-      expect(screen.getByText(/kardan devam/i)).toBeInTheDocument();
+      expect(screen.getByText(/kaldığın yerden devam et/i)).toBeInTheDocument();
       expect(screen.getByText(/SEVİYE 9/i)).toBeInTheDocument();
       
       // Should show stats
@@ -490,7 +490,7 @@ describe('Responsive Layout Tests', () => {
       setupUserState({ gamesPlayed: 5, maxLevelReached: 5 });
       render(<App />);
 
-      const careerChip = screen.getByText(/kardan devam/i).closest('button');
+      const careerChip = screen.getByText(/kaldığın yerden devam et/i).closest('button');
       const chipStyle = careerChip?.getAttribute('style');
       
       // Should have small padding

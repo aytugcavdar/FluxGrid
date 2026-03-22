@@ -7,7 +7,7 @@ import { useThemeStore } from '@shared/store/themeStore';
 import { useAbilityStore } from '../features/abilities/store/abilityStore';
 import { usePassiveAbilityStore } from '../features/abilities/store/passiveAbilityStore';
 import { useProfileStore } from '../features/profile/store/profileStore';
-import { HUD, ScorePopups, ChainCounter, PerfectBonus, SurgeFlash, ComboFlash, DragOverlay, ComboBar } from '@features/hud';
+import { HUD, ScorePopups, ChainCounter, PerfectBonus, SurgeFlash, ComboFlash, DragOverlay, ComboBar, ComboRushFlash } from '@features/hud';
 import { LevelMap } from '../features/career/components/LevelMap';
 import { CareerPage } from '../features/career/components/CareerPage';
 import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
@@ -38,7 +38,8 @@ interface ScorePopup {
 interface TimePopup {
   id: number;
   value: number;
-  isNegative: boolean;
+  x: number;
+  y: number;
 }
 
 // Helper function to get mode icon
@@ -54,6 +55,19 @@ const getModeIcon = (mode: GameMode): string => {
   return icons[mode] || '🎮';
 };
 
+// Helper function to get mode label in Turkish
+const getModeLabel = (mode: GameMode): string => {
+  const labels: Record<GameMode, string> = {
+    [GameMode.ENDLESS]: 'Sonsuz',
+    [GameMode.TIMED]: 'Zamanlı',
+    [GameMode.SURVIVAL]: 'Hayatta Kalma',
+    [GameMode.ZEN]: 'Zen',
+    [GameMode.CAREER]: 'Kariyer',
+    [GameMode.DAILY_CHALLENGE]: 'Günlük Meydan Okuma',
+  };
+  return labels[mode] || 'Oyun';
+};
+
 const App: React.FC = () => {
   const { t, i18n } = useTranslation();
   const {
@@ -61,8 +75,8 @@ const App: React.FC = () => {
     isLevelComplete, nextLevel, currentLevelIndex,
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
     earnedStars, dailyClearHistory, highScore, stats, maxLevelReached, startLevel, bossType,
-    isFirstGame, guidedStep, activeSkill, activateSkill, activeEvent, darkZoneCells,
-    maxCombo, chronoBonus
+    isFirstGame, guidedStep, activeSkill, activateSkill, activeEvent,
+    maxCombo, chronoBonus, timedBoostMovesLeft
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors } = useThemeStore();
   const colors = getThemeColors();
@@ -85,10 +99,19 @@ const App: React.FC = () => {
   const [timePopups, setTimePopups] = useState<TimePopup[]>([]);
   const prevTimeRef = useRef(0);
   const timePopupIdRef = useRef(0);
+  const [show30SecondWarning, setShow30SecondWarning] = useState(false);
+  const prevTimeLeftRef = useRef(timeLeft);
+  const [timedWarning, setTimedWarning] = useState<'30sn' | '10sn' | null>(null);
+  const prevComboRef = useRef(combo);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared'>('idle');
   const [surgeWasUsed, setSurgeWasUsed] = useState(false);
   const [streak, setStreak] = useState(getStreak);
   const [dailyPlayedToday, setDailyPlayedToday] = useState(getDailyPlayedToday);
+  
+  // COMBO RUSH state'leri
+  const [showRushStart, setShowRushStart] = useState(false);
+  const [showRushEnd, setShowRushEnd] = useState(false);
+  const prevRushMovesRef = useRef(timedBoostMovesLeft);
   
   // History management refs
   const isHandlingPopState = useRef(false);
@@ -498,6 +521,57 @@ const App: React.FC = () => {
     prevSurgeRef.current = isSurgeActive;
   }, [isSurgeActive]);
 
+  // 30 second warning for TIMED mode
+  // TIMED mode warnings: 30 second and 10 second
+  useEffect(() => {
+    if (gameMode === GameMode.TIMED) {
+      // 30 second warning
+      if (timeLeft === 30 && prevTimeLeftRef.current === 31) {
+        setTimedWarning('30sn');
+        setTimeout(() => setTimedWarning(null), 2500);
+      }
+      // 10 second warning
+      if (timeLeft === 10 && prevTimeLeftRef.current === 11) {
+        setTimedWarning('10sn');
+        setTimeout(() => setTimedWarning(null), 2000);
+      }
+    }
+    prevTimeLeftRef.current = timeLeft;
+  }, [timeLeft, gameMode]);
+
+  // Combo break penalty visual feedback for TIMED mode
+  useEffect(() => {
+    if (gameMode === GameMode.TIMED && prevComboRef.current > 0 && combo === 0) {
+      // Show -1 second popup
+      setTimePopups(prev => [...prev, {
+        id: timePopupIdRef.current++,
+        value: -1,
+        x: Math.random() * 60 + 20, // Random x position 20-80%
+        y: 30
+      }]);
+    }
+    prevComboRef.current = combo;
+  }, [combo, gameMode]);
+
+  // COMBO RUSH başlangıç ve bitiş efektleri
+  useEffect(() => {
+    if (gameMode !== GameMode.TIMED) return;
+    
+    // RUSH başladı (0'dan > 0'a geçti)
+    if (prevRushMovesRef.current === 0 && timedBoostMovesLeft > 0) {
+      setShowRushStart(true);
+      setTimeout(() => setShowRushStart(false), 1500);
+    }
+    
+    // RUSH bitti (1'den 0'a düştü)
+    if (prevRushMovesRef.current === 1 && timedBoostMovesLeft === 0) {
+      setShowRushEnd(true);
+      setTimeout(() => setShowRushEnd(false), 300);
+    }
+    
+    prevRushMovesRef.current = timedBoostMovesLeft;
+  }, [timedBoostMovesLeft, gameMode]);
+
   // Time popups for TIMED mode (removed BLITZ)
   // Note: BLITZ mechanics can be integrated into TIMED mode with a speed parameter in the future
 
@@ -813,46 +887,6 @@ const App: React.FC = () => {
                   position: 'relative'
                 }}>
                   <Grid />
-                  
-                  {/* DARKNESS Event Overlay */}
-                  {activeEvent === 'DARKNESS' && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: 0, left: 0, right: 0, bottom: 0,
-                        pointerEvents: 'none',
-                        zIndex: 20,
-                      }}
-                    >
-                      {darkZoneCells.map(({ row, col }) => {
-                        // Grid 10x10, her hücre eşit büyüklükte
-                        // CSS grid pozisyonunu hesapla
-                        const cellPercent = 100 / 10;
-                        return (
-                          <div
-                            key={`${row}-${col}`}
-                            style={{
-                              position: 'absolute',
-                              left: `${col * cellPercent}%`,
-                              top: `${row * cellPercent}%`,
-                              width: `${cellPercent}%`,
-                              height: `${cellPercent}%`,
-                              background: 'rgba(30, 30, 30, 0.88)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: 14,
-                              color: 'rgba(255,255,255,0.3)',
-                              fontWeight: 700,
-                              borderRadius: 2,
-                            }}
-                          >
-                            ?
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
               </div>
               
@@ -1012,7 +1046,124 @@ const App: React.FC = () => {
             <ScorePopups popups={scorePopups} />
             <ComboFlash combo={combo} />
             <SurgeFlash active={showSurgeFlash} />
+            <ComboRushFlash active={showRushStart} movesLeft={timedBoostMovesLeft} onStart={true} />
+            <ComboRushFlash active={showRushEnd} movesLeft={0} onStart={false} />
             {gameMode !== GameMode.ZEN && <ComboBar />}
+
+            {/* Time Popups for TIMED Mode (combo break penalty) */}
+            <AnimatePresence>
+              {timePopups.map(popup => (
+                <motion.div
+                  key={popup.id}
+                  initial={{ opacity: 0, y: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, y: -60, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.5 }}
+                  transition={{ duration: 1.2, ease: 'easeOut' }}
+                  style={{
+                    position: 'fixed',
+                    left: `${popup.x}%`,
+                    top: `${popup.y}%`,
+                    fontSize: 24,
+                    fontWeight: 900,
+                    color: '#ef4444',
+                    textShadow: '0 2px 8px rgba(0,0,0,0.5)',
+                    pointerEvents: 'none',
+                    zIndex: 100
+                  }}
+                  onAnimationComplete={() => {
+                    setTimePopups(prev => prev.filter(p => p.id !== popup.id));
+                  }}
+                >
+                  {popup.value > 0 ? `+${popup.value}s` : `${popup.value}s`}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {/* TIMED Mode Warnings: 30 second and 10 second */}
+            <AnimatePresence>
+              {timedWarning === '30sn' && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="fixed top-24 left-0 right-0 flex justify-center pointer-events-none z-50"
+                >
+                  <div style={{
+                    background: 'rgba(249,115,22,0.95)',
+                    border: '2px solid rgba(249,115,22,1)',
+                    borderRadius: 16,
+                    padding: '12px 24px',
+                    boxShadow: '0 8px 32px rgba(249,115,22,0.4)',
+                  }}>
+                    <div style={{
+                      fontSize: 16,
+                      fontWeight: 700,
+                      color: '#fff',
+                      textAlign: 'center',
+                      letterSpacing: '0.05em'
+                    }}>
+                      ⚡ Son 30 saniye — 1.5× puan kazanıyorsun!
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+              {timedWarning === '10sn' && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="fixed top-24 left-0 right-0 flex justify-center pointer-events-none z-50"
+                >
+                  <div style={{
+                    background: 'rgba(239,68,68,0.95)',
+                    border: '2px solid rgba(239,68,68,1)',
+                    borderRadius: 16,
+                    padding: '14px 28px',
+                    boxShadow: '0 8px 32px rgba(239,68,68,0.5)',
+                  }}>
+                    <div style={{
+                      fontSize: 18,
+                      fontWeight: 900,
+                      color: '#fff',
+                      textAlign: 'center',
+                      letterSpacing: '0.05em'
+                    }}>
+                      🔥 Şimdi veya hiç! — Son 10 saniye
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* 30 Second Warning for TIMED Mode - DEPRECATED, replaced by timedWarning state */}
+            <AnimatePresence>
+              {show30SecondWarning && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="fixed top-24 left-0 right-0 flex justify-center pointer-events-none z-50"
+                >
+                  <div style={{
+                    background: 'rgba(249,115,22,0.95)',
+                    border: '2px solid rgba(249,115,22,1)',
+                    borderRadius: 16,
+                    padding: '12px 24px',
+                    boxShadow: '0 8px 32px rgba(249,115,22,0.4)',
+                  }}>
+                    <div style={{
+                      fontSize: 16,
+                      fontWeight: 700,
+                      color: '#fff',
+                      textAlign: 'center',
+                      letterSpacing: '0.05em'
+                    }}>
+                      ⚡ Son 30 saniye — 1.5× puan!
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <div className="fixed top-20 left-0 right-0 flex flex-col items-center gap-2 pointer-events-none z-50">
               <AnimatePresence mode="popLayout">
@@ -1179,12 +1330,12 @@ const App: React.FC = () => {
               {(() => {
                 // Mode suggestions (BLITZ removed, SURVIVAL hidden)
                 const MODE_SUGGESTIONS: Record<string, { mode: GameMode; label: string; desc: string }> = {
-                  [GameMode.ENDLESS]: { mode: GameMode.TIMED, label: 'Rush\'ı dene', desc: '60 saniye, satır başı süre' },
-                  [GameMode.TIMED]: { mode: GameMode.ZEN, label: 'Zen\'i dene', desc: 'Stressiz, sakin oyun' },
-                  [GameMode.ZEN]: { mode: GameMode.ENDLESS, label: 'Sonsuz\'u dene', desc: 'Skor kovalama modu' },
-                  [GameMode.CAREER]: { mode: GameMode.ENDLESS, label: 'Sonsuz\'u dene', desc: 'Kariyer arası dinlenme' },
-                  [GameMode.DAILY_CHALLENGE]: { mode: GameMode.ENDLESS, label: 'Sonsuz\'u dene', desc: 'Bugünlük bitmedi' },
-                  [GameMode.SURVIVAL]: { mode: GameMode.ENDLESS, label: 'Sonsuz\'u dene', desc: 'Klasik mod' },
+                  [GameMode.ENDLESS]: { mode: GameMode.TIMED, label: 'Zamanlı Modu Dene', desc: '60 saniye içinde en yüksek skoru yap' },
+                  [GameMode.TIMED]: { mode: GameMode.ZEN, label: 'Zen Modunu Dene', desc: 'Stressiz, zamansız oyun deneyimi' },
+                  [GameMode.ZEN]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Sınırsız oyun, skor rekorları kır' },
+                  [GameMode.CAREER]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Rahatla ve serbest oyna' },
+                  [GameMode.DAILY_CHALLENGE]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Günlük meydan okuma sonrası pratik yap' },
+                  [GameMode.SURVIVAL]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Klasik oyun deneyimi' },
                 };
                 const suggestion = MODE_SUGGESTIONS[gameMode];
 
@@ -1475,7 +1626,7 @@ const App: React.FC = () => {
                 {bossType === 'ICE_STORM' ? '❄️' :
                  bossType === 'BOMB_RAIN' ? '💣' :
                  bossType === 'SPEED_SURGE' ? '⚡' :
-                 bossType === 'DARKNESS' ? '🌑' : '🪞'}
+                 bossType === 'FOG' ? '🌫️' : '🪞'}
               </div>
               <div style={{
                 fontSize: 28,
@@ -1495,7 +1646,7 @@ const App: React.FC = () => {
                 {bossType === 'ICE_STORM' ? 'Her 2 hamlede bir buz bloğu düşüyor!' :
                  bossType === 'BOMB_RAIN' ? 'Dikkat: Bombalar sahada!' :
                  bossType === 'SPEED_SURGE' ? `Sadece ${Math.floor((useGameStore.getState().movesLeft || 20) / 2)} hamlen var!` :
-                 bossType === 'DARKNESS' ? 'Parça renkleri gizli — şansına güven!' :
+                 bossType === 'FOG' ? 'Parçaların rengi 5 hamle boyunca gizli!' :
                  'Her yerleştirmede ayna parça da geliyor!'}
               </div>
             </motion.div>

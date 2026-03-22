@@ -352,7 +352,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               color: '#93c5fd',
             }}
           >
-            <span>kardan devam et</span>
+            <span>kaldığın yerden devam et</span>
             <span style={{ opacity: 0.6 }}>→</span>
             <span
               style={{

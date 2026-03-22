@@ -56,16 +56,16 @@ describe('Career Continuation Chip', () => {
     it('should format chip text correctly', () => {
       const maxLevelReached = 5;
       const nextLevel = maxLevelReached + 1;
-      const chipText = `kardan devam → Seviye ${nextLevel}`;
+      const chipText = `kaldığın yerden devam et → Seviye ${nextLevel}`;
       
-      expect(chipText).toBe('kardan devam → Seviye 6');
+      expect(chipText).toBe('kaldığın yerden devam et → Seviye 6');
     });
 
     it('should include arrow separator', () => {
-      const chipText = 'kardan devam → Seviye 10';
+      const chipText = 'kaldığın yerden devam et → Seviye 10';
       
       expect(chipText).toContain('→');
-      expect(chipText).toContain('kardan devam');
+      expect(chipText).toContain('kaldığın yerden devam et');
       expect(chipText).toContain('Seviye');
     });
   });

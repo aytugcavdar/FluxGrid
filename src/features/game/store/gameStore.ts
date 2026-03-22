@@ -10,6 +10,14 @@ import { debouncedSave, safeLocalStorageGet, safeParseInt, safeJSONParse } from 
 import { createEmptyGrid, processGrid } from './helpers/grid';
 import { getRandomPieces, getRandomPiecesSync } from './helpers/pieces';
 import { useThemeStore } from '@shared/store/themeStore';
+import { syncAchievement } from '../../../services/firebase/syncManager';
+import { useProfileStore } from '../../profile/store/profileStore';
+import { useAuthStore } from '../../auth/store/authStore';
+import { checkAndUpdateStreak } from '@utils/streakManager';
+import { tickTimerImpl, pushSurvivalRowImpl } from './helpers/timerLogic';
+import { checkTierEvent, tickActiveEvent } from './helpers/eventSystem';
+import { updateAchievements, syncNewAchievement } from './helpers/achievementSystem';
+import { applyBossMechanics, findRandomEmptyCell } from './helpers/bossSystem';
 
 // Difficulty tier constants for Endless mode
 const DIFFICULTY_THRESHOLDS = [0, 2000, 5000, 10000, 20000];
@@ -80,9 +88,8 @@ export interface GameStore {
   bossMoveCounter: number;        // Boss mekanik sayacı
 
   // Event System State
-  activeEvent: 'ICE_STORM' | 'DARKNESS' | 'QUAKE' | 'MIRROR' | null;
+  activeEvent: 'ICE_STORM' | 'FOG' | 'QUAKE' | 'MIRROR' | null;
   eventMovesRemaining: number;
-  darkZoneCells: Array<{row: number; col: number}>;
 
   // Timed Mode State
   timedBoostMovesLeft: number;    // COMBO_RUSH moves remaining (0 = inactive)
@@ -178,7 +185,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // Event System Initial State
   activeEvent: null,
   eventMovesRemaining: 0,
-  darkZoneCells: [],
 
   // Timed Mode Initial State
   timedBoostMovesLeft: 0,
@@ -238,7 +244,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
           // Event System initialization
           activeEvent: null,
           eventMovesRemaining: 0,
-          darkZoneCells: [],
           // Timed Mode initialization
           timedBoostMovesLeft: 0,
           maxCombo: 0,
@@ -322,178 +327,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setAppState: (state) => set({ appState: state }),
   setGameMode: (mode) => set({ gameMode: mode }),
 
-  tickTimer: () => {
-    const { timeLeft, isGameOver, gameMode, appState } = get();
-    
-    // Guard: Oyun bittiyse veya oyun ekranında değilse işlem yapma
-    if (isGameOver || appState !== AppState.GAME) return;
-    
-    safeExecute(
-      () => {
-        // ZEN modda session time'ı artır
-        if (gameMode === GameMode.ZEN) {
-          const newTime = get().zenSessionTime + 1;
-          // Guard: Makul bir üst limit (24 saat = 86400 saniye)
-          if (newTime < 86400) {
-            set({ zenSessionTime: newTime });
-          }
-          return;
-        }
-        
-        // SURVIVAL modda survival time'ı artır ve satır push logic'i
-        if (gameMode === GameMode.SURVIVAL) {
-          const newSurvivalTime = get().survivalTime + 1;
-          const newNextPush = get().survivalNextPush - 1;
-          
-          // Guard: Makul bir üst limit (24 saat)
-          if (newSurvivalTime < 86400) {
-            set({ survivalTime: newSurvivalTime });
-          }
-          
-          // Satır push zamanı geldi mi?
-          if (newNextPush <= 0) {
-            get().pushSurvivalRow();
-          } else {
-            set({ survivalNextPush: newNextPush });
-          }
-          
-          // Zorluk artışı kontrolü
-          let newInterval = get().survivalPushInterval;
-          if (newSurvivalTime === 60 && newInterval > 8) {
-            newInterval = 8;
-            set({ survivalPushInterval: newInterval });
-            playSkill();
-          } else if (newSurvivalTime === 120 && newInterval > 6) {
-            newInterval = 6;
-            set({ survivalPushInterval: newInterval });
-            playSkill();
-          } else if (newSurvivalTime === 180 && newInterval > 5) {
-            newInterval = 5;
-            set({ survivalPushInterval: newInterval });
-            playSkill();
-          } else if (newSurvivalTime === 200 && newInterval > 4) {
-            newInterval = 4;
-            set({ survivalPushInterval: newInterval });
-            playSkill();
-          }
-          
-          return;
-        }
-        
-        // TIMED modda timer'ı azalt
-        if (gameMode === GameMode.TIMED) {
-          // Play tick sound for last 10 seconds
-          if (timeLeft <= 10 && timeLeft > 0) {
-            playTick();
-          }
-          
-          if (timeLeft <= 1) {
-            playGameOver();
-            set({ timeLeft: 0, isGameOver: true });
-          } else {
-            set({ timeLeft: timeLeft - 1 });
-          }
-        }
-      },
-      undefined,
-      ErrorCategory.GAME_STATE,
-      { operation: 'tickTimer', gameMode, timeLeft }
-    );
-  },
+  tickTimer: () => tickTimerImpl(get, set),
 
-  pushSurvivalRow: () => {
-    const { grid, isGameOver } = get();
-    
-    // Guard: Oyun zaten bittiyse işlem yapma
-    if (isGameOver) return;
-    
-    // Guard: Grid geçerli mi kontrol et
-    if (!grid || grid.length !== GRID_SIZE) {
-      handleError(
-        new Error('Invalid grid state in SURVIVAL mode'),
-        ErrorCategory.GAME_STATE,
-        ErrorSeverity.HIGH,
-        { gridLength: grid?.length, expected: GRID_SIZE }
-      );
-      return;
-    }
-    
-    // 1. Üst satırda blok var mı kontrol et (game over)
-    const topRowFilled = grid[0].some(cell => cell.filled);
-    if (topRowFilled) {
-      // High score güncelle
-      const currentTime = get().survivalTime;
-      const currentHighScore = get().survivalHighScore;
-      if (currentTime > currentHighScore) {
-        set({ survivalHighScore: currentTime });
-        debouncedSave('flux_survival_highscore', currentTime.toString());
-      }
-      playGameOver();
-      set({ isGameOver: true });
-      return;
-    }
-    
-    const success = safeExecute(
-      () => {
-        // 2. Grid'i yukarı kaydır
-        const newGrid = grid.map(row => row.map(cell => ({ ...cell })));
-        for (let y = 0; y < GRID_SIZE - 1; y++) {
-          for (let x = 0; x < GRID_SIZE; x++) {
-            newGrid[y][x] = newGrid[y + 1][x];
-          }
-        }
-        
-        // 3. Alt satıra taş satırı ekle (1-3 random boşluk ile)
-        const gapCount = Math.floor(Math.random() * 3) + 1;
-        const gapPositions = new Set<number>();
-        
-        // Guard: Sonsuz döngü önleme
-        let attempts = 0;
-        while (gapPositions.size < gapCount && attempts < 100) {
-          gapPositions.add(Math.floor(Math.random() * GRID_SIZE));
-          attempts++;
-        }
-        
-        for (let x = 0; x < GRID_SIZE; x++) {
-          if (gapPositions.has(x)) {
-            newGrid[GRID_SIZE - 1][x] = { filled: false, color: '' };
-          } else {
-            newGrid[GRID_SIZE - 1][x] = {
-              filled: true,
-              color: STONE_BLOCK.color,
-              id: uuidv4(),
-              type: CellType.STONE
-            };
-          }
-        }
-        
-        // 4. State'i güncelle
-        const newRowCount = get().survivalRowCount + 1;
-        const newNextPush = get().survivalPushInterval;
-        
-        set({
-          grid: newGrid,
-          survivalRowCount: newRowCount,
-          survivalNextPush: newNextPush
-        });
-        
-        // 5. Ses ve titreşim
-        playClear(1);
-        playHaptic('clear');
-        
-        return true;
-      },
-      false,
-      ErrorCategory.GAME_STATE,
-      { operation: 'pushSurvivalRow', survivalTime: get().survivalTime }
-    );
-    
-    // Hata durumunda oyunu bitir
-    if (!success) {
-      playGameOver();
-      set({ isGameOver: true });
-    }
-  },
+  pushSurvivalRow: () => pushSurvivalRowImpl(get, set),
 
   nextLevel: () => {
     // If currentLevelIndex is somehow 0 from old saves, bump to 1
@@ -538,9 +374,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         });
         
         // Sync to profileStore
-        import('../../profile/store/profileStore').then(({ useProfileStore }) => {
-          useProfileStore.getState().incrementSkillUse('REROLL' as any);
-        });
+        useProfileStore.getState().incrementSkillUse('REROLL' as any);
         
         get().checkGameOver();
       }
@@ -596,9 +430,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
     
     // Sync to profileStore
-    import('../../profile/store/profileStore').then(({ useProfileStore }) => {
-      useProfileStore.getState().incrementSkillUse('SHATTER' as any);
-    });
+    useProfileStore.getState().incrementSkillUse('SHATTER' as any);
   },
 
   useBomb: (x, y) => {
@@ -664,9 +496,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
     
     // Sync to profileStore
-    import('../../profile/store/profileStore').then(({ useProfileStore }) => {
-      useProfileStore.getState().incrementSkillUse('BOMB' as any);
-    });
+    useProfileStore.getState().incrementSkillUse('BOMB' as any);
   },
 
   canPlacePiece: (grid, piece, startX, startY) => {
@@ -814,63 +644,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const levelFinished = updatedObjectives.every(obj => obj.current >= obj.target);
 
-    // Update Achievements - handle all categories
-    const updatedAchievements = get().achievements.map(ach => {
-      if (ach.unlocked) return ach;
-      let val = ach.currentValue;
-      
-      // SCORE category
-      if (ach.category === 'SCORE') {
-        val = Math.max(val, newScore);
-      }
-      
-      // COMBO category
-      if (ach.category === 'COMBO') {
-        val = Math.max(val, newCombo);
-      }
-      
-      // SPECIAL_BLOCKS category
-      if (ach.category === 'SPECIAL_BLOCKS') {
-        if (ach.id === 'bomb_10') val += bombsExploded;
-        if (ach.id === 'ice_50') val += iceBroken;
-        // Add other special block tracking as needed
-      }
-      
-      // PROGRESSION category
-      if (ach.category === 'PROGRESSION') {
-        if (ach.id === 'level_10' || ach.id === 'level_25' || ach.id === 'level_50') {
-          val = Math.max(val, get().currentLevelIndex);
-        }
-      }
-      
-      // Legacy achievement IDs (for backward compatibility)
-      if (ach.id === 'score_10k') val = Math.max(val, newScore);
-      if (ach.id === 'combo_5') val = Math.max(val, newCombo);
-      if (ach.id === 'bomb_expert') val += bombsExploded;
-      
-      return { ...ach, currentValue: val, unlocked: val >= ach.targetValue };
+    // Update Achievements
+    const previousAchievements = get().achievements;
+    const updatedAchievements = updateAchievements(previousAchievements, {
+      newScore,
+      newCombo,
+      bombsExploded,
+      iceBroken,
+      currentLevelIndex: get().currentLevelIndex,
     });
 
     // Save achievements (debounced)
     debouncedSave('flux_achievements', JSON.stringify(updatedAchievements));
 
-    // Handle just unlocked achievement
-    const newUnlock = updatedAchievements.find((ach, i) => ach.unlocked && !get().achievements[i].unlocked);
+    // Sync newly unlocked achievement to Firestore
+    syncNewAchievement(previousAchievements, updatedAchievements);
     
-    // Sync achievement to Firestore
-    if (newUnlock) {
-      import('../../../services/firebase/syncManager').then(({ syncAchievement }) => {
-        import('../../auth/store/authStore').then(({ useAuthStore }) => {
-          const user = useAuthStore.getState().user;
-          if (user) {
-            syncAchievement(user.uid, {
-              ...newUnlock,
-              unlockedAt: newUnlock.unlocked ? Date.now() : null,
-            }).catch(console.error);
-          }
-        });
-      });
-    }
+    // Handle just unlocked achievement
+    const newUnlock = updatedAchievements.find((ach, i) => ach.unlocked && !previousAchievements[i].unlocked);
 
     // lastAction güncelle
 
@@ -923,6 +714,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const zenPalette = isZen ? ZEN_PALETTES[get().zenPaletteIndex] : undefined;
       const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
       currentPieces = getRandomPiecesSync(3, newGrid, isDaily, zenPalette ?? useThemeStore.getState().getPieceColors(), currentTier, get().gameMode); // Use newGrid for density calculation
+    }
+
+    // FOG event: Mask piece colors
+    if (get().activeEvent === 'FOG') {
+      currentPieces = currentPieces.map(p => ({
+        ...p,
+        color: '#374151'
+      }));
     }
 
     // Ses + Titresim
@@ -1005,44 +804,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         set({ maxLevelReached: newMaxLevel });
         debouncedSave('flux_max_level', newMaxLevel.toString());
         
-        // Sync to Firestore
-        import('../../../services/firebase/syncManager').then(({ syncGameData }) => {
-          import('../../auth/store/authStore').then(({ useAuthStore }) => {
-            const user = useAuthStore.getState().user;
-            if (user) {
-              syncGameData(user.uid, { 
-                progression: { 
-                  maxLevelReached: newMaxLevel,
-                  currentStreak: 0,
-                  longestStreak: 0,
-                  lastDailyDate: null,
-                } 
-              }).catch(err => 
-                console.error('Failed to sync maxLevelReached:', err)
-              );
-            }
-          });
-        });
-      }
-    }
-
-    // Kademe kontrolünden ÖNCE eski değeri sakla
-    const prevDifficultyTier = get().difficultyTier;
-
-    // Check difficulty tier progression (Endless mode only)
-    if (gameMode === GameMode.ENDLESS) {
-      const newTier = DIFFICULTY_THRESHOLDS.filter(t => newScore >= t).length - 1;
-      const currentTier = get().difficultyTier;
-      
-      if (newTier !== currentTier && newTier >= 0 && newTier < TIER_NAMES.length) {
-        set({ 
-          difficultyTier: newTier,
-          lastAction: { 
-            type: 'MILESTONE', 
-            tier: newTier, 
-            tierName: TIER_NAMES[newTier] 
-          } 
-        });
+        // Sync to Firebase handled in App.tsx on game over
       }
     }
 
@@ -1094,306 +856,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     // Check for tier events (Endless mode)
-    
-    // checkTierEvent helper function (inline)
-    const checkTierEvent = (score: number, currentTier: number) => {
-      const TIER_THRESHOLDS = [0, 2000, 5000, 10000, 20000];
-      const TIER_EVENTS = ['ICE_STORM', 'DARKNESS', 'QUAKE', 'MIRROR'];
-      
-      const newTier = TIER_THRESHOLDS.filter(t => score >= t).length - 1;
-      
-      if (newTier > currentTier && newTier >= 1 && newTier <= 4) {
-        const eventName = TIER_EVENTS[newTier - 1];
-        
-        const duration = eventName === 'MIRROR' ? 15
-          : eventName === 'DARKNESS' ? 8
-          : eventName === 'QUAKE' ? 1
-          : 5;  // ICE_STORM
-        
-        set({
-          activeEvent: eventName as any,
-          eventMovesRemaining: duration,
-          difficultyTier: newTier
-        });
-        
-        // QUAKE için anında uygula - temiz gravity-left algoritması
-        if (eventName === 'QUAKE') {
-          const quakeGrid = get().grid.map(row => row.map(cell => ({ ...cell })));
-          
-          // Her satır için ayrı ayrı işle
-          for (let r = 0; r < GRID_SIZE; r++) {
-            // 1. Sabit blokları (ICE/STONE) ve hareketli blokları ayır
-            const fixedBlocks: Array<{ col: number; cell: any }> = [];
-            const floatingBlocks: any[] = [];
-            
-            for (let c = 0; c < GRID_SIZE; c++) {
-              const cell = quakeGrid[r][c];
-              if (cell.filled) {
-                if (cell.type === CellType.ICE || cell.type === CellType.STONE) {
-                  fixedBlocks.push({ col: c, cell: { ...cell } });
-                } else {
-                  floatingBlocks.push({ ...cell });
-                }
-              }
-            }
-            
-            // 2. Satırı temizle
-            for (let c = 0; c < GRID_SIZE; c++) {
-              quakeGrid[r][c] = { filled: false, color: '' };
-            }
-            
-            // 3. Sabit blokları orijinal pozisyonlarına yerleştir
-            fixedBlocks.forEach(({ col, cell }) => {
-              quakeGrid[r][col] = cell;
-            });
-            
-            // 4. Hareketli blokları soldan başlayarak doldur (sabit pozisyonları atla)
-            let writeIndex = 0;
-            for (const block of floatingBlocks) {
-              // Bir sonraki boş pozisyonu bul
-              while (writeIndex < GRID_SIZE && quakeGrid[r][writeIndex].filled) {
-                writeIndex++;
-              }
-              
-              // Eğer grid'in sonuna geldiyse, blok düşer (kaybolur)
-              if (writeIndex >= GRID_SIZE) break;
-              
-              quakeGrid[r][writeIndex] = block;
-              writeIndex++;
-            }
-          }
-          
-          set({ grid: quakeGrid });
-        }
-        
-        // DARKNESS için karanlık zone belirle
-        if (eventName === 'DARKNESS') {
-          const startRow = Math.floor(Math.random() * 4);
-          const startCol = Math.floor(Math.random() * 5);
-          const cells: Array<{row: number; col: number}> = [];
-          for (let r = startRow; r < startRow + 2; r++) {
-            for (let c = startCol; c < startCol + 3; c++) {
-              cells.push({ row: r, col: c });
-            }
-          }
-          set({ darkZoneCells: cells });
-        }
-      }
-    };
+    const prevDifficultyTier = get().difficultyTier;
     
     // Check for tier events (Endless mode only)
     if (get().gameMode === GameMode.ENDLESS) {
-      checkTierEvent(newScore, prevDifficultyTier);
+      checkTierEvent(newScore, prevDifficultyTier, get, set);
     }
 
     // --- Aktif olay tick ---
-    const { activeEvent, eventMovesRemaining } = get();
-    if (activeEvent && eventMovesRemaining > 0) {
-      if (activeEvent === 'ICE_STORM') {
-        // Rastgele boş bir hücreye buz bloğu ekle
-        const emptyPositions: {x: number; y: number}[] = [];
-        const currentGrid = get().grid;
-        for (let y = 0; y < GRID_SIZE; y++) {
-          for (let x = 0; x < GRID_SIZE; x++) {
-            if (!currentGrid[y][x].filled) emptyPositions.push({ x, y });
-          }
-        }
-        if (emptyPositions.length > 0) {
-          const pos = emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
-          const iceGrid = get().grid.map(row => row.map(c => ({ ...c })));
-          iceGrid[pos.y][pos.x] = {
-            filled: true,
-            color: '#7dd3fc',
-            id: uuidv4(),
-            type: CellType.ICE,
-            health: 2,
-          };
-          set({ grid: iceGrid });
-        }
-      }
-      
-      if (activeEvent === 'MIRROR') {
-        const mirrorShape = piece.shape.map((row: number[]) => [...row].reverse());
-        const currentGrid = get().grid;
-        
-        // Tüm geçerli pozisyonları bul, en alttaki + en sağdaki tercih et
-        let bestPos: { x: number; y: number } | null = null;
-        let bestScore = -1;
-        
-        for (let y = 0; y <= GRID_SIZE - mirrorShape.length; y++) {
-          for (let x = 0; x <= GRID_SIZE - mirrorShape[0].length; x++) {
-            // Basit çakışma kontrolü — canPlacePiece yerine elle kontrol
-            let fits = true;
-            for (let dy = 0; dy < mirrorShape.length && fits; dy++) {
-              for (let dx = 0; dx < mirrorShape[0].length && fits; dx++) {
-                if (mirrorShape[dy][dx] === 1) {
-                  const gy = y + dy, gx = x + dx;
-                  if (gy >= GRID_SIZE || gx >= GRID_SIZE || currentGrid[gy][gx].filled) {
-                    fits = false;
-                  }
-                }
-              }
-            }
-            
-            if (!fits) continue;
-            
-            // Skor: aşağı ve sağda olması tercih edilsin (oyuncunun yerleştirdiği yerin uzağı)
-            const score = y * 10 + x;
-            if (score > bestScore) {
-              bestScore = score;
-              bestPos = { x, y };
-            }
-          }
-        }
-        
-        if (bestPos) {
-          const mirrorGrid = currentGrid.map((row: any[]) => row.map((c: any) => ({ ...c })));
-          mirrorShape.forEach((row: number[], dy: number) =>
-            row.forEach((v: number, dx: number) => {
-              if (v) {
-                mirrorGrid[bestPos!.y + dy][bestPos!.x + dx] = {
-                  filled: true,
-                  color: piece.color,
-                  id: uuidv4(),
-                  type: CellType.NORMAL,
-                };
-              }
-            })
-          );
-          
-          // processGrid çalıştır — satır temizleme olabilir
-          const { grid: processedMirrorGrid, actions: mirrorActions } = processGrid(mirrorGrid);
-          set({ grid: processedMirrorGrid });
-        }
-      }
-      
-      // Sayacı azalt, olay bittiyse temizle
-      const newRemaining = eventMovesRemaining - 1;
-      if (newRemaining <= 0) {
-        set({ activeEvent: null, eventMovesRemaining: 0, darkZoneCells: [] });
-      } else {
-        set({ eventMovesRemaining: newRemaining });
-      }
-    }
+    tickActiveEvent(get().grid, justPlacedPiece, get, set);
 
     get().checkGameOver();
     
     // Boss Mechanics - Apply after piece placement
-    const { bossType, bossMoveCounter, gameMode: currentGameMode } = get();
+    const { bossType, gameMode: currentGameMode } = get();
     if (bossType && currentGameMode === GameMode.CAREER) {
-      const newBossCounter = bossMoveCounter + 1;
-      set({ bossMoveCounter: newBossCounter });
-      
-      switch (bossType) {
-        case 'ICE_STORM':
-          // Her 2 hamlede bir rastgele hücreye buz bloğu düşür
-          if (newBossCounter % 2 === 0) {
-            const empty = findRandomEmptyCell(get().grid);
-            if (empty) {
-              const updatedGrid = get().grid.map(row => row.map(cell => ({ ...cell })));
-              updatedGrid[empty.y][empty.x] = {
-                filled: true,
-                color: '#7dd3fc',
-                id: uuidv4(),
-                type: CellType.ICE,
-                health: 2,
-              };
-              set({ grid: updatedGrid });
-            }
-          }
-          break;
-          
-        case 'BOMB_RAIN':
-          // Her 3 hamlede bir rastgele hücreye bomba düşür
-          if (newBossCounter % 3 === 0) {
-            const empty = findRandomEmptyCell(get().grid);
-            if (empty) {
-              const updatedGrid = get().grid.map(row => row.map(cell => ({ ...cell })));
-              updatedGrid[empty.y][empty.x] = {
-                filled: true,
-                color: '#1c1917',
-                id: uuidv4(),
-                type: CellType.BOMB,
-              };
-              set({ grid: updatedGrid });
-            }
-          }
-          break;
-          
-        case 'DARKNESS':
-          // Parça renklerini gri yap (her hamlede)
-          // Ama flux dolduğunda renkleri 1 saniye göster
-          const { flux, isSurgeActive } = get();
-          
-          if (flux >= 100 || isSurgeActive) {
-            // Flux dolu - renkleri göster (1 saniye sonra tekrar gizle)
-            setTimeout(() => {
-              if (get().bossType === 'DARKNESS') {
-                const darkPieces = get().pieces.map(p => ({
-                  ...p,
-                  color: '#374151', // koyu gri — renk bilinmiyor hissi
-                }));
-                set({ pieces: darkPieces });
-              }
-            }, 1000);
-          } else {
-            // Flux dolu değil - renkleri gizle
-            const darkPieces = get().pieces.map(p => ({
-              ...p,
-              color: '#374151', // koyu gri — renk bilinmiyor hissi
-            }));
-            set({ pieces: darkPieces });
-          }
-          break;
-          
-        case 'MIRROR':
-          // Her yerleştirmede aynı parçanın yatay mirror'ını rastgele boş bir pozisyona yerleştir
-          // Mirror parçayı oluştur (justPlacedPiece kullan - pieces[0] değil)
-          if (!justPlacedPiece) break;
-          
-          const mirrorPiece = {
-            ...justPlacedPiece,
-            shape: justPlacedPiece.shape.map(row => [...row].reverse()), // Yatay mirror
-            id: uuidv4(),
-          };
-          
-          // Rastgele boş bir pozisyon bul
-          const emptyPositions: { x: number; y: number }[] = [];
-          for (let y = 0; y < GRID_SIZE; y++) {
-            for (let x = 0; x < GRID_SIZE; x++) {
-              if (get().canPlacePiece(get().grid, mirrorPiece, x, y)) {
-                emptyPositions.push({ x, y });
-              }
-            }
-          }
-          
-          // Eğer geçerli pozisyon varsa, rastgele birini seç ve yerleştir
-          if (emptyPositions.length > 0) {
-            const randomPos = emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
-            const mirrorGrid = get().grid.map(row => row.map(cell => ({ ...cell })));
-            
-            // Mirror parçayı yerleştir
-            mirrorPiece.shape.forEach((row, dy) => {
-              row.forEach((cell, dx) => {
-                if (cell) {
-                  const gridY = randomPos.y + dy;
-                  const gridX = randomPos.x + dx;
-                  if (gridY >= 0 && gridY < GRID_SIZE && gridX >= 0 && gridX < GRID_SIZE) {
-                    mirrorGrid[gridY][gridX] = {
-                      filled: true,
-                      color: mirrorPiece.color,
-                      id: uuidv4(),
-                      type: CellType.NORMAL,
-                    };
-                  }
-                }
-              });
-            });
-            
-            set({ grid: mirrorGrid });
-          }
-          break;
-      }
+      applyBossMechanics(justPlacedPiece, get, set);
     }
     
     // Advance guided step if in onboarding mode
@@ -1447,9 +925,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       
       // Daily Challenge tamamlandığında streak güncelle
       if (gameMode === GameMode.DAILY_CHALLENGE) {
-        import('@utils/streakManager').then(({ checkAndUpdateStreak }) => {
-          checkAndUpdateStreak();
-        });
+        checkAndUpdateStreak();
       }
       
       playGameOver();
@@ -1557,15 +1033,3 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   }
 }));
-
-// Helper Functions
-const findRandomEmptyCell = (grid: GridState): { x: number; y: number } | null => {
-  const empty: { x: number; y: number }[] = [];
-  for (let y = 0; y < GRID_SIZE; y++) {
-    for (let x = 0; x < GRID_SIZE; x++) {
-      if (!grid[y][x].filled) empty.push({ x, y });
-    }
-  }
-  if (empty.length === 0) return null;
-  return empty[Math.floor(Math.random() * empty.length)];
-};

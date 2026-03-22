@@ -3,6 +3,7 @@
     "short_name": "FluxGrid",
     "description": "Cyberpunk tarzı blok bulmaca oyunu — yerçekimi mekanikleri ve neon estetiği ile.",
     "start_url": "/FluxGrid/",
+    "scope": "/FluxGrid/",
     "display": "standalone",
     "display_override": ["window-controls-overlay", "standalone"],
     "orientation": "portrait",

@@ -167,10 +167,10 @@ export const getRandomPiecesSync = (
     let type: CellType = CellType.NORMAL;
     const specialRand = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
     
-    // TIMED MODE: 8% chance for CHRONO blocks (replaces normal special blocks)
+    // TIMED MODE: 15% chance for CHRONO blocks (replaces normal special blocks)
     if (gameMode === GameMode.TIMED) {
-      if (specialRand > 0.92) {
-        type = CellType.CHRONO;  // 8% chance
+      if (specialRand > 0.85) {
+        type = CellType.CHRONO;  // 15% chance
       }
     } else {
       // OTHER MODES: Original special block logic
@@ -316,10 +316,10 @@ export const getRandomPieces = async (
     let type: CellType = CellType.NORMAL;
     const specialRand = isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
     
-    // TIMED MODE: 8% chance for CHRONO blocks (replaces normal special blocks)
+    // TIMED MODE: 15% chance for CHRONO blocks (replaces normal special blocks)
     if (gameMode === GameMode.TIMED) {
-      if (specialRand > 0.92) {
-        type = CellType.CHRONO;  // 8% chance
+      if (specialRand > 0.85) {
+        type = CellType.CHRONO;  // 15% chance
       }
     } else {
       // OTHER MODES: Original special block logic

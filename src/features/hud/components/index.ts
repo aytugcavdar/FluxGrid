@@ -6,3 +6,4 @@ export { SurgeFlash } from './SurgeFlash';
 export { ComboFlash } from './ComboFlash';
 export { DragOverlay } from './DragOverlay';
 export { ComboBar } from './ComboBar';
+export { ComboRushFlash } from './ComboRushFlash';
