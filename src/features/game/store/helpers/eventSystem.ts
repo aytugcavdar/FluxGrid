@@ -9,7 +9,7 @@ type SetFn = (partial: Partial<GameStore>) => void;
 
 // Tier thresholds and events for Endless mode
 const TIER_THRESHOLDS = [0, 2000, 5000, 10000, 20000];
-const TIER_EVENTS = ['ICE_STORM', 'FOG', 'QUAKE', 'MIRROR'];
+const TIER_EVENTS = ['ICE_STORM', 'OVERLOAD', 'QUAKE', 'MIRROR'];
 
 /**
  * Check if player has reached a new difficulty tier and activate corresponding event
@@ -27,8 +27,8 @@ export function checkTierEvent(
     const eventName = TIER_EVENTS[newTier - 1];
     
     const duration = eventName === 'MIRROR' ? 15
-      : eventName === 'FOG' ? 8
-      : eventName === 'QUAKE' ? 3
+      : eventName === 'OVERLOAD' ? 3
+      : eventName === 'QUAKE' ? 5
       : 5;  // ICE_STORM
     
     const tierNames: Record<number, string> = {
@@ -53,46 +53,46 @@ export function checkTierEvent(
     if (eventName === 'QUAKE') {
       const quakeGrid = get().grid.map(row => row.map(cell => ({ ...cell })));
       
-      // Her satır için ayrı ayrı işle
       for (let r = 0; r < GRID_SIZE; r++) {
-        // 1. Sabit blokları (ICE/STONE) ve hareketli blokları ayır
-        const fixedBlocks: Array<{ col: number; cell: any }> = [];
-        const floatingBlocks: any[] = [];
-        
+        // 1. ICE blokları orijinal pozisyonlarıyla kaydet
+        const iceMap = new Map<number, any>();
         for (let c = 0; c < GRID_SIZE; c++) {
           const cell = quakeGrid[r][c];
-          if (cell.filled) {
-            if (cell.type === 'ICE' || cell.type === 'STONE') {
-              fixedBlocks.push({ col: c, cell: { ...cell } });
-            } else {
-              floatingBlocks.push({ ...cell });
-            }
+          if (cell.filled && (cell.type === 'ICE' || cell.type === 'STONE')) {
+            iceMap.set(c, { ...cell });
           }
         }
         
-        // 2. Satırı temizle
+        // 2. Normal (hareketli) blokları topla
+        const normalBlocks: any[] = [];
+        for (let c = 0; c < GRID_SIZE; c++) {
+          const cell = quakeGrid[r][c];
+          if (cell.filled && cell.type !== 'ICE' && cell.type !== 'STONE') {
+            normalBlocks.push({ ...cell });
+          }
+        }
+        
+        // 3. Satırı temizle
         for (let c = 0; c < GRID_SIZE; c++) {
           quakeGrid[r][c] = { filled: false, color: '' };
         }
         
-        // 3. Sabit blokları orijinal pozisyonlarına yerleştir
-        fixedBlocks.forEach(({ col, cell }) => {
+        // 4. ICE blokları orijinal pozisyonlarına geri koy
+        iceMap.forEach((cell, col) => {
           quakeGrid[r][col] = cell;
         });
         
-        // 4. Hareketli blokları soldan başlayarak doldur (sabit pozisyonları atla)
-        let writeIndex = 0;
-        for (const block of floatingBlocks) {
-          // Bir sonraki boş pozisyonu bul
-          while (writeIndex < GRID_SIZE && quakeGrid[r][writeIndex].filled) {
-            writeIndex++;
+        // 5. Normal blokları soldan başlayarak, ICE pozisyonlarını atlayarak doldur
+        let writeCol = 0;
+        for (const block of normalBlocks) {
+          // ICE olan sütunları atla
+          while (writeCol < GRID_SIZE && quakeGrid[r][writeCol].filled) {
+            writeCol++;
           }
+          if (writeCol >= GRID_SIZE) break;
           
-          // Eğer grid'in sonuna geldiyse, blok düşer (kaybolur)
-          if (writeIndex >= GRID_SIZE) break;
-          
-          quakeGrid[r][writeIndex] = block;
-          writeIndex++;
+          quakeGrid[r][writeCol] = block;
+          writeCol++;
         }
       }
       
@@ -114,6 +114,12 @@ export function tickActiveEvent(
   const { activeEvent, eventMovesRemaining } = get();
   
   if (!activeEvent || eventMovesRemaining <= 0) return;
+  
+  if (activeEvent === 'OVERLOAD') {
+    // Tray yenilendiğinde tetiklenir — bu fonksiyon her hamle sonrası çalışır.
+    // OVERLOAD için sayaç düşürme yeterli, asıl mantık gameStore'da.
+    // Burada sadece eventMovesRemaining azalt.
+  }
   
   if (activeEvent === 'ICE_STORM') {
     // Rastgele boş bir hücreye buz bloğu ekle

@@ -12,9 +12,6 @@ export const Piece: React.FC<Props> = ({ piece }) => {
   const { setDraggedPiece, draggedPiece, pieces, activeEvent } = useGameStore();
   const ref = useRef<HTMLDivElement>(null);
   const [windowWidth, setWindowWidth] = React.useState(window.innerWidth);
-  
-  // FOG event: hide shape, show only block count
-  const isFogActive = activeEvent === 'FOG';
 
   // Update window width on resize for responsive block size
   React.useEffect(() => {
@@ -47,34 +44,6 @@ export const Piece: React.FC<Props> = ({ piece }) => {
   };
 
   const renderShape = (p: PieceType) => {
-    // FOG event: Show only block count as dots
-    if (isFogActive) {
-      const blockCount = p.shape.flat().filter(v => v === 1).length;
-      return (
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          gap: 6,
-          flexWrap: 'wrap',
-          maxWidth: '80px'
-        }}>
-          {Array.from({ length: blockCount }).map((_, i) => (
-            <div 
-              key={i} 
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                backgroundColor: 'rgba(255, 255, 255, 0.3)',
-                boxShadow: '0 0 4px rgba(255, 255, 255, 0.2)'
-              }} 
-            />
-          ))}
-        </div>
-      );
-    }
-    
     // Normal render
     // Responsive block size calculation - updates on window resize
     const blockSize = Math.max(12, Math.min(22, windowWidth / 28));

@@ -8,6 +8,20 @@ import { SeededRNG, getDailySeed } from '@utils/seededRng';
 import { getDailySeedFromServer, getCachedDailySeed, cacheDailySeed } from '../../../../services/firebase/dailyChallengeService';
 import { GameMode } from '@shared/types';
 
+function weightedPick(
+  shapes: PieceShape[],
+  weights: number[],
+  rng: () => number
+): PieceShape {
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = rng() * total;
+  for (let i = 0; i < shapes.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return shapes[i];
+  }
+  return shapes[shapes.length - 1];
+}
+
 let currentDailyRNG: SeededRNG | null = null;
 let dailySeedPromise: Promise<number> | null = null;
 
@@ -75,6 +89,12 @@ export const getRandomPiecesSync = (
     density = filledCells / (GRID_SIZE * GRID_SIZE);
   }
 
+  const S_TINY  = SHAPES.filter(s => s.shape.flat().filter(v => v === 1).length <= 2);
+  const S_SMALL = SHAPES.filter(s => s.shape.flat().filter(v => v === 1).length === 3);
+  const S_ASYM4 = ['l_shape', 'j_shape', 't_shape', 'z_shape', 's_shape'].map(id => SHAPES.find(s => s.id === id)!);
+  const S_SYM4  = ['h4', 'v4', 'square'].map(id => SHAPES.find(s => s.id === id)!);
+  const S_CROSS = SHAPES.filter(s => s.id === 'cross');
+
   for (let i = 0; i < count; i++) {
     let selectedShape: PieceShape = SHAPES[0]; // Initialize with fallback
     let attempts = 0;
@@ -90,23 +110,39 @@ export const getRandomPiecesSync = (
     }
     // Difficulty tier logic (only for Endless mode, tier > 0)
     else if (tier >= 4) {
-      // Tier 4 (20000+): Only large and complex shapes
-      const largeShapes = SHAPES.filter(s => {
-        const blockCount = s.shape.flat().filter(v => v === 1).length;
-        return blockCount >= 4;
-      });
-      selectedShape = largeShapes[Math.floor(randVal * largeShapes.length)] || SHAPES[0];
+      // Dağılım: %3 tiny | %5 small | %47 asym4 | %30 sym4 | %15 cross
+      const rng = useSeededRNG && currentDailyRNG
+        ? () => currentDailyRNG!.next()
+        : Math.random;
+      
+      selectedShape = weightedPick(
+        [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
+        [
+          ...S_TINY.map(() => 3 / S_TINY.length),
+          ...S_SMALL.map(() => 5 / S_SMALL.length),
+          ...S_ASYM4.map(() => 47 / S_ASYM4.length),
+          ...S_SYM4.map(() => 30 / S_SYM4.length),
+          ...S_CROSS.map(() => 15),
+        ],
+        rng
+      );
     } else if (tier >= 3) {
-      // Tier 3 (10000-20000): L, J, T shapes dominant (70% chance)
-      if (randVal > 0.3) {
-        const complexShapes = SHAPES.filter(s => {
-          const blockCount = s.shape.flat().filter(v => v === 1).length;
-          return blockCount >= 3 && (s.shape.length > 1 && s.shape[0].length > 1);
-        });
-        selectedShape = complexShapes[Math.floor((useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * complexShapes.length)] || SHAPES[0];
-      } else {
-        selectedShape = SHAPES[Math.floor((useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * SHAPES.length)];
-      }
+      // Dağılım: %5 tiny | %10 small | %55 asym4 | %20 sym4 | %10 cross
+      const rng = useSeededRNG && currentDailyRNG
+        ? () => currentDailyRNG!.next()
+        : Math.random;
+      
+      selectedShape = weightedPick(
+        [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
+        [
+          ...S_TINY.map(() => 5 / S_TINY.length),
+          ...S_SMALL.map(() => 10 / S_SMALL.length),
+          ...S_ASYM4.map(() => 55 / S_ASYM4.length),
+          ...S_SYM4.map(() => 20 / S_SYM4.length),
+          ...S_CROSS.map(() => 10),
+        ],
+        rng
+      );
     } else if (tier >= 2) {
       // Tier 2 (5000-10000): 4+ block pieces more common, small pieces reduced
       if (randVal > 0.4) {
@@ -231,6 +267,12 @@ export const getRandomPieces = async (
     density = filledCells / (GRID_SIZE * GRID_SIZE);
   }
 
+  const S_TINY  = SHAPES.filter(s => s.shape.flat().filter(v => v === 1).length <= 2);
+  const S_SMALL = SHAPES.filter(s => s.shape.flat().filter(v => v === 1).length === 3);
+  const S_ASYM4 = ['l_shape', 'j_shape', 't_shape', 'z_shape', 's_shape'].map(id => SHAPES.find(s => s.id === id)!);
+  const S_SYM4  = ['h4', 'v4', 'square'].map(id => SHAPES.find(s => s.id === id)!);
+  const S_CROSS = SHAPES.filter(s => s.id === 'cross');
+
   for (let i = 0; i < count; i++) {
     let selectedShape: PieceShape = SHAPES[0]; // Initialize with fallback
     let attempts = 0;
@@ -239,23 +281,39 @@ export const getRandomPieces = async (
 
     // Difficulty tier logic (only for Endless mode, tier > 0)
     if (tier >= 4) {
-      // Tier 4 (20000+): Only large and complex shapes
-      const largeShapes = SHAPES.filter(s => {
-        const blockCount = s.shape.flat().filter(v => v === 1).length;
-        return blockCount >= 4;
-      });
-      selectedShape = largeShapes[Math.floor(randVal * largeShapes.length)] || SHAPES[0];
+      // Dağılım: %3 tiny | %5 small | %47 asym4 | %30 sym4 | %15 cross
+      const rng = isDaily && currentDailyRNG
+        ? () => currentDailyRNG!.next()
+        : Math.random;
+      
+      selectedShape = weightedPick(
+        [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
+        [
+          ...S_TINY.map(() => 3 / S_TINY.length),
+          ...S_SMALL.map(() => 5 / S_SMALL.length),
+          ...S_ASYM4.map(() => 47 / S_ASYM4.length),
+          ...S_SYM4.map(() => 30 / S_SYM4.length),
+          ...S_CROSS.map(() => 15),
+        ],
+        rng
+      );
     } else if (tier >= 3) {
-      // Tier 3 (10000-20000): L, J, T shapes dominant (70% chance)
-      if (randVal > 0.3) {
-        const complexShapes = SHAPES.filter(s => {
-          const blockCount = s.shape.flat().filter(v => v === 1).length;
-          return blockCount >= 3 && (s.shape.length > 1 && s.shape[0].length > 1);
-        });
-        selectedShape = complexShapes[Math.floor((isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * complexShapes.length)] || SHAPES[0];
-      } else {
-        selectedShape = SHAPES[Math.floor((isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * SHAPES.length)];
-      }
+      // Dağılım: %5 tiny | %10 small | %55 asym4 | %20 sym4 | %10 cross
+      const rng = isDaily && currentDailyRNG
+        ? () => currentDailyRNG!.next()
+        : Math.random;
+      
+      selectedShape = weightedPick(
+        [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
+        [
+          ...S_TINY.map(() => 5 / S_TINY.length),
+          ...S_SMALL.map(() => 10 / S_SMALL.length),
+          ...S_ASYM4.map(() => 55 / S_ASYM4.length),
+          ...S_SYM4.map(() => 20 / S_SYM4.length),
+          ...S_CROSS.map(() => 10),
+        ],
+        rng
+      );
     } else if (tier >= 2) {
       // Tier 2 (5000-10000): 4+ block pieces more common, small pieces reduced
       if (randVal > 0.4) {

@@ -66,6 +66,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 }) => {
   const { getThemeColors } = useThemeStore();
   const colors = getThemeColors();
+  const activeEvent = useGameStore(state => state.activeEvent);
+  const eventMovesRemaining = useGameStore(state => state.eventMovesRemaining);
 
   return (
     <motion.div
@@ -255,6 +257,30 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             {popup.value > 0 ? `+${popup.value}s` : `${popup.value}s`}
           </motion.div>
         ))}
+      </AnimatePresence>
+
+      {/* QUAKE Uyarı Banner */}
+      <AnimatePresence>
+        {activeEvent === 'QUAKE' && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-24 left-0 right-0 flex justify-center pointer-events-none z-50"
+          >
+            <div style={{
+              background: 'rgba(216,90,48,0.95)',
+              border: '2px solid rgba(216,90,48,1)',
+              borderRadius: 16,
+              padding: '12px 24px',
+              boxShadow: '0 8px 32px rgba(216,90,48,0.4)',
+            }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', textAlign: 'center' }}>
+                DEPREM — Sol-gravity aktif · {eventMovesRemaining} hamle
+              </div>
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* TIMED Mode Warnings */}

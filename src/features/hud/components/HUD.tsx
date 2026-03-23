@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const EVENT_CONFIG = {
     ICE_STORM: { label: 'Buz Fırtınası', color: '#185FA5', bg: 'rgba(56,138,221,0.12)' },
-    FOG:       { label: 'Sis — Şekiller Gizlendi!', color: '#888780', bg: 'rgba(136,135,128,0.12)' },
+    OVERLOAD:  { label: 'Aşırı Yük — +1 Parça!', color: '#BA7517', bg: 'rgba(186,117,23,0.12)' },
     QUAKE:     { label: 'Deprem!', color: '#D85A30', bg: 'rgba(216,90,48,0.12)' },
     MIRROR:    { label: 'Ayna Modu', color: '#D4537E', bg: 'rgba(212,83,126,0.12)' },
 };

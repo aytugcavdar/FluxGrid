@@ -14,6 +14,7 @@ import { checkAndUpdateStreak } from '@utils/streakManager';
 import { tickTimerImpl } from './helpers/timerLogic';
 import { checkTierEvent, tickActiveEvent } from './helpers/eventSystem';
 import { updateAchievements, syncNewAchievement } from './helpers/achievementSystem';
+import { usePassiveAbilityStore } from '../../abilities/store/passiveAbilityStore';
 
 export interface GameStore {
   grid: GridState;
@@ -59,7 +60,7 @@ export interface GameStore {
   dailyClearHistory: boolean[][];
 
   // Event System State
-  activeEvent: 'ICE_STORM' | 'FOG' | 'QUAKE' | 'MIRROR' | null;
+  activeEvent: 'ICE_STORM' | 'OVERLOAD' | 'QUAKE' | 'MIRROR' | null;
   eventMovesRemaining: number;
 
   // Timed Mode State
@@ -474,10 +475,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const isFinalSeconds = gameMode === GameMode.TIMED && get().timeLeft <= 10;
     const finalSecondsMultiplier = isFinalSeconds ? 1.5 : 1.0;
 
+    // Pasif yetenek çarpanları
+    const passiveScoreMultiplier = usePassiveAbilityStore.getState().calculateScoreMultiplier();
+
     const basePoints = (blocksPlaced * POINTS.BLOCK_PLACED) +
                        (linesCleared * POINTS.LINE_CLEARED) +
                        (comboMultiplier * POINTS.COMBO_MULTIPLIER);
-    const pointsGained = Math.floor(basePoints * colorBonusMultiplier * surgeMultiplier * tierMultiplier * finalSecondsMultiplier);
+    const quakeMultiplier = get().activeEvent === 'QUAKE' && linesCleared > 0 ? 1.3 : 1.0;
+    const pointsGained = Math.floor(basePoints * colorBonusMultiplier * surgeMultiplier * tierMultiplier * finalSecondsMultiplier * quakeMultiplier * passiveScoreMultiplier);
     
     // ZEN modda skor güncellenmez
     const newScore = gameMode === GameMode.ZEN ? 0 : (score + pointsGained);
@@ -526,7 +531,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     // Flux hesaplama
-    const fluxGained = (blocksPlaced * 2) + (linesCleared * 10);
+    const passiveFluxMultiplier = usePassiveAbilityStore.getState().calculateFluxMultiplier();
+    const fluxGained = Math.floor(((blocksPlaced * 2) + (linesCleared * 10)) * passiveFluxMultiplier);
     const rawFlux = flux + fluxGained;
     const newFlux = Math.min(100, rawFlux);
 
@@ -547,11 +553,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // 5. Tepsi güncelle
     let currentPieces = get().pieces.filter(p => p.instanceId !== piece.instanceId);
     if (currentPieces.length === 0) {
+      // OVERLOAD aktifse 4 parça üret, değilse 3
+      const pieceCount = get().activeEvent === 'OVERLOAD' ? 4 : 3;
+      
       const isDaily = get().gameMode === GameMode.DAILY_CHALLENGE;
       const isZen = get().gameMode === GameMode.ZEN;
       const zenPalette = isZen ? ZEN_PALETTES[get().zenPaletteIndex] : undefined;
       const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
-      currentPieces = getRandomPiecesSync(3, newGrid, isDaily, zenPalette ?? useThemeStore.getState().getPieceColors(), currentTier, get().gameMode); // Use newGrid for density calculation
+      currentPieces = getRandomPiecesSync(pieceCount, newGrid, isDaily, zenPalette ?? useThemeStore.getState().getPieceColors(), currentTier, get().gameMode);
+      
+      // OVERLOAD tray sayacını düşür
+      if (get().activeEvent === 'OVERLOAD') {
+        const remaining = get().eventMovesRemaining - 1;
+        if (remaining <= 0) {
+          set({ activeEvent: null, eventMovesRemaining: 0 });
+        } else {
+          set({ eventMovesRemaining: remaining });
+        }
+      }
     }
 
     // Ses + Titresim

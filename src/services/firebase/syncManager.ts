@@ -77,11 +77,32 @@ export async function syncScore(
       return;
     }
 
-    // b) Anti-cheat
-    if (score > 5000 && sessionDurationSecs < (score / 1000) * 8) {
+    // b) Anti-cheat - Strengthened validation
+    // Minimum time requirements based on score tiers
+    const minTimeRequired = 
+      score <= 1000 ? 30 :           // 30 seconds for scores up to 1000
+      score <= 5000 ? 120 :          // 2 minutes for scores up to 5000
+      score <= 10000 ? 300 :         // 5 minutes for scores up to 10000
+      (score / 1000) * 10;           // 10 seconds per 1000 points for higher scores
+    
+    if (sessionDurationSecs < minTimeRequired) {
       console.warn('syncScore: Suspicious session duration', {
         score,
         sessionDurationSecs,
+        minTimeRequired,
+      });
+      return;
+    }
+    
+    // Additional check: Maximum reasonable score per second
+    const maxScorePerSecond = 50; // Maximum 50 points per second
+    const maxPossibleScore = sessionDurationSecs * maxScorePerSecond;
+    
+    if (score > maxPossibleScore) {
+      console.warn('syncScore: Score too high for session duration', {
+        score,
+        sessionDurationSecs,
+        maxPossibleScore,
       });
       return;
     }

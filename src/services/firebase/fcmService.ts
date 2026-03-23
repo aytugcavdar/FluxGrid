@@ -14,10 +14,17 @@ const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || '';
 
 // Validate VAPID key configuration
 if (!VAPID_KEY) {
-  console.warn(
-    'VITE_FIREBASE_VAPID_KEY not configured. ' +
-    'Get this from Firebase Console > Project Settings > Cloud Messaging'
-  );
+  const errorMsg = 
+    'CRITICAL: VITE_FIREBASE_VAPID_KEY not configured. ' +
+    'Push notifications are DISABLED. ' +
+    'Get this from Firebase Console > Project Settings > Cloud Messaging > Web Push certificates';
+  
+  console.error(errorMsg);
+  
+  // In production, throw error to prevent silent failures
+  if (import.meta.env.PROD) {
+    throw new Error(errorMsg);
+  }
 }
 
 /**
@@ -25,6 +32,12 @@ if (!VAPID_KEY) {
  */
 export async function requestNotificationPermission(uid: string): Promise<string | null> {
   try {
+    // Check VAPID key before proceeding
+    if (!VAPID_KEY) {
+      console.error('Cannot request notification permission: VAPID key not configured');
+      return null;
+    }
+    
     const messaging = getFirebaseMessaging();
     
     if (!messaging) {

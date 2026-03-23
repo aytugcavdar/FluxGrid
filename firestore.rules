@@ -62,7 +62,10 @@ service cloud.firestore {
       allow write: if isAuthenticated()
         && isOwner(uid)
         && isValidScore(request.resource.data.score)
-        && !('flagged' in request.resource.data);
+        && !('flagged' in request.resource.data)
+        && !('suspicious' in request.resource.data)
+        && !('suspiciousReason' in request.resource.data)
+        && !('reviewedAt' in request.resource.data);
     }
     
     match /leaderboards/{mode}/meta/{doc} {
