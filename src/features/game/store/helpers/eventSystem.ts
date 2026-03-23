@@ -8,8 +8,8 @@ type GetFn = () => GameStore;
 type SetFn = (partial: Partial<GameStore>) => void;
 
 // Tier thresholds and events for Endless mode
-const TIER_THRESHOLDS = [0, 2000, 5000, 10000, 20000];
-const TIER_EVENTS = ['ICE_STORM', 'OVERLOAD', 'QUAKE', 'MIRROR'];
+const TIER_THRESHOLDS = [0, 2000, 5000, 10000, 20000, 40000, 70000];
+const TIER_EVENTS = ['ICE_STORM', 'GRAVITY_RUSH', 'QUAKE', 'MIRROR', 'CHAOS', 'VOID'];
 
 /**
  * Check if player has reached a new difficulty tier and activate corresponding event
@@ -23,19 +23,22 @@ export function checkTierEvent(
 ): void {
   const newTier = TIER_THRESHOLDS.filter(t => score >= t).length - 1;
   
-  if (newTier > currentTier && newTier >= 1 && newTier <= 4) {
+  if (newTier > currentTier && newTier >= 1 && newTier <= 6) {
     const eventName = TIER_EVENTS[newTier - 1];
     
     const duration = eventName === 'MIRROR' ? 15
-      : eventName === 'OVERLOAD' ? 3
-      : eventName === 'QUAKE' ? 5
-      : 5;  // ICE_STORM
+      : eventName === 'GRAVITY_RUSH' ? 10
+      : eventName === 'CHAOS' ? 999   // Süresiz (Tier 5 boyunca kalır)
+      : eventName === 'VOID' ? 999    // Süresiz (Tier 6 boyunca kalır)
+      : 5;
     
     const tierNames: Record<number, string> = {
       1: 'Gelişmiş',
       2: 'Uzman',
       3: 'Usta',
       4: 'Efsane',
+      5: 'Kaos',
+      6: 'Void',
     };
     
     set({
@@ -115,10 +118,75 @@ export function tickActiveEvent(
   
   if (!activeEvent || eventMovesRemaining <= 0) return;
   
-  if (activeEvent === 'OVERLOAD') {
-    // Tray yenilendiğinde tetiklenir — bu fonksiyon her hamle sonrası çalışır.
-    // OVERLOAD için sayaç düşürme yeterli, asıl mantık gameStore'da.
-    // Burada sadece eventMovesRemaining azalt.
+  if (activeEvent === 'GRAVITY_RUSH') {
+    // Her 5 hamlede bir gravity yönünü değiştir
+    const movesUsed = 10 - eventMovesRemaining; // 10 = GRAVITY_RUSH süresi
+    if (movesUsed % 5 === 0 && movesUsed > 0) {
+      const currentGrid = get().grid;
+      const flippedGrid = currentGrid.map(row => row.map(c => ({ ...c })));
+      
+      // Sütun bazlı ters gravity (blocks fall from bottom upward)
+      for (let x = 0; x < GRID_SIZE; x++) {
+        const stack: any[] = [];
+        for (let y = 0; y < GRID_SIZE; y++) {
+          if (flippedGrid[y][x].filled) stack.push({ ...flippedGrid[y][x] });
+        }
+        
+        for (let y = 0; y < GRID_SIZE; y++) {
+          flippedGrid[y][x] = { filled: false, color: '' };
+        }
+        
+        // Blocks collect at TOP instead of bottom (reverse gravity effect)
+        stack.forEach((cell, i) => {
+          flippedGrid[i][x] = cell;
+        });
+      }
+      
+      set({ grid: flippedGrid });
+    }
+  }
+  
+  if (activeEvent === 'QUAKE') {
+    const currentGrid = get().grid;
+    const quakeGrid = currentGrid.map(row => row.map(c => ({ ...c })));
+    
+    for (let r = 0; r < GRID_SIZE; r++) {
+      const iceMap = new Map<number, any>();
+      for (let c = 0; c < GRID_SIZE; c++) {
+        const cell = quakeGrid[r][c];
+        if (cell.filled && (cell.type === 'ICE' || cell.type === 'STONE')) {
+          iceMap.set(c, { ...cell });
+        }
+      }
+      
+      const normalBlocks: any[] = [];
+      for (let c = 0; c < GRID_SIZE; c++) {
+        const cell = quakeGrid[r][c];
+        if (cell.filled && cell.type !== 'ICE' && cell.type !== 'STONE') {
+          normalBlocks.push({ ...cell });
+        }
+      }
+      
+      for (let c = 0; c < GRID_SIZE; c++) {
+        quakeGrid[r][c] = { filled: false, color: '' };
+      }
+      
+      iceMap.forEach((cell, col) => {
+        quakeGrid[r][col] = cell;
+      });
+      
+      let writeCol = 0;
+      for (const block of normalBlocks) {
+        while (writeCol < GRID_SIZE && quakeGrid[r][writeCol].filled) {
+          writeCol++;
+        }
+        if (writeCol >= GRID_SIZE) break;
+        quakeGrid[r][writeCol] = block;
+        writeCol++;
+      }
+    }
+    
+    set({ grid: quakeGrid });
   }
   
   if (activeEvent === 'ICE_STORM') {
@@ -197,6 +265,126 @@ export function tickActiveEvent(
       const { grid: processedMirrorGrid } = processGrid(mirrorGrid);
       set({ grid: processedMirrorGrid });
     }
+  }
+  
+  // CHAOS: her 5 hamlede rastgele bir event efekti tetikler
+  if (activeEvent === 'CHAOS') {
+    const movesInTier = 999 - eventMovesRemaining;
+    if (movesInTier % 5 === 0 && movesInTier > 0) {
+      const chaosEvents = ['ICE_STORM', 'GRAVITY_RUSH', 'MIRROR'] as const;
+      const randomEvent = chaosEvents[Math.floor(Math.random() * chaosEvents.length)];
+      
+      // Geçici olarak o event'in single-move efektini çalıştır
+      if (randomEvent === 'ICE_STORM') {
+        const currentGrid = get().grid;
+        const emptyPositions: {x: number; y: number}[] = [];
+        for (let y = 0; y < GRID_SIZE; y++) {
+          for (let x = 0; x < GRID_SIZE; x++) {
+            if (!currentGrid[y][x].filled) emptyPositions.push({ x, y });
+          }
+        }
+        if (emptyPositions.length > 0) {
+          const pos = emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
+          const iceGrid = currentGrid.map(row => row.map(c => ({ ...c })));
+          iceGrid[pos.y][pos.x] = {
+            filled: true,
+            color: '#7dd3fc',
+            id: uuidv4(),
+            type: 'ICE' as any,
+            health: 2,
+          };
+          set({ grid: iceGrid });
+        }
+      } else if (randomEvent === 'GRAVITY_RUSH') {
+        const currentGrid = get().grid;
+        const flippedGrid = currentGrid.map(row => row.map(c => ({ ...c })));
+        
+        for (let x = 0; x < GRID_SIZE; x++) {
+          const stack: any[] = [];
+          for (let y = 0; y < GRID_SIZE; y++) {
+            if (flippedGrid[y][x].filled) stack.push({ ...flippedGrid[y][x] });
+          }
+          
+          for (let y = 0; y < GRID_SIZE; y++) {
+            flippedGrid[y][x] = { filled: false, color: '' };
+          }
+          
+          stack.forEach((cell, i) => {
+            flippedGrid[i][x] = cell;
+          });
+        }
+        
+        set({ grid: flippedGrid });
+      } else if (randomEvent === 'MIRROR') {
+        const mirrorShape = piece.shape.map((row: number[]) => [...row].reverse());
+        const currentGrid = get().grid;
+        
+        let bestPos: { x: number; y: number } | null = null;
+        let bestScore = -1;
+        
+        for (let y = 0; y <= GRID_SIZE - mirrorShape.length; y++) {
+          for (let x = 0; x <= GRID_SIZE - mirrorShape[0].length; x++) {
+            let fits = true;
+            for (let dy = 0; dy < mirrorShape.length && fits; dy++) {
+              for (let dx = 0; dx < mirrorShape[0].length && fits; dx++) {
+                if (mirrorShape[dy][dx] === 1) {
+                  const gy = y + dy, gx = x + dx;
+                  if (gy >= GRID_SIZE || gx >= GRID_SIZE || currentGrid[gy][gx].filled) {
+                    fits = false;
+                  }
+                }
+              }
+            }
+            
+            if (!fits) continue;
+            
+            const score = y * 10 + x;
+            if (score > bestScore) {
+              bestScore = score;
+              bestPos = { x, y };
+            }
+          }
+        }
+        
+        if (bestPos) {
+          const mirrorGrid = currentGrid.map((row: any[]) => row.map((c: any) => ({ ...c })));
+          mirrorShape.forEach((row: number[], dy: number) =>
+            row.forEach((v: number, dx: number) => {
+              if (v) {
+                mirrorGrid[bestPos!.y + dy][bestPos!.x + dx] = {
+                  filled: true,
+                  color: piece.color,
+                  id: uuidv4(),
+                  type: 'NORMAL' as any,
+                };
+              }
+            })
+          );
+          
+          const { grid: processedMirrorGrid } = processGrid(mirrorGrid);
+          set({ grid: processedMirrorGrid });
+        }
+      }
+    }
+    return; // Sayaç azaltma — CHAOS için yapma, 999 kalacak
+  }
+  
+  // VOID: her 10 hamlede üst 2 satırı siler
+  if (activeEvent === 'VOID') {
+    const movesInTier = 999 - eventMovesRemaining;
+    if (movesInTier % 10 === 0 && movesInTier > 0) {
+      const currentGrid = get().grid;
+      const voidGrid = currentGrid.map(row => row.map(c => ({ ...c })));
+      
+      // İlk 2 satırı temizle
+      for (let x = 0; x < GRID_SIZE; x++) {
+        voidGrid[0][x] = { filled: false, color: '' };
+        voidGrid[1][x] = { filled: false, color: '' };
+      }
+      
+      set({ grid: voidGrid });
+    }
+    return; // Sayaç azaltma — VOID için yapma, 999 kalacak
   }
   
   // Sayacı azalt, olay bittiyse temizle

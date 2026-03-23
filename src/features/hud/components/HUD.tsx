@@ -9,11 +9,13 @@ import { getMuted, toggleMute, playClick, playSkill } from '../../../utils/audio
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const EVENT_CONFIG = {
+const EVENT_CONFIG: Record<'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID', { label: string; color: string; bg: string }> = {
     ICE_STORM: { label: 'Buz Fırtınası', color: '#185FA5', bg: 'rgba(56,138,221,0.12)' },
-    OVERLOAD:  { label: 'Aşırı Yük — +1 Parça!', color: '#BA7517', bg: 'rgba(186,117,23,0.12)' },
+    GRAVITY_RUSH: { label: 'Gravity Rush — yön değişiyor!', color: '#BA7517', bg: 'rgba(186,117,23,0.12)' },
     QUAKE:     { label: 'Deprem!', color: '#D85A30', bg: 'rgba(216,90,48,0.12)' },
     MIRROR:    { label: 'Ayna Modu', color: '#D4537E', bg: 'rgba(212,83,126,0.12)' },
+    CHAOS:     { label: 'Kaos Modu — her şey değişiyor!', color: '#9933FF', bg: 'rgba(153,51,255,0.12)' },
+    VOID:      { label: 'Void — satırlar siliniyor!', color: '#E24B4A', bg: 'rgba(226,75,74,0.12)' },
 };
 
 export const HUD: React.FC = () => {

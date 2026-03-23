@@ -109,7 +109,39 @@ export const getRandomPiecesSync = (
       selectedShape = smallShapes[Math.floor(randVal * smallShapes.length)] || SHAPES[0];
     }
     // Difficulty tier logic (only for Endless mode, tier > 0)
-    else if (tier >= 4) {
+    else if (tier >= 6) {
+      // Tier 6 (70k+): Sadece büyük asimetrik parçalar ve cross
+      const rng = useSeededRNG && currentDailyRNG
+        ? () => currentDailyRNG!.next()
+        : Math.random;
+      
+      selectedShape = weightedPick(
+        [...S_ASYM4, ...S_SYM4, ...S_CROSS],
+        [
+          ...S_ASYM4.map(() => 55 / S_ASYM4.length),
+          ...S_SYM4.map(() => 30 / S_SYM4.length),
+          ...S_CROSS.map(() => 15),
+        ],
+        rng
+      );
+    } else if (tier >= 5) {
+      // Tier 5 (40k-70k): Tier 4'e benzer ama daha az tiny
+      const rng = useSeededRNG && currentDailyRNG
+        ? () => currentDailyRNG!.next()
+        : Math.random;
+      
+      selectedShape = weightedPick(
+        [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
+        [
+          ...S_TINY.map(() => 1 / S_TINY.length),   // Neredeyse yok
+          ...S_SMALL.map(() => 3 / S_SMALL.length),
+          ...S_ASYM4.map(() => 50 / S_ASYM4.length),
+          ...S_SYM4.map(() => 30 / S_SYM4.length),
+          ...S_CROSS.map(() => 16),
+        ],
+        rng
+      );
+    } else if (tier >= 4) {
       // Dağılım: %3 tiny | %5 small | %47 asym4 | %30 sym4 | %15 cross
       const rng = useSeededRNG && currentDailyRNG
         ? () => currentDailyRNG!.next()
@@ -280,7 +312,39 @@ export const getRandomPieces = async (
     const randVal = isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
 
     // Difficulty tier logic (only for Endless mode, tier > 0)
-    if (tier >= 4) {
+    if (tier >= 6) {
+      // Tier 6 (70k+): Sadece büyük asimetrik parçalar ve cross
+      const rng = isDaily && currentDailyRNG
+        ? () => currentDailyRNG!.next()
+        : Math.random;
+      
+      selectedShape = weightedPick(
+        [...S_ASYM4, ...S_SYM4, ...S_CROSS],
+        [
+          ...S_ASYM4.map(() => 55 / S_ASYM4.length),
+          ...S_SYM4.map(() => 30 / S_SYM4.length),
+          ...S_CROSS.map(() => 15),
+        ],
+        rng
+      );
+    } else if (tier >= 5) {
+      // Tier 5 (40k-70k): Tier 4'e benzer ama daha az tiny
+      const rng = isDaily && currentDailyRNG
+        ? () => currentDailyRNG!.next()
+        : Math.random;
+      
+      selectedShape = weightedPick(
+        [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
+        [
+          ...S_TINY.map(() => 1 / S_TINY.length),   // Neredeyse yok
+          ...S_SMALL.map(() => 3 / S_SMALL.length),
+          ...S_ASYM4.map(() => 50 / S_ASYM4.length),
+          ...S_SYM4.map(() => 30 / S_SYM4.length),
+          ...S_CROSS.map(() => 16),
+        ],
+        rng
+      );
+    } else if (tier >= 4) {
       // Dağılım: %3 tiny | %5 small | %47 asym4 | %30 sym4 | %15 cross
       const rng = isDaily && currentDailyRNG
         ? () => currentDailyRNG!.next()

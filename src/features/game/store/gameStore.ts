@@ -60,7 +60,7 @@ export interface GameStore {
   dailyClearHistory: boolean[][];
 
   // Event System State
-  activeEvent: 'ICE_STORM' | 'OVERLOAD' | 'QUAKE' | 'MIRROR' | null;
+  activeEvent: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
   eventMovesRemaining: number;
 
   // Timed Mode State
@@ -553,24 +553,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // 5. Tepsi güncelle
     let currentPieces = get().pieces.filter(p => p.instanceId !== piece.instanceId);
     if (currentPieces.length === 0) {
-      // OVERLOAD aktifse 4 parça üret, değilse 3
-      const pieceCount = get().activeEvent === 'OVERLOAD' ? 4 : 3;
+      const pieceCount = 3;
       
       const isDaily = get().gameMode === GameMode.DAILY_CHALLENGE;
       const isZen = get().gameMode === GameMode.ZEN;
       const zenPalette = isZen ? ZEN_PALETTES[get().zenPaletteIndex] : undefined;
       const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
       currentPieces = getRandomPiecesSync(pieceCount, newGrid, isDaily, zenPalette ?? useThemeStore.getState().getPieceColors(), currentTier, get().gameMode);
-      
-      // OVERLOAD tray sayacını düşür
-      if (get().activeEvent === 'OVERLOAD') {
-        const remaining = get().eventMovesRemaining - 1;
-        if (remaining <= 0) {
-          set({ activeEvent: null, eventMovesRemaining: 0 });
-        } else {
-          set({ eventMovesRemaining: remaining });
-        }
-      }
     }
 
     // Ses + Titresim

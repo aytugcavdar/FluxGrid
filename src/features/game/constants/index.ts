@@ -44,7 +44,7 @@ export const FLUX_COST = {
 };
 
 // Tier score multipliers for Endless mode
-export const TIER_SCORE_MULTIPLIERS = [1.0, 1.2, 1.5, 2.0, 3.0];
+export const TIER_SCORE_MULTIPLIERS = [1.0, 1.2, 1.5, 2.0, 3.0, 4.0, 5.0];
 
 export const ZEN_PALETTES = [
   ['#f59e0b', '#3b82f6', '#a78bfa', '#10b981', '#f472b6', '#6366f1'],  // default warm
