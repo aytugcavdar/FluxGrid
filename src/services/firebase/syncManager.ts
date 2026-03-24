@@ -52,7 +52,7 @@ export async function syncGameData(
 ): Promise<void> {
   const db = getFirebaseFirestore();
   try {
-    await updateDoc(doc(db, 'users', uid), update as any);
+    await setDoc(doc(db, 'users', uid), update as any, { merge: true });
   } catch (error) {
     console.error('syncGameData error:', error);
     throw error;
@@ -80,10 +80,10 @@ export async function syncScore(
     // b) Anti-cheat - Strengthened validation
     // Minimum time requirements based on score tiers
     const minTimeRequired = 
-      score <= 1000 ? 30 :           // 30 seconds for scores up to 1000
-      score <= 5000 ? 120 :          // 2 minutes for scores up to 5000
-      score <= 10000 ? 300 :         // 5 minutes for scores up to 10000
-      (score / 1000) * 10;           // 10 seconds per 1000 points for higher scores
+      score <= 1000 ? 10 :           // 10 seconds for scores up to 1000
+      score <= 5000 ? 30 :           // 30 seconds for scores up to 5000
+      score <= 10000 ? 60 :          // 1 minute for scores up to 10000
+      (score / 1000) * 3;            // 3 seconds per 1000 points for higher scores
     
     if (sessionDurationSecs < minTimeRequired) {
       console.warn('syncScore: Suspicious session duration', {
@@ -95,7 +95,7 @@ export async function syncScore(
     }
     
     // Additional check: Maximum reasonable score per second
-    const maxScorePerSecond = 50; // Maximum 50 points per second
+    const maxScorePerSecond = 200; // Maximum 200 points per second (combo/surge ile yüksek skorlar makul)
     const maxPossibleScore = sessionDurationSecs * maxScorePerSecond;
     
     if (score > maxPossibleScore) {
@@ -123,7 +123,6 @@ export async function syncScore(
         platform: detectPlatform(),
         appVersion: import.meta.env.VITE_APP_VERSION || '1.0.0',
         sessionDurationSecs,
-        flagged: false,
       };
       await setDoc(leaderboardDocRef, entry);
     }
@@ -160,13 +159,25 @@ export async function syncFromFirestore(uid: string): Promise<void> {
       'flux_stats',
       JSON.stringify(userData.stats ?? DEFAULT_USER_STATS)
     );
-    localStorage.setItem(
-      'flux_highscores',
-      JSON.stringify(userData.highScores ?? {})
-    );
     
-    const highScoreValues = Object.values(userData.highScores ?? {});
-    const maxHighScore = highScoreValues.length > 0 ? Math.max(...highScoreValues) : 0;
+    // HighScores: Her mod için en yüksek olanı koru (local veya Firebase)
+    const firestoreHighScores = userData.highScores ?? {};
+    let localHighScores: Record<string, number> = {};
+    try {
+      localHighScores = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
+    } catch {}
+    
+    const mergedHighScores: Record<string, number> = { ...localHighScores };
+    Object.entries(firestoreHighScores).forEach(([mode, score]) => {
+      const localScore = localHighScores[mode] || 0;
+      mergedHighScores[mode] = Math.max(localScore, score as number);
+    });
+    
+    localStorage.setItem('flux_highscores', JSON.stringify(mergedHighScores));
+    
+    const maxHighScore = Object.values(mergedHighScores).length > 0 
+      ? Math.max(...Object.values(mergedHighScores)) 
+      : 0;
     localStorage.setItem('flux_highscore', String(maxHighScore));
     
     localStorage.setItem(
@@ -178,11 +189,11 @@ export async function syncFromFirestore(uid: string): Promise<void> {
       String(userData.progression?.currentStreak ?? 0)
     );
 
-    // Theme ve language - mevcut değeri koru veya userData'dan al
-    if (userData.preferences?.theme) {
+    // Preferences (sadece locale'de yoksa yaz)
+    if (userData.preferences?.theme && !localStorage.getItem('flux_theme')) {
       localStorage.setItem('flux_theme', userData.preferences.theme);
     }
-    if (userData.preferences?.language) {
+    if (userData.preferences?.language && !localStorage.getItem('flux_language')) {
       localStorage.setItem('flux_language', userData.preferences.language);
     }
   } catch (error) {

@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getDoc, updateDoc, doc } from 'firebase/firestore';
+import { getDoc, updateDoc, setDoc, doc } from 'firebase/firestore';
 import {
   syncFromFirestore,
   syncLocalToFirestore,
@@ -165,10 +165,10 @@ describe('Sync and Migration Integration Tests', () => {
       // Act
       await syncFromFirestore(testUid);
 
-      // Assert: Firebase is source of truth - remote data overwrites local
+      // Assert: Keep highest score (Bug #6 fix) - local score is higher, so it's kept
       const highScores = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
-      expect(highScores.ENDLESS).toBe(1000);
-      expect(localStorage.getItem('flux_highscore')).toBe('1000');
+      expect(highScores.ENDLESS).toBe(9999);
+      expect(localStorage.getItem('flux_highscore')).toBe('9999');
     });
 
     it('should update timestamp when timestamps are equal', async () => {
@@ -239,14 +239,14 @@ describe('Sync and Migration Integration Tests', () => {
       }));
       localStorage.setItem('flux_max_level', '15');
 
-      vi.mocked(updateDoc).mockResolvedValue(undefined);
+      vi.mocked(setDoc).mockResolvedValue(undefined);
 
       // Act
       await syncLocalToFirestore(testUid);
 
-      // Assert: updateDoc should be called with collected data
-      expect(updateDoc).toHaveBeenCalled();
-      const callArgs = vi.mocked(updateDoc).mock.calls[0];
+      // Assert: setDoc should be called with collected data (Bug #4 fix - uses setDoc with merge)
+      expect(setDoc).toHaveBeenCalled();
+      const callArgs = vi.mocked(setDoc).mock.calls[0];
       const gameData = callArgs[1];
       
       expect(gameData).toMatchObject({
@@ -263,12 +263,12 @@ describe('Sync and Migration Integration Tests', () => {
 
     it('should handle empty localStorage gracefully', async () => {
       // Arrange: No local data
-      vi.mocked(updateDoc).mockResolvedValue(undefined);
+      vi.mocked(setDoc).mockResolvedValue(undefined);
 
       // Act
       await syncLocalToFirestore(testUid);
 
-      // Assert: Should still call updateDoc even with minimal data
+      // Assert: Should still call setDoc even with minimal data
       // (because syncLocalToFirestore always tries to sync what's available)
     });
   });
@@ -289,10 +289,10 @@ describe('Sync and Migration Integration Tests', () => {
         skillUses: {},
       }));
       localStorage.setItem('flux_max_level', '10');
-      vi.mocked(updateDoc).mockResolvedValue(undefined);
+      vi.mocked(setDoc).mockResolvedValue(undefined);
 
       await syncLocalToFirestore(testUid);
-      expect(updateDoc).toHaveBeenCalled();
+      expect(setDoc).toHaveBeenCalled();
 
       // Cycle 2: Clear local and sync from remote
       localStorage.clear();
@@ -332,14 +332,14 @@ describe('Sync and Migration Integration Tests', () => {
       expect(localStorage.getItem('flux_max_level')).toBe('10');
     });
 
-    it('should handle concurrent updates with Firebase as source of truth', async () => {
+    it('should handle concurrent updates with highest score winning', async () => {
       // Simulate two devices with different data
       
       // Device 1: Local data
       localStorage.setItem('flux_highscores', JSON.stringify({ ENDLESS: 3000 }));
       localStorage.setItem('flux_highscore', '3000');
 
-      // Device 2 (remote): Firebase data (source of truth)
+      // Device 2 (remote): Firebase data with higher score
       const mockRemoteData = {
         schemaVersion: 2,
         highScores: { ENDLESS: 5000 },
@@ -369,7 +369,7 @@ describe('Sync and Migration Integration Tests', () => {
 
       await syncFromFirestore(testUid);
 
-      // Assert: Firebase data should win (source of truth)
+      // Assert: Highest score wins (Bug #6 fix) - Firebase score is higher
       const highScores = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
       expect(highScores.ENDLESS).toBe(5000);
       expect(localStorage.getItem('flux_highscore')).toBe('5000');
@@ -422,16 +422,16 @@ describe('Sync and Migration Integration Tests', () => {
         totalPlaytimeSecs: 60,
         skillUses: {},
       }));
-      vi.mocked(updateDoc).mockRejectedValue(new Error('Permission denied'));
+      vi.mocked(setDoc).mockRejectedValue(new Error('Permission denied'));
 
       // Act & Assert: Should throw error
       await expect(syncLocalToFirestore(testUid)).rejects.toThrow('Permission denied');
     });
   });
 
-  describe('Timestamp Invariant', () => {
-    it('should always sync data from Firebase (source of truth)', async () => {
-      // Test 1: Remote data exists
+  describe('Highest Score Wins', () => {
+    it('should always keep the highest score between local and Firebase', async () => {
+      // Test 1: Remote data exists, no local data
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => ({
@@ -461,7 +461,7 @@ describe('Sync and Migration Integration Tests', () => {
       const highScores1 = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
       expect(highScores1.ENDLESS).toBe(1000);
 
-      // Test 2: Different remote data
+      // Test 2: Local score is higher - should keep local
       localStorage.setItem('flux_highscores', JSON.stringify({ ENDLESS: 5000 }));
       localStorage.setItem('flux_highscore', '5000');
       vi.mocked(getDoc).mockResolvedValue({
@@ -490,12 +490,12 @@ describe('Sync and Migration Integration Tests', () => {
       } as any);
 
       await syncFromFirestore(testUid);
-      // Firebase is source of truth - overwrites local
+      // Keep highest score (Bug #6 fix) - local is higher
       const highScores2 = JSON.parse(localStorage.getItem('flux_highscores') || '{}');
-      expect(highScores2.ENDLESS).toBe(3000);
-      expect(localStorage.getItem('flux_highscore')).toBe('3000');
+      expect(highScores2.ENDLESS).toBe(5000);
+      expect(localStorage.getItem('flux_highscore')).toBe('5000');
 
-      // Test 3: Another sync
+      // Test 3: Firebase score is higher - should take Firebase
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => ({

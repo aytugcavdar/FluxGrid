@@ -67,7 +67,7 @@ export interface LeaderboardEntry {
   platform: 'web' | 'android' | 'ios';
   appVersion: string;
   sessionDurationSecs: number;
-  flagged: boolean;
+  flagged?: boolean; // Optional - Cloud Function tarafından set edilir
   rank?: number; // client tarafı hesaplanır, Firestore'da opsiyonel
 }
 
@@ -126,7 +126,9 @@ export interface AppConfigDocument {
 }
 
 // Sync için kullanılan partial update tipi
-export type UserDocumentUpdate = Partial<Omit<UserDocument, 'uid' | 'createdAt' | 'schemaVersion'>>;
+export type UserDocumentUpdate = Partial<Omit<UserDocument, 'uid' | 'createdAt' | 'schemaVersion'>> & {
+  [key: string]: any; // Allow FieldValue types like increment()
+};
 
 // Platform yardımcı fonksiyonu
 export function detectPlatform(): 'web' | 'android' | 'ios' {

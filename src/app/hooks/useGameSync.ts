@@ -5,6 +5,7 @@ import { useAuthStore } from '@features/auth/store/authStore';
 import { syncGameData, syncScore, syncDailyChallenge, addToPendingWrites } from '../../services/firebase/syncManager';
 import { detectPlatform } from '../../services/firebase/types';
 import { getStreak } from '@utils/streakManager';
+import { increment } from 'firebase/firestore';
 
 interface GameSyncParams {
   isGameOver: boolean;
@@ -38,17 +39,15 @@ export function useGameSync(params: GameSyncParams): void {
     
     const statsPayload = {
       [`highScores.${gameMode}`]: score,
-      stats: {
-        gamesPlayed: stats.gamesPlayed,
-        totalScore: stats.totalScore,
-        linesCleared: stats.linesCleared,
-        blocksPlaced: stats.blocksPlaced,
-        bombsExploded: stats.bombsExploded,
-        iceBroken: stats.iceBroken,
-        highestCombo: Math.max(combo, 0),
-        totalPlaytimeSecs: sessionDurationSecs,
-        skillUses: stats.skillUses ?? {},
-      },
+      'stats.gamesPlayed': stats.gamesPlayed,
+      'stats.totalScore': stats.totalScore,
+      'stats.linesCleared': stats.linesCleared,
+      'stats.blocksPlaced': stats.blocksPlaced,
+      'stats.bombsExploded': stats.bombsExploded,
+      'stats.iceBroken': stats.iceBroken,
+      'stats.highestCombo': Math.max(combo, 0),
+      'stats.totalPlaytimeSecs': increment(sessionDurationSecs), // Increment instead of replace
+      'stats.skillUses': stats.skillUses ?? {},
       lastPlatform: detectPlatform(),
       lastAppVersion: import.meta.env.VITE_APP_VERSION || '1.0.0',
       lastSeenAt: Date.now(),

@@ -100,19 +100,19 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           lastAppVersion: import.meta.env.VITE_APP_VERSION || '1.0.0',
         }, { merge: true });
 
-        // If permanent user, sync Firestore → localStorage
+        // Sync Firestore → localStorage for all users (anonymous dahil)
+        try {
+          await syncFromFirestore(user.uid);
+        } catch (error) {
+          console.error('Failed to sync from Firestore during auth:', error);
+          // Don't block auth flow if sync fails
+        }
+        
+        // Migration sadece non-anonymous için
         if (!user.isAnonymous) {
-          // Migrate user to v2 schema first
           import('../../../services/firebase/migrationService').then(({ migrateUserToV2 }) => {
             migrateUserToV2(user.uid).catch(err => console.error('Migration failed:', err));
           });
-          
-          try {
-            await syncFromFirestore(user.uid);
-          } catch (error) {
-            console.error('Failed to sync from Firestore during auth:', error);
-            // Don't block auth flow if sync fails
-          }
         }
       }
     });
