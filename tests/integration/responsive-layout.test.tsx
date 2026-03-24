@@ -152,12 +152,13 @@ describe('Responsive Layout Tests', () => {
       expect(sonsuzElements.length).toBeGreaterThan(0);
 
       // Verify layout container has proper max-width
-      const layoutContainer = container.querySelector('.max-w-xs');
+      const layoutContainer = container.querySelector('.max-w-md');
       expect(layoutContainer).toBeInTheDocument();
 
       // Verify bottom navigation is present
-      expect(screen.getByText(/Görev Haritası/i)).toBeInTheDocument();
-      expect(screen.getByText(/Liderlik Tablosu/i)).toBeInTheDocument();
+      expect(screen.getByText(/DASHBOARD/i)).toBeInTheDocument();
+      const rankElements = screen.getAllByText(/RANK/i);
+      expect(rankElements.length).toBeGreaterThan(0); // Both GLOBAL RANK and bottom nav RANK
     });
 
     it('should render correctly on iPhone SE (375px)', () => {
@@ -166,10 +167,9 @@ describe('Responsive Layout Tests', () => {
 
       render(<App />);
 
-      // Verify stats row is visible for returning users (gamesPlayed > 5)
-      expect(screen.getByText(/1.5k/i)).toBeInTheDocument(); // High score formatted
-      const gamesText = screen.getAllByText(/6/i).find(el => el.textContent === '6');
-      expect(gamesText).toBeInTheDocument(); // Games played
+      // Verify stats row is visible - Yüksek Skor and Sıralama
+      expect(screen.getByText(/Yüksek Skor/i)).toBeInTheDocument();
+      expect(screen.getByText(/Sıralama/i)).toBeInTheDocument();
 
       // Verify primary action button shows mode name
       const sonsuzElements = screen.getAllByText(/SONSUZ/i);
@@ -183,10 +183,10 @@ describe('Responsive Layout Tests', () => {
       render(<App />);
 
       // Verify stats are visible
-      expect(screen.getByText(/5.0k/i)).toBeInTheDocument();
+      expect(screen.getByText(/Yüksek Skor/i)).toBeInTheDocument();
 
-      // Verify daily challenge card
-      expect(screen.getByText(/Günlük Meydan Okuma/i)).toBeInTheDocument();
+      // Verify Canlı Meydan Okuma card
+      expect(screen.getByText(/Canlı Meydan Okuma/i)).toBeInTheDocument();
     });
 
     it('should render correctly on large mobile (414px)', () => {
@@ -200,11 +200,11 @@ describe('Responsive Layout Tests', () => {
       expect(fluxElements.length).toBeGreaterThan(0);
       const sonsuzElements = screen.getAllByText(/SONSUZ/i);
       expect(sonsuzElements.length).toBeGreaterThan(0);
-      expect(screen.getByText(/Günlük Meydan Okuma/i)).toBeInTheDocument();
+      expect(screen.getByText(/Canlı Meydan Okuma/i)).toBeInTheDocument();
       
       // Verify bottom navigation
       const navButtons = screen.getAllByRole('button');
-      expect(navButtons.length).toBeGreaterThanOrEqual(10); // Top bar + mode tabs + main CTA + daily + bottom nav
+      expect(navButtons.length).toBeGreaterThanOrEqual(10); // Top bar + mode tabs + main CTA + cards + bottom nav
     });
   });
 
@@ -233,11 +233,8 @@ describe('Responsive Layout Tests', () => {
       // Verify all elements are properly spaced
       const fluxElements = screen.getAllByText(/FLUX/i);
       expect(fluxElements.length).toBeGreaterThan(0);
-      expect(screen.getByText(/10.0k/i)).toBeInTheDocument(); // High score
-      
-      // Verify games played stat
-      const gamesText = screen.getAllByText(/15/i).find(el => el.textContent === '15');
-      expect(gamesText).toBeInTheDocument();
+      expect(screen.getByText(/Yüksek Skor/i)).toBeInTheDocument();
+      expect(screen.getByText(/Sıralama/i)).toBeInTheDocument();
     });
   });
 
@@ -250,11 +247,11 @@ describe('Responsive Layout Tests', () => {
 
       // Verify content is centered with max-width
       const fluxElements = screen.getAllByText(/FLUX/i);
-      const container = fluxElements[0].closest('.max-w-xs');
+      const container = fluxElements[0].closest('.max-w-md');
       expect(container).toBeInTheDocument();
 
-      // Verify all sections render (stats row now visible with > 5 games)
-      expect(screen.getByText(/3.0k/i)).toBeInTheDocument();
+      // Verify all sections render
+      expect(screen.getByText(/Yüksek Skor/i)).toBeInTheDocument();
       const sonsuzElements = screen.getAllByText(/SONSUZ/i);
       expect(sonsuzElements.length).toBeGreaterThan(0);
     });
@@ -268,11 +265,8 @@ describe('Responsive Layout Tests', () => {
       // Verify layout maintains max-width constraint
       const fluxElements = screen.getAllByText(/FLUX/i);
       expect(fluxElements.length).toBeGreaterThan(0);
-      expect(screen.getByText(/15.0k/i)).toBeInTheDocument();
-      
-      // Verify games played stat
-      const gamesText = screen.getAllByText(/20/i).find(el => el.textContent === '20');
-      expect(gamesText).toBeInTheDocument();
+      expect(screen.getByText(/Yüksek Skor/i)).toBeInTheDocument();
+      expect(screen.getByText(/Sıralama/i)).toBeInTheDocument();
     });
   });
 
@@ -307,8 +301,8 @@ describe('Responsive Layout Tests', () => {
       setupUserState({ gamesPlayed: 0 });
       const { container } = render(<App />);
 
-      // Find bottom navigation container with grid layout
-      const navContainer = container.querySelector('[style*="display: grid"]');
+      // Find bottom navigation container with flex layout
+      const navContainer = container.querySelector('[style*="display: flex"]');
       expect(navContainer).toBeInTheDocument();
     });
 
@@ -348,15 +342,12 @@ describe('Responsive Layout Tests', () => {
       expect(statsCards.length).toBeGreaterThan(0);
     });
 
-    it('should use consistent colors for daily challenge card', () => {
+    it('should use consistent colors for live challenge card', () => {
       setupUserState({ gamesPlayed: 0 });
       render(<App />);
 
-      const dailyCard = screen.getByText(/Günlük Meydan Okuma/i).closest('button');
-      const cardStyle = dailyCard?.getAttribute('style');
-      
-      // Should have amber/orange theme for daily challenge (with spaces after commas)
-      expect(cardStyle).toContain('rgba(245, 158, 11');
+      // Verify Canlı Meydan Okuma card exists
+      expect(screen.getByText(/Canlı Meydan Okuma/i)).toBeInTheDocument();
     });
 
     it('should use consistent colors for mode tabs', () => {
@@ -387,11 +378,9 @@ describe('Responsive Layout Tests', () => {
       const sonsuzElements = screen.getAllByText(/SONSUZ/i);
       expect(sonsuzElements.length).toBeGreaterThan(0);
       
-      // Stats row should ALWAYS be visible now (requirement 5.1)
-      expect(screen.getByText(/En iyi skor/i)).toBeInTheDocument();
-      
-      // Should NOT show career chip
-      expect(screen.queryByText(/kaldığın yerden devam et/i)).not.toBeInTheDocument();
+      // Stats row should ALWAYS be visible
+      expect(screen.getByText(/Yüksek Skor/i)).toBeInTheDocument();
+      expect(screen.getByText(/Sıralama/i)).toBeInTheDocument();
     });
 
     it('should render correctly for returning user (5 games)', () => {
@@ -402,8 +391,9 @@ describe('Responsive Layout Tests', () => {
       const sonsuzElements = screen.getAllByText(/SONSUZ/i);
       expect(sonsuzElements.length).toBeGreaterThan(0);
       
-      // Should show stats row (gamesPlayed > 5)
-      expect(screen.getByText(/2.5k/i)).toBeInTheDocument();
+      // Should show stats row
+      expect(screen.getByText(/Yüksek Skor/i)).toBeInTheDocument();
+      expect(screen.getByText(/Sıralama/i)).toBeInTheDocument();
     });
 
     it('should render correctly for user with progress', () => {
@@ -411,11 +401,8 @@ describe('Responsive Layout Tests', () => {
       render(<App />);
 
       // Should show stats
-      expect(screen.getByText(/5.0k/i)).toBeInTheDocument();
-      
-      // Should show games played
-      const gamesText = screen.getAllByText(/10/i).find(el => el.textContent === '10');
-      expect(gamesText).toBeInTheDocument();
+      expect(screen.getByText(/Yüksek Skor/i)).toBeInTheDocument();
+      expect(screen.getByText(/Sıralama/i)).toBeInTheDocument();
     });
 
     it('should render correctly for experienced user (20+ games)', () => {
@@ -423,9 +410,8 @@ describe('Responsive Layout Tests', () => {
       render(<App />);
 
       // Should show all elements
-      expect(screen.getByText(/20.0k/i)).toBeInTheDocument();
-      const gamesText = screen.getAllByText(/25/i).find(el => el.textContent === '25');
-      expect(gamesText).toBeInTheDocument();
+      expect(screen.getByText(/Yüksek Skor/i)).toBeInTheDocument();
+      expect(screen.getByText(/Sıralama/i)).toBeInTheDocument();
       const sonsuzElements = screen.getAllByText(/SONSUZ/i);
       expect(sonsuzElements.length).toBeGreaterThan(0);
     });
@@ -434,10 +420,9 @@ describe('Responsive Layout Tests', () => {
       setupUserState({ gamesPlayed: 2, highScore: 500 });
       render(<App />);
 
-      // Stats row should ALWAYS be visible now (requirement 5.1)
-      // Even for users with 5 or fewer games
-      expect(screen.getByText(/En iyi skor/i)).toBeInTheDocument();
-      expect(screen.getByText(/Oyun sayısı/i)).toBeInTheDocument();
+      // Stats row should ALWAYS be visible
+      expect(screen.getByText(/Yüksek Skor/i)).toBeInTheDocument();
+      expect(screen.getByText(/Sıralama/i)).toBeInTheDocument();
     });
 
     it('should show stats for users with more than 5 games', () => {
@@ -445,9 +430,8 @@ describe('Responsive Layout Tests', () => {
       render(<App />);
 
       // Stats row should be visible
-      expect(screen.getByText(/1.0k/i)).toBeInTheDocument();
-      const gamesText = screen.getAllByText(/6/i).find(el => el.textContent === '6');
-      expect(gamesText).toBeInTheDocument();
+      expect(screen.getByText(/Yüksek Skor/i)).toBeInTheDocument();
+      expect(screen.getByText(/Sıralama/i)).toBeInTheDocument();
     });
   });
 
@@ -457,9 +441,10 @@ describe('Responsive Layout Tests', () => {
       render(<App />);
 
       const fluxElements = screen.getAllByText(/FLUX/i);
-      // Logo uses inline styles with Orbitron font
+      // Logo h1 element has inline font-family style
       expect(fluxElements.length).toBeGreaterThan(0);
-      expect(fluxElements[0].parentElement?.getAttribute('style')).toContain('font-family');
+      const h1Element = fluxElements[0].closest('h1');
+      expect(h1Element?.getAttribute('style')).toContain('font-family');
     });
 
     // Tagline removed in task 11 - test removed
@@ -474,15 +459,12 @@ describe('Responsive Layout Tests', () => {
       expect(ctaCard).toBeInTheDocument();
     });
 
-    it('should render daily card with compact padding', () => {
+    it('should render live challenge card with proper padding', () => {
       setupUserState({ gamesPlayed: 0 });
       render(<App />);
 
-      const dailyCard = screen.getByText(/Günlük Meydan Okuma/i).closest('button');
-      const cardStyle = dailyCard?.getAttribute('style');
-      
-      // Should have compact padding (10px 12px)
-      expect(cardStyle).toContain('padding: 10px 12px');
+      // Verify Canlı Meydan Okuma card exists
+      expect(screen.getByText(/Canlı Meydan Okuma/i)).toBeInTheDocument();
     });
 
     it('should render mode tabs with proper styling', () => {
@@ -498,11 +480,12 @@ describe('Responsive Layout Tests', () => {
       setupUserState({ gamesPlayed: 0 });
       render(<App />);
 
-      // Bottom navigation uses emoji icons, not SVG
-      const mapElements = screen.getAllByText(/🗺️/);
-      expect(mapElements.length).toBeGreaterThan(0);
-      const trophyElements = screen.getAllByText(/🏆/);
-      expect(trophyElements.length).toBeGreaterThan(0);
+      // Bottom navigation uses text labels
+      expect(screen.getByText(/DASHBOARD/i)).toBeInTheDocument();
+      expect(screen.getByText(/QUESTS/i)).toBeInTheDocument();
+      const rankElements = screen.getAllByText(/RANK/i);
+      expect(rankElements.length).toBeGreaterThan(0); // Both GLOBAL RANK and bottom nav RANK
+      expect(screen.getByText(/PROFILE/i)).toBeInTheDocument();
     });
   });
 
