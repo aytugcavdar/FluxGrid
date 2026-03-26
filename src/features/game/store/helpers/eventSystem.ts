@@ -11,16 +11,26 @@ type SetFn = (partial: Partial<GameStore>) => void;
 const TIER_THRESHOLDS = [0, 2000, 5000, 10000, 20000, 40000, 70000];
 const TIER_EVENTS = ['ICE_STORM', 'GRAVITY_RUSH', 'QUAKE', 'MIRROR', 'CHAOS', 'VOID'];
 
+// Return type for checkTierEvent
+type TierEventResult = {
+  difficultyTier: number;
+  activeEvent: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
+  eventMovesRemaining: number;
+  lastAction: any;
+  grid?: GridState;
+} | null;
+
 /**
  * Check if player has reached a new difficulty tier and activate corresponding event
  * Only applies to Endless mode
+ * Returns state updates instead of calling set() to avoid conflicts with tickActiveEvent
  */
 export function checkTierEvent(
   score: number,
   currentTier: number,
   get: GetFn,
   set: SetFn
-): void {
+): TierEventResult {
   const newTier = TIER_THRESHOLDS.filter(t => score >= t).length - 1;
   
   if (newTier > currentTier && newTier >= 1 && newTier <= 6) {
@@ -41,8 +51,8 @@ export function checkTierEvent(
       6: 'Void',
     };
     
-    set({
-      activeEvent: eventName as any,
+    const result: TierEventResult = {
+      activeEvent: eventName as 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID',
       eventMovesRemaining: duration,
       difficultyTier: newTier,
       lastAction: {
@@ -50,7 +60,7 @@ export function checkTierEvent(
         tier: newTier,
         tierName: tierNames[newTier] ?? `Tier ${newTier}`,
       },
-    });
+    };
     
     // QUAKE için anında uygula - temiz gravity-left algoritması
     if (eventName === 'QUAKE') {
@@ -99,9 +109,13 @@ export function checkTierEvent(
         }
       }
       
-      set({ grid: quakeGrid });
+      result.grid = quakeGrid;
     }
+    
+    return result;
   }
+  
+  return null;
 }
 
 /**

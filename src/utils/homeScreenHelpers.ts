@@ -57,6 +57,8 @@ export function getAllModeStats(): Record<string, ModeStats> {
  */
 export function saveModeStats(modeStats: Record<string, ModeStats>): void {
   try {
+    // Use direct localStorage.setItem for synchronous save (needed for tests and immediate persistence)
+    // debouncedSave is async and causes test failures
     localStorage.setItem(MODE_STATS_KEY, JSON.stringify(modeStats));
   } catch (e) {
     console.error('Failed to save mode stats', e);

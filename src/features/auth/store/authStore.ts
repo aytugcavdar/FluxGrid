@@ -6,11 +6,10 @@ import {
   signInWithPopup,
   linkWithPopup,
   signOut as firebaseSignOut,
-  User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { getFirebaseAuth, getFirebaseFirestore } from '../../../services/firebase/config';
-import { migrate } from '../../../services/firebase/migrationService';
+import { migrate, migrateUserToV2 } from '../../../services/firebase/migrationService';
 import { syncFromFirestore } from '../../../services/firebase/syncManager';
 import { DEFAULT_USER_STATS, DEFAULT_PROGRESSION, detectPlatform } from '../../../services/firebase/types';
 import type { AuthStore, MigrationStatus } from '../types';
@@ -31,13 +30,20 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   isLoading: true,
   error: null,
   migrationStatus: 'pending',
+  unsubscribeListener: null,
 
   // Actions
   initAuth: async () => {
     const auth = getFirebaseAuth();
     
+    // Cleanup existing listener if any
+    const currentUnsubscribe = get().unsubscribeListener;
+    if (currentUnsubscribe) {
+      currentUnsubscribe();
+    }
+    
     // Set up auth state listener
-    onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         // No user exists, create anonymous user
         try {
@@ -110,12 +116,13 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         
         // Migration sadece non-anonymous için
         if (!user.isAnonymous) {
-          import('../../../services/firebase/migrationService').then(({ migrateUserToV2 }) => {
-            migrateUserToV2(user.uid).catch(err => console.error('Migration failed:', err));
-          });
+          migrateUserToV2(user.uid).catch(err => console.error('Migration failed:', err));
         }
       }
     });
+    
+    // Store the unsubscribe function
+    set({ unsubscribeListener: unsubscribe });
   },
 
   upgradeToGoogleAccount: async () => {
@@ -132,6 +139,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
       // Create Google provider and link with popup
       const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
       const result = await linkWithPopup(currentUser, provider);
       // result.user is now the user linked with Google account
 
@@ -209,12 +218,19 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   signOut: async () => {
     const auth = getFirebaseAuth();
     try {
+      // Cleanup listener before signing out
+      const currentUnsubscribe = get().unsubscribeListener;
+      if (currentUnsubscribe) {
+        currentUnsubscribe();
+      }
+      
       await firebaseSignOut(auth);
       set({
         user: null,
         isAnonymous: false,
         error: null,
         migrationStatus: 'pending',
+        unsubscribeListener: null,
       });
     } catch (error) {
       console.error('Sign out failed:', error);
@@ -231,6 +247,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       set({ isLoading: true, error: null });
 
       const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
       const result = await signInWithPopup(auth, provider);
 
       set({
@@ -276,5 +294,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   setError: (error: string | null) => {
     set({ error });
+  },
+
+  cleanup: () => {
+    // Cleanup function for unmounting
+    const currentUnsubscribe = get().unsubscribeListener;
+    if (currentUnsubscribe) {
+      currentUnsubscribe();
+      set({ unsubscribeListener: null });
+    }
   },
 }));

@@ -36,7 +36,7 @@ export const updateLeaderboardMeta = functions.firestore
         uid: doc.id,
         rank: index + 1,
         ...doc.data(),
-      }));
+      })) as Array<{ uid: string; rank: number; score: number; [key: string]: any }>;
 
       // Update meta document
       await metaRef.set({

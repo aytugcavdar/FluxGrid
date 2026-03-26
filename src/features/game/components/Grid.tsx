@@ -430,6 +430,35 @@ export const Grid: React.FC = () => {
                 box.isPickable = false;
                 return box;
 
+            } else if (type === CellType.CHRONO) {
+                // ══ BLOCK: CHRONO — Altın, Zaman Bonusu ══
+                const box = BABYLON.MeshBuilder.CreateBox(id, { size: CELL_SIZE * 0.88, height: 0.68 }, scene);
+                mat.diffuseColor = BABYLON.Color3.FromHexString("#fbbf24");
+                mat.emissiveColor = BABYLON.Color3.FromHexString("#f59e0b").scale(0.2);
+                mat.specularColor = BABYLON.Color3.Black();
+                mat.specularPower = 0;
+                mat.alpha = 1.0;
+                box.material = mat;
+
+                // Altın kenarlık
+                box.enableEdgesRendering();
+                box.edgesWidth = 3.5;
+                box.edgesColor = new BABYLON.Color4(1.0, 0.85, 0.2, 1.0);
+
+                // Üstte saat simgesi marker
+                const marker = BABYLON.MeshBuilder.CreateBox(`${id}-chrono`, { size: CELL_SIZE * 0.3, height: 0.06 }, scene);
+                marker.position.y = 0.37;
+                const mMat = new BABYLON.StandardMaterial(`${id}-chronoMat`, scene);
+                mMat.emissiveColor = BABYLON.Color3.FromHexString("#fef3c7");
+                mMat.disableLighting = true;
+                mMat.alpha = 0.95;
+                marker.material = mMat;
+                marker.parent = box;
+                marker.isPickable = false;
+
+                box.isPickable = false;
+                return box;
+
             } else {
                 // ══ BLOCK: Normal ══
                 const box = BABYLON.MeshBuilder.CreateBox(id, { size: CELL_SIZE * 0.92, height: 0.6 }, scene);
@@ -649,6 +678,12 @@ export const Grid: React.FC = () => {
                                     ? BABYLON.Color3.FromHexString("#60a5fa")
                                     : BABYLON.Color3.FromHexString("#38bdf8");
                                 (mesh.material as BABYLON.StandardMaterial).emissiveColor = iceColor.scale(icePulse + 0.1);
+                            }
+                            // CHRONO bloğu animate - altın nabız
+                            else if (cell.type === CellType.CHRONO && mesh.material) {
+                                const chronoPulse = 0.15 + Math.abs(Math.sin(time * 2.5)) * 0.25;
+                                (mesh.material as BABYLON.StandardMaterial).emissiveColor =
+                                    BABYLON.Color3.FromHexString("#f59e0b").scale(chronoPulse);
                             }
                             // SHATTER skill: Show pulse on ALL filled cells (sadece skill aktifken)
                             else if (cell.type === CellType.NORMAL && activeSkill === SkillType.SHATTER && cell.filled) {

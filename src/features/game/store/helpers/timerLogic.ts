@@ -1,6 +1,7 @@
 import { GameMode, AppState } from '@shared/types';
 import { playGameOver, playTick } from '../../../../utils/audio';
 import { safeExecute, ErrorCategory } from '../../../../utils/errorHandler';
+import { TIMED_MODE } from '../../constants';
 
 /**
  * Timer tick logic for ZEN and TIMED game modes
@@ -29,7 +30,7 @@ export const tickTimerImpl = (
       // TIMED modda timer'ı azalt
       if (gameMode === GameMode.TIMED) {
         // Play tick sound for last 10 seconds
-        if (timeLeft <= 10 && timeLeft > 0) {
+        if (timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD && timeLeft > 0) {
           playTick();
         }
         

@@ -62,6 +62,12 @@ export const POINTS = {
   BLITZ_TIME_BONUS: 100,
 };
 
+// TIMED Mode Constants
+export const TIMED_MODE = {
+  FINAL_SECONDS_THRESHOLD: 10,  // Seconds remaining for final bonus multiplier (1.5x)
+  WARNING_THRESHOLD: 30,          // Seconds remaining for warning state
+};
+
 // CHRONO Block (Timed Mode)
 export const CHRONO_BLOCK = {
   color: '#fbbf24',  // Golden/amber color

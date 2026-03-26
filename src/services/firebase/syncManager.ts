@@ -8,6 +8,7 @@ import {
   where,
   getDocs,
   addDoc,
+  onSnapshot,
 } from 'firebase/firestore';
 import { getFirebaseFirestore } from './config';
 import { GameMode } from '@shared/types';
@@ -20,10 +21,149 @@ import {
   PendingWriteDocument,
   PendingWriteType,
   DEFAULT_USER_STATS,
+  DEFAULT_PROGRESSION,
+  DEFAULT_ABILITIES,
   detectPlatform,
+  AbilitiesData,
 } from './types';
 
-// 1. createOrUpdateUser
+// 1. loadUserFromFirestore
+export async function loadUserFromFirestore(uid: string): Promise<void> {
+  const db = getFirebaseFirestore();
+  
+  try {
+    // Read Firestore document
+    const userDocRef = doc(db, 'users', uid);
+    const userDoc = await getDoc(userDocRef);
+
+    // If document doesn't exist, return (no data to load)
+    if (!userDoc.exists()) {
+      console.log('loadUserFromFirestore: No document found for uid', uid);
+      return;
+    }
+
+    // Parse data as UserDocument
+    const userData = userDoc.data() as UserDocument;
+
+    // Dynamic import to avoid circular dependency
+    const { useGameStore } = await import('@features/game/store/gameStore');
+    const { usePassiveAbilityStore } = await import('@features/abilities/store/passiveAbilityStore');
+
+    // Update gameStore with Firestore data
+    useGameStore.setState({
+      highScores: userData.highScores ?? {},
+      stats: userData.stats ?? DEFAULT_USER_STATS,
+      maxLevelReached: userData.progression?.maxLevelReached ?? 0,
+    });
+
+    // Update passiveAbilityStore with Firestore data
+    const abilities = userData.abilities ?? DEFAULT_ABILITIES;
+    usePassiveAbilityStore.getState().initializeFromFirestore(
+      abilities.passiveUnlocks,
+      abilities.passiveEquipped,
+      abilities.maxUnlockedLevel
+    );
+
+    console.log('loadUserFromFirestore: Successfully loaded user data');
+  } catch (error) {
+    console.error('loadUserFromFirestore error:', error);
+    // Use default values on error - stores already have defaults
+  }
+}
+
+// 2. subscribeToUserChanges
+export function subscribeToUserChanges(
+  uid: string,
+  callback: (data: UserDocument) => void
+): () => void {
+  const db = getFirebaseFirestore();
+
+  try {
+    // Setup onSnapshot listener for real-time updates
+    const userDocRef = doc(db, 'users', uid);
+
+    const unsubscribe = onSnapshot(userDocRef, async (snapshot) => {
+      if (!snapshot.exists()) {
+        console.log('subscribeToUserChanges: Document does not exist');
+        return;
+      }
+
+      // Parse data as UserDocument
+      const userData = snapshot.data() as UserDocument;
+
+      // Call the callback with the updated data
+      callback(userData);
+
+      // Dynamic import to avoid circular dependency
+      const { useGameStore } = await import('@features/game/store/gameStore');
+      const { usePassiveAbilityStore } = await import('@features/abilities/store/passiveAbilityStore');
+
+      // Update gameStore with Firestore data
+      useGameStore.setState({
+        highScores: userData.highScores ?? {},
+        stats: userData.stats ?? DEFAULT_USER_STATS,
+        maxLevelReached: userData.progression?.maxLevelReached ?? 0,
+      });
+
+      // Update passiveAbilityStore with Firestore data
+      const abilities = userData.abilities ?? DEFAULT_ABILITIES;
+      usePassiveAbilityStore.getState().initializeFromFirestore(
+        abilities.passiveUnlocks,
+        abilities.passiveEquipped,
+        abilities.maxUnlockedLevel
+      );
+
+      console.log('subscribeToUserChanges: Store updated from Firestore');
+    }, (error) => {
+      console.error('subscribeToUserChanges error:', error);
+    });
+
+    return unsubscribe;
+  } catch (error) {
+    console.error('subscribeToUserChanges setup error:', error);
+    // Return no-op unsubscribe function on error
+    return () => {};
+  }
+}
+
+// 3. syncAbilities
+export async function syncAbilities(
+  uid: string,
+  abilities: Partial<import('./types').AbilitiesData>
+): Promise<void> {
+  const db = getFirebaseFirestore();
+  const maxRetries = 3;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      await setDoc(
+        doc(db, 'users', uid),
+        {
+          abilities,
+          lastSeenAt: Date.now(),
+        },
+        { merge: true }
+      );
+      
+      console.log('syncAbilities: Successfully synced abilities');
+      return;
+    } catch (error) {
+      console.error(`syncAbilities error (attempt ${attempt + 1}/${maxRetries}):`, error);
+      
+      // Son denemede hata fırlat
+      if (attempt === maxRetries - 1) {
+        throw error;
+      }
+      
+      // Exponential backoff: 1s, 2s, 4s
+      await new Promise(resolve => 
+        setTimeout(resolve, Math.pow(2, attempt) * 1000)
+      );
+    }
+  }
+}
+
+// 4. createOrUpdateUser
 export async function createOrUpdateUser(
   uid: string,
   data: Partial<UserDocument>
@@ -45,31 +185,55 @@ export async function createOrUpdateUser(
   }
 }
 
-// 2. syncGameData
+// 5. syncGameData
 export async function syncGameData(
   uid: string,
   update: UserDocumentUpdate
 ): Promise<void> {
   const db = getFirebaseFirestore();
-  try {
-    await setDoc(doc(db, 'users', uid), update as any, { merge: true });
-  } catch (error) {
-    console.error('syncGameData error:', error);
-    throw error;
+  const maxRetries = 3;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      await setDoc(
+        doc(db, 'users', uid),
+        {
+          ...update,
+          lastSeenAt: Date.now(),
+        } as any,
+        { merge: true }
+      );
+      
+      console.log('syncGameData: Successfully synced game data');
+      return;
+    } catch (error) {
+      console.error(`syncGameData error (attempt ${attempt + 1}/${maxRetries}):`, error);
+      
+      // Son denemede hata fırlat
+      if (attempt === maxRetries - 1) {
+        throw error;
+      }
+      
+      // Exponential backoff: 1s, 2s, 4s
+      await new Promise(resolve => 
+        setTimeout(resolve, Math.pow(2, attempt) * 1000)
+      );
+    }
   }
 }
 
-// 3. syncScore
+// 4. syncScore
 export async function syncScore(
   uid: string,
   mode: GameMode,
   score: number,
   displayName: string,
   photoURL: string | null,
-  sessionDurationSecs: number
+  sessionDurationSecs: number,
+  abilities: AbilitiesData
 ): Promise<void> {
   const db = getFirebaseFirestore();
-  
+
   try {
     // a) Validation
     if (score < 0 || score > 9999999) {
@@ -79,12 +243,12 @@ export async function syncScore(
 
     // b) Anti-cheat - Strengthened validation
     // Minimum time requirements based on score tiers
-    const minTimeRequired = 
-      score <= 1000 ? 10 :           // 10 seconds for scores up to 1000
-      score <= 5000 ? 30 :           // 30 seconds for scores up to 5000
-      score <= 10000 ? 60 :          // 1 minute for scores up to 10000
-      (score / 1000) * 3;            // 3 seconds per 1000 points for higher scores
-    
+    const minTimeRequired =
+      score <= 1000 ? 5 :            // 5 seconds for scores up to 1000
+      score <= 5000 ? 15 :           // 15 seconds for scores up to 5000
+      score <= 10000 ? 30 :          // 30 seconds for scores up to 10000
+      (score / 1000) * 2;            // 2 seconds per 1000 points for higher scores
+
     if (sessionDurationSecs < minTimeRequired) {
       console.warn('syncScore: Suspicious session duration', {
         score,
@@ -93,11 +257,11 @@ export async function syncScore(
       });
       return;
     }
-    
+
     // Additional check: Maximum reasonable score per second
-    const maxScorePerSecond = 200; // Maximum 200 points per second (combo/surge ile yüksek skorlar makul)
+    const maxScorePerSecond = 300; // Maximum 300 points per second (combo/surge ile yüksek skorlar makul)
     const maxPossibleScore = sessionDurationSecs * maxScorePerSecond;
-    
+
     if (score > maxPossibleScore) {
       console.warn('syncScore: Score too high for session duration', {
         score,
@@ -127,9 +291,12 @@ export async function syncScore(
       await setDoc(leaderboardDocRef, entry);
     }
 
-    // e) users/{uid} highScores.{mode} güncelle (her zaman)
+    // e) users/{uid} highScores.{mode} ve abilities güncelle
     await updateDoc(doc(db, 'users', uid), {
       [`highScores.${mode}`]: score,
+      'abilities.passiveUnlocks': abilities.passiveUnlocks,
+      'abilities.passiveEquipped': abilities.passiveEquipped,
+      'abilities.maxUnlockedLevel': abilities.maxUnlockedLevel,
     });
   } catch (error) {
     console.error('syncScore error:', error);
@@ -137,7 +304,8 @@ export async function syncScore(
   }
 }
 
-// 4. syncFromFirestore
+
+// 5. syncFromFirestore
 export async function syncFromFirestore(uid: string): Promise<void> {
   const db = getFirebaseFirestore();
   
@@ -202,7 +370,7 @@ export async function syncFromFirestore(uid: string): Promise<void> {
   }
 }
 
-// 5. syncDailyChallenge
+// 6. syncDailyChallenge
 export async function syncDailyChallenge(
   uid: string,
   date: string,
@@ -245,7 +413,7 @@ export async function syncDailyChallenge(
   }
 }
 
-// 6. syncAchievement
+// 7. syncAchievement
 export async function syncAchievement(
   uid: string,
   achievement: AchievementDocument
@@ -264,7 +432,7 @@ export async function syncAchievement(
   }
 }
 
-// 7. processPendingWrites
+// 8. processPendingWrites
 export async function processPendingWrites(uid: string): Promise<void> {
   const db = getFirebaseFirestore();
   
@@ -287,7 +455,8 @@ export async function processPendingWrites(uid: string): Promise<void> {
               write.payload.score as number,
               write.payload.displayName as string,
               write.payload.photoURL as string | null,
-              write.payload.sessionDurationSecs as number
+              write.payload.sessionDurationSecs as number,
+              write.payload.abilities as AbilitiesData
             );
             break;
           case 'daily':
@@ -332,7 +501,7 @@ export async function processPendingWrites(uid: string): Promise<void> {
   }
 }
 
-// 8. addToPendingWrites
+// 9. addToPendingWrites
 export async function addToPendingWrites(
   uid: string,
   type: PendingWriteType,
@@ -356,7 +525,7 @@ export async function addToPendingWrites(
   }
 }
 
-// 9. syncLocalToFirestore (eski fonksiyon, uyumlu tut)
+// 10. syncLocalToFirestore (eski fonksiyon, uyumlu tut)
 export async function syncLocalToFirestore(uid: string): Promise<void> {
   const db = getFirebaseFirestore();
   

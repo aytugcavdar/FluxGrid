@@ -17,6 +17,7 @@ const ALLOWED_KEYS = [
   'pwa_installed',
   'flux_highscore', // offline cache only
   'flux_survival_highscore',
+  'flux_mode_stats',
   // Firebase cache keys (read-only, updated by Firebase sync)
   'flux_stats',
   'flux_achievements',

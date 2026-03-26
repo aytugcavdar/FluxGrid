@@ -37,10 +37,17 @@ export interface UserPreferences {
   muted: boolean;
 }
 
+// Pasif yetenek verileri
+export interface AbilitiesData {
+  passiveUnlocks: string[];
+  passiveEquipped: string[];
+  maxUnlockedLevel: number;
+}
+
 // Ana users/{uid} belgesi
 export interface UserDocument {
   uid: string;
-  schemaVersion: number; // şu an: 2
+  schemaVersion: 3; // v3: abilities alanı eklendi
   displayName: string;
   photoURL: string | null;
   isAnonymous: boolean;
@@ -52,6 +59,7 @@ export interface UserDocument {
   stats: UserStats;
   progression: UserProgression;
   preferences: UserPreferences;
+  abilities: AbilitiesData;
   lastPlatform: 'web' | 'android' | 'ios';
   lastAppVersion: string;
   deviceTokens?: string[]; // deprecated — migration için tutulacak
@@ -157,4 +165,11 @@ export const DEFAULT_PROGRESSION: UserProgression = {
   currentStreak: 0,
   longestStreak: 0,
   lastDailyDate: null,
+};
+
+// Default AbilitiesData
+export const DEFAULT_ABILITIES: AbilitiesData = {
+  passiveUnlocks: [],
+  passiveEquipped: [],
+  maxUnlockedLevel: 0,
 };

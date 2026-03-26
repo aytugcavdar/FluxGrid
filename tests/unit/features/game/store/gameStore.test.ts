@@ -332,4 +332,86 @@ describe('gameStore', () => {
       expect(state.highScore).toBeDefined();
     });
   });
+
+  describe('setState method', () => {
+    it('should update highScores from Firestore', () => {
+      const store = useGameStore.getState();
+      store.initGame(GameMode.ENDLESS);
+      
+      const newHighScores = {
+        [GameMode.ENDLESS]: 15000,
+        [GameMode.TIMED]: 8000,
+        [GameMode.DAILY_CHALLENGE]: 5000,
+      };
+      
+      store.setState({ highScores: newHighScores });
+      
+      const state = useGameStore.getState();
+      expect(state.highScores).toEqual(newHighScores);
+      expect(state.highScores[GameMode.ENDLESS]).toBe(15000);
+      expect(state.highScores[GameMode.TIMED]).toBe(8000);
+    });
+
+    it('should update stats from Firestore', () => {
+      const store = useGameStore.getState();
+      store.initGame(GameMode.ENDLESS);
+      
+      const newStats = {
+        gamesPlayed: 50,
+        totalScore: 100000,
+        linesCleared: 500,
+        blocksPlaced: 2000,
+        bombsExploded: 10,
+        iceBroken: 20,
+        skillUses: {
+          REROLL: 30,
+          SHATTER: 15,
+          BOMB: 10,
+        },
+      };
+      
+      store.setState({ stats: newStats });
+      
+      const state = useGameStore.getState();
+      expect(state.stats).toEqual(newStats);
+      expect(state.stats.gamesPlayed).toBe(50);
+      expect(state.stats.totalScore).toBe(100000);
+    });
+
+    it('should update maxLevelReached from Firestore', () => {
+      const store = useGameStore.getState();
+      store.initGame(GameMode.ENDLESS);
+      
+      store.setState({ maxLevelReached: 25 });
+      
+      const state = useGameStore.getState();
+      expect(state.maxLevelReached).toBe(25);
+    });
+
+    it('should update multiple fields at once', () => {
+      const store = useGameStore.getState();
+      store.initGame(GameMode.ENDLESS);
+      
+      const update = {
+        highScores: { [GameMode.ENDLESS]: 20000 },
+        stats: {
+          gamesPlayed: 100,
+          totalScore: 200000,
+          linesCleared: 1000,
+          blocksPlaced: 4000,
+          bombsExploded: 20,
+          iceBroken: 40,
+          skillUses: {},
+        },
+        maxLevelReached: 30,
+      };
+      
+      store.setState(update);
+      
+      const state = useGameStore.getState();
+      expect(state.highScores[GameMode.ENDLESS]).toBe(20000);
+      expect(state.stats.gamesPlayed).toBe(100);
+      expect(state.maxLevelReached).toBe(30);
+    });
+  });
 });

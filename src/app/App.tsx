@@ -24,7 +24,7 @@ import { initializeFirebase } from '../services/firebase/config';
 import { useAuthStore } from '../features/auth/store/authStore';
 import { useBrowserHistory } from './hooks/useBrowserHistory';
 import { usePWAInstall } from './hooks/usePWAInstall';
-import { useGameSync } from './hooks/useGameSync';
+import { useGameSync } from '../features/game/hooks/useGameSync';
 
 interface ScorePopup {
   id: number;
@@ -91,13 +91,7 @@ const App: React.FC = () => {
   // Custom hooks
   useBrowserHistory();
   const { showPWAPrompt, showIOSInstructions, setShowIOSInstructions, triggerInstall } = usePWAInstall(isGameOver, score);
-  useGameSync({
-    isGameOver,
-    score,
-    gameMode,
-    combo,
-    stats,
-  });
+  useGameSync();
 
 
 
@@ -135,6 +129,11 @@ const App: React.FC = () => {
       (window as any).splashComplete();
       delete (window as any).splashComplete;
     }
+
+    // Cleanup on unmount
+    return () => {
+      useAuthStore.getState().cleanup();
+    };
   }, []);
 
   // Heartbeat management

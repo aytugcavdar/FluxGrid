@@ -1,10 +1,12 @@
 import { doc, setDoc, writeBatch, getDoc, updateDoc } from 'firebase/firestore';
 import { getFirebaseFirestore } from './config';
-import { DEFAULT_USER_STATS, DEFAULT_PROGRESSION, detectPlatform } from './types';
+import { DEFAULT_USER_STATS, DEFAULT_PROGRESSION, DEFAULT_ABILITIES, detectPlatform, UserDocument, AbilitiesData } from './types';
+import type { GameMode } from '@shared/types';
 
 const db = getFirebaseFirestore();
 
 const MIGRATION_COMPLETE_KEY = 'firebase_migration_complete';
+const MIGRATION_V3_COMPLETE_KEY = 'firebase_migration_v3_complete';
 const MAX_MIGRATION_RETRIES = 3;
 
 export interface MigrationResult {
@@ -416,5 +418,283 @@ export async function migrate(uid: string, retryCount = 0): Promise<MigrationRes
     }
   }
 
+  return result;
+}
+
+/**
+ * localStorage keys that should be removed after v3 migration
+ */
+const KEYS_TO_REMOVE = [
+  'flux_highscores',
+  'flux_stats',
+  'flux_achievements',
+  'flux_max_level',
+  'flux_passive_unlocks',
+  'flux_passive_equipped',
+  'flux_player_profile',
+  'flux_daily_streak',
+  'flux_daily_streak_date',
+  'flux_daily_played',
+  'flux_highscore',
+  'flux_daily_seed_cache',
+  'flux_onboard_v1',
+  'signin_dismiss_count',
+  'ios_pwa_instructions_shown',
+  'flux_mode_stats',
+  'flux_survival_highscore',
+  'flux_level_progress',
+];
+
+/**
+ * Parse localStorage value safely
+ */
+function parseValue(value: string | null): any {
+  if (!value) return null;
+  
+  try {
+    return JSON.parse(value);
+  } catch {
+    // Try to parse as number
+    const num = Number(value);
+    if (!isNaN(num)) return num;
+    
+    // Return as string
+    return value;
+  }
+}
+
+/**
+ * Transform localStorage data to UserDocument v3 format
+ */
+function transformLocalStorageToV3(): Partial<UserDocument> {
+  const update: Partial<UserDocument> = {};
+  
+  // High scores
+  const highscoresStr = localStorage.getItem('flux_highscores');
+  if (highscoresStr) {
+    const parsed = parseValue(highscoresStr);
+    if (parsed && typeof parsed === 'object') {
+      update.highScores = parsed as Partial<Record<GameMode, number>>;
+    }
+  }
+  
+  // Individual high score (legacy)
+  const singleScore = localStorage.getItem('flux_highscore');
+  if (singleScore) {
+    if (!update.highScores) update.highScores = {};
+    update.highScores.ENDLESS = parseInt(singleScore, 10);
+  }
+  
+  // Survival high score (legacy)
+  const survivalScore = localStorage.getItem('flux_survival_highscore');
+  if (survivalScore) {
+    if (!update.highScores) update.highScores = {};
+    // SURVIVAL mode doesn't exist in current GameMode enum, skip it
+    // update.highScores.SURVIVAL = parseInt(survivalScore, 10);
+  }
+  
+  // Stats
+  const statsStr = localStorage.getItem('flux_stats');
+  if (statsStr) {
+    const parsed = parseValue(statsStr);
+    if (parsed && typeof parsed === 'object') {
+      update.stats = { ...DEFAULT_USER_STATS, ...parsed };
+    }
+  }
+  
+  // Progression
+  const maxLevel = localStorage.getItem('flux_max_level');
+  const dailyStreak = localStorage.getItem('flux_daily_streak');
+  
+  if (maxLevel || dailyStreak) {
+    update.progression = { ...DEFAULT_PROGRESSION };
+    
+    if (maxLevel) {
+      update.progression.maxLevelReached = parseInt(maxLevel, 10);
+    }
+    
+    if (dailyStreak) {
+      update.progression.currentStreak = parseInt(dailyStreak, 10);
+    }
+  }
+  
+  // Abilities (NEW in v3)
+  const passiveUnlocksStr = localStorage.getItem('flux_passive_unlocks');
+  const passiveEquippedStr = localStorage.getItem('flux_passive_equipped');
+  
+  const abilities: AbilitiesData = { ...DEFAULT_ABILITIES };
+  
+  if (passiveUnlocksStr) {
+    const parsed = parseValue(passiveUnlocksStr);
+    if (Array.isArray(parsed)) {
+      abilities.passiveUnlocks = parsed;
+    } else if (parsed && typeof parsed === 'object') {
+      // Handle old format where unlocks might be stored as object
+      abilities.passiveUnlocks = Object.keys(parsed).filter(key => parsed[key]);
+    }
+  }
+  
+  if (passiveEquippedStr) {
+    const parsed = parseValue(passiveEquippedStr);
+    if (Array.isArray(parsed)) {
+      abilities.passiveEquipped = parsed.filter(Boolean);
+    }
+  }
+  
+  if (maxLevel) {
+    abilities.maxUnlockedLevel = parseInt(maxLevel, 10);
+  }
+  
+  update.abilities = abilities;
+  
+  // Preferences (keep in localStorage but also sync to Firestore)
+  const theme = localStorage.getItem('flux_theme');
+  const language = localStorage.getItem('flux_language');
+  const muted = localStorage.getItem('flux_muted');
+  
+  if (theme || language || muted !== null) {
+    update.preferences = {
+      theme: theme || 'dark',
+      language: language || 'tr',
+      muted: muted === 'true',
+    };
+  }
+  
+  // Onboarding
+  const onboarded = localStorage.getItem('flux_onboard_v1');
+  if (onboarded) {
+    update.onboardingComplete = onboarded === 'true';
+  }
+  
+  return update;
+}
+
+/**
+ * Migrate localStorage to Firestore v3
+ * Requirements: 4.1, 4.2, 4.3
+ */
+export async function migrateLocalStorageToFirestoreV3(uid: string): Promise<MigrationResult> {
+  const result: MigrationResult = {
+    success: true,
+    migratedKeys: [],
+    failedKeys: [],
+    errors: [],
+  };
+  
+  try {
+    // Check if v3 migration already complete (idempotency)
+    const v3Complete = localStorage.getItem(MIGRATION_V3_COMPLETE_KEY);
+    if (v3Complete === 'true') {
+      console.log('[migration] v3 migration already complete, skipping');
+      return result;
+    }
+    
+    console.log('[migration] Starting v3 migration for user:', uid);
+    
+    // Read and transform localStorage data
+    const localData = transformLocalStorageToV3();
+    
+    // Check if there's any data to migrate
+    if (Object.keys(localData).length === 0) {
+      console.log('[migration] No localStorage data to migrate');
+      localStorage.setItem(MIGRATION_V3_COMPLETE_KEY, 'true');
+      return result;
+    }
+    
+    // Get existing Firestore data
+    const userRef = doc(db, 'users', uid);
+    const userSnap = await getDoc(userRef);
+    
+    let mergedData: Partial<UserDocument>;
+    
+    if (userSnap.exists()) {
+      // Merge with existing data (preserve existing, only fill missing fields)
+      // Requirements: 4.6
+      const existingData = userSnap.data() as UserDocument;
+      
+      // Merge highScores: take maximum score for each game mode
+      const mergedHighScores: Partial<Record<GameMode, number>> = { ...localData.highScores };
+      if (existingData.highScores) {
+        Object.entries(existingData.highScores).forEach(([mode, score]) => {
+          const localScore = mergedHighScores[mode as GameMode] || 0;
+          mergedHighScores[mode as GameMode] = Math.max(localScore, score);
+        });
+      }
+      
+      // Merge stats: preserve existing, fill missing fields from localStorage
+      const mergedStats = existingData.stats 
+        ? { ...localData.stats, ...existingData.stats }
+        : localData.stats;
+      
+      // Merge progression: preserve existing, fill missing fields from localStorage
+      const mergedProgression = existingData.progression
+        ? { ...localData.progression, ...existingData.progression }
+        : localData.progression;
+      
+      // Merge abilities: preserve existing, fill missing fields from localStorage
+      const mergedAbilities = existingData.abilities
+        ? {
+            passiveUnlocks: existingData.abilities.passiveUnlocks || localData.abilities?.passiveUnlocks || [],
+            passiveEquipped: existingData.abilities.passiveEquipped || localData.abilities?.passiveEquipped || [],
+            maxUnlockedLevel: Math.max(
+              existingData.abilities.maxUnlockedLevel || 0,
+              localData.abilities?.maxUnlockedLevel || 0
+            ),
+          }
+        : localData.abilities;
+      
+      // Merge preferences: preserve existing, fill missing fields from localStorage
+      const mergedPreferences = existingData.preferences
+        ? { ...localData.preferences, ...existingData.preferences }
+        : localData.preferences;
+      
+      mergedData = {
+        ...localData,
+        highScores: mergedHighScores,
+        stats: mergedStats,
+        progression: mergedProgression,
+        preferences: mergedPreferences,
+        abilities: mergedAbilities,
+        onboardingComplete: existingData.onboardingComplete ?? localData.onboardingComplete,
+        // Update metadata
+        schemaVersion: 3,
+        lastSeenAt: Date.now(),
+        lastPlatform: detectPlatform(),
+        lastAppVersion: import.meta.env.VITE_APP_VERSION || '1.0.0',
+      };
+    } else {
+      // No existing data, use transformed data
+      mergedData = {
+        ...localData,
+        schemaVersion: 3,
+        lastSeenAt: Date.now(),
+        lastPlatform: detectPlatform(),
+        lastAppVersion: import.meta.env.VITE_APP_VERSION || '1.0.0',
+      };
+    }
+    
+    // Write to Firestore with merge
+    await setDoc(userRef, mergedData, { merge: true });
+    
+    // Track migrated keys
+    result.migratedKeys = Object.keys(localData);
+    
+    console.log('[migration] v3 migration successful, migrated keys:', result.migratedKeys);
+    
+    // Clean up old localStorage keys
+    // Requirements: 1.3
+    const { cleanupDeprecatedKeys } = await import('@utils/cleanupLocalStorage');
+    cleanupDeprecatedKeys();
+    
+    // Mark v3 migration as complete
+    localStorage.setItem(MIGRATION_V3_COMPLETE_KEY, 'true');
+    
+  } catch (error) {
+    console.error('[migration] v3 migration failed:', error);
+    result.success = false;
+    result.errors.push(error as Error);
+    result.failedKeys = Object.keys(transformLocalStorageToV3());
+  }
+  
   return result;
 }

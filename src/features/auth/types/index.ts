@@ -10,6 +10,7 @@ export interface AuthState {
   isLoading: boolean;
   error: string | null;
   migrationStatus: MigrationStatus;
+  unsubscribeListener: (() => void) | null;
 }
 
 export interface AuthActions {
@@ -20,6 +21,7 @@ export interface AuthActions {
   shouldPromptSignIn: (score: number, mode: string) => boolean;
   setMigrationStatus: (status: MigrationStatus) => void;
   setError: (error: string | null) => void;
+  cleanup: () => void;
 }
 
 export type AuthStore = AuthState & AuthActions;

@@ -12,11 +12,14 @@ export const DAILY_PLAYED_KEY = 'flux_daily_played';
 
 /**
  * Get current streak count from Firebase cache
- * This is a read-only cache updated by Firebase sync
+ * This is a read-only cache updated by Firebase sync (syncManager)
+ * 
+ * NOTE: The actual streak value is managed in Firestore and synced to localStorage
+ * by syncManager. This function only reads the cached value.
  */
 export const getStreak = (): number => {
   try {
-    // Read from Firebase cache in localStorage
+    // Read from Firebase cache in localStorage (updated by syncManager)
     const cached = localStorage.getItem(STREAK_KEY);
     return parseInt(cached || '0') || 0;
   } catch {
@@ -28,20 +31,21 @@ export const getStreak = (): number => {
  * Check and update streak based on last play date
  * Call this when Daily Challenge is completed
  * 
- * NOTE: This now only updates local tracking.
- * Actual streak is calculated and stored in Firebase.
+ * NOTE: This now only updates local date tracking.
+ * The actual streak calculation and Firestore write is handled by syncDailyChallenge in syncManager.
+ * This function only tracks the date locally and returns the current cached streak value.
  */
 export const checkAndUpdateStreak = (): number => {
   try {
     const today = new Date().toDateString();
-    const lastDate = localStorage.getItem(STREAK_DATE_KEY);
     
-    // Update local date tracking
+    // Update local date tracking only
+    // These are used for local checks (e.g., "did user play today?")
     localStorage.setItem(STREAK_DATE_KEY, today);
     localStorage.setItem(DAILY_PLAYED_KEY, today);
 
     // Return current streak from Firebase cache
-    // The actual streak calculation happens in Firebase
+    // The actual streak calculation happens in Firestore via syncDailyChallenge
     return getStreak();
   } catch {
     return 0;

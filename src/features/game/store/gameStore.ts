@@ -2,10 +2,10 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { GridState, Piece, GRID_SIZE, GridCell, SkillType, CellType, Achievement } from '../types';
 import { AppState, GameStats, GameMode } from '@shared/types';
-import { POINTS, FLUX_COST, EXPANDED_ACHIEVEMENTS, ZEN_PALETTES, TIER_SCORE_MULTIPLIERS } from '../constants';
+import { POINTS, FLUX_COST, EXPANDED_ACHIEVEMENTS, ZEN_PALETTES, TIER_SCORE_MULTIPLIERS, TIMED_MODE } from '../constants';
 import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playHaptic } from '../../../utils/audio';
 import { safeExecute, ErrorCategory } from '../../../utils/errorHandler';
-import { debouncedSave, safeLocalStorageGet, safeParseInt, safeJSONParse } from './helpers/localStorage';
+import { safeLocalStorageGet, safeParseInt, safeJSONParse } from './helpers/localStorage';
 import { createEmptyGrid, processGrid } from './helpers/grid';
 import { getRandomPiecesSync } from './helpers/pieces';
 import { useThemeStore } from '@shared/store/themeStore';
@@ -68,6 +68,9 @@ export interface GameStore {
   maxCombo: number;
   chronoBonus: number;
 
+  // Piece Loading State
+  isPiecesLoading: boolean;
+
   // Actions
   initGame: (mode?: GameMode) => void;
   setAppState: (state: AppState) => void;
@@ -82,6 +85,7 @@ export interface GameStore {
   setDraggedPiece: (piece: Piece | null) => void;
   checkGameOver: () => void;
   resetGame: () => void;
+  setState: (update: Partial<GameStore>) => void;
 }
 
 const INITIAL_STATS: GameStats = {
@@ -98,7 +102,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   grid: createEmptyGrid(),
   pieces: [],
   score: 0,
-  highScore: safeParseInt(safeLocalStorageGet('flux_highscore', '0')),
+  highScore: 0,
   flux: 100,
   combo: 0,
   isGameOver: false,
@@ -115,9 +119,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   appState: AppState.HOME,
   gameMode: GameMode.ENDLESS,
   timeLeft: 0,
-  highScores: safeJSONParse(safeLocalStorageGet('flux_highscores', '{}'), {}),
-  stats: safeJSONParse(safeLocalStorageGet('flux_stats', JSON.stringify(INITIAL_STATS)), INITIAL_STATS),
-  maxLevelReached: safeParseInt(safeLocalStorageGet('flux_max_level', '0')),
+  highScores: {},
+  stats: INITIAL_STATS,
+  maxLevelReached: 0,
   difficultyTier: 0,
 
   // ZEN Mode Initial State
@@ -136,6 +140,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   timedBoostMovesLeft: 0,
   maxCombo: 0,
   chronoBonus: 0,
+
+  // Piece Loading Initial State
+  isPiecesLoading: false,
 
   initGame: (mode = GameMode.ENDLESS) => {
     const success = safeExecute(
@@ -172,13 +179,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
           // Timed Mode initialization
           timedBoostMovesLeft: 0,
           maxCombo: 0,
-          chronoBonus: 0
+          chronoBonus: 0,
+          // Piece Loading initialization
+          isPiecesLoading: false
         });
         
         // Increment games played
         const newStats = { ...get().stats, gamesPlayed: get().stats.gamesPlayed + 1 };
         set({ stats: newStats });
-        localStorage.setItem('flux_stats', JSON.stringify(newStats));
         
         return true;
       },
@@ -268,9 +276,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const newScore = score + 5 + extraScore;
     const newHighScore = Math.max(newScore, get().highScore);
-    if (newHighScore > get().highScore) {
-      debouncedSave('flux_highscore', newHighScore.toString());
-    }
 
     set({
       grid: finalGrid,
@@ -334,9 +339,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const newScore = score + (blocksDestroyed * 5) + extraScore;
     const newHighScore = Math.max(newScore, get().highScore);
-    if (newHighScore > get().highScore) {
-      debouncedSave('flux_highscore', newHighScore.toString());
-    }
 
     set({
       grid: finalGrid,
@@ -442,26 +444,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     
     // COMBO_RUSH logic for Timed mode
     const isTimedMode = gameMode === GameMode.TIMED;
-    const isComboRushActive = get().timedBoostMovesLeft > 0;
+    const prevTimedBoostMoves = get().timedBoostMovesLeft;
+    let newTimedBoostMoves = prevTimedBoostMoves;
     
-    if (isTimedMode) {
-      // Activate COMBO_RUSH when combo reaches 4
-      if (newCombo >= 4 && !isComboRushActive) {
-        set({ timedBoostMovesLeft: 3 });
-      }
-      
-      // During COMBO_RUSH, prevent combo from dropping to 0
-      if (isComboRushActive && linesCleared === 0) {
-        newCombo = Math.max(combo, 1);
-      }
-      
-      // Decrement COMBO_RUSH counter
-      if (isComboRushActive) {
-        set({ timedBoostMovesLeft: Math.max(0, get().timedBoostMovesLeft - 1) });
-      }
+    // Aktivasyon: combo 4'e ulaştı ve rush aktif değilse
+    if (isTimedMode && newCombo >= 4 && prevTimedBoostMoves === 0) {
+      newTimedBoostMoves = 3;
+    }
+    // Dekreman: rush aktif ve yeni aktivasyon olmadıysa
+    else if (isTimedMode && prevTimedBoostMoves > 0) {
+      newTimedBoostMoves = Math.max(0, prevTimedBoostMoves - 1);
     }
     
-    const comboMultiplier = newCombo;
+    // Rush aktifken combo 0'a düşmesin
+    if (isTimedMode && newTimedBoostMoves > 0 && linesCleared === 0) {
+      newCombo = Math.max(combo, 1);
+    }
+    
+    // Combo multiplier: preserve previous combo when no lines cleared, use new combo when lines cleared
+    const comboMultiplier = linesCleared > 0 ? newCombo : combo;
 
     // Renk bonusu: tek renk satır/sütun temizleme
     const colorBonusMultiplier = (linesCleared > 0 && colorBonus) ? POINTS.COLOR_BONUS_MULTIPLIER : 1;
@@ -472,7 +473,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       ? (TIER_SCORE_MULTIPLIERS[get().difficultyTier] ?? 1.0)
       : 1.0;
     // Final seconds multiplier: Timed modda son 10 saniyede 1.5x
-    const isFinalSeconds = gameMode === GameMode.TIMED && get().timeLeft <= 10;
+    const isFinalSeconds = gameMode === GameMode.TIMED && get().timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD;
     const finalSecondsMultiplier = isFinalSeconds ? 1.5 : 1.0;
 
     // Pasif yetenek çarpanları
@@ -496,9 +497,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       iceBroken,
       currentLevelIndex: 0,
     });
-
-    // Save achievements (debounced)
-    debouncedSave('flux_achievements', JSON.stringify(updatedAchievements));
 
     // Sync newly unlocked achievement to Firestore
     syncNewAchievement(previousAchievements, updatedAchievements);
@@ -553,6 +551,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // 5. Tepsi güncelle
     let currentPieces = get().pieces.filter(p => p.instanceId !== piece.instanceId);
     if (currentPieces.length === 0) {
+      set({ isPiecesLoading: true });
+      
       const pieceCount = 3;
       
       const isDaily = get().gameMode === GameMode.DAILY_CHALLENGE;
@@ -560,6 +560,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const zenPalette = isZen ? ZEN_PALETTES[get().zenPaletteIndex] : undefined;
       const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
       currentPieces = getRandomPiecesSync(pieceCount, newGrid, isDaily, zenPalette ?? useThemeStore.getState().getPieceColors(), currentTier, get().gameMode);
+      
+      set({ isPiecesLoading: false });
     }
 
     // Ses + Titresim
@@ -579,21 +581,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (newScore > oldHigh) {
       const newHighs = { ...currentHighs, [modeKey]: newScore };
       set({ highScores: newHighs });
-      debouncedSave('flux_highscores', JSON.stringify(newHighs));
-      debouncedSave('flux_highscore', newScore.toString());
     }
 
     // Time Reward logic
     let extraTime = 0;
     const previousCombo = combo; // Önceki combo değerini sakla
     
-    if (get().gameMode === GameMode.TIMED && linesCleared > 0) {
-      extraTime = linesCleared * 6; // 6 sec per line
-      if (comboMultiplier > 1) extraTime += comboMultiplier * 3;
-      if (isSurgeActive) extraTime *= 1.5;
-    }
-    
     // TIMED mode time logic
+    // Time bonus formula: +2 seconds per line cleared, +0.5 seconds for combo > 1
+    // Combo break penalty: -1 second if previous combo > 0 but now 0
+    // CHRONO bonus: additional seconds from CHRONO blocks
+    // Cap at 60 seconds maximum
     if (get().gameMode === GameMode.TIMED) {
       if (linesCleared > 0) {
         extraTime = linesCleared * 2; // +2 saniye per line
@@ -616,6 +614,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Update maxCombo
     const newMaxCombo = Math.max(get().maxCombo, newCombo);
 
+    // Check for tier events (Endless mode) - BEFORE main set() call
+    const prevDifficultyTier = get().difficultyTier;
+    let tierResult: ReturnType<typeof checkTierEvent> | null = null;
+    if (get().gameMode === GameMode.ENDLESS) {
+      tierResult = checkTierEvent(newScore, prevDifficultyTier, get, set);
+    }
+
     set({
       grid: newGrid,
       score: newScore,
@@ -628,7 +633,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       achievements: updatedAchievements,
       unlockedAchievementId: newUnlock ? newUnlock.id : get().unlockedAchievementId,
       chronoBonus: get().chronoBonus + chronoBonusSeconds,
-      maxCombo: newMaxCombo
+      maxCombo: newMaxCombo,
+      timedBoostMovesLeft: newTimedBoostMoves,
+      ...(tierResult ?? {})
     });
 
     // Update Global Stats
@@ -642,15 +649,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       iceBroken: currentStats.iceBroken + iceBroken,
     };
     set({ stats: nextStats });
-    debouncedSave('flux_stats', JSON.stringify(nextStats));
-
-    // Check for tier events (Endless mode)
-    const prevDifficultyTier = get().difficultyTier;
-    
-    // Check for tier events (Endless mode only)
-    if (get().gameMode === GameMode.ENDLESS) {
-      checkTierEvent(newScore, prevDifficultyTier, get, set);
-    }
 
     // --- Aktif olay tick ---
     tickActiveEvent(get().grid, justPlacedPiece, get, set);
@@ -665,6 +663,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     
     // ZEN modda oyun hiç bitmez
     if (gameMode === GameMode.ZEN) return;
+    
+    // Don't check game over while pieces are loading
+    if (get().isPiecesLoading) return;
     
     if (pieces.length === 0) return; // Should not happen due to refill logic
 
@@ -699,5 +700,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   resetGame: () => {
     get().initGame();
+  },
+
+  setState: (update) => {
+    set(update);
   }
 }));

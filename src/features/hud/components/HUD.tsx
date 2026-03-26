@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useGameStore } from '../../game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
 import { Zap, RefreshCw, Hammer, Volume2, VolumeX, Home, RotateCw } from 'lucide-react';
-import { FLUX_COST, ZEN_PALETTES } from '../../game/constants';
+import { FLUX_COST, ZEN_PALETTES, TIMED_MODE } from '../../game/constants';
 import { SkillType } from '../../game/types';
 import { GameMode, AppState } from '@shared/types';
 import { getMuted, toggleMute, playClick, playSkill } from '../../../utils/audio';
@@ -119,7 +119,7 @@ export const HUD: React.FC = () => {
                                         RUSH ×{timedBoostMovesLeft}
                                     </motion.span>
                                 )}
-                                {gameMode === GameMode.TIMED && timeLeft <= 10 && timeLeft > 0 && (
+                                {gameMode === GameMode.TIMED && timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD && timeLeft > 0 && (
                                     <motion.span
                                         animate={{ scale: [1, 1.05, 1] }}
                                         transition={{ duration: 0.5, repeat: Infinity }}
@@ -185,27 +185,27 @@ export const HUD: React.FC = () => {
                         <div style={{
                             padding: '6px 12px',
                             borderRadius: 12,
-                            background: (timeLeft <= 10 ? 'rgba(239,68,68,0.12)' : timeLeft <= 30 ? 'rgba(249,115,22,0.1)' : 'rgba(59,130,246,0.08)'),
-                            border: `1px solid ${timeLeft <= 10 ? 'rgba(239,68,68,0.55)' : timeLeft <= 30 ? 'rgba(249,115,22,0.45)' : 'rgba(59,130,246,0.35)'}`,
+                            background: (timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD ? 'rgba(239,68,68,0.12)' : timeLeft <= TIMED_MODE.WARNING_THRESHOLD ? 'rgba(249,115,22,0.1)' : 'rgba(59,130,246,0.08)'),
+                            border: `1px solid ${timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD ? 'rgba(239,68,68,0.55)' : timeLeft <= TIMED_MODE.WARNING_THRESHOLD ? 'rgba(249,115,22,0.45)' : 'rgba(59,130,246,0.35)'}`,
                             flexShrink: 0,
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
                             minWidth: 34,
-                            animation: (gameMode === GameMode.TIMED && timeLeft <= 10) ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none',
+                            animation: (gameMode === GameMode.TIMED && timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD) ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none',
                             transition: 'background 0.5s ease, border-color 0.5s ease'
                         }}>
                             <span style={{ 
                                 fontSize: 15, 
                                 fontWeight: 700, 
-                                color: (timeLeft <= 10 ? '#ef4444' : timeLeft <= 30 ? '#f97316' : '#3b82f6'), 
+                                color: (timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD ? '#ef4444' : timeLeft <= TIMED_MODE.WARNING_THRESHOLD ? '#f97316' : '#3b82f6'), 
                                 lineHeight: 1 
                             }}>
                                 {timeLeft}
                             </span>
                             <span style={{ 
                                 fontSize: 8, 
-                                color: `${timeLeft <= 10 ? '#ef4444' : timeLeft <= 30 ? '#f97316' : '#3b82f6'}70`, 
+                                color: `${timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD ? '#ef4444' : timeLeft <= TIMED_MODE.WARNING_THRESHOLD ? '#f97316' : '#3b82f6'}70`, 
                                 marginTop: 1
                             }}>
                                 SN

@@ -246,6 +246,12 @@ export const getRandomPiecesSync = (
       else if (specialRand > 0.85) type = CellType.ICE;  // 7% chance
     }
 
+    // CHRONO blocks are always single dots for easy placement
+    if (type === CellType.CHRONO) {
+      const dotShape = SHAPES.find(s => s.id === 'dot');
+      if (dotShape) selectedShape = dotShape;
+    }
+
     // Use custom colors if provided, otherwise use the shape's default color
     const pieceColor = colors ? colors[i % colors.length] : selectedShape.color;
 
@@ -447,6 +453,12 @@ export const getRandomPieces = async (
       // OTHER MODES: Original special block logic
       if (specialRand > 0.92) type = CellType.BOMB;      // 8% chance
       else if (specialRand > 0.85) type = CellType.ICE;  // 7% chance
+    }
+
+    // CHRONO blocks are always single dots for easy placement
+    if (type === CellType.CHRONO) {
+      const dotShape = SHAPES.find(s => s.id === 'dot');
+      if (dotShape) selectedShape = dotShape;
     }
 
     // Use custom colors if provided, otherwise use the shape's default color

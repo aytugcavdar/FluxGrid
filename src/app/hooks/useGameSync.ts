@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { GameMode, GameStats, AppState } from '@shared/types';
 import { useGameStore } from '@features/game/store/gameStore';
 import { useAuthStore } from '@features/auth/store/authStore';
+import { usePassiveAbilityStore } from '@features/abilities/store/passiveAbilityStore';
 import { syncGameData, syncScore, syncDailyChallenge, addToPendingWrites } from '../../services/firebase/syncManager';
 import { detectPlatform } from '../../services/firebase/types';
 import { getStreak } from '@utils/streakManager';
@@ -37,6 +38,27 @@ export function useGameSync(params: GameSyncParams): void {
     const sessionDurationSecs = Math.floor((Date.now() - gameStartTimeRef.current) / 1000);
     const today = new Date().toISOString().split('T')[0];
     
+    // Get abilities data from stores
+    const { maxLevelReached } = useGameStore.getState();
+    const { equippedSlots, passiveAbilities } = usePassiveAbilityStore.getState();
+    
+    // Build passiveUnlocks array from unlocked abilities
+    const passiveUnlocks: string[] = [];
+    passiveAbilities.forEach((ability, type) => {
+      if (ability.unlocked) {
+        passiveUnlocks.push(type);
+      }
+    });
+    
+    // Build passiveEquipped array from equipped slots
+    const passiveEquipped = equippedSlots.filter(slot => slot !== null) as string[];
+    
+    const abilitiesData = {
+      passiveUnlocks,
+      passiveEquipped,
+      maxUnlockedLevel: maxLevelReached,
+    };
+    
     const statsPayload = {
       [`highScores.${gameMode}`]: score,
       'stats.gamesPlayed': stats.gamesPlayed,
@@ -65,13 +87,15 @@ export function useGameSync(params: GameSyncParams): void {
         score,
         user.displayName || 'Oyuncu',
         user.photoURL || null,
-        sessionDurationSecs
+        sessionDurationSecs,
+        abilitiesData
       ).catch(err => {
         console.error('syncScore failed:', err);
         addToPendingWrites(user.uid, 'score', {
           mode: gameMode,
           score,
           sessionDurationSecs,
+          abilities: abilitiesData,
         }).catch(() => {});
       }),
     ];
