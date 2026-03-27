@@ -10,11 +10,12 @@ import { syncScore } from '../../../services/firebase/syncManager';
  * This hook watches the isGameOver state and triggers Firestore sync
  * when the game ends, including score, stats, and abilities data.
  * 
+ * IMPORTANT: Only syncs if user is logged in. If not logged in, scores
+ * are only saved to localStorage.
+ * 
  * Offline Support:
  * - When online: Syncs directly to Firestore
  * - When offline: Adds to pendingWrites queue for later sync
- * 
- * Requirements: 6.1, 6.2, 6.3, 6.4
  */
 export function useGameSync() {
   const { isGameOver, score, gameMode, stats, maxLevelReached } = useGameStore();
@@ -25,9 +26,14 @@ export function useGameSync() {
   const gameStartTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    // Only sync when game is over and user is authenticated
-    if (!isGameOver || !user) {
-      console.log('useGameSync: Skipping sync - isGameOver:', isGameOver, 'user:', !!user);
+    // Only sync when game is over
+    if (!isGameOver) {
+      return;
+    }
+
+    // If no user, skip Firestore sync (localStorage only)
+    if (!user) {
+      console.log('useGameSync: No user logged in, skipping Firestore sync');
       return;
     }
 
@@ -70,7 +76,7 @@ export function useGameSync() {
             score,
             user.displayName || 'Oyuncu',
             user.photoURL || null,
-            sessionDurationSecs, // Real session duration instead of 0
+            sessionDurationSecs,
             abilitiesData
           );
           console.log('useGameSync: Successfully synced game data');

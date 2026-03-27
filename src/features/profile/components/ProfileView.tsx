@@ -15,9 +15,48 @@ interface ProfileViewProps {
 type TabType = 'stats' | 'modes' | 'skills' | 'achievements';
 
 export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderboard }) => {
-  const { user, isAnonymous } = useAuthStore();
+  const { user } = useAuthStore();
   const { stats, achievements, highScore, maxLevelReached } = useGameStore();
   const [activeTab, setActiveTab] = useState<TabType>('stats');
+
+  // If no user, show login prompt
+  if (!user) {
+    return (
+      <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          className="bg-gray-900/95 border border-gray-800 rounded-2xl p-8 max-w-md w-full text-center"
+        >
+          <button
+            onClick={() => { playClick(); onClose(); }}
+            className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          
+          <div className="text-6xl mb-4">👤</div>
+          <h2 className="text-2xl font-bold mb-2">Profilini Görmek İçin Giriş Yap</h2>
+          <p className="text-gray-400 mb-6">
+            İstatistiklerini kaydet, başarımlarını takip et ve ilerlemeyi gör!
+          </p>
+          <button
+            onClick={() => useAuthStore.getState().signInWithGoogle()}
+            className="w-full py-3 px-6 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 rounded-xl font-semibold transition-all flex items-center justify-center gap-3"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Google ile Giriş Yap
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   // Use real data from gameStore
   const derivedStats = {
@@ -42,15 +81,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderb
     a.download = `fluxgrid-profile-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const handleGoogleSignIn = async () => {
-    playClick();
-    try {
-      await useAuthStore.getState().signInWithGoogle();
-    } catch (error) {
-      console.error('Google Sign-In failed:', error);
-    }
   };
 
   const formatPlaytime = (): string => {
@@ -166,15 +196,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderb
                 <h2 className="text-lg sm:text-xl font-black text-white truncate" style={{ fontFamily: 'Rajdhani, sans-serif' }}>
                   {user?.displayName || 'OYUNCU'}
                 </h2>
-                {!isAnonymous ? (
-                  <span className="px-2 py-0.5 bg-green-500/20 border border-green-500/30 rounded text-xs font-bold text-green-400">
-                    Google ile bağlı
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/30 rounded text-xs font-bold text-yellow-400">
-                    Anonim
-                  </span>
-                )}
+                <span className="px-2 py-0.5 bg-green-500/20 border border-green-500/30 rounded text-xs font-bold text-green-400">
+                  Google ile bağlı
+                </span>
               </div>
 
               {/* Mini stats */}
@@ -189,35 +213,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderb
         </div>
 
         {/* Anonymous User CTA */}
-        {isAnonymous && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-500/30 rounded-xl p-4"
-          >
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1">
-                <p className="text-sm text-yellow-200 mb-1 font-bold">Skorlarını kaydet ve sıralamaya gir</p>
-                <p className="text-xs text-yellow-400/60">
-                  Skorlarını kaydet · Sıralamaya gir · Cihazlar arası senkronize et
-                </p>
-              </div>
-              <button
-                onClick={handleGoogleSignIn}
-                className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg hover:bg-gray-100 transition-colors shrink-0"
-              >
-                <svg width="18" height="18" viewBox="0 0 18 18">
-                  <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
-                  <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
-                  <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.593.102-1.17.282-1.709V4.958H.957C.347 6.173 0 7.548 0 9c0 1.452.348 2.827.957 4.042l3.007-2.335z"/>
-                  <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
-                </svg>
-                <span className="text-sm font-bold text-gray-900">Giriş Yap</span>
-              </button>
-            </div>
-          </motion.div>
-        )}
-
         {/* Leaderboard Teaser - TODO: Get real rank from Firebase */}
         <button
           onClick={() => { playClick(); onOpenLeaderboard(GameMode.ENDLESS); }}

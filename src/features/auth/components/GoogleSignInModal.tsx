@@ -9,14 +9,14 @@ interface GoogleSignInModalProps {
 }
 
 export function GoogleSignInModal({ score, mode, onClose }: GoogleSignInModalProps) {
-  const { upgradeToGoogleAccount, isLoading, error } = useAuthStore();
+  const { signInWithGoogle, isLoading, error } = useAuthStore();
   const [isVisible, setIsVisible] = useState(true);
   const [dismissCount, setDismissCount] = useState(
     parseInt(localStorage.getItem('signin_dismiss_count') || '0', 10)
   );
 
   const handleSignIn = async () => {
-    await upgradeToGoogleAccount();
+    await signInWithGoogle();
     
     if (!error) {
       setIsVisible(false);

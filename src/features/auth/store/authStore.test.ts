@@ -31,7 +31,6 @@ describe('authStore - Task 7.3: Update user metadata on login', () => {
       isAnonymous: false,
       isLoading: true,
       error: null,
-      migrationStatus: 'pending',
     });
   });
 
@@ -208,7 +207,6 @@ describe('authStore - Task 7.4: Add unsubscribe cleanup', () => {
       isAnonymous: false,
       isLoading: true,
       error: null,
-      migrationStatus: 'pending',
       unsubscribeListener: null,
     });
   });

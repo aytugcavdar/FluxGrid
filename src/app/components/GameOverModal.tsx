@@ -26,14 +26,12 @@ interface GameOverModalProps {
   shareStatus: 'idle' | 'copied' | 'shared';
   showPWAPrompt: boolean;
   showIOSInstructions: boolean;
-  showLoginPrompt: boolean; // NEW - Requirement 4.2
   onClose: () => void;
   onPlayAgain: () => void;
   onTryMode: (mode: GameMode) => void;
   onShare: () => Promise<void>;
   onInstallPWA: () => Promise<void>;
   onCloseIOSInstructions: () => void;
-  onSignIn: () => Promise<void>; // NEW - Requirement 4.4
 }
 
 // Helper function to get mode icon
@@ -67,14 +65,12 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   shareStatus,
   showPWAPrompt,
   showIOSInstructions,
-  showLoginPrompt, // NEW
   onClose,
   onPlayAgain,
   onTryMode,
   onShare,
   onInstallPWA,
   onCloseIOSInstructions,
-  onSignIn, // NEW
 }) => {
   if (!isGameOver) return null;
 
@@ -259,29 +255,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         >
           {shareStatus === 'copied' ? '✓ Kopyalandı!' : shareStatus === 'shared' ? '✓ Paylaşıldı!' : '↗ Sonucu Paylaş'}
         </motion.button>
-
-        {/* Login Prompt for Anonymous Users - Requirement 4.3, 4.4 */}
-        {showLoginPrompt && (
-          <motion.button
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            onClick={async () => {
-              playClick();
-              await onSignIn();
-            }}
-            className="w-full mt-3 py-3 px-4 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all flex items-center gap-3"
-          >
-            <div className="text-2xl">🏆</div>
-            <div className="flex-1 text-left">
-              <div className="text-sm font-semibold text-blue-400">
-                Sıralamaya girmek için Google ile giriş yap
-              </div>
-              <div className="text-xs text-blue-400/60">
-                Skorunu kaydet ve sıralamada yerini al
-              </div>
-            </div>
-          </motion.button>
-        )}
 
         {/* Mode Suggestion */}
         {suggestion && (

@@ -13,20 +13,11 @@ service cloud.firestore {
       return request.auth.uid == uid;
     }
     
-    function isValidScore(score) {
-      return score is int && score >= 0 && score <= 9999999;
-    }
-    
     // === USERS KOLEKSİYONU ===
     
     match /users/{uid} {
-      allow read: if isAuthenticated() && isOwner(uid);
-      
-      allow create: if isAuthenticated() && isOwner(uid);
-      
-      allow update: if isAuthenticated() && isOwner(uid);
-      // Note: isAnonymous, migrationCompleted, etc. are managed by Firebase Auth and Cloud Functions
-      // Client can write these during account linking, but Cloud Function will override them
+      // Allow read/write for authenticated users on their own document
+      allow read, write: if isAuthenticated() && isOwner(uid);
       
       // Subcollections
       match /achievements/{achievementId} {
@@ -45,17 +36,11 @@ service cloud.firestore {
     // === LEADERBOARD KOLEKSİYONU ===
     
     match /leaderboards/{mode}/scores/{uid} {
-      allow read: if true; // Anyone can read - Requirement 5.1
+      // Anyone can read
+      allow read: if true;
       
-      allow write: if isAuthenticated()
-        && isOwner(uid)
-        && isValidScore(request.resource.data.score)
-        && !('flagged' in request.resource.data)
-        && !('suspicious' in request.resource.data)
-        && !('suspiciousReason' in request.resource.data)
-        && !('reviewedAt' in request.resource.data);
-      // Note: migratedFrom and migratedAt can only be set by Cloud Function (admin SDK)
-      // Client writes won't include these fields, so no need to block them explicitly
+      // Authenticated users can write their own score
+      allow write: if isAuthenticated() && isOwner(uid);
     }
     
     match /leaderboards/{mode}/meta/{doc} {

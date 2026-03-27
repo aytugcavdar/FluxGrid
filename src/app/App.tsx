@@ -501,7 +501,6 @@ const App: React.FC = () => {
           shareStatus={shareStatus}
           showPWAPrompt={showPWAPrompt}
           showIOSInstructions={showIOSInstructions}
-          showLoginPrompt={useAuthStore(state => state.isAnonymous && state.shouldPromptSignIn(score, gameMode))} // NEW - Requirement 4.1
           onClose={() => {
             resetGame();
             setAppState(AppState.HOME);
@@ -520,9 +519,6 @@ const App: React.FC = () => {
           onCloseIOSInstructions={() => {
             localStorage.setItem('ios_pwa_instructions_shown', 'true');
             setShowIOSInstructions(false);
-          }}
-          onSignIn={async () => { // NEW - Requirement 4.4
-            await useAuthStore.getState().upgradeToGoogleAccount();
           }}
         />
       </AnimatePresence>

@@ -470,6 +470,41 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </span>
         </button>
 
+        {/* Login Button - Only show if not logged in */}
+        {!user && (
+          <button
+            onClick={() => { playClick(); useAuthStore.getState().signInWithGoogle(); }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 6,
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(6, 182, 212, 0.2))',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              borderRadius: 12,
+              cursor: 'pointer',
+              padding: '12px 20px',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(6, 182, 212, 0.3))';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(6, 182, 212, 0.2))';
+            }}
+          >
+            <div style={{
+              fontSize: 20,
+              color: 'rgba(96, 165, 250, 1)',
+            }}>
+              🔐
+            </div>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(96, 165, 250, 1)', letterSpacing: '0.05em' }}>
+              GİRİŞ YAP
+            </span>
+          </button>
+        )}
+
         <button
           onClick={() => { playClick(); onOpenLeaderboard(GameMode.ENDLESS); }}
           style={{
