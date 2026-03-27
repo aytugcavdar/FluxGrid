@@ -17,28 +17,14 @@ service cloud.firestore {
       return score is int && score >= 0 && score <= 9999999;
     }
     
-    function hasSchemaVersion(data) {
-      return 'schemaVersion' in data && data.schemaVersion is int && data.schemaVersion >= 1;
-    }
-    
-    function notUpdatingField(field) {
-      return !(field in request.resource.data)
-        || request.resource.data[field] == resource.data[field];
-    }
-    
     // === USERS KOLEKSİYONU ===
     
     match /users/{uid} {
       allow read: if isAuthenticated() && isOwner(uid);
       
-      allow create: if isAuthenticated()
-        && isOwner(uid)
-        && hasSchemaVersion(request.resource.data);
+      allow create: if isAuthenticated() && isOwner(uid);
       
-      allow update: if isAuthenticated()
-        && isOwner(uid)
-        && notUpdatingField('uid')
-        && notUpdatingField('createdAt');
+      allow update: if isAuthenticated() && isOwner(uid);
       // Note: isAnonymous, migrationCompleted, etc. are managed by Firebase Auth and Cloud Functions
       // Client can write these during account linking, but Cloud Function will override them
       
