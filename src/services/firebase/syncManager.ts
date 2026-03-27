@@ -299,12 +299,13 @@ export async function syncScore(
     }
 
     // e) users/{uid} highScores.{mode} ve abilities güncelle
-    await updateDoc(doc(db, 'users', uid), {
+    await setDoc(doc(db, 'users', uid), {
       [`highScores.${mode}`]: score,
       'abilities.passiveUnlocks': abilities.passiveUnlocks,
       'abilities.passiveEquipped': abilities.passiveEquipped,
       'abilities.maxUnlockedLevel': abilities.maxUnlockedLevel,
-    });
+      lastSeenAt: Date.now(),
+    }, { merge: true });
   } catch (error) {
     console.error('syncScore error:', error);
     throw error;

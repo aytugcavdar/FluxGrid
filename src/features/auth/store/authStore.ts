@@ -11,7 +11,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { getFirebaseAuth, getFirebaseFirestore } from '../../../services/firebase/config';
 import { migrate, migrateUserToV2 } from '../../../services/firebase/migrationService';
 import { syncFromFirestore } from '../../../services/firebase/syncManager';
-import { DEFAULT_USER_STATS, DEFAULT_PROGRESSION, detectPlatform } from '../../../services/firebase/types';
+import { DEFAULT_USER_STATS, DEFAULT_PROGRESSION, DEFAULT_ABILITIES, detectPlatform } from '../../../services/firebase/types';
 import type { AuthStore, MigrationStatus } from '../types';
 
 // Leaderboard thresholds for prompting sign-in
@@ -70,6 +70,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             highScores: {},
             stats: DEFAULT_USER_STATS,
             progression: DEFAULT_PROGRESSION,
+            abilities: DEFAULT_ABILITIES,
             preferences: {
               theme: localStorage.getItem('flux_theme') || 'dark',
               language: localStorage.getItem('flux_language') || 'tr',
