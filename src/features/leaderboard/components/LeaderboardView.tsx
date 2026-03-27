@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useLeaderboardStore } from '../store/leaderboardStore';
 import { useAuthStore } from '../../auth';
 import { GameMode } from '@shared/types';
-import type { LeaderboardEntry } from '../types';
 
 interface LeaderboardViewProps {
   mode: GameMode;

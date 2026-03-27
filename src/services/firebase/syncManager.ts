@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { getFirebaseFirestore } from './config';
 import { GameMode } from '@shared/types';
+import type { GameStats } from '@shared/types';
 import {
   UserDocument,
   UserDocumentUpdate,
@@ -21,7 +22,6 @@ import {
   PendingWriteDocument,
   PendingWriteType,
   DEFAULT_USER_STATS,
-  DEFAULT_PROGRESSION,
   DEFAULT_ABILITIES,
   detectPlatform,
   AbilitiesData,
@@ -61,6 +61,12 @@ export async function loadUserFromFirestore(uid: string): Promise<void> {
       highScore: maxHighScore,
       stats: userData.stats ?? DEFAULT_USER_STATS,
       maxLevelReached: userData.progression?.maxLevelReached ?? 0,
+    });
+
+    console.log('loadUserFromFirestore: Successfully loaded and updated gameStore', {
+      highScores,
+      highScore: maxHighScore,
+      stats: userData.stats,
     });
 
     // Update passiveAbilityStore with Firestore data
@@ -244,7 +250,8 @@ export async function syncScore(
   displayName: string,
   photoURL: string | null,
   sessionDurationSecs: number,
-  abilities: AbilitiesData
+  abilities: AbilitiesData,
+  stats?: GameStats
 ): Promise<void> {
   const db = getFirebaseFirestore();
 
@@ -312,14 +319,21 @@ export async function syncScore(
       await setDoc(leaderboardDocRef, entry);
     }
 
-    // e) users/{uid} highScores.{mode} ve abilities güncelle
-    await setDoc(doc(db, 'users', uid), {
+    // e) users/{uid} highScores.{mode}, abilities ve stats güncelle
+    const updateData: any = {
       [`highScores.${mode}`]: score,
       'abilities.passiveUnlocks': abilities.passiveUnlocks,
       'abilities.passiveEquipped': abilities.passiveEquipped,
       'abilities.maxUnlockedLevel': abilities.maxUnlockedLevel,
       lastSeenAt: Date.now(),
-    }, { merge: true });
+    };
+    
+    // Stats varsa ekle
+    if (stats) {
+      updateData.stats = stats;
+    }
+    
+    await setDoc(doc(db, 'users', uid), updateData, { merge: true });
   } catch (error) {
     console.error('syncScore error:', error);
     throw error;
@@ -392,13 +406,19 @@ export async function syncFromFirestore(uid: string): Promise<void> {
     // e) gameStore'u güncelle (dynamic import to avoid circular dependency)
     try {
       const { useGameStore } = await import('@features/game/store/gameStore');
+      
+      // CRITICAL: Update both highScores object AND highScore value
+      // highScore should be the maximum of all mode highScores
       useGameStore.setState({
         stats: firestoreStats,
         highScores: mergedHighScores,
-        highScore: maxHighScore,
+        highScore: maxHighScore, // This is the max of all modes
         maxLevelReached: maxLevelReached,
       });
-      console.log('syncFromFirestore: gameStore updated with Firestore data');
+      console.log('syncFromFirestore: gameStore updated with Firestore data', {
+        highScore: maxHighScore,
+        highScores: mergedHighScores,
+      });
     } catch (error) {
       console.error('syncFromFirestore: Failed to update gameStore:', error);
     }
@@ -494,7 +514,8 @@ export async function processPendingWrites(uid: string): Promise<void> {
               write.payload.displayName as string,
               write.payload.photoURL as string | null,
               write.payload.sessionDurationSecs as number,
-              write.payload.abilities as AbilitiesData
+              write.payload.abilities as AbilitiesData,
+              write.payload.stats as GameStats | undefined
             );
             break;
           case 'daily':
@@ -582,9 +603,11 @@ export async function syncLocalToFirestore(uid: string): Promise<void> {
       }
     }
 
+    let highScores: Record<string, number> = {};
     if (highScoresStr) {
       try {
-        update.highScores = JSON.parse(highScoresStr);
+        highScores = JSON.parse(highScoresStr);
+        update.highScores = highScores;
       } catch (e) {
         console.warn('Failed to parse flux_highscores', e);
       }
@@ -606,8 +629,53 @@ export async function syncLocalToFirestore(uid: string): Promise<void> {
       }
     }
 
+    // Write to users/{uid} document
     if (Object.keys(update).length > 0) {
       await syncGameData(uid, update);
+    }
+
+    // CRITICAL: Also write highScores to leaderboards
+    // This ensures that localStorage scores appear on leaderboard after login
+    console.log('syncLocalToFirestore: highScores from localStorage:', highScores);
+    
+    if (Object.keys(highScores).length > 0) {
+      const { useAuthStore } = await import('@features/auth/store/authStore');
+      const { user } = useAuthStore.getState();
+      
+      if (user) {
+        console.log('syncLocalToFirestore: Writing highScores to leaderboards', highScores);
+        
+        // Write each mode's high score to its leaderboard
+        for (const [mode, score] of Object.entries(highScores)) {
+          if (score > 0) {
+            try {
+              const leaderboardDocRef = doc(db, 'leaderboards', mode, 'scores', uid);
+              const existingDoc = await getDoc(leaderboardDocRef);
+              const existingScore = existingDoc.exists() ? existingDoc.data()?.score ?? 0 : 0;
+              
+              // Only write if localStorage score is higher than existing leaderboard score
+              if (score > existingScore) {
+                const entry: LeaderboardEntry = {
+                  uid,
+                  displayName: user.displayName || 'Oyuncu',
+                  photoURL: user.photoURL || null,
+                  score,
+                  achievedAt: Date.now(),
+                  platform: detectPlatform(),
+                  appVersion: import.meta.env.VITE_APP_VERSION || '1.0.0',
+                  sessionDurationSecs: 60, // Estimate for migrated scores
+                  isAnonymous: false,
+                  flagged: false,
+                };
+                await setDoc(leaderboardDocRef, entry);
+                console.log(`syncLocalToFirestore: Wrote ${mode} score ${score} to leaderboard`);
+              }
+            } catch (error) {
+              console.error(`syncLocalToFirestore: Failed to write ${mode} to leaderboard:`, error);
+            }
+          }
+        }
+      }
     }
   } catch (error) {
     console.error('syncLocalToFirestore error:', error);

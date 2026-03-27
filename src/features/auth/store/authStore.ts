@@ -65,15 +65,19 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       // Sync localStorage → Firestore (migrate local scores)
       try {
         await syncLocalToFirestore(user.uid);
+        console.log('initAuth: syncLocalToFirestore completed');
       } catch (error) {
         console.error('Failed to sync localStorage to Firestore:', error);
       }
 
-      // Sync Firestore → localStorage
+      // CRITICAL: Load data from Firestore and update gameStore
+      // This ensures we always show Firestore data (source of truth) for logged-in users
       try {
-        await syncFromFirestore(user.uid);
+        const { loadUserFromFirestore } = await import('../../../services/firebase/syncManager');
+        await loadUserFromFirestore(user.uid);
+        console.log('initAuth: loadUserFromFirestore completed - gameStore updated from Firestore');
       } catch (error) {
-        console.error('Failed to sync from Firestore during auth:', error);
+        console.error('Failed to load from Firestore during auth:', error);
       }
     });
     

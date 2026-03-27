@@ -77,7 +77,8 @@ export function useGameSync() {
             user.displayName || 'Oyuncu',
             user.photoURL || null,
             sessionDurationSecs,
-            abilitiesData
+            abilitiesData,
+            stats // Pass stats to be synced
           );
           console.log('useGameSync: Successfully synced game data');
         } else {
@@ -89,7 +90,8 @@ export function useGameSync() {
             displayName: user.displayName || 'Oyuncu',
             photoURL: user.photoURL || null,
             sessionDurationSecs,
-            abilities: abilitiesData
+            abilities: abilitiesData,
+            stats // Include stats in pending writes
           });
           console.log('useGameSync: Added to pending writes (offline)');
         }
