@@ -27,6 +27,45 @@ export function LeaderboardView({ mode: initialMode }: LeaderboardViewProps) {
   const [activeTab, setActiveTab] = useState<TabType>('rankings');
 
   const { user } = useAuthStore();
+  const {
+    leaderboards,
+    userRanks,
+    isLoading,
+    error,
+    hasMore,
+    fetchLeaderboard,
+    fetchUserRank,
+    loadMore,
+  } = useLeaderboardStore();
+
+  const entries = leaderboards.get(selectedMode) || [];
+  const userRank = userRanks.get(selectedMode);
+
+  const totalPlayers = entries.length;
+  const percentile = userRank && typeof userRank === 'number' && totalPlayers > 0
+    ? (userRank / totalPlayers) * 100
+    : 0;
+
+  useEffect(() => {
+    // Only fetch if user is logged in
+    if (!user) return;
+    
+    // Clear previous mode data when switching modes
+    const { leaderboards } = useLeaderboardStore.getState();
+    leaderboards.delete(selectedMode);
+    
+    fetchLeaderboard(selectedMode);
+    fetchUserRank(user.uid, selectedMode);
+  }, [selectedMode, user, fetchLeaderboard, fetchUserRank]);
+
+  const handleModeChange = (mode: GameMode) => {
+    setSelectedMode(mode);
+    setActiveTab('rankings');
+  };
+
+  const handleLoadMore = () => {
+    loadMore(selectedMode);
+  };
   
   // If no user, show login prompt
   if (!user) {
@@ -56,47 +95,6 @@ export function LeaderboardView({ mode: initialMode }: LeaderboardViewProps) {
       </div>
     );
   }
-
-  const {
-    leaderboards,
-    userRanks,
-    isLoading,
-    error,
-    hasMore,
-    fetchLeaderboard,
-    fetchUserRank,
-    loadMore,
-  } = useLeaderboardStore();
-
-  const entries = leaderboards.get(selectedMode) || [];
-  const userRank = userRanks.get(selectedMode);
-
-  const totalPlayers = entries.length;
-  const percentile = userRank && typeof userRank === 'number' && totalPlayers > 0
-    ? (userRank / totalPlayers) * 100
-    : 0;
-
-  useEffect(() => {
-    // Clear previous mode data when switching modes
-    const { leaderboards } = useLeaderboardStore.getState();
-    leaderboards.delete(selectedMode);
-    
-    fetchLeaderboard(selectedMode);
-    
-    // Only fetch user rank if user is authenticated (not anonymous)
-    if (user && !user.isAnonymous) {
-      fetchUserRank(user.uid, selectedMode);
-    }
-  }, [selectedMode, user, fetchLeaderboard, fetchUserRank]);
-
-  const handleModeChange = (mode: GameMode) => {
-    setSelectedMode(mode);
-    setActiveTab('rankings');
-  };
-
-  const handleLoadMore = () => {
-    loadMore(selectedMode);
-  };
 
   if (isLoading && entries.length === 0) {
     return (

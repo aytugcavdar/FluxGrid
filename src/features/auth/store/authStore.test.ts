@@ -154,13 +154,14 @@ describe('authStore - Task 7.3: Update user metadata on login', () => {
     expect(metadataUpdateCall).toBeDefined();
   });
 
-  it('should update metadata for both anonymous and non-anonymous users', async () => {
-    // Test with anonymous user
-    const mockAnonymousUser = {
-      uid: 'anon-uid-789',
-      isAnonymous: true,
-      displayName: null,
-      photoURL: null,
+  it('should update metadata for Google users', async () => {
+    // Test with Google user
+    const mockGoogleUser = {
+      uid: 'google-uid-789',
+      isAnonymous: false,
+      displayName: 'Test User',
+      photoURL: 'https://example.com/photo.jpg',
+      email: 'test@example.com',
     };
 
     const mockSetDoc = vi.mocked(setDoc);
@@ -169,21 +170,21 @@ describe('authStore - Task 7.3: Update user metadata on login', () => {
 
     vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
       if (typeof callback === 'function') {
-        setTimeout(() => callback(mockAnonymousUser as any), 0);
+        setTimeout(() => callback(mockGoogleUser as any), 0);
       }
       return vi.fn();
     });
 
     vi.doMock('../../../services/firebase/syncManager', () => ({
-      loadUserFromFirestore: vi.fn().mockResolvedValue(undefined),
-      subscribeToUserChanges: vi.fn().mockReturnValue(vi.fn()),
+      syncLocalToFirestore: vi.fn().mockResolvedValue(undefined),
+      syncFromFirestore: vi.fn().mockResolvedValue(undefined),
     }));
 
     // Act
     await useAuthStore.getState().initAuth();
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Assert - metadata should be updated even for anonymous users
+    // Assert - metadata should be updated for Google users
     const metadataUpdateCall = mockSetDoc.mock.calls.find(call => {
       const data = call[1] as any;
       return data.lastSeenAt && data.lastPlatform && data.lastAppVersion;
@@ -193,7 +194,8 @@ describe('authStore - Task 7.3: Update user metadata on login', () => {
     if (metadataUpdateCall) {
       const data = metadataUpdateCall[1] as any;
       expect(data.lastPlatform).toBe('web');
-      expect(data.isAnonymous).toBe(true);
+      expect(data.displayName).toBe('Test User');
+      expect(data.email).toBe('test@example.com');
     }
   });
 });
