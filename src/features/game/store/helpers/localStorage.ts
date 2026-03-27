@@ -2,6 +2,8 @@
  * Safe localStorage operations with error handling
  */
 import { safeExecute, ErrorCategory } from '../../../../utils/errorHandler';
+import { MiniEventState, MiniEventType } from '../../types';
+import { createMiniEventState } from './miniEventSystem';
 
 // Debounce timers
 let saveTimers: { [key: string]: ReturnType<typeof setTimeout> } = {};
@@ -102,3 +104,107 @@ export const safeJSONParse = <T>(value: string, defaultValue: T): T => {
     { operation: 'JSON.parse' }
   );
 };
+
+/**
+ * Serializable version of MiniEventState for localStorage
+ * Converts Set to array for JSON serialization
+ */
+interface SerializableMiniEventState {
+  activeEvents: MiniEventType[];
+  moveCounters: {
+    [MiniEventType.FLUX_SURGE]: number;
+    [MiniEventType.SCORE_RUSH]: number;
+    [MiniEventType.CLEAR_BONUS]: number;
+  };
+  lastActivation: {
+    [MiniEventType.FLUX_SURGE]: number;
+    [MiniEventType.SCORE_RUSH]: number;
+    [MiniEventType.CLEAR_BONUS]: number;
+  };
+}
+
+/**
+ * Serialize MiniEventState for localStorage
+ * Converts Set<MiniEventType> to array for JSON compatibility
+ * 
+ * @param miniEventState - The mini-event state to serialize
+ * @returns Serializable version with Set converted to array
+ */
+export function serializeMiniEventState(miniEventState: MiniEventState): SerializableMiniEventState {
+  return {
+    activeEvents: Array.from(miniEventState.activeEvents),
+    moveCounters: { ...miniEventState.moveCounters },
+    lastActivation: { ...miniEventState.lastActivation },
+  };
+}
+
+/**
+ * Deserialize MiniEventState from localStorage
+ * Converts array back to Set<MiniEventType>
+ * 
+ * @param serialized - The serialized mini-event state (or undefined if missing)
+ * @returns MiniEventState with Set restored, or default state if missing
+ */
+export function deserializeMiniEventState(serialized?: SerializableMiniEventState): MiniEventState {
+  if (!serialized) {
+    return createMiniEventState();
+  }
+  
+  return {
+    activeEvents: new Set(serialized.activeEvents),
+    moveCounters: { ...serialized.moveCounters },
+    lastActivation: { ...serialized.lastActivation },
+  };
+}
+
+/**
+ * Serialize game state for localStorage
+ * Handles miniEventState Set serialization and totalMovesPlayed
+ * 
+ * @param gameState - Partial game state to serialize
+ * @returns Serialized game state ready for localStorage
+ */
+export function serializeGameState(gameState: {
+  miniEventState?: MiniEventState;
+  totalMovesPlayed?: number;
+  [key: string]: any;
+}): any {
+  const serialized: any = { ...gameState };
+  
+  // Serialize miniEventState if present
+  if (gameState.miniEventState) {
+    serialized.miniEventState = serializeMiniEventState(gameState.miniEventState);
+  }
+  
+  // Ensure totalMovesPlayed is included
+  if (gameState.totalMovesPlayed !== undefined) {
+    serialized.totalMovesPlayed = gameState.totalMovesPlayed;
+  }
+  
+  return serialized;
+}
+
+/**
+ * Deserialize game state from localStorage
+ * Handles miniEventState Set deserialization and totalMovesPlayed defaults
+ * 
+ * @param serialized - Serialized game state from localStorage
+ * @returns Game state with miniEventState Set restored and defaults applied
+ */
+export function deserializeGameState(serialized: any): {
+  miniEventState: MiniEventState;
+  totalMovesPlayed: number;
+  [key: string]: any;
+} {
+  const deserialized = { ...serialized };
+  
+  // Deserialize miniEventState (or use default if missing)
+  deserialized.miniEventState = deserializeMiniEventState(serialized.miniEventState);
+  
+  // Initialize totalMovesPlayed with default if missing
+  if (deserialized.totalMovesPlayed === undefined) {
+    deserialized.totalMovesPlayed = 0;
+  }
+  
+  return deserialized;
+}

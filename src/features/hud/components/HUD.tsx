@@ -8,6 +8,8 @@ import { GameMode, AppState } from '@shared/types';
 import { getMuted, toggleMute, playClick, playSkill } from '../../../utils/audio';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
+import { MiniEventIndicators } from './MiniEventIndicators';
+import { TierDisplay } from './TierDisplay';
 
 const EVENT_CONFIG: Record<'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID', { label: string; color: string; bg: string }> = {
     ICE_STORM: { label: 'Buz Fırtınası', color: '#185FA5', bg: 'rgba(56,138,221,0.12)' },
@@ -23,7 +25,8 @@ export const HUD: React.FC = () => {
         score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive,
         gameMode, timeLeft, setAppState,
         zenSessionTime, zenBlocksPlaced, zenPaletteIndex,
-        activeEvent, eventMovesRemaining, timedBoostMovesLeft
+        activeEvent, eventMovesRemaining, timedBoostMovesLeft,
+        miniEventState, difficultyTier
     } = useGameStore();
     const colors = useThemeStore(state => state.getThemeColors());
     const [muted, setMuted] = useState(getMuted);
@@ -159,6 +162,12 @@ export const HUD: React.FC = () => {
                                     />
                                 </div>
                                 <span style={{ fontSize: 9, color: colors.textTertiary }}>{Math.floor(flux)}%</span>
+                                {gameMode === GameMode.ENDLESS && (
+                                    <>
+                                        <MiniEventIndicators activeEvents={miniEventState.activeEvents} isMobile={true} />
+                                        <TierDisplay tier={difficultyTier} isMobile={true} />
+                                    </>
+                                )}
                             </div>
                         ) : (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -460,6 +469,35 @@ export const HUD: React.FC = () => {
                         />
                     </div>
                 </div>
+
+                {/* Tier Display - Desktop (ENDLESS mode only) */}
+                {gameMode === GameMode.ENDLESS && (
+                    <TierDisplay tier={difficultyTier} isMobile={false} />
+                )}
+
+                {/* Mini-Event Indicators - Desktop */}
+                {gameMode === GameMode.ENDLESS && (
+                    <MiniEventIndicators activeEvents={miniEventState.activeEvents} isMobile={false} />
+                )}
+
+                {/* Event Duration Display - Desktop */}
+                {activeEvent && (
+                    <div className="flex-shrink-0 px-3 py-2 rounded-lg border flex flex-col justify-center gap-1"
+                        style={{
+                            background: EVENT_CONFIG[activeEvent].bg,
+                            borderColor: `${EVENT_CONFIG[activeEvent].color}40`,
+                        }}
+                    >
+                        <span className="text-[10px] font-bold tracking-wide" style={{ color: EVENT_CONFIG[activeEvent].color }}>
+                            {EVENT_CONFIG[activeEvent].label}
+                        </span>
+                        {eventMovesRemaining < 9999 && (
+                            <span className="text-[9px] font-semibold" style={{ color: EVENT_CONFIG[activeEvent].color, opacity: 0.7 }}>
+                                {eventMovesRemaining} hamle kaldı
+                            </span>
+                        )}
+                    </div>
+                )}
 
                 <div className="flex gap-1.5">
                     <SkillButton

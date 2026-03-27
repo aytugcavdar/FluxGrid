@@ -7,3 +7,6 @@ export { ComboFlash } from './ComboFlash';
 export { DragOverlay } from './DragOverlay';
 export { ComboBar } from './ComboBar';
 export { ComboRushFlash } from './ComboRushFlash';
+export { MiniEventIndicators } from './MiniEventIndicators';
+export { MultiplierBreakdownDisplay } from './MultiplierBreakdownDisplay';
+export { TierDisplay } from './TierDisplay';

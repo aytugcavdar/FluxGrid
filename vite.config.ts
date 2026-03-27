@@ -5,6 +5,10 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    
+    // Generate build-time version for service worker cache busting
+    const buildVersion = new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).slice(2,6);
+    
     return {
       base: '/FluxGrid/',
       server: {
@@ -28,6 +32,16 @@ export default defineConfig(({ mode }) => {
                   .replace('YOUR_STORAGE_BUCKET', env.VITE_FIREBASE_STORAGE_BUCKET || '')
                   .replace('YOUR_MESSAGING_SENDER_ID', env.VITE_FIREBASE_MESSAGING_SENDER_ID || '')
                   .replace('YOUR_APP_ID', env.VITE_FIREBASE_APP_ID || '');
+              }
+            },
+            {
+              src: 'public/sw.js',
+              dest: '',
+              transform: (content) => {
+                // Inject build version into service worker
+                return content
+                  .toString()
+                  .replace('{{BUILD_VERSION}}', buildVersion);
               }
             }
           ]

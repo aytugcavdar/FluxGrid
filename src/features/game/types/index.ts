@@ -64,3 +64,47 @@ export interface Achievement {
   category?: 'SCORE' | 'COMBO' | 'SPECIAL_BLOCKS' | 'ABILITIES' | 'PROGRESSION';
   fluxReward?: number;
 }
+
+// Mini-event types
+export enum MiniEventType {
+  FLUX_SURGE = 'FLUX_SURGE',
+  SCORE_RUSH = 'SCORE_RUSH',
+  CLEAR_BONUS = 'CLEAR_BONUS',
+}
+
+// Mini-event state
+export interface MiniEventState {
+  activeEvents: Set<MiniEventType>;
+  moveCounters: {
+    [MiniEventType.FLUX_SURGE]: number;
+    [MiniEventType.SCORE_RUSH]: number;
+    [MiniEventType.CLEAR_BONUS]: number;
+  };
+  lastActivation: {
+    [MiniEventType.FLUX_SURGE]: number;
+    [MiniEventType.SCORE_RUSH]: number;
+    [MiniEventType.CLEAR_BONUS]: number;
+  };
+}
+
+// Tier configuration
+export interface TierConfig {
+  thresholds: readonly number[];
+  scoreMultipliers: readonly number[];
+  fluxMultipliers: readonly number[];
+}
+
+// Event configuration
+export interface EventConfig {
+  durations: Record<string, number>;
+  triggerIntervals: Record<string, number>;
+  scoreMultipliers: Record<string, number>;
+}
+
+// Multiplier breakdown for UI
+export interface MultiplierBreakdown {
+  tier: number;
+  event: number;
+  miniEvents: { type: MiniEventType; multiplier: number }[];
+  total: number;
+}

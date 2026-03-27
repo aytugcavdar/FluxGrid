@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fluxgrid-v12';
+const CACHE_NAME = 'fluxgrid-{{BUILD_VERSION}}';
 
 // Critical assets to pre-cache on install
 const PRECACHE_ASSETS = [
@@ -10,7 +10,7 @@ const PRECACHE_ASSETS = [
 
 // Install — pre-cache critical assets
 self.addEventListener('install', (event) => {
-  console.log('SW: Installing v12 with pre-caching...');
+  console.log('SW: Installing', CACHE_NAME, 'with pre-caching...');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('SW: Pre-caching critical assets');
@@ -24,7 +24,7 @@ self.addEventListener('install', (event) => {
 
 // Activate — clean old caches
 self.addEventListener('activate', (event) => {
-  console.log('SW: Activating v12 and cleaning old caches...');
+  console.log('SW: Activating', CACHE_NAME, 'and cleaning old caches...');
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(

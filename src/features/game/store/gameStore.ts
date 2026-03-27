@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { GridState, Piece, GRID_SIZE, GridCell, SkillType, CellType, Achievement } from '../types';
+import { GridState, Piece, GRID_SIZE, GridCell, SkillType, CellType, Achievement, MiniEventState, MultiplierBreakdown } from '../types';
 import { AppState, GameStats, GameMode } from '@shared/types';
 import { POINTS, FLUX_COST, EXPANDED_ACHIEVEMENTS, ZEN_PALETTES, TIER_SCORE_MULTIPLIERS, TIMED_MODE } from '../constants';
 import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playHaptic } from '../../../utils/audio';
@@ -15,6 +15,9 @@ import { tickTimerImpl } from './helpers/timerLogic';
 import { checkTierEvent, tickActiveEvent } from './helpers/eventSystem';
 import { updateAchievements, syncNewAchievement } from './helpers/achievementSystem';
 import { usePassiveAbilityStore } from '../../abilities/store/passiveAbilityStore';
+import { createMiniEventState, checkMiniEvents, tickMiniEvents } from './helpers/miniEventSystem';
+import { calculateScore, calculateFluxGain } from './helpers/scoreCalculator';
+import { migrateSaveData, SaveData } from './helpers/migration';
 
 export interface GameStore {
   grid: GridState;
@@ -46,6 +49,8 @@ export interface GameStore {
   appState: AppState;
   gameMode: GameMode;
   timeLeft: number;
+  timerStartTime: number | null;
+  timerExpectedEnd: number | null;
   highScores: { [key: string]: number };
   stats: GameStats;
   maxLevelReached: number;
@@ -63,16 +68,22 @@ export interface GameStore {
   activeEvent: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
   eventMovesRemaining: number;
 
+  // Mini-Event System State
+  miniEventState: MiniEventState;
+  totalMovesPlayed: number;
+  lastMultiplierBreakdown: MultiplierBreakdown | null;
+
   // Timed Mode State
   timedBoostMovesLeft: number;
   maxCombo: number;
   chronoBonus: number;
+  finalSprintBonus: number;
 
   // Piece Loading State
   isPiecesLoading: boolean;
 
   // Actions
-  initGame: (mode?: GameMode) => void;
+  initGame: (mode?: GameMode, savedData?: SaveData) => void;
   setAppState: (state: AppState) => void;
   setGameMode: (mode: GameMode) => void;
   tickTimer: () => void;
@@ -119,6 +130,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   appState: AppState.HOME,
   gameMode: GameMode.ENDLESS,
   timeLeft: 0,
+  timerStartTime: null,
+  timerExpectedEnd: null,
   highScores: {},
   stats: INITIAL_STATS,
   maxLevelReached: 0,
@@ -136,15 +149,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
   activeEvent: null,
   eventMovesRemaining: 0,
 
+  // Mini-Event System Initial State
+  miniEventState: createMiniEventState(),
+  totalMovesPlayed: 0,
+  lastMultiplierBreakdown: null,
+
   // Timed Mode Initial State
   timedBoostMovesLeft: 0,
   maxCombo: 0,
   chronoBonus: 0,
+  finalSprintBonus: 0,
 
   // Piece Loading Initial State
   isPiecesLoading: false,
 
-  initGame: (mode = GameMode.ENDLESS) => {
+  initGame: (mode = GameMode.ENDLESS, savedData?: SaveData) => {
     const success = safeExecute(
       () => {
         const isTimed = mode === GameMode.TIMED;
@@ -152,10 +171,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const isZen = mode === GameMode.ZEN;
         const initialGrid = createEmptyGrid();
         
+        const now = Date.now();
+        
+        // Run migration if saved data is provided
+        let migratedData: SaveData | undefined = savedData;
+        if (savedData) {
+          migratedData = migrateSaveData(savedData);
+        }
+        
+        // Use migrated data if available, otherwise use defaults
+        const loadedScore = migratedData?.score ?? 0;
+        const loadedTier = migratedData?.difficultyTier ?? 0;
+        const loadedActiveEvent = migratedData?.activeEvent ?? null;
+        const loadedEventMovesRemaining = migratedData?.eventMovesRemaining ?? 0;
+        const loadedMiniEventState = migratedData?.miniEventState ?? createMiniEventState();
+        const loadedTotalMovesPlayed = migratedData?.totalMovesPlayed ?? 0;
+        
         set({
           grid: initialGrid,
-          pieces: getRandomPiecesSync(3, initialGrid, isDaily, isZen ? ZEN_PALETTES[0] : useThemeStore.getState().getPieceColors(), 0, mode),
-          score: 0,
+          pieces: getRandomPiecesSync(3, initialGrid, isDaily, isZen ? ZEN_PALETTES[0] : useThemeStore.getState().getPieceColors(), loadedTier, mode),
+          score: loadedScore,
           flux: isZen ? 100 : 50,
           combo: 0,
           isGameOver: false,
@@ -166,7 +201,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
           appState: AppState.GAME,
           gameMode: mode,
           timeLeft: isTimed ? 60 : 0,
-          difficultyTier: 0,
+          timerStartTime: isTimed ? now : null,
+          timerExpectedEnd: isTimed ? now + 60000 : null,
+          difficultyTier: loadedTier,
           // ZEN mode initialization
           zenSessionTime: isZen ? 0 : get().zenSessionTime,
           zenBlocksPlaced: isZen ? 0 : get().zenBlocksPlaced,
@@ -174,12 +211,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
           // Daily Challenge initialization
           dailyClearHistory: [],
           // Event System initialization
-          activeEvent: null,
-          eventMovesRemaining: 0,
+          activeEvent: loadedActiveEvent,
+          eventMovesRemaining: loadedEventMovesRemaining,
+          // Mini-Event System initialization
+          miniEventState: loadedMiniEventState,
+          totalMovesPlayed: loadedTotalMovesPlayed,
+          lastMultiplierBreakdown: null,
           // Timed Mode initialization
           timedBoostMovesLeft: 0,
           maxCombo: 0,
           chronoBonus: 0,
+          finalSprintBonus: 0,
           // Piece Loading initialization
           isPiecesLoading: false
         });
@@ -389,6 +431,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // 1. Validate placement
     if (!get().canPlacePiece(grid, piece, startX, startY)) return false;
 
+    // Increment totalMovesPlayed (only for ENDLESS mode)
+    if (gameMode === GameMode.ENDLESS) {
+      set({ totalMovesPlayed: get().totalMovesPlayed + 1 });
+    }
+
     // 2. Update Grid
     const tempGrid = grid.map(row => row.map(cell => ({ ...cell })));
     let blocksPlaced = 0;
@@ -436,6 +483,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
 
+    // Check and activate mini-events (only for ENDLESS mode, before score calculation)
+    let updatedMiniEventState = get().miniEventState;
+    if (gameMode === GameMode.ENDLESS) {
+      updatedMiniEventState = checkMiniEvents(get().totalMovesPlayed, get().miniEventState);
+    } else {
+      // For non-ENDLESS modes, use empty mini-event state to skip multipliers
+      updatedMiniEventState = createMiniEventState();
+    }
+
     // 4. Puan hesaplama (ZEN modda skip edilir)
     // Combo: ZEN'de combo sıfırlanmaz, diğer modlarda satır temizlenmezse sıfırlanır
     let newCombo = gameMode === GameMode.ZEN 
@@ -457,8 +513,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
     
     // Rush aktifken combo 0'a düşmesin
-    if (isTimedMode && newTimedBoostMoves > 0 && linesCleared === 0) {
-      newCombo = Math.max(combo, 1);
+    const isRushActive = isTimedMode && newTimedBoostMoves > 0;
+    if (isRushActive && linesCleared === 0) {
+      newCombo = Math.max(combo, 1); // Combo kırılmasını engelle
     }
     
     // Combo multiplier: preserve previous combo when no lines cleared, use new combo when lines cleared
@@ -466,15 +523,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Renk bonusu: tek renk satır/sütun temizleme
     const colorBonusMultiplier = (linesCleared > 0 && colorBonus) ? POINTS.COLOR_BONUS_MULTIPLIER : 1;
-    // Surge bonusu: flux=100 iken aktif
-    const surgeMultiplier = (linesCleared > 0 && isSurgeActive) ? POINTS.SURGE_MULTIPLIER : 1;
-    // Tier çarpanı: Endless modda zorluk seviyesine göre
-    const tierMultiplier = gameMode === GameMode.ENDLESS
-      ? (TIER_SCORE_MULTIPLIERS[get().difficultyTier] ?? 1.0)
-      : 1.0;
     // Final seconds multiplier: Timed modda son 10 saniyede 1.5x
     const isFinalSeconds = gameMode === GameMode.TIMED && get().timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD;
-    const finalSecondsMultiplier = isFinalSeconds ? 1.5 : 1.0;
 
     // Pasif yetenek çarpanları
     const passiveScoreMultiplier = usePassiveAbilityStore.getState().calculateScoreMultiplier();
@@ -482,8 +532,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const basePoints = (blocksPlaced * POINTS.BLOCK_PLACED) +
                        (linesCleared * POINTS.LINE_CLEARED) +
                        (comboMultiplier * POINTS.COMBO_MULTIPLIER);
-    const quakeMultiplier = get().activeEvent === 'QUAKE' && linesCleared > 0 ? 1.3 : 1.0;
-    const pointsGained = Math.floor(basePoints * colorBonusMultiplier * surgeMultiplier * tierMultiplier * finalSecondsMultiplier * quakeMultiplier * passiveScoreMultiplier);
+    
+    // Calculate score using score calculator
+    const { score: pointsGained, breakdown } = calculateScore(
+      basePoints,
+      colorBonus,
+      isSurgeActive,
+      gameMode === GameMode.ENDLESS ? get().difficultyTier : 0,
+      gameMode === GameMode.ENDLESS ? get().activeEvent : null,
+      updatedMiniEventState,
+      linesCleared,
+      passiveScoreMultiplier
+    );
+    
+    // Track final sprint bonus for Timed mode
+    let sprintBonusGained = 0;
+    if (isFinalSeconds && linesCleared > 0) {
+      const quakeMultiplier = get().activeEvent === 'QUAKE' && linesCleared > 0 ? 1.3 : 1.0;
+      sprintBonusGained = Math.floor(basePoints * 0.5 * quakeMultiplier * passiveScoreMultiplier);
+    }
     
     // ZEN modda skor güncellenmez
     const newScore = gameMode === GameMode.ZEN ? 0 : (score + pointsGained);
@@ -530,7 +597,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Flux hesaplama
     const passiveFluxMultiplier = usePassiveAbilityStore.getState().calculateFluxMultiplier();
-    const fluxGained = Math.floor(((blocksPlaced * 2) + (linesCleared * 10)) * passiveFluxMultiplier);
+    
+    // Calculate flux using flux calculator
+    const fluxGained = calculateFluxGain(
+      blocksPlaced,
+      linesCleared,
+      gameMode === GameMode.ENDLESS ? get().difficultyTier : 0,
+      updatedMiniEventState,
+      passiveFluxMultiplier
+    );
+    
     const rawFlux = flux + fluxGained;
     const newFlux = Math.min(100, rawFlux);
 
@@ -576,11 +652,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const modeKey = get().gameMode;
     const currentHighs = get().highScores;
-    const oldHigh = currentHighs[modeKey] || 0;
+    const modeHighScore = currentHighs[modeKey] || 0;
     
-    if (newScore > oldHigh) {
+    if (newScore > modeHighScore) {
       const newHighs = { ...currentHighs, [modeKey]: newScore };
-      set({ highScores: newHighs });
+      set({ highScores: newHighs, highScore: newScore });
     }
 
     // Time Reward logic
@@ -589,7 +665,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     
     // TIMED mode time logic
     // Time bonus formula: +2 seconds per line cleared, +0.5 seconds for combo > 1
-    // Combo break penalty: -1 second if previous combo > 0 but now 0
+    // Combo break penalty: -1 second if previous combo > 0 but now 0 (only when rush is NOT active)
     // CHRONO bonus: additional seconds from CHRONO blocks
     // Cap at 60 seconds maximum
     if (get().gameMode === GameMode.TIMED) {
@@ -597,16 +673,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
         extraTime = linesCleared * 2; // +2 saniye per line
         if (comboMultiplier > 1) extraTime += 0.5; // +0.5 saniye per combo
       }
-      // Combo kırılma cezası: önceki combo > 0 ama şimdi 0 ise
-      if (previousCombo > 0 && newCombo === 0) {
+      // Combo kırılma cezası: önceki combo > 0 ama şimdi 0 ise (rush aktif değilken)
+      if (!isRushActive && previousCombo > 0 && newCombo === 0) {
         extraTime = -1; // -1 saniye ceza
       }
       // Add CHRONO bonus
       extraTime += chronoBonusSeconds;
       
-      // Timer'ı 60 saniyede cap'le
-      const newTimeLeft = Math.min(60, Math.max(0, get().timeLeft + extraTime));
-      extraTime = newTimeLeft - get().timeLeft; // Gerçek değişimi hesapla
+      // Timer'ı 60 saniyede cap'le ve timerExpectedEnd'i güncelle
+      const currentExpectedEnd = get().timerExpectedEnd;
+      if (currentExpectedEnd) {
+        const newExpectedEnd = Math.min(
+          get().timerStartTime! + 60000, // Max 60 seconds from start
+          currentExpectedEnd + (extraTime * 1000)
+        );
+        const newTimeLeft = Math.max(0, Math.ceil((newExpectedEnd - Date.now()) / 1000));
+        extraTime = newTimeLeft - get().timeLeft; // Gerçek değişimi hesapla
+        
+        set({ timerExpectedEnd: newExpectedEnd });
+      }
     }
 
     // Calculate new movesLeft - not used anymore
@@ -621,8 +706,32 @@ export const useGameStore = create<GameStore>((set, get) => ({
       tierResult = checkTierEvent(newScore, prevDifficultyTier, get, set);
     }
 
+    // --- Aktif olay tick ---
+    // CRITICAL: Pass newGrid (with placed piece) instead of get().grid (old state)
+    // to prevent event effects from overwriting the just-placed piece
+    const eventUpdates = tickActiveEvent(newGrid, justPlacedPiece, get, set);
+    
+    // Merge grid updates: eventUpdates takes precedence over tierResult
+    const tierUpdates = tierResult ?? {};
+    let finalGrid = (eventUpdates as any)?.grid ?? (tierUpdates as any)?.grid ?? newGrid;
+    
+    // CRITICAL: After event effects (GRAVITY_RUSH, QUAKE, etc.), check for new line clears
+    // Events can create new full rows/columns that need to be cleared
+    // We process the grid again but don't add score (event effects are automatic, not player actions)
+    if (eventUpdates && (eventUpdates as any).grid) {
+      const { grid: processedGrid } = processGrid(finalGrid);
+      finalGrid = processedGrid;
+    }
+    
+    // Tick mini-events after score calculation (only for ENDLESS mode)
+    if (gameMode === GameMode.ENDLESS) {
+      updatedMiniEventState = tickMiniEvents(updatedMiniEventState, linesCleared);
+    }
+
     set({
-      grid: newGrid,
+      ...tierUpdates,
+      ...eventUpdates,
+      grid: finalGrid,
       score: newScore,
       highScore: Math.max(newScore, get().highScore),
       combo: newCombo, // Use newCombo instead of comboMultiplier
@@ -633,9 +742,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       achievements: updatedAchievements,
       unlockedAchievementId: newUnlock ? newUnlock.id : get().unlockedAchievementId,
       chronoBonus: get().chronoBonus + chronoBonusSeconds,
+      finalSprintBonus: get().finalSprintBonus + sprintBonusGained,
       maxCombo: newMaxCombo,
       timedBoostMovesLeft: newTimedBoostMoves,
-      ...(tierResult ?? {})
+      miniEventState: updatedMiniEventState,
+      lastMultiplierBreakdown: breakdown,
     });
 
     // Update Global Stats
@@ -649,9 +760,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       iceBroken: currentStats.iceBroken + iceBroken,
     };
     set({ stats: nextStats });
-
-    // --- Aktif olay tick ---
-    tickActiveEvent(get().grid, justPlacedPiece, get, set);
 
     get().checkGameOver();
     

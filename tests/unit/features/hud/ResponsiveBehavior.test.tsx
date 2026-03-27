@@ -24,6 +24,11 @@ vi.mock('@features/game/store/gameStore', () => ({
     survivalPushInterval: 10,
     zenPaletteIndex: 0,
     survivalTime: 0,
+    activeEvent: null,
+    eventMovesRemaining: 0,
+    timedBoostMovesLeft: 0,
+    miniEventState: { activeEvents: new Set(), moveCounters: {}, lastActivation: {} },
+    difficultyTier: 0,
   })),
 }));
 

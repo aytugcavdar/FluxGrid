@@ -12,6 +12,9 @@ const db = getFirebaseFirestore();
 // VAPID key from Firebase Console > Project Settings > Cloud Messaging
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || '';
 
+// Module-level flag to track FCM availability
+let fcmAvailable = true;
+
 // Validate VAPID key configuration
 if (!VAPID_KEY) {
   const errorMsg = 
@@ -20,10 +23,11 @@ if (!VAPID_KEY) {
     'Get this from Firebase Console > Project Settings > Cloud Messaging > Web Push certificates';
   
   console.error(errorMsg);
+  fcmAvailable = false;
   
-  // In production, throw error to prevent silent failures
+  // Don't throw in production - gracefully disable FCM instead
   if (import.meta.env.PROD) {
-    throw new Error(errorMsg);
+    console.warn('FCM features disabled in production due to missing VAPID key');
   }
 }
 
@@ -31,13 +35,12 @@ if (!VAPID_KEY) {
  * Request notification permission and get FCM token
  */
 export async function requestNotificationPermission(uid: string): Promise<string | null> {
+  if (!fcmAvailable) {
+    console.warn('FCM not available: VAPID key missing');
+    return null;
+  }
+  
   try {
-    // Check VAPID key before proceeding
-    if (!VAPID_KEY) {
-      console.error('Cannot request notification permission: VAPID key not configured');
-      return null;
-    }
-    
     const messaging = getFirebaseMessaging();
     
     if (!messaging) {
@@ -73,6 +76,11 @@ export async function requestNotificationPermission(uid: string): Promise<string
  * Register device token in Firestore
  */
 export async function registerDeviceToken(uid: string, token: string): Promise<void> {
+  if (!fcmAvailable) {
+    console.warn('FCM not available: VAPID key missing');
+    return;
+  }
+  
   try {
     const userRef = doc(db, 'users', uid);
     
@@ -111,6 +119,11 @@ export async function removeDeviceToken(uid: string, token: string): Promise<voi
 export function setupForegroundMessageListener(
   onMessageReceived: (payload: MessagePayload) => void
 ): (() => void) | null {
+  if (!fcmAvailable) {
+    console.warn('FCM not available: VAPID key missing');
+    return null;
+  }
+  
   try {
     const messaging = getFirebaseMessaging();
     
@@ -134,7 +147,7 @@ export function setupForegroundMessageListener(
  * Check if notifications are supported
  */
 export function areNotificationsSupported(): boolean {
-  return 'Notification' in window && 'serviceWorker' in navigator;
+  return 'Notification' in window && 'serviceWorker' in navigator && fcmAvailable;
 }
 
 /**

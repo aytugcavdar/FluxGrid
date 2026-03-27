@@ -5,7 +5,7 @@ import { GameMode } from '@shared/types';
 import { SkillType } from '../../features/game/types';
 import { Grid } from '../../features/game/components/Grid';
 import { Piece } from '../../features/game/components/Piece';
-import { HUD, ScorePopups, ChainCounter, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash } from '@features/hud';
+import { HUD, ScorePopups, ChainCounter, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, MultiplierBreakdownDisplay } from '@features/hud';
 import { useGameStore } from '../../features/game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
 import { playClick } from '@utils/audio';
@@ -41,7 +41,7 @@ interface GameScreenProps {
   timedWarning: '30sn' | '10sn' | null;
   shownChain: number;
   showPerfect: boolean;
-  milestoneTier: string;
+  milestoneTier: { tier: number; tierName: string; multiplier: number } | null;
 }
 
 export const GameScreen: React.FC<GameScreenProps> = ({
@@ -229,6 +229,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       <ComboRushFlash active={showRushStart} movesLeft={timedBoostMovesLeft} onStart={true} />
       <ComboRushFlash active={showRushEnd} movesLeft={0} onStart={false} />
       {gameMode !== GameMode.ZEN && <ComboBar />}
+      <MultiplierBreakdownDisplay />
 
       {/* Time Popups */}
       <AnimatePresence>
@@ -259,29 +260,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         ))}
       </AnimatePresence>
 
-      {/* QUAKE Uyarı Banner */}
-      <AnimatePresence>
-        {activeEvent === 'QUAKE' && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-24 left-0 right-0 flex justify-center pointer-events-none z-50"
-          >
-            <div style={{
-              background: 'rgba(216,90,48,0.95)',
-              border: '2px solid rgba(216,90,48,1)',
-              borderRadius: 16,
-              padding: '12px 24px',
-              boxShadow: '0 8px 32px rgba(216,90,48,0.4)',
-            }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', textAlign: 'center' }}>
-                DEPREM — Sol-gravity aktif · {eventMovesRemaining} hamle
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       {/* TIMED Mode Warnings */}
       <AnimatePresence>
@@ -370,7 +349,16 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               letterSpacing: '-0.02em',
               textShadow: '0 2px 8px rgba(245,158,11,0.5)'
             }}>
-              {milestoneTier.toUpperCase()}
+              Tier {milestoneTier.tier}: {milestoneTier.tierName.toUpperCase()}
+            </div>
+            <div style={{ 
+              fontSize: 16, 
+              fontWeight: 600,
+              color: '#f59e0b',
+              marginTop: 4,
+              letterSpacing: '0.05em'
+            }}>
+              {milestoneTier.multiplier.toFixed(2)}x Çarpan
             </div>
             <div style={{ 
               fontSize: 11, 

@@ -11,6 +11,7 @@ interface GameOverModalProps {
   score: number;
   displayScore: number;
   highScore: number;
+  currentModeHighScore: number;
   isNewRecord: boolean;
   showRecordBadge: boolean;
   showButtons: boolean;
@@ -18,6 +19,7 @@ interface GameOverModalProps {
   combo: number;
   maxCombo: number;
   chronoBonus: number;
+  finalSprintBonus: number;
   stats: any;
   surgeWasUsed: boolean;
   dailyClearHistory: boolean[][];
@@ -48,6 +50,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   score,
   displayScore,
   highScore,
+  currentModeHighScore,
   isNewRecord,
   showRecordBadge,
   showButtons,
@@ -55,6 +58,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   combo,
   maxCombo,
   chronoBonus,
+  finalSprintBonus,
   stats,
   surgeWasUsed,
   dailyClearHistory,
@@ -131,9 +135,9 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             </motion.div>
           )}
           
-          {!isNewRecord && highScore > 0 && (
+          {!isNewRecord && currentModeHighScore > 0 && (
             <div className="mt-2 text-xs text-gray-400">
-              En iyinin %{Math.round((score / highScore) * 100)}'i
+              En iyinin %{Math.round((score / currentModeHighScore) * 100)}'i
             </div>
           )}
         </div>
@@ -184,6 +188,14 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                   </div>
                   <div className="text-[10px] text-gray-500 uppercase">Chrono</div>
                 </div>
+                {finalSprintBonus > 0 && (
+                  <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                    <div className="text-sm font-bold text-green-400">
+                      +{finalSprintBonus}
+                    </div>
+                    <div className="text-[10px] text-gray-500 uppercase">Sprint</div>
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -205,15 +217,15 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         )}
 
         {/* Best Score Comparison */}
-        {!isNewRecord && highScore > 0 && score > 0 && (
+        {!isNewRecord && currentModeHighScore > 0 && score > 0 && (
           <div className="mb-4 p-3 bg-white/5 rounded-lg text-center">
             <div className="text-xs text-gray-400 mb-1">
-              Rekoruna %{Math.round((score / highScore) * 100)} yaklaştın
+              Rekoruna %{Math.round((score / currentModeHighScore) * 100)} yaklaştın
             </div>
             <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${Math.min((score / highScore) * 100, 100)}%` }}
+                animate={{ width: `${Math.min((score / currentModeHighScore) * 100, 100)}%` }}
                 transition={{ duration: 1, ease: 'easeOut' }}
                 className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"
               />

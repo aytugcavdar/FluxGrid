@@ -10,7 +10,7 @@ export const tickTimerImpl = (
   get: () => any,
   set: (partial: any) => void
 ): void => {
-  const { timeLeft, isGameOver, gameMode, appState } = get();
+  const { timeLeft, isGameOver, gameMode, appState, timerExpectedEnd } = get();
   
   // Guard: Oyun bittiyse veya oyun ekranında değilse işlem yapma
   if (isGameOver || appState !== AppState.GAME) return;
@@ -27,18 +27,25 @@ export const tickTimerImpl = (
         return;
       }
       
-      // TIMED modda timer'ı azalt
+      // TIMED modda timer'ı azalt (Date.now() bazlı)
       if (gameMode === GameMode.TIMED) {
+        if (!timerExpectedEnd) return; // Guard: timer başlatılmamış
+        
+        // Gerçek kalan süreyi hesapla
+        const now = Date.now();
+        const remainingMs = timerExpectedEnd - now;
+        const newTimeLeft = Math.max(0, Math.ceil(remainingMs / 1000));
+        
         // Play tick sound for last 10 seconds
-        if (timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD && timeLeft > 0) {
+        if (newTimeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD && newTimeLeft > 0 && timeLeft !== newTimeLeft) {
           playTick();
         }
         
-        if (timeLeft <= 1) {
+        if (newTimeLeft <= 0) {
           playGameOver();
           set({ timeLeft: 0, isGameOver: true });
         } else {
-          set({ timeLeft: timeLeft - 1 });
+          set({ timeLeft: newTimeLeft });
         }
       }
     },

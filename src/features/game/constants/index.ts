@@ -43,8 +43,48 @@ export const FLUX_COST = {
   UNDO: 30,
 };
 
-// Tier score multipliers for Endless mode
-export const TIER_SCORE_MULTIPLIERS = [1.0, 1.2, 1.5, 2.0, 3.0, 4.0, 5.0];
+// Tier progression constants (rebalanced)
+export const TIER_THRESHOLDS = [0, 1500, 4000, 9000, 18000, 35000, 60000] as const;
+export const TIER_SCORE_MULTIPLIERS = [1.0, 1.15, 1.35, 1.6, 2.0, 2.5, 3.0] as const;
+export const TIER_FLUX_MULTIPLIERS = [1.0, 1.1, 1.2, 1.3, 1.5, 1.7, 2.0] as const;
+
+// Event duration constants
+export const EVENT_DURATIONS = {
+  ICE_STORM: 10,
+  GRAVITY_RUSH: 10,
+  QUAKE: 8,
+  MIRROR: 10,
+  CHAOS: 12,
+  VOID: 10,
+} as const;
+
+// Event trigger intervals (for CHAOS and VOID)
+export const EVENT_TRIGGER_INTERVALS = {
+  CHAOS: 4,
+  VOID: 5,
+} as const;
+
+// Event score multipliers
+export const EVENT_SCORE_MULTIPLIERS = {
+  DEFAULT: 1.2,
+  QUAKE: 1.3,
+} as const;
+
+// Mini-event constants
+export const MINI_EVENT_INTERVALS = {
+  FLUX_SURGE: 50,
+  SCORE_RUSH: 100,
+  CLEAR_BONUS: 150,
+} as const;
+
+export const MINI_EVENT_MULTIPLIERS = {
+  FLUX_SURGE: 2.0,
+  SCORE_RUSH: 1.5,
+  CLEAR_BONUS: 3.0,
+} as const;
+
+// ICE_STORM spawn count
+export const ICE_STORM_SPAWN_COUNT = 2;
 
 export const ZEN_PALETTES = [
   ['#f59e0b', '#3b82f6', '#a78bfa', '#10b981', '#f472b6', '#6366f1'],  // default warm

@@ -25,6 +25,7 @@ import { useAuthStore } from '../features/auth/store/authStore';
 import { useBrowserHistory } from './hooks/useBrowserHistory';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { useGameSync } from '../features/game/hooks/useGameSync';
+import { TIER_SCORE_MULTIPLIERS } from '../features/game/constants';
 
 interface ScorePopup {
   id: number;
@@ -44,9 +45,9 @@ const App: React.FC = () => {
   const {
     initGame, pieces, isGameOver, resetGame, score, combo, lastAction, isSurgeActive,
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
-    dailyClearHistory, highScore, stats,
+    dailyClearHistory, highScore, stats, highScores,
     activeSkill, activateSkill,
-    maxCombo, chronoBonus, timedBoostMovesLeft
+    maxCombo, chronoBonus, timedBoostMovesLeft, finalSprintBonus
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors } = useThemeStore();
   const colors = getThemeColors();
@@ -64,7 +65,7 @@ const App: React.FC = () => {
   const [showSurgeFlash, setShowSurgeFlash] = useState(false);
   const lastActionRef = useRef<typeof lastAction>(null);
   const prevSurgeRef = useRef(false);
-  const [milestoneTier, setMilestoneTier] = useState('');
+  const [milestoneTier, setMilestoneTier] = useState<{ tier: number; tierName: string; multiplier: number } | null>(null);
   const [timePopups, setTimePopups] = useState<TimePopup[]>([]);
   const timePopupIdRef = useRef(0);
   const prevTimeLeftRef = useRef(timeLeft);
@@ -80,7 +81,8 @@ const App: React.FC = () => {
   
   // Score display animation state
   const displayScore = useCountUp(score, 600, isGameOver);
-  const isNewRecord = score > 0 && score >= (highScore || 0);
+  const currentModeHighScore = highScores[gameMode] || 0;
+  const isNewRecord = score > 0 && score >= currentModeHighScore;
   const [showRecordBadge, setShowRecordBadge] = useState(false);
   const [showButtons, setShowButtons] = useState(false);
   
@@ -212,7 +214,7 @@ const App: React.FC = () => {
     if ((gameMode !== GameMode.TIMED && gameMode !== GameMode.ZEN) || appState !== AppState.GAME || isGameOver) return;
     const interval = setInterval(() => {
       tickTimer();
-    }, 1000);
+    }, 250); // 250ms for more accurate timer updates
     return () => clearInterval(interval);
   }, [gameMode, appState, isGameOver, tickTimer]);
 
@@ -244,8 +246,12 @@ const App: React.FC = () => {
     
     // Handle MILESTONE type for difficulty tier progression
     if (lastAction.type === 'MILESTONE') {
-      setMilestoneTier(lastAction.tierName ?? '');
-      setTimeout(() => setMilestoneTier(''), 2500);
+      const tier = lastAction.tier ?? 0;
+      const tierName = lastAction.tierName ?? '';
+      const multiplier = TIER_SCORE_MULTIPLIERS[tier] ?? 1.0;
+      
+      setMilestoneTier({ tier, tierName, multiplier });
+      setTimeout(() => setMilestoneTier(null), 2500);
       return;
     }
     
@@ -480,6 +486,7 @@ const App: React.FC = () => {
           score={score}
           displayScore={displayScore}
           highScore={highScore}
+          currentModeHighScore={currentModeHighScore}
           isNewRecord={isNewRecord}
           showRecordBadge={showRecordBadge}
           showButtons={showButtons}
@@ -487,6 +494,7 @@ const App: React.FC = () => {
           combo={combo}
           maxCombo={maxCombo}
           chronoBonus={chronoBonus}
+          finalSprintBonus={finalSprintBonus}
           stats={stats}
           surgeWasUsed={surgeWasUsed}
           dailyClearHistory={dailyClearHistory}
