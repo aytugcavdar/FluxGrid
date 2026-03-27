@@ -16,13 +16,13 @@ export const ChainCounter: React.FC<ChainCounterProps> = ({ chain }) => {
       transition={{ duration: 0.35, ease: 'backOut' }}
       className="flex flex-col items-center"
     >
-      <span className="text-2xl md:text-4xl font-black tracking-tight"
+      <span className="text-xl sm:text-2xl md:text-4xl font-black tracking-tight"
         style={{
           color: chain >= 4 ? '#f59e0b' : chain >= 3 ? '#a78bfa' : '#60a5fa'
         }}>
         x{chain} ZİNCİR
       </span>
-      <span className="text-[10px] tracking-widest text-white/40 uppercase">Zincir Reaksiyon</span>
+      <span className="text-[9px] sm:text-[10px] tracking-widest text-white/40 uppercase">Zincir Reaksiyon</span>
     </motion.div>
   );
 };

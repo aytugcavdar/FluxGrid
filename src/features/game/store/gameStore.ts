@@ -718,7 +718,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // CRITICAL: After event effects (GRAVITY_RUSH, QUAKE, etc.), check for new line clears
     // Events can create new full rows/columns that need to be cleared
     // We process the grid again but don't add score (event effects are automatic, not player actions)
-    if (eventUpdates && (eventUpdates as any).grid) {
+    // This applies to both tier activation (checkTierEvent) and ongoing events (tickActiveEvent)
+    if ((eventUpdates && (eventUpdates as any).grid) || (tierUpdates && (tierUpdates as any).grid)) {
       const { grid: processedGrid } = processGrid(finalGrid);
       finalGrid = processedGrid;
     }

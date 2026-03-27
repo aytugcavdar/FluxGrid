@@ -114,16 +114,24 @@ export function LeaderboardView({ mode: initialMode }: LeaderboardViewProps) {
           ))}
         </div>
 
+        {/* Anonymous User Prompt - Requirement 5.2, 5.3, 5.4 */}
         {user?.isAnonymous && (
-          <div className="mb-6 p-4 bg-yellow-900/30 border border-yellow-500/50 rounded-lg">
+          <div className="mb-6 p-6 bg-gradient-to-r from-yellow-900/50 to-orange-900/50 border border-yellow-500/30 rounded-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">⚠️</span>
-                <p className="text-yellow-200">Sıralamaya girmek için Google ile giriş yap</p>
+                <span className="text-3xl">🔒</span>
+                <div>
+                  <div className="text-lg font-bold text-yellow-200">
+                    Giriş yap → sıralanmaya başla
+                  </div>
+                  <div className="text-sm text-yellow-300/80">
+                    Skorlarını kaydet ve liderlik tablosunda yerini gör
+                  </div>
+                </div>
               </div>
               <button
-                onClick={() => useAuthStore.getState().signInWithGoogle()}
-                className="px-4 py-2 bg-cyan-500 text-black font-bold rounded-lg hover:bg-cyan-400 transition-colors"
+                onClick={() => useAuthStore.getState().upgradeToGoogleAccount()}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all"
               >
                 Giriş Yap
               </button>
@@ -131,6 +139,7 @@ export function LeaderboardView({ mode: initialMode }: LeaderboardViewProps) {
           </div>
         )}
 
+        {/* Authenticated User Rank Display - Requirement 5.1 */}
         {user && !user.isAnonymous && userRank && typeof userRank === 'number' && (
           <div className="mb-6 p-6 bg-gradient-to-r from-cyan-900/50 to-blue-900/50 border border-cyan-500/30 rounded-lg">
             <div className="flex items-center justify-between mb-4">

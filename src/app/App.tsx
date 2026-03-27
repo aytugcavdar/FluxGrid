@@ -467,14 +467,14 @@ const App: React.FC = () => {
         {unlockedAchievementId && (
           <motion.div
             initial={{ y: -100, opacity: 0 }}
-            animate={{ y: 20, opacity: 1 }}
+            animate={{ y: 0, opacity: 1 }}
             exit={{ y: -100, opacity: 0 }}
-            className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] bg-amber-500 text-gray-900 px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-4 min-w-[280px]"
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-amber-500 text-gray-900 px-4 py-2 rounded-xl shadow-2xl flex items-center gap-3 max-w-[90vw] sm:min-w-[280px]"
           >
-            <div className="w-10 h-10 bg-white/30 rounded-full flex items-center justify-center text-xl">🏅</div>
-            <div className="flex flex-col">
-              <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Başarım Açıldı!</span>
-              <span className="font-bold">{achievements.find(a => a.id === unlockedAchievementId)?.name}</span>
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/30 rounded-full flex items-center justify-center text-lg sm:text-xl flex-shrink-0">🏅</div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest opacity-60">Başarım Açıldı!</span>
+              <span className="font-bold text-sm sm:text-base truncate">{achievements.find(a => a.id === unlockedAchievementId)?.name}</span>
             </div>
           </motion.div>
         )}
@@ -501,6 +501,7 @@ const App: React.FC = () => {
           shareStatus={shareStatus}
           showPWAPrompt={showPWAPrompt}
           showIOSInstructions={showIOSInstructions}
+          showLoginPrompt={useAuthStore(state => state.isAnonymous && state.shouldPromptSignIn(score, gameMode))} // NEW - Requirement 4.1
           onClose={() => {
             resetGame();
             setAppState(AppState.HOME);
@@ -519,6 +520,9 @@ const App: React.FC = () => {
           onCloseIOSInstructions={() => {
             localStorage.setItem('ios_pwa_instructions_shown', 'true');
             setShowIOSInstructions(false);
+          }}
+          onSignIn={async () => { // NEW - Requirement 4.4
+            await useAuthStore.getState().upgradeToGoogleAccount();
           }}
         />
       </AnimatePresence>

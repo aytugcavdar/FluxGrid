@@ -51,6 +51,7 @@ export interface UserDocument {
   displayName: string;
   photoURL: string | null;
   isAnonymous: boolean;
+  previousUid?: string; // NEW: Store previous anonymous UID after linking - Requirement 2.2
   createdAt: number;
   lastSeenAt: number;
   onboardingComplete: boolean;
@@ -63,6 +64,9 @@ export interface UserDocument {
   lastPlatform: 'web' | 'android' | 'ios';
   lastAppVersion: string;
   deviceTokens?: string[]; // deprecated — migration için tutulacak
+  migrationCompleted?: boolean; // NEW: Track if score migration completed - Requirement 6.5
+  migrationCompletedAt?: number; // NEW: Timestamp of migration - Requirement 6.5
+  migrationError?: string; // NEW: Error message if migration failed - Requirement 6.7
 }
 
 // Leaderboard skor belgesi — leaderboards/{mode}/scores/{uid}
@@ -75,8 +79,11 @@ export interface LeaderboardEntry {
   platform: 'web' | 'android' | 'ios';
   appVersion: string;
   sessionDurationSecs: number;
+  isAnonymous: boolean; // NEW: Track if score was set by anonymous user - Requirement 1.3
   flagged?: boolean; // Optional - Cloud Function tarafından set edilir
   rank?: number; // client tarafı hesaplanır, Firestore'da opsiyonel
+  migratedFrom?: string; // NEW: Original anonymous UID (set during migration) - Requirement 3.3
+  migratedAt?: number; // NEW: Timestamp of migration - Requirement 3.3
 }
 
 // Leaderboard meta cache — leaderboards/{mode}/meta/summary

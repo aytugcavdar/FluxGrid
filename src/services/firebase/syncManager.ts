@@ -235,13 +235,18 @@ export async function syncScore(
   const db = getFirebaseFirestore();
 
   try {
+    // Get current user to check if anonymous - Requirement 1.2, 1.3
+    const { useAuthStore } = await import('@features/auth/store/authStore');
+    const { user } = useAuthStore.getState();
+    const isAnonymous = user?.isAnonymous ?? false;
+
     // a) Validation
     if (score < 0 || score > 9999999) {
       console.warn('syncScore: Invalid score', score);
       return;
     }
 
-    // b) Anti-cheat - Strengthened validation
+    // b) Anti-cheat - Strengthened validation (applies to all users - Requirement 1.4)
     // Minimum time requirements based on score tiers
     const minTimeRequired =
       score <= 1000 ? 5 :            // 5 seconds for scores up to 1000
@@ -280,13 +285,15 @@ export async function syncScore(
     if (score > existingScore) {
       const entry: LeaderboardEntry = {
         uid,
-        displayName,
-        photoURL,
+        displayName: isAnonymous ? 'Anonim' : displayName, // Requirement 1.2
+        photoURL: isAnonymous ? null : photoURL, // Requirement 1.2
         score,
         achievedAt: Date.now(),
         platform: detectPlatform(),
         appVersion: import.meta.env.VITE_APP_VERSION || '1.0.0',
         sessionDurationSecs,
+        isAnonymous, // NEW FIELD - Requirement 1.3
+        flagged: false, // Ensure anti-cheat flag is set
       };
       await setDoc(leaderboardDocRef, entry);
     }

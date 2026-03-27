@@ -16,11 +16,11 @@ import type { AuthStore, MigrationStatus } from '../types';
 
 // Leaderboard thresholds for prompting sign-in
 const LEADERBOARD_THRESHOLD: Record<string, number> = {
-  endless: 10000,
-  timed: 5000,
+  endless: 5000,  // Changed from 10000 - Requirement 4.5
+  timed: 3000,    // Changed from 5000 - Requirement 4.5
   blitz: 3000,
-  zen: 8000,
-  daily: 5000,
+  zen: 0,         // Never prompt for zen mode - Requirement 4.5
+  daily: 2000,    // New threshold - Requirement 4.5
 };
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
@@ -137,81 +137,75 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
 
-      // Create Google provider and link with popup
+      // Refresh token before linking to prevent token expiration errors
+      try {
+        await currentUser.getIdToken(true); // Force token refresh
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError);
+        // Continue anyway, linkWithPopup might still work
+      }
+
+      // Store previousUid before linking - Requirement 2.2
+      const previousUid = currentUser.uid;
+
+      // Create Google provider and link with popup - Requirement 2.1
       const provider = new GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
       const result = await linkWithPopup(currentUser, provider);
-      // result.user is now the user linked with Google account
+      const newUid = result.user.uid;
 
-      // Trigger migration
-      set({ migrationStatus: 'in_progress' });
-      
-      const migrationResult = await migrate(currentUser.uid);
-      
-      if (migrationResult.success) {
-        // Sync from Firestore after successful migration
-        try {
-          await syncFromFirestore(auth.currentUser?.uid || currentUser.uid);
-        } catch (syncError) {
-          console.error('Failed to sync after migration:', syncError);
-          // Don't fail the upgrade if sync fails
-        }
-        
-        set({
-          user: auth.currentUser,
-          isAnonymous: false,
-          migrationStatus: 'complete',
-          isLoading: false,
-        });
-      } else {
-        set({
-          user: auth.currentUser,
-          isAnonymous: false,
-          migrationStatus: 'failed',
-          error: 'Migration completed with errors. Some data may not have been transferred.',
-          isLoading: false,
-        });
+      // Store previousUid in Firestore (triggers Cloud Function) - Requirement 2.2, 2.3
+      const db = getFirebaseFirestore();
+      await setDoc(doc(db, 'users', newUid), {
+        previousUid,
+        isAnonymous: false,
+        displayName: result.user.displayName || 'Oyuncu',
+        photoURL: result.user.photoURL || null,
+        lastSeenAt: Date.now(),
+      }, { merge: true });
+
+      set({
+        user: result.user,
+        isAnonymous: false,
+        migrationStatus: 'in_progress',
+        isLoading: false,
+      });
+
+      // Sync from Firestore after successful linking
+      try {
+        await syncFromFirestore(newUid);
+      } catch (syncError) {
+        console.error('Failed to sync after account linking:', syncError);
+        // Don't fail the upgrade if sync fails - Requirement 2.4
       }
+
+      // Migration will be handled by Cloud Function
+      set({ migrationStatus: 'complete' });
     } catch (error: any) {
       console.error('Account upgrade failed:', error);
 
+      // Handle credential-already-in-use error - Requirement 2.4
       if (error.code === 'auth/credential-already-in-use') {
-        // User already has a Google account, merge data
-        const anonymousUid = currentUser.uid;
-        
-        // Call migrate to merge anonymous data with existing account
-        set({ migrationStatus: 'in_progress' });
-        const migrationResult = await migrate(anonymousUid);
-        
-        if (migrationResult.success) {
-          // Sync from Firestore after successful migration
-          try {
-            await syncFromFirestore(auth.currentUser?.uid || anonymousUid);
-          } catch (syncError) {
-            console.error('Failed to sync after credential merge:', syncError);
-            // Don't fail the upgrade if sync fails
-          }
-          
-          set({
-            error: 'Account already exists. Data has been merged.',
-            migrationStatus: 'complete',
-            isLoading: false,
-          });
-        } else {
-          set({
-            error: 'Account already exists. Data merge completed with errors.',
-            migrationStatus: 'failed',
-            isLoading: false,
-          });
-        }
+        set({
+          error: 'Bu Google hesabı zaten kullanımda. Lütfen farklı bir hesap deneyin.',
+          migrationStatus: 'failed',
+          isLoading: false,
+        });
+      } else if (error.code === 'auth/user-token-expired') {
+        set({
+          error: 'Oturum süresi doldu. Lütfen sayfayı yenileyin ve tekrar deneyin.',
+          migrationStatus: 'failed',
+          isLoading: false,
+        });
       } else {
         set({
-          error: error.message || 'Failed to upgrade account',
+          error: error.message || 'Hesap bağlama başarısız oldu',
           migrationStatus: 'failed',
           isLoading: false,
         });
       }
+      // Session state preserved on failure - Requirement 2.5
     }
   },
 
