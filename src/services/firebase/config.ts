@@ -1,11 +1,10 @@
-import { initializeApp, FirebaseApp } from 'firebase/app';
+import { initializeApp, FirebaseApp, getApps } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getFunctions, Functions } from 'firebase/functions';
 import { getMessaging, Messaging } from 'firebase/messaging';
 
 // Firebase configuration
-// TODO: Replace with your Firebase project configuration from Firebase Console
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
@@ -16,60 +15,94 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || '',
 };
 
-// Initialize Firebase
-let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
-let functions: Functions;
+// Lazy-initialized instances (no module-level initialization)
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let functions: Functions | null = null;
 let messaging: Messaging | null = null;
 
-export const initializeFirebase = () => {
+/**
+ * Initialize Firebase app (only once)
+ * CRITICAL: Uses getApps() to prevent multiple initializations
+ */
+const ensureFirebaseApp = (): FirebaseApp => {
   if (!app) {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-    functions = getFunctions(app);
-    
-    // Messaging is only available in browsers that support service workers
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      try {
-        messaging = getMessaging(app);
-      } catch (error) {
-        console.warn('Firebase Messaging not available:', error);
-      }
+    // Check if Firebase is already initialized
+    const existingApps = getApps();
+    if (existingApps.length > 0) {
+      app = existingApps[0];
+    } else {
+      app = initializeApp(firebaseConfig);
     }
   }
-  
-  return { app, auth, db, functions, messaging };
+  return app;
 };
 
-// Export initialized instances
-export const getFirebaseAuth = () => {
+/**
+ * Get Firebase Auth instance (lazy initialization)
+ * SAFE: Only called when needed, never at module load time
+ */
+export const getFirebaseAuth = (): Auth => {
   if (!auth) {
-    initializeFirebase();
+    const firebaseApp = ensureFirebaseApp();
+    auth = getAuth(firebaseApp);
   }
   return auth;
 };
 
-export const getFirebaseFirestore = () => {
+/**
+ * Get Firestore instance (lazy initialization)
+ * SAFE: Only called when needed, never at module load time
+ */
+export const getFirebaseFirestore = (): Firestore => {
   if (!db) {
-    initializeFirebase();
+    const firebaseApp = ensureFirebaseApp();
+    db = getFirestore(firebaseApp);
   }
   return db;
 };
 
-export const getFirebaseFunctions = () => {
+/**
+ * Get Firebase Functions instance (lazy initialization)
+ * SAFE: Only called when needed, never at module load time
+ */
+export const getFirebaseFunctions = (): Functions => {
   if (!functions) {
-    initializeFirebase();
+    const firebaseApp = ensureFirebaseApp();
+    functions = getFunctions(firebaseApp);
   }
   return functions;
 };
 
-export const getFirebaseMessaging = () => {
+/**
+ * Get Firebase Messaging instance (lazy initialization)
+ * SAFE: Only called when needed, never at module load time
+ * Returns null if service workers are not supported
+ */
+export const getFirebaseMessaging = (): Messaging | null => {
   if (!messaging) {
-    initializeFirebase();
+    // Messaging is only available in browsers that support service workers
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      try {
+        const firebaseApp = ensureFirebaseApp();
+        messaging = getMessaging(firebaseApp);
+      } catch (error) {
+        console.warn('Firebase Messaging not available:', error);
+        return null;
+      }
+    }
   }
   return messaging;
 };
 
-export { app, auth, db, functions, messaging };
+/**
+ * Initialize Firebase (call getters to trigger lazy init)
+ * NO SIDE EFFECTS: Just ensures instances are created
+ */
+export const initializeFirebase = () => {
+  getFirebaseAuth();
+  getFirebaseFirestore();
+  getFirebaseFunctions();
+  getFirebaseMessaging();
+};

@@ -12,7 +12,7 @@ import { LeaderboardView } from '../features/leaderboard/components';
 import { HomeScreen } from './HomeScreen';
 import { GameOverModal, GameScreen } from './components';
 import { motion, AnimatePresence } from 'framer-motion';
-import { unlockAudio, playGameOver, playClick } from '@utils/audio';
+import { unlockAudio, playGameOver, playClick, playChronoBonus } from '@utils/audio';
 import { generateShareText, shareResult } from '@utils/shareResult';
 import { startHeartbeat, stopHeartbeat } from '@utils/heartbeat';
 import { useTranslation } from 'react-i18next';
@@ -38,6 +38,13 @@ interface TimePopup {
   value: number;
   x: number;
   y: number;
+}
+
+interface ChronoPopup {
+  id: number;
+  seconds: number;
+  gridX: number;
+  gridY: number;
 }
 
 const App: React.FC = () => {
@@ -68,6 +75,8 @@ const App: React.FC = () => {
   const [milestoneTier, setMilestoneTier] = useState<{ tier: number; tierName: string; multiplier: number } | null>(null);
   const [timePopups, setTimePopups] = useState<TimePopup[]>([]);
   const timePopupIdRef = useRef(0);
+  const [chronoPopups, setChronoPopups] = useState<ChronoPopup[]>([]);
+  const chronoPopupIdRef = useRef(0);
   const prevTimeLeftRef = useRef(timeLeft);
   const [timedWarning, setTimedWarning] = useState<'30sn' | '10sn' | null>(null);
   const prevComboRef = useRef(combo);
@@ -78,6 +87,11 @@ const App: React.FC = () => {
   const [showRushStart, setShowRushStart] = useState(false);
   const [showRushEnd, setShowRushEnd] = useState(false);
   const prevRushMovesRef = useRef(timedBoostMovesLeft);
+  
+  // Event start visual state
+  const activeEvent = useGameStore(state => state.activeEvent);
+  const [eventStartVisual, setEventStartVisual] = useState<typeof activeEvent>(null);
+  const prevActiveEventRef = useRef<typeof activeEvent>(null);
   
   // Score display animation state
   const displayScore = useCountUp(score, 600, isGameOver);
@@ -257,6 +271,21 @@ const App: React.FC = () => {
     
     if (lastAction.type !== 'CLEAR') return;
 
+    // Handle CHRONO bonus popup
+    if (lastAction.chronoBonus && lastAction.chronoBonus > 0) {
+      // Play sound
+      playChronoBonus();
+      
+      // Create popup at grid center (approximate position)
+      const id = chronoPopupIdRef.current++;
+      setChronoPopups(prev => [...prev, {
+        id,
+        seconds: lastAction.chronoBonus!,
+        gridX: 5, // Center of 10x10 grid
+        gridY: 3, // Upper-middle area
+      }]);
+    }
+
     const chain = lastAction.chainCount ?? 0;
     if (chain >= 2) {
       setShownChain(chain);
@@ -327,6 +356,14 @@ const App: React.FC = () => {
     
     prevRushMovesRef.current = timedBoostMovesLeft;
   }, [timedBoostMovesLeft, gameMode]);
+  
+  // Event start visual trigger
+  useEffect(() => {
+    if (activeEvent && activeEvent !== prevActiveEventRef.current) {
+      setEventStartVisual(activeEvent);
+    }
+    prevActiveEventRef.current = activeEvent;
+  }, [activeEvent]);
 
   // Time popups for TIMED mode (removed BLITZ)
   // Note: BLITZ mechanics can be integrated into TIMED mode with a speed parameter in the future
@@ -424,10 +461,14 @@ const App: React.FC = () => {
             timedBoostMovesLeft={timedBoostMovesLeft}
             timePopups={timePopups}
             setTimePopups={setTimePopups}
+            chronoPopups={chronoPopups}
+            setChronoPopups={setChronoPopups}
             timedWarning={timedWarning}
             shownChain={shownChain}
             showPerfect={showPerfect}
             milestoneTier={milestoneTier}
+            eventStartVisual={eventStartVisual}
+            setEventStartVisual={setEventStartVisual}
           />
         )}
       </AnimatePresence>

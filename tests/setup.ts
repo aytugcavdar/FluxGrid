@@ -75,6 +75,7 @@ afterEach(() => {
 vi.mock('firebase/app', () => ({
   initializeApp: vi.fn(() => ({})),
   getApp: vi.fn(() => ({})),
+  getApps: vi.fn(() => [{}]),
 }));
 
 vi.mock('firebase/auth', () => ({

@@ -24,6 +24,15 @@ export function useGameSync() {
   
   // Track game start time to calculate session duration
   const gameStartTimeRef = useRef<number>(Date.now());
+  const prevGameOverRef = useRef<boolean>(isGameOver);
+
+  // Reset game start time when a new game starts (isGameOver: true -> false)
+  useEffect(() => {
+    if (prevGameOverRef.current === true && isGameOver === false) {
+      gameStartTimeRef.current = Date.now();
+    }
+    prevGameOverRef.current = isGameOver;
+  }, [isGameOver]);
 
   useEffect(() => {
     // Only sync when game is over
@@ -82,7 +91,14 @@ export function useGameSync() {
           );
           console.log('useGameSync: Successfully synced game data');
         } else {
-          // Offline: Add to pending writes queue
+          // Offline: Save to localStorage and add to pending writes queue
+          try {
+            localStorage.setItem('flux_highscores', JSON.stringify(useGameStore.getState().highScores));
+            localStorage.setItem('flux_stats', JSON.stringify(stats));
+          } catch (error) {
+            console.error('useGameSync: Failed to save to localStorage:', error);
+          }
+          
           const { addToPendingWrites } = await import('../../../services/firebase/syncManager');
           await addToPendingWrites(user.uid, 'score', {
             mode: gameMode,

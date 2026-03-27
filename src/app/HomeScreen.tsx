@@ -18,10 +18,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenThemeSelector,
   onOpenLeaderboard,
 }) => {
-  const { initGame } = useGameStore();
+  const { initGame, highScores } = useGameStore();
   const { fetchUserRank, userRanks } = useLeaderboardStore();
   const [selectedMode, setSelectedMode] = useState<GameMode>(GameMode.ENDLESS);
   const user = useAuthStore(state => state.user);
+  const isAnonymous = useAuthStore(state => state.isAnonymous);
+  const linkWithGoogle = useAuthStore(state => state.linkWithGoogle);
 
   // Fetch user rank for selected mode
   useEffect(() => {
@@ -78,20 +80,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const selectedModeInfo = getModeInfo(selectedMode);
 
-  // Get best score for selected mode (memoized to avoid repeated localStorage reads)
+  // Get best score for selected mode from gameStore (Firestore is source of truth)
   const selectedModeBestScore = useMemo(() => {
-    try {
-      const stored = localStorage.getItem('flux_highscores');
-      if (stored) {
-        const scores = JSON.parse(stored);
-        const val = scores[selectedMode];
-        return typeof val === 'number' && val >= 0 ? val : 0;
-      }
-    } catch (e) {
-      console.error('Failed to read high score:', e);
-    }
-    return 0;
-  }, [selectedMode]);
+    const val = highScores[selectedMode];
+    return typeof val === 'number' && val >= 0 ? val : 0;
+  }, [selectedMode, highScores]);
 
   // Get user rank for selected mode
   const userRank = userRanks.get(selectedMode);
@@ -286,19 +279,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 {selectedModeBestScore.toLocaleString()}
               </div>
             </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 6, textTransform: 'uppercase' }}>
-                Sıralama
+            {/* Hide rank for anonymous users */}
+            {!isAnonymous && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 6, textTransform: 'uppercase' }}>
+                  Sıralama
+                </div>
+                <div style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 24,
+                  fontWeight: 900,
+                  color: '#00d4ff',
+                }}>
+                  {rankDisplay}
+                </div>
               </div>
-              <div style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 24,
-                fontWeight: 900,
-                color: '#00d4ff',
-              }}>
-                {rankDisplay}
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Play Button */}
@@ -470,10 +466,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </span>
         </button>
 
-        {/* Login Button - Only show if not logged in */}
-        {!user && (
+        {/* Login/Save Account Button - Show for anonymous users or not logged in */}
+        {(!user || isAnonymous) && (
           <button
-            onClick={() => { playClick(); useAuthStore.getState().signInWithGoogle(); }}
+            onClick={() => { 
+              playClick(); 
+              if (isAnonymous) {
+                linkWithGoogle();
+              } else {
+                useAuthStore.getState().signInWithGoogle();
+              }
+            }}
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -497,10 +500,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               fontSize: 20,
               color: 'rgba(96, 165, 250, 1)',
             }}>
-              🔐
+              {isAnonymous ? '💾' : '🔐'}
             </div>
             <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(96, 165, 250, 1)', letterSpacing: '0.05em' }}>
-              GİRİŞ YAP
+              {isAnonymous ? 'HESABINI KAYDET' : 'GİRİŞ YAP'}
             </span>
           </button>
         )}

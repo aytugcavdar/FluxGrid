@@ -1,22 +1,38 @@
 import { getPerformance, trace } from 'firebase/performance';
 import type { PerformanceTrace } from 'firebase/performance';
-import { app } from './config';
+import { getApps } from 'firebase/app';
 
 let performance: ReturnType<typeof getPerformance> | null = null;
+let performanceInitialized = false;
 
 /**
- * Initialize Firebase Performance Monitoring
+ * Initialize Firebase Performance Monitoring (lazy)
+ * SAFE: Only called when needed, uses getApps() to get Firebase app
  */
-export function initializePerformance(): ReturnType<typeof getPerformance> | null {
+function ensurePerformance(): ReturnType<typeof getPerformance> | null {
+  if (performanceInitialized) {
+    return performance;
+  }
+
   if (typeof window === 'undefined') {
+    performanceInitialized = true;
     return null;
   }
 
   try {
-    performance = getPerformance(app);
+    // Get Firebase app (lazy)
+    const apps = getApps();
+    if (apps.length === 0) {
+      console.warn('Firebase app not initialized');
+      return null; // Don't mark as initialized, retry later
+    }
+
+    performance = getPerformance(apps[0]);
+    performanceInitialized = true;
     return performance;
   } catch (error) {
     console.warn('Firebase Performance Monitoring not available:', error);
+    performanceInitialized = true;
     return null;
   }
 }
@@ -25,15 +41,13 @@ export function initializePerformance(): ReturnType<typeof getPerformance> | nul
  * Create and start a custom trace
  */
 export function startTrace(traceName: string): (() => void) | null {
-  if (!performance) {
-    performance = initializePerformance();
-  }
+  const perf = ensurePerformance();
 
-  if (!performance) {
+  if (!perf) {
     return null;
   }
 
-  const customTrace = trace(performance, traceName);
+  const customTrace = trace(perf, traceName);
   customTrace.start();
 
   return () => {

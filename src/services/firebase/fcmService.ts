@@ -7,8 +7,6 @@ import {
 import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { getFirebaseMessaging, getFirebaseFirestore } from './config';
 
-const db = getFirebaseFirestore();
-
 // VAPID key from Firebase Console > Project Settings > Cloud Messaging
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || '';
 
@@ -82,6 +80,7 @@ export async function registerDeviceToken(uid: string, token: string): Promise<v
   }
   
   try {
+    const db = getFirebaseFirestore();
     const userRef = doc(db, 'users', uid);
     
     await updateDoc(userRef, {
@@ -100,6 +99,7 @@ export async function registerDeviceToken(uid: string, token: string): Promise<v
  */
 export async function removeDeviceToken(uid: string, token: string): Promise<void> {
   try {
+    const db = getFirebaseFirestore();
     const userRef = doc(db, 'users', uid);
     
     await updateDoc(userRef, {

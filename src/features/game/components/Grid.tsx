@@ -2,7 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import * as BABYLON from 'babylonjs';
 import { useGameStore } from '../store/gameStore';
 import { useThemeStore } from '../../../shared/store/themeStore';
-import { GRID_SIZE, SkillType, CellType } from '../types';
+import { GRID_SIZE, SkillType, CellType, GridState } from '../types';
+import { GameMode } from '@shared/types';
 import { getDragYOffset, setCanvasRect } from '../../../utils/responsive';
 import { playHaptic } from '../../../utils/audio';
 import clsx from 'clsx';
@@ -18,11 +19,11 @@ const GUIDED_HIGHLIGHT_POOL_SIZE = 25;
 
 export const Grid: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent } = useGameStore();
+    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier } = useGameStore();
     const { getThemeColors } = useThemeStore();
 
-    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent });
-    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent]);
+    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier });
+    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier]);
 
     const [hoverCoord, setHoverCoord] = useState<{ x: number, y: number } | null>(null);
     const hoverCoordRef = useRef<{ x: number, y: number } | null>(null);
@@ -40,6 +41,35 @@ export const Grid: React.FC = () => {
     // Refs for render loop logic
     const lastHandledActionRef = useRef<any>(null);
     const shakeIntensityRef = useRef(0);
+    
+    // Line clear animation state
+    const lineClearAnimationRef = useRef<{
+        active: boolean;
+        phase: 'flash' | 'collapse';
+        progress: number;
+        startTime: number;
+        clearedCells: Set<string>;
+        affectedBlocks: Map<string, { startY: number; targetY: number }>;
+    } | null>(null);
+    
+    // Game over animation state
+    const gameOverAnimationRef = useRef<{
+        active: boolean;
+        phase: 'shake' | 'collapse' | 'fade';
+        progress: number;
+        startTime: number;
+        allBlockIds: string[];
+    } | null>(null);
+    
+    // Tier transition flash state
+    const tierFlashRef = useRef<{
+        active: boolean;
+        progress: number;
+        startTime: number;
+        tier: number;
+        color: BABYLON.Color3;
+    } | null>(null);
+    const prevTierRef = useRef(0);
 
     useEffect(() => {
         if (!canvasRef.current) return;
@@ -343,6 +373,94 @@ export const Grid: React.FC = () => {
                 -((gy * TOTAL_CELL_SIZE) - GRID_OFFSET)
             );
         };
+        
+        // Detect full rows and columns for line clear animation
+        const detectLineClear = (grid: GridState): { rows: number[]; cols: number[] } => {
+            const fullRows: number[] = [];
+            const fullCols: number[] = [];
+            
+            // Check rows
+            for (let y = 0; y < GRID_SIZE; y++) {
+                if (grid[y].every(cell => cell.filled)) fullRows.push(y);
+            }
+            
+            // Check columns
+            for (let x = 0; x < GRID_SIZE; x++) {
+                let isFull = true;
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    if (!grid[y][x].filled) {
+                        isFull = false;
+                        break;
+                    }
+                }
+                if (isFull) fullCols.push(x);
+            }
+            
+            return { rows: fullRows, cols: fullCols };
+        };
+        
+        // Start line clear animation
+        const startLineClearAnimation = (rows: number[], cols: number[]) => {
+            if (lineClearAnimationRef.current?.active) return; // Prevent concurrent animations
+            
+            const clearedCells = new Set<string>();
+            rows.forEach(y => {
+                for (let x = 0; x < GRID_SIZE; x++) clearedCells.add(`${x},${y}`);
+            });
+            cols.forEach(x => {
+                for (let y = 0; y < GRID_SIZE; y++) clearedCells.add(`${x},${y}`);
+            });
+            
+            // Calculate affected blocks (blocks above cleared rows)
+            const affectedBlocks = new Map<string, { startY: number; targetY: number }>();
+            const clearedRowsSorted = [...rows].sort((a, b) => b - a); // Sort descending
+            
+            for (let x = 0; x < GRID_SIZE; x++) {
+                let fallDistance = 0;
+                for (let y = GRID_SIZE - 1; y >= 0; y--) {
+                    if (clearedRowsSorted.includes(y)) {
+                        fallDistance++;
+                    } else if (fallDistance > 0) {
+                        const key = `${x},${y}`;
+                        const mesh = meshMapRef.current.get(stateRef.current.grid[y][x].id || '');
+                        if (mesh) {
+                            affectedBlocks.set(key, {
+                                startY: mesh.position.y,
+                                targetY: mesh.position.y - (fallDistance * TOTAL_CELL_SIZE)
+                            });
+                        }
+                    }
+                }
+            }
+            
+            lineClearAnimationRef.current = {
+                active: true,
+                phase: 'flash',
+                progress: 0,
+                startTime: Date.now(),
+                clearedCells,
+                affectedBlocks
+            };
+        };
+        
+        // Start game over animation
+        const startGameOverAnimation = () => {
+            if (gameOverAnimationRef.current?.active) return;
+            
+            // Collect all block IDs
+            const allBlockIds: string[] = [];
+            meshMapRef.current.forEach((mesh, id) => {
+                allBlockIds.push(id);
+            });
+            
+            gameOverAnimationRef.current = {
+                active: true,
+                phase: 'shake',
+                progress: 0,
+                startTime: Date.now(),
+                allBlockIds
+            };
+        };
 
         const createBlockMesh = (colorHex: string, id: string, type: CellType = CellType.NORMAL, health?: number) => {
             const mat = new BABYLON.StandardMaterial(`${id}-mat`, scene);
@@ -572,7 +690,274 @@ export const Grid: React.FC = () => {
         scene.registerBeforeRender(() => {
             time += engine.getDeltaTime() / 1000; // Use actual delta time instead of fixed 0.02
             frameCount++;
-            const { grid, draggedPiece, activeSkill, score, combo, lastAction } = stateRef.current;
+            const { grid, draggedPiece, activeSkill, score, combo, lastAction, isGameOver, gameMode: currentGameMode, timeLeft: currentTimeLeft, difficultyTier: currentTier } = stateRef.current;
+
+            // ─── Tier Transition Flash ───
+            if (currentTier > prevTierRef.current && currentTier > 0) {
+                // Tier increased - trigger flash
+                const tierColor = currentTier >= 9 ? new BABYLON.Color3(0.937, 0.267, 0.267) // red (tier 9-10)
+                    : currentTier >= 7 ? new BABYLON.Color3(0.976, 0.451, 0.086) // orange (tier 7-8)
+                    : currentTier >= 4 ? new BABYLON.Color3(0.659, 0.333, 0.969) // purple (tier 4-6)
+                    : new BABYLON.Color3(0.231, 0.510, 0.965); // blue (tier 1-3)
+                
+                tierFlashRef.current = {
+                    active: true,
+                    progress: 0,
+                    startTime: Date.now(),
+                    tier: currentTier,
+                    color: tierColor
+                };
+            }
+            prevTierRef.current = currentTier;
+            
+            // Animate tier flash
+            if (tierFlashRef.current?.active) {
+                const flash = tierFlashRef.current;
+                const elapsed = Date.now() - flash.startTime;
+                
+                if (elapsed < 400) {
+                    flash.progress = elapsed / 400;
+                    const intensity = 0.8 * (1 - flash.progress); // Fade from 0.8 to 0
+                    
+                    // Apply flash to all grid blocks
+                    meshMapRef.current.forEach((mesh) => {
+                        if (mesh.material) {
+                            const mat = mesh.material as BABYLON.StandardMaterial;
+                            
+                            // Store original emissive if not already stored
+                            if (!(mat as any)._tierFlashOriginal) {
+                                (mat as any)._tierFlashOriginal = mat.emissiveColor.clone();
+                            }
+                            
+                            // Apply tier color overlay
+                            const original = (mat as any)._tierFlashOriginal;
+                            mat.emissiveColor = BABYLON.Color3.Lerp(original, flash.color, intensity);
+                        }
+                    });
+                } else {
+                    // Flash complete - restore original colors
+                    meshMapRef.current.forEach((mesh) => {
+                        if (mesh.material) {
+                            const mat = mesh.material as BABYLON.StandardMaterial;
+                            if ((mat as any)._tierFlashOriginal) {
+                                mat.emissiveColor = (mat as any)._tierFlashOriginal;
+                                delete (mat as any)._tierFlashOriginal;
+                            }
+                        }
+                    });
+                    
+                    tierFlashRef.current = null;
+                }
+            }
+
+            // ─── Last 10 Seconds Atmosphere (Timed Mode) ───
+            if (currentGameMode === GameMode.TIMED && currentTimeLeft <= 10 && currentTimeLeft > 0) {
+                const intensity = (10 - currentTimeLeft) / 10;
+                const redTint = new BABYLON.Color3(1.0, 0.3, 0.3);
+                
+                // Apply to all grid blocks
+                meshMapRef.current.forEach((mesh) => {
+                    if (mesh.material) {
+                        const mat = mesh.material as BABYLON.StandardMaterial;
+                        
+                        // Store original emissive if not already stored
+                        if (!(mat as any)._originalEmissive) {
+                            (mat as any)._originalEmissive = mat.emissiveColor.clone();
+                        }
+                        
+                        // Apply red tint overlay
+                        const originalEmissive = (mat as any)._originalEmissive;
+                        mat.emissiveColor = BABYLON.Color3.Lerp(
+                            originalEmissive,
+                            redTint,
+                            intensity * 0.5
+                        );
+                        
+                        // Increase emissive intensity
+                        (mat as any).emissiveIntensity = 1.0 + (intensity * 0.5);
+                    }
+                });
+                
+                // Apply to grid base
+                if (gridBaseRef.current?.material) {
+                    const mat = gridBaseRef.current.material as BABYLON.StandardMaterial;
+                    if (!(mat as any)._originalDiffuse) {
+                        (mat as any)._originalDiffuse = mat.diffuseColor.clone();
+                    }
+                    const originalDiffuse = (mat as any)._originalDiffuse;
+                    const darkRed = new BABYLON.Color3(0.3, 0.05, 0.05);
+                    mat.diffuseColor = BABYLON.Color3.Lerp(originalDiffuse, darkRed, intensity);
+                }
+                
+                // Apply to ambient light
+                if (light) {
+                    light.intensity = (isMobile ? 0.45 : 0.7) + (intensity * 0.3);
+                }
+            } else if (currentGameMode === GameMode.TIMED && currentTimeLeft > 10) {
+                // Restore original colors when time > 10
+                meshMapRef.current.forEach((mesh) => {
+                    if (mesh.material) {
+                        const mat = mesh.material as BABYLON.StandardMaterial;
+                        if ((mat as any)._originalEmissive) {
+                            mat.emissiveColor = (mat as any)._originalEmissive;
+                            (mat as any).emissiveIntensity = 1.0;
+                            delete (mat as any)._originalEmissive;
+                        }
+                    }
+                });
+                
+                if (gridBaseRef.current?.material) {
+                    const mat = gridBaseRef.current.material as BABYLON.StandardMaterial;
+                    if ((mat as any)._originalDiffuse) {
+                        mat.diffuseColor = (mat as any)._originalDiffuse;
+                        delete (mat as any)._originalDiffuse;
+                    }
+                }
+                
+                if (light) {
+                    light.intensity = isMobile ? 0.45 : 0.7;
+                }
+            }
+
+            // ─── Game Over Animation ───
+            if (gameOverAnimationRef.current?.active) {
+                const anim = gameOverAnimationRef.current;
+                const elapsed = Date.now() - anim.startTime;
+                
+                if (anim.phase === 'shake') {
+                    // Shake phase: 300ms
+                    if (elapsed < 300) {
+                        anim.progress = elapsed / 300;
+                        shakeIntensityRef.current = 0.5 * (1 - anim.progress); // Decay shake
+                    } else {
+                        // Transition to collapse phase
+                        anim.phase = 'collapse';
+                        anim.startTime = Date.now();
+                        anim.progress = 0;
+                        shakeIntensityRef.current = 0;
+                    }
+                } else if (anim.phase === 'collapse') {
+                    // Collapse phase: 800ms
+                    if (elapsed < 800) {
+                        anim.progress = elapsed / 800;
+                        
+                        // Animate all blocks falling, fading, and rotating
+                        anim.allBlockIds.forEach(id => {
+                            const mesh = meshMapRef.current.get(id);
+                            if (mesh) {
+                                // Fall down
+                                mesh.position.y -= 0.015; // Constant fall rate
+                                
+                                // Fade out
+                                if (mesh.material) {
+                                    const mat = mesh.material as BABYLON.StandardMaterial;
+                                    mat.alpha = 1.0 - anim.progress;
+                                }
+                                
+                                // Random rotation
+                                mesh.rotation.y += 0.05 * (Math.random() - 0.5);
+                            }
+                        });
+                    } else {
+                        // Transition to fade phase
+                        anim.phase = 'fade';
+                        anim.startTime = Date.now();
+                        anim.progress = 0;
+                    }
+                } else if (anim.phase === 'fade') {
+                    // Fade phase: 300ms
+                    if (elapsed < 300) {
+                        anim.progress = elapsed / 300;
+                        
+                        // Fade grid base
+                        if (gridBaseRef.current?.material) {
+                            const mat = gridBaseRef.current.material as BABYLON.StandardMaterial;
+                            mat.alpha = 1.0 - anim.progress;
+                        }
+                        
+                        // Fade grid slots
+                        gridSlotsRef.forEach(slot => {
+                            if (slot.material) {
+                                const mat = slot.material as BABYLON.StandardMaterial;
+                                mat.alpha = 0.92 * (1.0 - anim.progress);
+                            }
+                        });
+                    } else {
+                        // Animation complete
+                        gameOverAnimationRef.current = null;
+                    }
+                }
+            }
+            
+            // Trigger game over animation when game ends
+            if (isGameOver && !gameOverAnimationRef.current?.active) {
+                startGameOverAnimation();
+            }
+
+            // ─── Line Clear Animation ───
+            if (lineClearAnimationRef.current?.active) {
+                const anim = lineClearAnimationRef.current;
+                const elapsed = Date.now() - anim.startTime;
+                
+                if (anim.phase === 'flash') {
+                    // Flash phase: 150ms, white emissive
+                    if (elapsed < 150) {
+                        anim.progress = elapsed / 150;
+                        
+                        // Apply white flash to cleared cells
+                        anim.clearedCells.forEach(key => {
+                            const [x, y] = key.split(',').map(Number);
+                            const cell = grid[y]?.[x];
+                            if (cell?.id) {
+                                const mesh = meshMapRef.current.get(cell.id);
+                                if (mesh?.material) {
+                                    const mat = mesh.material as BABYLON.StandardMaterial;
+                                    mat.emissiveColor = BABYLON.Color3.White();
+                                    (mat as any).emissiveIntensity = 1.0;
+                                }
+                            }
+                        });
+                    } else {
+                        // Transition to collapse phase
+                        anim.phase = 'collapse';
+                        anim.startTime = Date.now();
+                        anim.progress = 0;
+                    }
+                } else if (anim.phase === 'collapse') {
+                    // Collapse phase: 250ms, ease-out-quad
+                    if (elapsed < 250) {
+                        anim.progress = elapsed / 250;
+                        const easedProgress = anim.progress * (2 - anim.progress); // ease-out-quad
+                        
+                        // Animate falling blocks
+                        anim.affectedBlocks.forEach((data, key) => {
+                            const [x, y] = key.split(',').map(Number);
+                            const cell = grid[y]?.[x];
+                            if (cell?.id) {
+                                const mesh = meshMapRef.current.get(cell.id);
+                                if (mesh) {
+                                    mesh.position.y = data.startY + (data.targetY - data.startY) * easedProgress;
+                                }
+                            }
+                        });
+                    } else {
+                        // Animation complete - remove cleared blocks
+                        anim.clearedCells.forEach(key => {
+                            const [x, y] = key.split(',').map(Number);
+                            const cell = grid[y]?.[x];
+                            if (cell?.id) {
+                                const mesh = meshMapRef.current.get(cell.id);
+                                if (mesh) {
+                                    mesh.dispose();
+                                    meshMapRef.current.delete(cell.id);
+                                }
+                            }
+                        });
+                        
+                        lineClearAnimationRef.current = null;
+                    }
+                }
+            }
 
             // Check for new shake events
             if (lastAction && lastAction !== lastHandledActionRef.current) {
@@ -581,6 +966,12 @@ export const Grid: React.FC = () => {
                     const lines = lastAction.lines || 1;
                     const cmb = lastAction.combo || 1;
                     shakeIntensityRef.current = prefersReducedMotion ? 0 : (0.2 + (lines * 0.1) + (cmb * 0.05));
+                    
+                    // Trigger line clear animation
+                    const { rows, cols } = detectLineClear(grid);
+                    if (rows.length > 0 || cols.length > 0) {
+                        startLineClearAnimation(rows, cols);
+                    }
                 } else if (lastAction.type === 'PLACE') {
                     shakeIntensityRef.current = prefersReducedMotion ? 0 : 0.05; // Tiny thud on placement
                 }
@@ -636,6 +1027,9 @@ export const Grid: React.FC = () => {
             // Throttle animations: only update emissive colors every 3 frames (20fps instead of 60fps)
             const shouldUpdateAnimations = !disableAnimations && (frameCount % 3 === 0);
             
+            // Skip grid sync during line clear animation to prevent conflicts
+            const isAnimating = lineClearAnimationRef.current?.active || false;
+            
             grid.forEach((row, y) => {
                 row.forEach((cell, x) => {
                     if (cell.filled && cell.id) {
@@ -660,11 +1054,20 @@ export const Grid: React.FC = () => {
                             }
                         }
 
-                        // Smooth landing
-                        mesh.position = BABYLON.Vector3.Lerp(mesh.position, targetPos, 0.25);
+                        // Smooth landing (skip if being animated by line clear)
+                        const cellKey = `${x},${y}`;
+                        const isBeingAnimated = lineClearAnimationRef.current?.clearedCells.has(cellKey) || 
+                                               lineClearAnimationRef.current?.affectedBlocks.has(cellKey);
+                        
+                        if (!isBeingAnimated) {
+                            mesh.position = BABYLON.Vector3.Lerp(mesh.position, targetPos, 0.25);
+                        }
 
                         // Animasyonlar sadece yüksek performanslı cihazlarda ve throttled
-                        if (shouldUpdateAnimations) {
+                        // Skip emissive animations for blocks being cleared
+                        const isBeingCleared = lineClearAnimationRef.current?.clearedCells.has(cellKey);
+                        
+                        if (shouldUpdateAnimations && !isBeingCleared) {
                             // Bomba bloğu animate - tehlike nabzı (daha yavaş, mobil için optimize)
                             if (cell.type === CellType.BOMB && mesh.material) {
                                 const bombPulse = 0.3 + Math.abs(Math.sin(time * 2)) * 0.2; // Yavaşlatıldı: 4 -> 2

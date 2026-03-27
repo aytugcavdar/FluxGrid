@@ -47,7 +47,7 @@ export const HUD: React.FC = () => {
     };
     
     // Calculate HUD height dynamically based on active event
-    const hudHeight = activeEvent ? 128 : 100; // 100 (base) + 28 (event banner)
+    const hudHeight = activeEvent ? 122 : 100; // 100 (base) + 22 (compact event banner)
 
     return (
         <>
@@ -256,10 +256,10 @@ export const HUD: React.FC = () => {
                     </button>
                 </div>
 
-                {/* Event Banner - Between ROW 1 and ROW 2 */}
+                {/* Event Banner - Between ROW 1 and ROW 2 - Compact */}
                 {activeEvent && (
                     <div style={{
-                        height: 28,
+                        height: 22,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
@@ -267,11 +267,11 @@ export const HUD: React.FC = () => {
                         background: EVENT_CONFIG[activeEvent].bg,
                         borderBottom: `1px solid ${EVENT_CONFIG[activeEvent].color}40`,
                     }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: EVENT_CONFIG[activeEvent].color }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: EVENT_CONFIG[activeEvent].color }}>
                             {EVENT_CONFIG[activeEvent].label}
                         </span>
                         {eventMovesRemaining < 9999 && (
-                            <span style={{ fontSize: 11, color: EVENT_CONFIG[activeEvent].color, opacity: 0.7 }}>
+                            <span style={{ fontSize: 9, color: EVENT_CONFIG[activeEvent].color, opacity: 0.7 }}>
                                 {eventMovesRemaining} hamle
                             </span>
                         )}

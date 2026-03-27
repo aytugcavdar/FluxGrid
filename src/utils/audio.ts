@@ -233,6 +233,25 @@ export const playTick = () => {
   osc.stop(ctx.currentTime + 0.05);
 };
 
+/** CHRONO bonus sound - bright ping for time addition */
+export const playChronoBonus = () => {
+  if (isMuted()) return;
+  const ctx = getCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(800, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.08);
+  gain.gain.setValueAtTime(0.1, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.15);
+};
+
 // ─── Haptic Feedback ───
 
 type HapticPattern = 'hover' | 'place' | 'clear' | 'clear_multi' | 'combo' | 'surge' | 'game_over' | 'skill';

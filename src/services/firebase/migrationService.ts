@@ -3,8 +3,6 @@ import { getFirebaseFirestore } from './config';
 import { DEFAULT_USER_STATS, DEFAULT_PROGRESSION, DEFAULT_ABILITIES, detectPlatform, UserDocument, AbilitiesData } from './types';
 import type { GameMode } from '@shared/types';
 
-const db = getFirebaseFirestore();
-
 const MIGRATION_COMPLETE_KEY = 'firebase_migration_complete';
 const MIGRATION_V3_COMPLETE_KEY = 'firebase_migration_v3_complete';
 const MAX_MIGRATION_RETRIES = 3;
@@ -197,6 +195,7 @@ function parseLocalStorageValue(key: string, value: string): any {
  * Migrate high scores
  */
 export async function migrateHighScores(uid: string): Promise<void> {
+  const db = getFirebaseFirestore();
   const userRef = doc(db, 'users', uid);
   const highScores: any = {};
 
@@ -228,6 +227,7 @@ export async function migrateHighScores(uid: string): Promise<void> {
  * Migrate stats
  */
 export async function migrateStats(uid: string): Promise<void> {
+  const db = getFirebaseFirestore();
   const userRef = doc(db, 'users', uid);
   const statsData = localStorage.getItem('flux_stats');
 
@@ -242,6 +242,7 @@ export async function migrateStats(uid: string): Promise<void> {
  * IDEMPOTENT: Uses achievement.id as document ID to prevent duplicates
  */
 export async function migrateAchievements(uid: string): Promise<void> {
+  const db = getFirebaseFirestore();
   const achievementsData = localStorage.getItem('flux_achievements');
 
   if (achievementsData) {
@@ -271,6 +272,7 @@ export async function migrateAchievements(uid: string): Promise<void> {
  * Migrate profile
  */
 export async function migrateProfile(uid: string): Promise<void> {
+  const db = getFirebaseFirestore();
   const userRef = doc(db, 'users', uid);
   const profileData = localStorage.getItem('flux_player_profile');
 
@@ -574,6 +576,7 @@ function transformLocalStorageToV3(): Partial<UserDocument> {
  * Requirements: 4.1, 4.2, 4.3
  */
 export async function migrateLocalStorageToFirestoreV3(uid: string): Promise<MigrationResult> {
+  const db = getFirebaseFirestore();
   const result: MigrationResult = {
     success: true,
     migratedKeys: [],

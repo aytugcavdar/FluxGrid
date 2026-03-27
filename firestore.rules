@@ -16,7 +16,8 @@ service cloud.firestore {
     // === USERS KOLEKSİYONU ===
     
     match /users/{uid} {
-      // Allow read/write for authenticated users on their own document
+      // Allow read/write for authenticated users (including anonymous) on their own document
+      // Anonymous users have request.auth != null and a valid UID
       allow read, write: if isAuthenticated() && isOwner(uid);
       
       // Subcollections
@@ -39,7 +40,7 @@ service cloud.firestore {
       // Anyone can read
       allow read: if true;
       
-      // Authenticated users can write their own score
+      // Authenticated users (including anonymous) can write their own score
       allow write: if isAuthenticated() && isOwner(uid);
     }
     

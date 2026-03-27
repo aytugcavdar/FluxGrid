@@ -39,6 +39,7 @@ export interface GameStore {
     surgeBonus?: boolean;
     tier?: number;
     tierName?: string;
+    chronoBonus?: number; // CHRONO bonus seconds
   } | null;
   
   // Achievements State
@@ -110,11 +111,11 @@ const INITIAL_STATS: GameStats = {
 };
 
 export const useGameStore = create<GameStore>((set, get) => {
-  // Load initial data from localStorage
-  const savedHighScores = safeJSONParse(safeLocalStorageGet('flux_highscores', '{}'), {});
-  const savedStats = safeJSONParse(safeLocalStorageGet('flux_stats', JSON.stringify(INITIAL_STATS)), INITIAL_STATS);
-  const savedMaxLevel = safeParseInt(safeLocalStorageGet('flux_max_level', '0'), 0);
-  const savedHighScore = safeParseInt(safeLocalStorageGet('flux_highscore', '0'), 0);
+  // Initial state: no localStorage reads for game data (Firestore is source of truth)
+  const savedHighScores = {};
+  const savedStats = INITIAL_STATS;
+  const savedMaxLevel = 0;
+  const savedHighScore = 0;
   
   return {
   grid: createEmptyGrid(),
@@ -237,12 +238,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         const newStats = { ...get().stats, gamesPlayed: get().stats.gamesPlayed + 1 };
         set({ stats: newStats });
         
-        // Save stats to localStorage
-        try {
-          localStorage.setItem('flux_stats', JSON.stringify(newStats));
-        } catch (error) {
-          console.error('Failed to save stats to localStorage:', error);
-        }
+        // Stats are synced to Firestore via useGameSync hook, not localStorage
         
         return true;
       },
@@ -596,6 +592,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         chainCount,
         colorBonus,
         surgeBonus: isSurgeActive,
+        chronoBonus: chronoBonusSeconds, // Add CHRONO bonus to lastAction
       }});
       
       // Daily Challenge: Track clear history for sharing
@@ -672,14 +669,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       const newHighs = { ...currentHighs, [modeKey]: newScore };
       set({ highScores: newHighs, highScore: newScore });
       
-      // Save highScores to localStorage
-      try {
-        localStorage.setItem('flux_highscores', JSON.stringify(newHighs));
-        const maxHighScore = Math.max(...Object.values(newHighs));
-        localStorage.setItem('flux_highscore', String(maxHighScore));
-      } catch (error) {
-        console.error('Failed to save highScores to localStorage:', error);
-      }
+      // HighScores are synced to Firestore via useGameSync hook, not localStorage
     }
 
     // Time Reward logic
@@ -785,12 +775,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     };
     set({ stats: nextStats });
     
-    // Save stats to localStorage
-    try {
-      localStorage.setItem('flux_stats', JSON.stringify(nextStats));
-    } catch (error) {
-      console.error('Failed to save stats to localStorage:', error);
-    }
+    // Stats are synced to Firestore via useGameSync hook, not localStorage
 
     get().checkGameOver();
     

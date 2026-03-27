@@ -4,6 +4,27 @@ import * as admin from 'firebase-admin';
 /**
  * Cloud Function to validate scores when they are written to leaderboard
  * Triggers on onCreate for leaderboards/{mode}/scores/{uid}
+ * 
+ * Dynamic Anti-Cheat System:
+ * - MAX_POSSIBLE_MULTIPLIER = 11.7 (tier6 × surge × scoreRush × quake)
+ * - Base score rate: 300 points/second
+ * - Maximum legitimate rate: 3510 points/second (300 × 11.7)
+ * - Suspicious threshold: 1000% increase from previous high score
+ */
+
+// Maximum possible multiplier in the game
+// tier6 (3.0x) × surge (2.0x) × scoreRush (1.5x) × quake (1.3x) = 11.7x
+const MAX_POSSIBLE_MULTIPLIER = 11.7;
+
+// Base score rate without multipliers (points per second)
+const BASE_SCORE_PER_SECOND = 300;
+
+// Maximum legitimate score rate with all multipliers active
+const MAX_SCORE_PER_SECOND = BASE_SCORE_PER_SECOND * MAX_POSSIBLE_MULTIPLIER; // 3510
+
+/**
+ * Cloud Function to validate scores when they are written to leaderboard
+ * Triggers on onCreate for leaderboards/{mode}/scores/{uid}
  */
 export const validateScore = functions.firestore
   .document('leaderboards/{mode}/scores/{uid}')
@@ -21,7 +42,8 @@ export const validateScore = functions.firestore
       return;
     }
 
-    // Validation 2: Check for suspicious score increases
+    // Validation 2: Check for suspicious score increases (dynamic anti-cheat)
+    // Uses MAX_SCORE_PER_SECOND (3510) to account for maximum possible multipliers
     try {
       // Get user's previous high score from users collection
       const userRef = admin.firestore().doc(`users/${uid}`);
@@ -32,11 +54,11 @@ export const validateScore = functions.firestore
         const previousHighScores = userData?.highScores || {};
         const previousHighScore = previousHighScores[mode] || 0;
 
-        // If previous score exists and new score is more than 500% increase, mark as suspicious
+        // If previous score exists and new score is more than 1000% increase, mark as suspicious
         if (previousHighScore > 0) {
           const increasePercentage = ((score - previousHighScore) / previousHighScore) * 100;
           
-          if (increasePercentage > 500) {
+          if (increasePercentage > 1000) {
             console.warn(
               `Suspicious score increase detected for user ${uid} in mode ${mode}: ` +
               `${previousHighScore} -> ${score} (${increasePercentage.toFixed(0)}% increase)`

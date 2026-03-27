@@ -5,7 +5,7 @@ import { GameMode } from '@shared/types';
 import { SkillType } from '../../features/game/types';
 import { Grid } from '../../features/game/components/Grid';
 import { Piece } from '../../features/game/components/Piece';
-import { HUD, ScorePopups, ChainCounter, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, MultiplierBreakdownDisplay } from '@features/hud';
+import { HUD, ScorePopups, ChainCounter, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, MultiplierBreakdownDisplay, ChronoPopup, EventStartVisual } from '@features/hud';
 import { useGameStore } from '../../features/game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
 import { playClick } from '@utils/audio';
@@ -23,6 +23,13 @@ interface TimePopup {
   y: number;
 }
 
+interface ChronoPopupData {
+  id: number;
+  seconds: number;
+  gridX: number;
+  gridY: number;
+}
+
 interface GameScreenProps {
   pieces: any[];
   combo: number;
@@ -38,10 +45,14 @@ interface GameScreenProps {
   timedBoostMovesLeft: number;
   timePopups: TimePopup[];
   setTimePopups: React.Dispatch<React.SetStateAction<TimePopup[]>>;
+  chronoPopups: ChronoPopupData[];
+  setChronoPopups: React.Dispatch<React.SetStateAction<ChronoPopupData[]>>;
   timedWarning: '30sn' | '10sn' | null;
   shownChain: number;
   showPerfect: boolean;
   milestoneTier: { tier: number; tierName: string; multiplier: number } | null;
+  eventStartVisual: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
+  setEventStartVisual: React.Dispatch<React.SetStateAction<'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null>>;
 }
 
 export const GameScreen: React.FC<GameScreenProps> = ({
@@ -59,10 +70,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   timedBoostMovesLeft,
   timePopups,
   setTimePopups,
+  chronoPopups,
+  setChronoPopups,
   timedWarning,
   shownChain,
   showPerfect,
   milestoneTier,
+  eventStartVisual,
+  setEventStartVisual,
 }) => {
   const { getThemeColors } = useThemeStore();
   const colors = getThemeColors();
@@ -230,6 +245,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       <ComboRushFlash active={showRushEnd} movesLeft={0} onStart={false} />
       {gameMode !== GameMode.ZEN && <ComboBar />}
       <MultiplierBreakdownDisplay />
+      
+      {/* Event Start Visual */}
+      <EventStartVisual 
+        eventType={eventStartVisual} 
+        onComplete={() => setEventStartVisual(null)} 
+      />
 
       {/* Time Popups */}
       <AnimatePresence>
@@ -257,6 +278,22 @@ export const GameScreen: React.FC<GameScreenProps> = ({
           >
             {popup.value > 0 ? `+${popup.value}s` : `${popup.value}s`}
           </motion.div>
+        ))}
+      </AnimatePresence>
+
+      {/* CHRONO Popups */}
+      <AnimatePresence>
+        {chronoPopups.map(popup => (
+          <ChronoPopup
+            key={popup.id}
+            id={popup.id}
+            seconds={popup.seconds}
+            x={popup.gridX}
+            y={popup.gridY}
+            onComplete={(id: number) => {
+              setChronoPopups(prev => prev.filter(p => p.id !== id));
+            }}
+          />
         ))}
       </AnimatePresence>
 

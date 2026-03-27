@@ -27,7 +27,48 @@ import {
   AbilitiesData,
 } from './types';
 
-// 1. loadUserFromFirestore
+// Maximum possible multiplier in the game
+// tier6(3.0) × surge(2.0) × scoreRush(1.5) × quake(1.3) = 11.7x
+const MAX_POSSIBLE_MULTIPLIER = 11.7;
+
+// 1. createDefaultUserDocument
+export async function createDefaultUserDocument(
+  uid: string,
+  isAnonymous: boolean
+): Promise<void> {
+  const db = getFirebaseFirestore();
+  
+  try {
+    const userDocRef = doc(db, 'users', uid);
+    const userDoc = await getDoc(userDocRef);
+    
+    // Only create if document doesn't exist
+    if (!userDoc.exists()) {
+      const defaultData: Partial<UserDocument> = {
+        isAnonymous,
+        highScores: {},
+        stats: DEFAULT_USER_STATS,
+        abilities: DEFAULT_ABILITIES,
+        progression: {
+          maxLevelReached: 0,
+          currentStreak: 0,
+          longestStreak: 0,
+          lastDailyDate: null,
+        },
+        schemaVersion: 3,
+        lastSeenAt: Date.now(),
+      };
+      
+      await setDoc(userDocRef, defaultData, { merge: true });
+      console.log('createDefaultUserDocument: Created default document for uid', uid);
+    }
+  } catch (error) {
+    console.error('createDefaultUserDocument error:', error);
+    throw error;
+  }
+}
+
+// 2. loadUserFromFirestore
 export async function loadUserFromFirestore(uid: string): Promise<void> {
   const db = getFirebaseFirestore();
   
@@ -267,7 +308,7 @@ export async function syncScore(
       return;
     }
 
-    // b) Anti-cheat - Strengthened validation (applies to all users - Requirement 1.4)
+    // b) Anti-cheat - Dynamic validation based on game multipliers (Requirement 1.4, 2.4)
     // Minimum time requirements based on score tiers
     const minTimeRequired =
       score <= 1000 ? 5 :            // 5 seconds for scores up to 1000
@@ -284,17 +325,35 @@ export async function syncScore(
       return;
     }
 
-    // Additional check: Maximum reasonable score per second
-    const maxScorePerSecond = 300; // Maximum 300 points per second (combo/surge ile yüksek skorlar makul)
-    const maxPossibleScore = sessionDurationSecs * maxScorePerSecond;
+    // Dynamic anti-cheat threshold: Base points per second × MAX_POSSIBLE_MULTIPLIER
+    // Base: 300 points/second, Max multiplier: 11.7x (tier6 × surge × scoreRush × quake)
+    const BASE_POINTS_PER_SECOND = 300;
+    const dynamicThreshold = BASE_POINTS_PER_SECOND * MAX_POSSIBLE_MULTIPLIER; // 3510 points/second
+    const maxPossibleScore = sessionDurationSecs * dynamicThreshold;
 
     if (score > maxPossibleScore) {
-      console.warn('syncScore: Score too high for session duration', {
+      console.warn('syncScore: Score too high for session duration (dynamic threshold)', {
         score,
         sessionDurationSecs,
         maxPossibleScore,
+        dynamicThreshold,
       });
       return;
+    }
+    
+    // Suspicious increase check: 1000% increase threshold (changed from 500%)
+    // This allows for legitimate high multiplier gameplay
+    const scorePerSecond = score / sessionDurationSecs;
+    const suspiciousThreshold = BASE_POINTS_PER_SECOND * 10; // 1000% = 10x base
+    
+    if (scorePerSecond > suspiciousThreshold) {
+      console.warn('syncScore: Suspicious score rate detected', {
+        score,
+        sessionDurationSecs,
+        scorePerSecond,
+        suspiciousThreshold,
+      });
+      // Don't return - just log warning, let it through if under dynamic threshold
     }
 
     // c) Mevcut leaderboard skorunu oku
@@ -584,7 +643,31 @@ export async function addToPendingWrites(
   }
 }
 
-// 10. syncLocalToFirestore (eski fonksiyon, uyumlu tut)
+// 10. setupOnlineListener
+export function setupOnlineListener(uid: string): () => void {
+  const handleOnline = async () => {
+    console.log('setupOnlineListener: Connection restored, processing pending writes');
+    try {
+      await processPendingWrites(uid);
+    } catch (error) {
+      console.error('setupOnlineListener: Failed to process pending writes', error);
+    }
+  };
+  
+  // Listen to online event
+  window.addEventListener('online', handleOnline);
+  
+  // Return cleanup function
+  return () => {
+    window.removeEventListener('online', handleOnline);
+  };
+}
+
+// 11. syncLocalToFirestore (DEPRECATED - kept for backward compatibility)
+/**
+ * @deprecated This function is deprecated. Use loadUserFromFirestore() as the single source of truth.
+ * Firestore should be the primary data source, not localStorage.
+ */
 export async function syncLocalToFirestore(uid: string): Promise<void> {
   const db = getFirebaseFirestore();
   

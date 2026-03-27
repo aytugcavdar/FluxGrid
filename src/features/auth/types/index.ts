@@ -13,6 +13,7 @@ export interface AuthState {
 export interface AuthActions {
   initAuth: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  linkWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   setError: (error: string | null) => void;
   cleanup: () => void;

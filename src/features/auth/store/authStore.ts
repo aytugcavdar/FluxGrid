@@ -3,6 +3,8 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
+  signInAnonymously,
+  linkWithPopup,
   signOut as firebaseSignOut,
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
@@ -32,20 +34,31 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     // Set up auth state listener
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        // No user - just set state, don't create anonymous user
-        set({
-          user: null,
-          isAnonymous: false,
-          isLoading: false,
-          error: null,
-        });
+        // No user - create anonymous user for data persistence
+        try {
+          const anonResult = await signInAnonymously(auth);
+          set({
+            user: anonResult.user,
+            isAnonymous: true,
+            isLoading: false,
+            error: null,
+          });
+        } catch (error) {
+          console.error('Anonymous sign in failed:', error);
+          set({
+            user: null,
+            isAnonymous: false,
+            isLoading: false,
+            error: null,
+          });
+        }
         return;
       }
 
-      // User exists (Google login)
+      // User exists (Google login or anonymous)
       set({
         user,
-        isAnonymous: false,
+        isAnonymous: user.isAnonymous,
         isLoading: false,
         error: null,
       });
@@ -139,6 +152,41 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   setError: (error: string | null) => {
     set({ error });
+  },
+
+  linkWithGoogle: async () => {
+    const auth = getFirebaseAuth();
+    const currentUser = get().user;
+    
+    if (!currentUser || !currentUser.isAnonymous) {
+      console.error('linkWithGoogle: No anonymous user to link');
+      return;
+    }
+    
+    try {
+      set({ isLoading: true, error: null });
+      
+      const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+      
+      // Link anonymous account with Google
+      const result = await linkWithPopup(currentUser, provider);
+      
+      set({
+        user: result.user,
+        isAnonymous: false,
+        isLoading: false,
+      });
+      
+      console.log('Account linked successfully');
+    } catch (error: any) {
+      console.error('Account linking failed:', error);
+      set({
+        error: error.message || 'Hesap bağlama başarısız oldu',
+        isLoading: false,
+      });
+    }
   },
 
   cleanup: () => {
