@@ -109,11 +109,18 @@ const INITIAL_STATS: GameStats = {
   skillUses: {}
 };
 
-export const useGameStore = create<GameStore>((set, get) => ({
+export const useGameStore = create<GameStore>((set, get) => {
+  // Load initial data from localStorage
+  const savedHighScores = safeJSONParse(safeLocalStorageGet('flux_highscores', '{}'), {});
+  const savedStats = safeJSONParse(safeLocalStorageGet('flux_stats', JSON.stringify(INITIAL_STATS)), INITIAL_STATS);
+  const savedMaxLevel = safeParseInt(safeLocalStorageGet('flux_max_level', '0'), 0);
+  const savedHighScore = safeParseInt(safeLocalStorageGet('flux_highscore', '0'), 0);
+  
+  return {
   grid: createEmptyGrid(),
   pieces: [],
   score: 0,
-  highScore: 0,
+  highScore: savedHighScore,
   flux: 100,
   combo: 0,
   isGameOver: false,
@@ -132,9 +139,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   timeLeft: 0,
   timerStartTime: null,
   timerExpectedEnd: null,
-  highScores: {},
-  stats: INITIAL_STATS,
-  maxLevelReached: 0,
+  highScores: savedHighScores,
+  stats: savedStats,
+  maxLevelReached: savedMaxLevel,
   difficultyTier: 0,
 
   // ZEN Mode Initial State
@@ -229,6 +236,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
         // Increment games played
         const newStats = { ...get().stats, gamesPlayed: get().stats.gamesPlayed + 1 };
         set({ stats: newStats });
+        
+        // Save stats to localStorage
+        try {
+          localStorage.setItem('flux_stats', JSON.stringify(newStats));
+        } catch (error) {
+          console.error('Failed to save stats to localStorage:', error);
+        }
         
         return true;
       },
@@ -657,6 +671,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (newScore > modeHighScore) {
       const newHighs = { ...currentHighs, [modeKey]: newScore };
       set({ highScores: newHighs, highScore: newScore });
+      
+      // Save highScores to localStorage
+      try {
+        localStorage.setItem('flux_highscores', JSON.stringify(newHighs));
+        const maxHighScore = Math.max(...Object.values(newHighs));
+        localStorage.setItem('flux_highscore', String(maxHighScore));
+      } catch (error) {
+        console.error('Failed to save highScores to localStorage:', error);
+      }
     }
 
     // Time Reward logic
@@ -761,6 +784,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       iceBroken: currentStats.iceBroken + iceBroken,
     };
     set({ stats: nextStats });
+    
+    // Save stats to localStorage
+    try {
+      localStorage.setItem('flux_stats', JSON.stringify(nextStats));
+    } catch (error) {
+      console.error('Failed to save stats to localStorage:', error);
+    }
 
     get().checkGameOver();
     
@@ -814,4 +844,5 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setState: (update) => {
     set(update);
   }
-}));
+};
+});

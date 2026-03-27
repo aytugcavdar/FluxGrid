@@ -49,9 +49,16 @@ export async function loadUserFromFirestore(uid: string): Promise<void> {
     const { useGameStore } = await import('@features/game/store/gameStore');
     const { usePassiveAbilityStore } = await import('@features/abilities/store/passiveAbilityStore');
 
+    // Calculate max highScore from all modes
+    const highScores = userData.highScores ?? {};
+    const maxHighScore = Object.values(highScores).length > 0 
+      ? Math.max(...Object.values(highScores)) 
+      : 0;
+
     // Update gameStore with Firestore data
     useGameStore.setState({
-      highScores: userData.highScores ?? {},
+      highScores: highScores,
+      highScore: maxHighScore,
       stats: userData.stats ?? DEFAULT_USER_STATS,
       maxLevelReached: userData.progression?.maxLevelReached ?? 0,
     });
@@ -98,9 +105,16 @@ export function subscribeToUserChanges(
       const { useGameStore } = await import('@features/game/store/gameStore');
       const { usePassiveAbilityStore } = await import('@features/abilities/store/passiveAbilityStore');
 
+      // Calculate max highScore from all modes
+      const highScores = userData.highScores ?? {};
+      const maxHighScore = Object.values(highScores).length > 0 
+        ? Math.max(...Object.values(highScores)) 
+        : 0;
+
       // Update gameStore with Firestore data
       useGameStore.setState({
-        highScores: userData.highScores ?? {},
+        highScores: highScores,
+        highScore: maxHighScore,
         stats: userData.stats ?? DEFAULT_USER_STATS,
         maxLevelReached: userData.progression?.maxLevelReached ?? 0,
       });
@@ -331,9 +345,10 @@ export async function syncFromFirestore(uid: string): Promise<void> {
     const userData = userDoc.data() as UserDocument;
 
     // d) localStorage'a yaz
+    const firestoreStats = userData.stats ?? DEFAULT_USER_STATS;
     localStorage.setItem(
       'flux_stats',
-      JSON.stringify(userData.stats ?? DEFAULT_USER_STATS)
+      JSON.stringify(firestoreStats)
     );
     
     // HighScores: Her mod için en yüksek olanı koru (local veya Firebase)
@@ -356,9 +371,10 @@ export async function syncFromFirestore(uid: string): Promise<void> {
       : 0;
     localStorage.setItem('flux_highscore', String(maxHighScore));
     
+    const maxLevelReached = userData.progression?.maxLevelReached ?? 0;
     localStorage.setItem(
       'flux_max_level',
-      String(userData.progression?.maxLevelReached ?? 0)
+      String(maxLevelReached)
     );
     localStorage.setItem(
       'flux_daily_streak',
@@ -371,6 +387,20 @@ export async function syncFromFirestore(uid: string): Promise<void> {
     }
     if (userData.preferences?.language && !localStorage.getItem('flux_language')) {
       localStorage.setItem('flux_language', userData.preferences.language);
+    }
+    
+    // e) gameStore'u güncelle (dynamic import to avoid circular dependency)
+    try {
+      const { useGameStore } = await import('@features/game/store/gameStore');
+      useGameStore.setState({
+        stats: firestoreStats,
+        highScores: mergedHighScores,
+        highScore: maxHighScore,
+        maxLevelReached: maxLevelReached,
+      });
+      console.log('syncFromFirestore: gameStore updated with Firestore data');
+    } catch (error) {
+      console.error('syncFromFirestore: Failed to update gameStore:', error);
     }
   } catch (error) {
     console.error('syncFromFirestore error:', error);
