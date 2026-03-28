@@ -16,6 +16,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import App from '@app/App';
 import { useGameStore } from '@features/game/store/gameStore';
+import { useAuthStore } from '@features/auth/store/authStore';
 import { GameMode, AppState } from '@shared/types';
 
 // Mock audio utilities
@@ -31,6 +32,9 @@ vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
   query: vi.fn(),
   where: vi.fn(),
+  doc: vi.fn(),
+  getDoc: vi.fn(() => Promise.resolve({ exists: () => false })),
+  setDoc: vi.fn(() => Promise.resolve()),
   onSnapshot: vi.fn((q, onNext, onError) => {
     // Return empty snapshot by default
     onNext({ size: 0 });
@@ -133,6 +137,13 @@ describe('Responsive Layout Tests', () => {
       highScore: 0,
       maxLevelReached: 0,
     });
+    
+    // Set auth store to not loading state
+    useAuthStore.setState({
+      user: null,
+      isAnonymous: false,
+      isLoading: false,
+    });
   });
 
   describe('Mobile Viewport Tests', () => {
@@ -152,13 +163,12 @@ describe('Responsive Layout Tests', () => {
       expect(sonsuzElements.length).toBeGreaterThan(0);
 
       // Verify layout container has proper max-width
-      const layoutContainer = container.querySelector('.max-w-md');
+      const layoutContainer = container.querySelector('[style*="max-width"]');
       expect(layoutContainer).toBeInTheDocument();
 
       // Verify bottom navigation is present
-      expect(screen.getByText(/DASHBOARD/i)).toBeInTheDocument();
-      const rankElements = screen.getAllByText(/RANK/i);
-      expect(rankElements.length).toBeGreaterThan(0); // Both GLOBAL RANK and bottom nav RANK
+      expect(screen.getByText(/OYUN/i)).toBeInTheDocument();
+      expect(screen.getByText(/SIRALAMA/i)).toBeInTheDocument();
     });
 
     it('should render correctly on iPhone SE (375px)', () => {
@@ -185,8 +195,8 @@ describe('Responsive Layout Tests', () => {
       // Verify stats are visible
       expect(screen.getByText(/Yüksek Skor/i)).toBeInTheDocument();
 
-      // Verify Canlı Meydan Okuma card
-      expect(screen.getByText(/Canlı Meydan Okuma/i)).toBeInTheDocument();
+      // Verify Günlük Bulmaca card
+      expect(screen.getByText(/Günlük Bulmaca/i)).toBeInTheDocument();
     });
 
     it('should render correctly on large mobile (414px)', () => {
@@ -200,11 +210,11 @@ describe('Responsive Layout Tests', () => {
       expect(fluxElements.length).toBeGreaterThan(0);
       const sonsuzElements = screen.getAllByText(/SONSUZ/i);
       expect(sonsuzElements.length).toBeGreaterThan(0);
-      expect(screen.getByText(/Canlı Meydan Okuma/i)).toBeInTheDocument();
+      expect(screen.getByText(/Günlük Bulmaca/i)).toBeInTheDocument();
       
       // Verify bottom navigation
       const navButtons = screen.getAllByRole('button');
-      expect(navButtons.length).toBeGreaterThanOrEqual(10); // Top bar + mode tabs + main CTA + cards + bottom nav
+      expect(navButtons.length).toBeGreaterThanOrEqual(8); // Top bar + mode tabs + main CTA + bottom nav
     });
   });
 
@@ -247,7 +257,7 @@ describe('Responsive Layout Tests', () => {
 
       // Verify content is centered with max-width
       const fluxElements = screen.getAllByText(/FLUX/i);
-      const container = fluxElements[0].closest('.max-w-md');
+      const container = fluxElements[0].closest('[style*="max-width"]');
       expect(container).toBeInTheDocument();
 
       // Verify all sections render
@@ -346,8 +356,8 @@ describe('Responsive Layout Tests', () => {
       setupUserState({ gamesPlayed: 0 });
       render(<App />);
 
-      // Verify Canlı Meydan Okuma card exists
-      expect(screen.getByText(/Canlı Meydan Okuma/i)).toBeInTheDocument();
+      // Verify Günlük Bulmaca card exists
+      expect(screen.getByText(/Günlük Bulmaca/i)).toBeInTheDocument();
     });
 
     it('should use consistent colors for mode tabs', () => {
@@ -441,10 +451,10 @@ describe('Responsive Layout Tests', () => {
       render(<App />);
 
       const fluxElements = screen.getAllByText(/FLUX/i);
-      // Logo h1 element has inline font-family style
+      // Logo h1 element has inline styles
       expect(fluxElements.length).toBeGreaterThan(0);
       const h1Element = fluxElements[0].closest('h1');
-      expect(h1Element?.getAttribute('style')).toContain('font-family');
+      expect(h1Element?.getAttribute('style')).toContain('font-weight');
     });
 
     // Tagline removed in task 11 - test removed
@@ -463,8 +473,8 @@ describe('Responsive Layout Tests', () => {
       setupUserState({ gamesPlayed: 0 });
       render(<App />);
 
-      // Verify Canlı Meydan Okuma card exists
-      expect(screen.getByText(/Canlı Meydan Okuma/i)).toBeInTheDocument();
+      // Verify Günlük Bulmaca card exists
+      expect(screen.getByText(/Günlük Bulmaca/i)).toBeInTheDocument();
     });
 
     it('should render mode tabs with proper styling', () => {
@@ -481,11 +491,9 @@ describe('Responsive Layout Tests', () => {
       render(<App />);
 
       // Bottom navigation uses text labels
-      expect(screen.getByText(/DASHBOARD/i)).toBeInTheDocument();
-      expect(screen.getByText(/QUESTS/i)).toBeInTheDocument();
-      const rankElements = screen.getAllByText(/RANK/i);
-      expect(rankElements.length).toBeGreaterThan(0); // Both GLOBAL RANK and bottom nav RANK
-      expect(screen.getByText(/PROFILE/i)).toBeInTheDocument();
+      expect(screen.getByText(/OYUN/i)).toBeInTheDocument();
+      expect(screen.getByText(/SIRALAMA/i)).toBeInTheDocument();
+      expect(screen.getByText(/PROFİL/i)).toBeInTheDocument();
     });
   });
 

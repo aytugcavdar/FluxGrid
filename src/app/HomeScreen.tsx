@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Video } from 'lucide-react';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useAuthStore } from '../features/auth/store/authStore';
 import { useLeaderboardStore } from '../features/leaderboard/store/leaderboardStore';
 import { GameMode } from '@shared/types';
 import { playClick } from '@utils/audio';
+import { getDailyPlayedToday, getStreak } from '@utils/streakManager';
 
 interface HomeScreenProps {
   onOpenProfile: () => void;
@@ -13,161 +13,139 @@ interface HomeScreenProps {
   onOpenLeaderboard: (mode: GameMode) => void;
 }
 
+const MODE_INFO: Record<GameMode, { label: string; desc: string; icon: string; color: string }> = {
+  [GameMode.ENDLESS]: { label: 'Sonsuz Mod', desc: 'Reflekslerini sınırla', icon: '∞', color: '#a855f7' },
+  [GameMode.TIMED]: { label: 'Timed Mod', desc: 'Zamana karşı yarış', icon: '⏱', color: '#f59e0b' },
+  [GameMode.ZEN]: { label: 'Zen Mod', desc: 'Rahatla ve oyna', icon: '☁', color: '#a78bfa' },
+  [GameMode.DAILY_CHALLENGE]: { label: 'Günlük Mod', desc: 'Günlük meydan okuma', icon: '📅', color: '#10b981' },
+};
+
+const WEEK_DAYS = ['P', 'S', 'Ç', 'P', 'C', 'C', 'B'];
+
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenProfile,
   onOpenThemeSelector,
   onOpenLeaderboard,
 }) => {
   const { initGame, highScores } = useGameStore();
-  const { fetchUserRank, userRanks } = useLeaderboardStore();
+  const { userRanks, userPercentiles, isLoading } = useLeaderboardStore();
   const [selectedMode, setSelectedMode] = useState<GameMode>(GameMode.ENDLESS);
   const user = useAuthStore(state => state.user);
   const isAnonymous = useAuthStore(state => state.isAnonymous);
+  const authError = useAuthStore(state => state.error);
   const linkWithGoogle = useAuthStore(state => state.linkWithGoogle);
+  const signInWithGoogle = useAuthStore(state => state.signInWithGoogle);
 
-  // Fetch user rank for selected mode
+  // BUG FIX 1: fetchUserRank dependency'den çıkarıldı
   useEffect(() => {
     if (user?.uid) {
-      fetchUserRank(user.uid, selectedMode);
+      useLeaderboardStore.getState().fetchUserRank(user.uid, selectedMode);
     }
-  }, [user?.uid, selectedMode, fetchUserRank]);
+  }, [user?.uid, selectedMode]);
 
-  // Get mode info
-  const getModeInfo = (mode: GameMode) => {
-    const modeInfo: Record<GameMode, { 
-      label: string; 
-      labelEn: string;
-      description: string;
-      descriptionEn: string;
-      icon: string;
-      color: string;
-    }> = {
-      [GameMode.ENDLESS]: { 
-        label: 'SONSUZ MOD', 
-        labelEn: 'ENDLESS MODE',
-        description: 'Reflekslerini sınırla',
-        descriptionEn: 'Test your reflexes',
-        icon: '∞',
-        color: '#a855f7' 
-      },
-      [GameMode.TIMED]: { 
-        label: 'ZAMANLI MOD', 
-        labelEn: 'TIMED MODE',
-        description: 'Zamana karşı yarış',
-        descriptionEn: 'Race against time',
-        icon: '⏱️',
-        color: '#f59e0b' 
-      },
-      [GameMode.ZEN]: { 
-        label: 'ZEN MOD', 
-        labelEn: 'ZEN MODE',
-        description: 'Rahatla ve oyna',
-        descriptionEn: 'Relax and play',
-        icon: '🧘',
-        color: '#6b7280' 
-      },
-      [GameMode.DAILY_CHALLENGE]: { 
-        label: 'GÜNLÜK MOD', 
-        labelEn: 'DAILY MODE',
-        description: 'Günlük meydan okuma',
-        descriptionEn: 'Daily challenge',
-        icon: '📅',
-        color: '#10b981' 
-      },
-    };
-    return modeInfo[mode] || modeInfo[GameMode.ENDLESS];
-  };
-
-  const selectedModeInfo = getModeInfo(selectedMode);
-
-  // Get best score for selected mode from gameStore (Firestore is source of truth)
+  // Get best score for selected mode
   const selectedModeBestScore = useMemo(() => {
     const val = highScores[selectedMode];
     return typeof val === 'number' && val >= 0 ? val : 0;
   }, [selectedMode, highScores]);
 
-  // Get user rank for selected mode
+  // BUG FIX 3: isLoading state eklendi
   const userRank = userRanks.get(selectedMode);
-  const rankDisplay = userRank 
-    ? (typeof userRank === 'number' ? `#${userRank.toLocaleString()}` : userRank)
-    : '—';
+  const rankDisplay = isLoading 
+    ? '...' 
+    : userRank 
+      ? (typeof userRank === 'number' ? `#${userRank.toLocaleString()}` : userRank)
+      : '—';
+
+  // NEW FEATURE 3: Percentile display
+  const pct = userPercentiles.get(selectedMode);
+  const percentileDisplay = (!isAnonymous && pct != null)
+    ? `Üst %${Math.round(pct)}`
+    : null;
+
+  // NEW FEATURE 1: Daily puzzle state
+  const dailyPlayedToday = getDailyPlayedToday();
+  const currentStreak = getStreak();
+
+  // NEW FEATURE 2: Get other modes (exclude selected and daily)
+  const otherModes = useMemo(() => {
+    return Object.values(GameMode).filter(
+      m => m !== selectedMode && m !== GameMode.DAILY_CHALLENGE
+    );
+  }, [selectedMode]);
+
+  const selectedModeInfo = MODE_INFO[selectedMode] || MODE_INFO[GameMode.ENDLESS];
 
   return (
-    <motion.div
-      key="home-quantum"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex flex-col p-4 overflow-y-auto"
-      style={{ 
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
         background: '#0a0e1a',
         fontFamily: 'system-ui, -apple-system, sans-serif',
-        paddingBottom: 80,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
-      <div className="w-full max-w-md mx-auto">
-        {/* TOP BAR */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
-          {/* Video Icon */}
-          <button
-            onClick={() => { playClick(); }}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 8,
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <Video size={20} color="rgba(0,212,255,0.8)" />
-          </button>
+      {/* Scrollable Content Area */}
+      <div style={{ 
+        flex: 1, 
+        overflowY: 'auto',
+        padding: '16px',
+      }}>
+        <div style={{ width: '100%', maxWidth: '448px', margin: '0 auto' }}>
+          {/* TOP BAR */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          marginBottom: '32px' 
+        }}>
+          {/* BUG FIX 2: Video button removed, placeholder only */}
+          <div style={{ width: '34px', height: '34px' }} />
 
-          {/* Logo - Centered */}
+          {/* Logo */}
           <h1 style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 24,
-            fontWeight: 900,
-            color: 'white',
-            letterSpacing: '0.1em',
-            background: 'linear-gradient(135deg, #00d4ff, #a855f7)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
+            fontSize: '20px',
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            margin: 0,
           }}>
-            FLUXGRID
+            <span style={{ color: 'white' }}>FLUX</span>
+            <span style={{ color: '#3b82f6' }}>GRID</span>
           </h1>
 
           {/* Settings Button */}
           <button
             onClick={() => { playClick(); onOpenThemeSelector(); }}
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 8,
+              width: '34px',
+              height: '34px',
+              borderRadius: '8px',
               background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              border: 'none',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
             }}
           >
-            <Settings size={20} color="rgba(0,212,255,0.8)" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(0,212,255,0.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 1v6m0 10v6M4.22 4.22l4.24 4.24m7.08 7.08l4.24 4.24M1 12h6m10 0h6M4.22 19.78l4.24-4.24m7.08-7.08l4.24-4.24" />
+            </svg>
           </button>
         </div>
 
         {/* MODE TABS */}
         <div style={{ 
           display: 'flex', 
-          gap: 8, 
-          marginBottom: 24,
+          gap: '8px', 
+          marginBottom: '24px',
           background: 'rgba(255,255,255,0.03)',
-          padding: 4,
-          borderRadius: 12,
+          padding: '3px',
+          borderRadius: '10px',
         }}>
           {[
             { mode: GameMode.ENDLESS, label: 'SONSUZ' },
@@ -182,16 +160,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 onClick={() => { playClick(); setSelectedMode(mode); }}
                 style={{
                   flex: 1,
-                  padding: '10px 12px',
-                  borderRadius: 8,
-                  background: isActive ? 'rgba(0,212,255,0.15)' : 'transparent',
+                  padding: '8px 10px',
+                  borderRadius: '8px',
+                  background: isActive ? 'rgba(0,212,255,0.12)' : 'transparent',
                   border: 'none',
                   cursor: 'pointer',
-                  fontSize: 11,
+                  fontSize: '10px',
                   fontWeight: 700,
-                  color: isActive ? '#00d4ff' : 'rgba(255,255,255,0.4)',
+                  color: isActive ? '#00d4ff' : 'rgba(255,255,255,0.35)',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
+                  letterSpacing: '0.04em',
                   transition: 'all 0.2s ease',
                 }}
               >
@@ -208,30 +186,28 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           transition={{ duration: 0.4 }}
           style={{
             background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 20,
-            padding: 32,
-            marginBottom: 24,
-            position: 'relative',
-            overflow: 'hidden',
+            border: '0.5px solid rgba(255,255,255,0.07)',
+            borderRadius: '16px',
+            padding: '20px 16px 16px',
+            marginBottom: '16px',
           }}
         >
-          {/* Large Icon */}
+          {/* Mode Icon */}
           <div style={{ 
             display: 'flex', 
             justifyContent: 'center', 
-            marginBottom: 24 
+            marginBottom: '16px' 
           }}>
             <div style={{
-              width: 120,
-              height: 120,
+              width: '72px',
+              height: '72px',
               borderRadius: '50%',
-              background: 'rgba(0,212,255,0.1)',
-              border: '2px solid rgba(0,212,255,0.3)',
+              background: 'rgba(0,212,255,0.08)',
+              border: '1.5px solid rgba(0,212,255,0.2)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 64,
+              fontSize: '28px',
             }}>
               {selectedModeInfo.icon}
             </div>
@@ -239,59 +215,117 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           {/* Mode Name */}
           <h2 style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 32,
-            fontWeight: 900,
-            color: 'white',
+            fontSize: '22px',
+            fontWeight: 700,
             fontStyle: 'italic',
-            marginBottom: 8,
+            color: '#e0f2fe',
             letterSpacing: '-0.02em',
+            marginBottom: '6px',
             textAlign: 'center',
+            margin: '0 0 6px 0',
           }}>
             {selectedModeInfo.label}
           </h2>
 
           {/* Description */}
           <div style={{ 
-            fontSize: 13, 
-            fontWeight: 500, 
-            color: 'rgba(0,212,255,0.7)',
-            letterSpacing: '0.05em',
-            marginBottom: 32,
+            fontSize: '11px', 
+            fontWeight: 600, 
+            color: 'rgba(0,212,255,0.6)',
+            letterSpacing: '0.06em',
+            marginBottom: '20px',
             textAlign: 'center',
             textTransform: 'uppercase',
           }}>
-            {selectedModeInfo.description}
+            {selectedModeInfo.desc}
           </div>
 
-          {/* Stats Row */}
-          <div style={{ display: 'flex', gap: 16, marginBottom: 32, justifyContent: 'center' }}>
+          {/* Stats Row with Dividers */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '16px',
+            marginBottom: '20px',
+          }}>
+            {/* High Score */}
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 6, textTransform: 'uppercase' }}>
+              <div style={{ 
+                fontSize: '10px', 
+                color: 'rgba(255,255,255,0.4)', 
+                marginBottom: '4px', 
+                textTransform: 'uppercase',
+                fontWeight: 600,
+              }}>
                 Yüksek Skor
               </div>
               <div style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 24,
-                fontWeight: 900,
+                fontSize: '20px',
+                fontWeight: 700,
                 color: '#a855f7',
               }}>
                 {selectedModeBestScore.toLocaleString()}
               </div>
             </div>
-            {/* Hide rank for anonymous users */}
+
+            {/* Divider */}
+            {!isAnonymous && (
+              <div style={{
+                width: '1px',
+                height: '32px',
+                background: 'rgba(255,255,255,0.1)',
+              }} />
+            )}
+
+            {/* Rank (hide for anonymous) */}
             {!isAnonymous && (
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 6, textTransform: 'uppercase' }}>
+                <div style={{ 
+                  fontSize: '10px', 
+                  color: 'rgba(255,255,255,0.4)', 
+                  marginBottom: '4px', 
+                  textTransform: 'uppercase',
+                  fontWeight: 600,
+                }}>
                   Sıralama
                 </div>
                 <div style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 24,
-                  fontWeight: 900,
+                  fontSize: '20px',
+                  fontWeight: 700,
                   color: '#00d4ff',
                 }}>
                   {rankDisplay}
+                </div>
+              </div>
+            )}
+
+            {/* Divider */}
+            {!isAnonymous && percentileDisplay && (
+              <div style={{
+                width: '1px',
+                height: '32px',
+                background: 'rgba(255,255,255,0.1)',
+              }} />
+            )}
+
+            {/* NEW FEATURE 3: Percentile (only for authenticated users with data) */}
+            {!isAnonymous && percentileDisplay && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ 
+                  fontSize: '10px', 
+                  color: 'rgba(255,255,255,0.4)', 
+                  marginBottom: '4px', 
+                  textTransform: 'uppercase',
+                  fontWeight: 600,
+                }}>
+                  Dilim
+                </div>
+                <div style={{
+                  fontSize: '20px',
+                  fontWeight: 700,
+                  color: '#10b981',
+                }}>
+                  {percentileDisplay}
                 </div>
               </div>
             )}
@@ -303,259 +337,436 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             onClick={() => { playClick(); initGame(selectedMode); }}
             style={{
               width: '100%',
-              padding: '18px',
-              borderRadius: 50,
+              padding: '14px',
+              borderRadius: '40px',
               background: 'linear-gradient(135deg, #00d4ff, #a855f7)',
               border: 'none',
               cursor: 'pointer',
-              fontSize: 16,
-              fontWeight: 900,
+              fontSize: '14px',
+              fontWeight: 700,
               color: 'white',
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
-              boxShadow: '0 8px 24px rgba(0,212,255,0.3)',
             }}
           >
             OYNA
           </motion.button>
         </motion.div>
 
-        {/* LIVE CHALLENGE CARD */}
+        {/* NEW FEATURE 2: OTHER MODES SECTION */}
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{
+            fontSize: '10px',
+            fontWeight: 600,
+            color: 'rgba(255,255,255,0.3)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            marginBottom: '10px',
+          }}>
+            Diğer modlar
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: '8px',
+          }}>
+            {otherModes.map((mode) => {
+              const modeInfo = MODE_INFO[mode];
+              const modeScore = highScores[mode];
+              const scoreDisplay = typeof modeScore === 'number' && modeScore > 0
+                ? modeScore.toLocaleString()
+                : 'Henüz oynanmadı';
+
+              return (
+                <motion.div
+                  key={mode}
+                  onClick={() => { playClick(); initGame(mode); }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '0.5px solid rgba(255,255,255,0.07)',
+                    borderRadius: '12px',
+                    padding: '12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  {/* Mode Icon */}
+                  <div style={{ fontSize: '18px' }}>
+                    {modeInfo.icon}
+                  </div>
+
+                  {/* Mode Name */}
+                  <div style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#e0f2fe',
+                    textAlign: 'center',
+                  }}>
+                    {modeInfo.label}
+                  </div>
+
+                  {/* Description */}
+                  <div style={{
+                    fontSize: '10px',
+                    fontWeight: 500,
+                    color: 'rgba(255,255,255,0.4)',
+                    textAlign: 'center',
+                  }}>
+                    {modeInfo.desc}
+                  </div>
+
+                  {/* Score */}
+                  <div style={{
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: typeof modeScore === 'number' && modeScore > 0 
+                      ? modeInfo.color
+                      : 'rgba(255,255,255,0.3)',
+                    textAlign: 'center',
+                  }}>
+                    {scoreDisplay}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* NEW FEATURE 1: DAILY PUZZLE CARD */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1 }}
+          onClick={() => { playClick(); initGame(GameMode.DAILY_CHALLENGE); }}
           style={{
             background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 16,
-            padding: 20,
-            marginBottom: 24,
+            border: '0.5px solid rgba(16,185,129,0.25)',
+            borderRadius: '12px',
+            padding: '14px',
+            marginBottom: '16px',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
           }}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
         >
-          {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'white', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Canlı Meydan Okuma
-            </div>
-            <div style={{ 
-              fontSize: 11, 
-              fontWeight: 600, 
-              color: '#f59e0b',
-              background: 'rgba(245,158,11,0.1)',
-              padding: '4px 8px',
-              borderRadius: 6,
-            }}>
-              Kalan: 04:22:10
-            </div>
-          </div>
-
-          {/* Task */}
-          <div style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.6)', marginBottom: 16 }}>
-            Neon Rift Turnuvası
-          </div>
-
-          {/* Progress */}
+          {/* Header Row */}
           <div style={{ 
-            width: '100%', 
-            height: 8, 
-            background: 'rgba(255,255,255,0.05)', 
-            borderRadius: 4,
-            overflow: 'hidden',
-            marginBottom: 12,
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between', 
+            marginBottom: '12px' 
           }}>
             <div style={{ 
-              width: '68%', 
-              height: '100%', 
-              background: 'linear-gradient(90deg, #00d4ff, #a855f7)',
-            }} />
+              fontSize: '12px', 
+              fontWeight: 700, 
+              color: '#e0f2fe',
+            }}>
+              Günlük Bulmaca
+            </div>
+            <div style={{ 
+              fontSize: '10px', 
+              fontWeight: 600, 
+              color: dailyPlayedToday ? '#10b981' : '#60a5fa',
+              background: dailyPlayedToday 
+                ? 'rgba(16,185,129,0.1)' 
+                : 'rgba(59,130,246,0.1)',
+              border: dailyPlayedToday
+                ? '1px solid rgba(16,185,129,0.3)'
+                : '1px solid rgba(59,130,246,0.3)',
+              padding: '3px 8px',
+              borderRadius: '20px',
+            }}>
+              {dailyPlayedToday ? 'Bugün oynandı' : 'Oyna'}
+            </div>
           </div>
 
-          {/* Competitors */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginLeft: -4 }}>
-              <div style={{ 
-                width: 24, 
-                height: 24, 
-                borderRadius: '50%', 
-                background: '#ef4444',
-                border: '2px solid #0a0e1a',
-              }} />
-              <div style={{ 
-                width: 24, 
-                height: 24, 
-                borderRadius: '50%', 
-                background: '#10b981',
-                border: '2px solid #0a0e1a',
-                marginLeft: -8,
-              }} />
-              <div style={{ 
-                width: 24, 
-                height: 24, 
-                borderRadius: '50%', 
-                background: '#a855f7',
-                border: '2px solid #0a0e1a',
-                marginLeft: -8,
-              }} />
+          {/* Streak Row */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '10px',
+          }}>
+            <div style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '8px',
+              background: 'rgba(245,158,11,0.1)',
+              border: '1px solid rgba(245,158,11,0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '14px',
+            }}>
+              🔥
             </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              {currentStreak > 0 ? (
+                <>
+                  <div style={{
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    color: '#f59e0b',
+                  }}>
+                    {currentStreak} gün
+                  </div>
+                  <div style={{
+                    fontSize: '10px',
+                    fontWeight: 500,
+                    color: 'rgba(255,255,255,0.4)',
+                  }}>
+                    Seri devam ediyor
+                  </div>
+                </>
+              ) : (
+                <div style={{
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  color: 'rgba(255,255,255,0.4)',
+                }}>
+                  Henüz seri yok
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Weekly Dot Grid */}
+          <div style={{ 
+            display: 'flex', 
+            gap: '4px', 
+            justifyContent: 'center',
+            marginTop: '10px',
+          }}>
+            {WEEK_DAYS.map((day, index) => {
+              const isToday = index === 6;
+              const isCompleted = isToday && dailyPlayedToday;
+              
+              return (
+                <div
+                  key={index}
+                  style={{
+                    width: '22px',
+                    height: '22px',
+                    borderRadius: '6px',
+                    background: isCompleted
+                      ? 'rgba(16,185,129,0.25)'
+                      : isToday
+                        ? 'rgba(16,185,129,0.15)'
+                        : 'rgba(255,255,255,0.05)',
+                    border: isCompleted
+                      ? '1px solid rgba(16,185,129,0.5)'
+                      : isToday
+                        ? '1px solid rgba(16,185,129,0.3)'
+                        : '1px solid rgba(255,255,255,0.08)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '9px',
+                    fontWeight: isToday ? 700 : 600,
+                    color: isCompleted
+                      ? '#10b981'
+                      : isToday
+                        ? 'rgba(16,185,129,0.8)'
+                        : 'rgba(255,255,255,0.3)',
+                  }}
+                >
+                  {day}
+                </div>
+              );
+            })}
           </div>
         </motion.div>
 
-        {/* MISSION MAP CARD - Removed */}
-      </div>
-
-      {/* BOTTOM NAV */}
-      <div style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        background: 'rgba(10,14,26,0.98)',
-        backdropFilter: 'blur(20px)',
-        borderTop: '1px solid rgba(0,212,255,0.1)',
-        padding: '12px 16px 16px',
-        display: 'flex',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-      }}>
-        <button
-          onClick={() => { playClick(); }}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 6,
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '8px 16px',
-          }}
-        >
-          <div style={{
-            fontSize: 20,
-            color: '#00d4ff',
-          }}>
-            ▦
-          </div>
-          <span style={{ fontSize: 10, fontWeight: 700, color: '#00d4ff', letterSpacing: '0.05em' }}>
-            DASHBOARD
-          </span>
-        </button>
-
-        <button
-          onClick={() => { playClick(); }}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 6,
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '8px 16px',
-          }}
-        >
-          <div style={{
-            fontSize: 20,
-            color: 'rgba(255,255,255,0.4)',
-          }}>
-            ⚡
-          </div>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.05em' }}>
-            QUESTS
-          </span>
-        </button>
-
-        {/* Login/Save Account Button - Show for anonymous users or not logged in */}
-        {(!user || isAnonymous) && (
-          <button
+        {/* NEW FEATURE 4: ANONYMOUS USER BANNER */}
+        {isAnonymous && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.15 }}
             onClick={() => { 
               playClick(); 
               if (isAnonymous) {
                 linkWithGoogle();
               } else {
-                useAuthStore.getState().signInWithGoogle();
+                signInWithGoogle();
               }
             }}
             style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 6,
-              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(6, 182, 212, 0.2))',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: 12,
+              background: 'rgba(59,130,246,0.06)',
+              border: '0.5px solid rgba(59,130,246,0.2)',
+              borderRadius: '12px',
+              padding: '12px',
+              marginBottom: '16px',
               cursor: 'pointer',
-              padding: '12px 20px',
-              transition: 'all 0.2s',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(6, 182, 212, 0.3))';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(6, 182, 212, 0.2))';
-            }}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
           >
+            {/* Icon Box */}
             <div style={{
-              fontSize: 20,
-              color: 'rgba(96, 165, 250, 1)',
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: 'rgba(59,130,246,0.12)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
             }}>
-              {isAnonymous ? '💾' : '🔐'}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
             </div>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(96, 165, 250, 1)', letterSpacing: '0.05em' }}>
-              {isAnonymous ? 'HESABINI KAYDET' : 'GİRİŞ YAP'}
-            </span>
-          </button>
-        )}
 
+            {/* Text */}
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                color: '#93c5fd',
+                marginBottom: '2px',
+              }}>
+                Hesabını kaydet
+              </div>
+              <div style={{
+                fontSize: '10px',
+                fontWeight: 500,
+                color: 'rgba(255,255,255,0.35)',
+              }}>
+                Skorlarını kaybetme, sıralamaya gir
+              </div>
+              {/* BUG FIX 4: Show auth error if exists */}
+              {authError && (
+                <div style={{ 
+                  fontSize: '9px', 
+                  color: '#ef4444', 
+                  marginTop: '4px',
+                }}>
+                  {authError}
+                </div>
+              )}
+            </div>
+
+            {/* Chevron */}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </motion.div>
+        )}
+        </div>
+      </div>
+
+      {/* BOTTOM NAVIGATION (fixed at bottom) */}
+      <div style={{
+        background: 'rgba(10,14,26,0.98)',
+        borderTop: '0.5px solid rgba(0,212,255,0.08)',
+        padding: '12px 8px 16px',
+        display: 'flex',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+      }}>
+        {/* Oyun Tab (Active) */}
         <button
-          onClick={() => { playClick(); onOpenLeaderboard(GameMode.ENDLESS); }}
+          onClick={() => playClick()}
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 6,
-            background: 'none',
+            gap: '4px',
+            padding: '4px 8px',
+            borderRadius: '8px',
+            background: 'transparent',
             border: 'none',
             cursor: 'pointer',
-            padding: '8px 16px',
           }}
         >
-          <div style={{
-            fontSize: 20,
-            color: 'rgba(255,255,255,0.4)',
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" strokeWidth="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <path d="M3 9h18M9 21V9" />
+          </svg>
+          <span style={{
+            fontSize: '9px',
+            fontWeight: 700,
+            color: '#00d4ff',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
           }}>
-            🏆
-          </div>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.05em' }}>
-            RANK
+            OYUN
           </span>
         </button>
 
+        {/* Sıralama Tab (Inactive) */}
+        <button
+          onClick={() => { playClick(); onOpenLeaderboard(selectedMode); }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 8px',
+            borderRadius: '8px',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2">
+            <path d="M16 16v5M12 14v7M8 12v9M4 6h16M4 10h16" />
+          </svg>
+          <span style={{
+            fontSize: '9px',
+            fontWeight: 700,
+            color: 'rgba(255,255,255,0.35)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+          }}>
+            SIRALAMA
+          </span>
+        </button>
+
+        {/* Profil Tab (Inactive) */}
         <button
           onClick={() => { playClick(); onOpenProfile(); }}
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 6,
-            background: 'none',
+            gap: '4px',
+            padding: '4px 8px',
+            borderRadius: '8px',
+            background: 'transparent',
             border: 'none',
             cursor: 'pointer',
-            padding: '8px 16px',
           }}
         >
-          <div style={{
-            fontSize: 20,
-            color: 'rgba(255,255,255,0.4)',
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          <span style={{
+            fontSize: '9px',
+            fontWeight: 700,
+            color: 'rgba(255,255,255,0.35)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
           }}>
-            👤
-          </div>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.05em' }}>
-            PROFILE
+            PROFİL
           </span>
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 };

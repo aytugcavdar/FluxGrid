@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 describe('HomeScreen UI - Anonymous User Display', () => {
-  it('should use isAnonymous state from authStore', () => {
+  it('should use isAnonymous state from authStore in HomeScreen', () => {
     // Read HomeScreen.tsx file
     const homeScreenPath = path.join(process.cwd(), 'src/app/HomeScreen.tsx');
     const homeScreenCode = fs.readFileSync(homeScreenPath, 'utf-8');
@@ -23,13 +23,13 @@ describe('HomeScreen UI - Anonymous User Display', () => {
     expect(hasIsAnonymous).toBe(true);
   });
 
-  it('should use linkWithGoogle action from authStore', () => {
-    // Read HomeScreen.tsx file
-    const homeScreenPath = path.join(process.cwd(), 'src/app/HomeScreen.tsx');
-    const homeScreenCode = fs.readFileSync(homeScreenPath, 'utf-8');
+  it('should use linkWithGoogle action from authStore in BottomNavigation', () => {
+    // Read BottomNavigation.tsx file
+    const bottomNavPath = path.join(process.cwd(), 'src/app/components/BottomNavigation.tsx');
+    const bottomNavCode = fs.readFileSync(bottomNavPath, 'utf-8');
 
     // Check for linkWithGoogle action
-    const hasLinkWithGoogle = /const\s+linkWithGoogle\s*=\s*useAuthStore\(state\s*=>\s*state\.linkWithGoogle\)/m.test(homeScreenCode);
+    const hasLinkWithGoogle = /linkWithGoogle/m.test(bottomNavCode);
     expect(hasLinkWithGoogle).toBe(true);
   });
 
@@ -44,57 +44,54 @@ describe('HomeScreen UI - Anonymous User Display', () => {
     expect(hasConditionalRank).toBe(true);
   });
 
-  it('should show "HESABINI KAYDET" button for anonymous users', () => {
-    // Read HomeScreen.tsx file
-    const homeScreenPath = path.join(process.cwd(), 'src/app/HomeScreen.tsx');
-    const homeScreenCode = fs.readFileSync(homeScreenPath, 'utf-8');
+  it('should show "SAVE" button for anonymous users in AuthButton', () => {
+    // Read AuthButton.tsx file
+    const authButtonPath = path.join(process.cwd(), 'src/app/components/AuthButton.tsx');
+    const authButtonCode = fs.readFileSync(authButtonPath, 'utf-8');
 
-    // Check for "HESABINI KAYDET" text
-    const hasHesabiniKaydet = /HESABINI KAYDET/i.test(homeScreenCode);
-    expect(hasHesabiniKaydet).toBe(true);
+    // Check for "SAVE" text
+    const hasSave = /['"]SAVE['"]/i.test(authButtonCode);
+    expect(hasSave).toBe(true);
   });
 
-  it('should call linkWithGoogle() for anonymous users', () => {
-    // Read HomeScreen.tsx file
-    const homeScreenPath = path.join(process.cwd(), 'src/app/HomeScreen.tsx');
-    const homeScreenCode = fs.readFileSync(homeScreenPath, 'utf-8');
+  it('should call linkWithGoogle() for anonymous users in BottomNavigation', () => {
+    // Read BottomNavigation.tsx file
+    const bottomNavPath = path.join(process.cwd(), 'src/app/components/BottomNavigation.tsx');
+    const bottomNavCode = fs.readFileSync(bottomNavPath, 'utf-8');
 
-    // Check for conditional linkWithGoogle call
-    // Pattern: if (isAnonymous) { linkWithGoogle(); }
-    const hasLinkWithGoogleCall = /if\s*\(\s*isAnonymous\s*\)\s*\{[^}]*linkWithGoogle\(\)/s.test(homeScreenCode);
-    expect(hasLinkWithGoogleCall).toBe(true);
+    // Check for handleSaveAccount that calls linkWithGoogle
+    const hasHandleSaveAccount = /handleSaveAccount.*linkWithGoogle/s.test(bottomNavCode);
+    expect(hasHandleSaveAccount).toBe(true);
   });
 
-  it('should show button for both anonymous and not logged in users', () => {
-    // Read HomeScreen.tsx file
-    const homeScreenPath = path.join(process.cwd(), 'src/app/HomeScreen.tsx');
-    const homeScreenCode = fs.readFileSync(homeScreenPath, 'utf-8');
+  it('should show button for both anonymous and not logged in users in BottomNavigation', () => {
+    // Read BottomNavigation.tsx file
+    const bottomNavPath = path.join(process.cwd(), 'src/app/components/BottomNavigation.tsx');
+    const bottomNavCode = fs.readFileSync(bottomNavPath, 'utf-8');
 
     // Check for conditional button display
-    // Pattern: {(!user || isAnonymous) && ( ... button ... )}
-    const hasConditionalButton = /\{\s*\(\s*!user\s*\|\|\s*isAnonymous\s*\)\s*&&/m.test(homeScreenCode);
+    // Pattern: isAuthButtonVisible = !user || isAnonymous
+    const hasConditionalButton = /isAuthButtonVisible\s*=\s*!user\s*\|\|\s*isAnonymous/m.test(bottomNavCode);
     expect(hasConditionalButton).toBe(true);
   });
 
-  it('should use different icon for anonymous users (💾 vs 🔐)', () => {
-    // Read HomeScreen.tsx file
-    const homeScreenPath = path.join(process.cwd(), 'src/app/HomeScreen.tsx');
-    const homeScreenCode = fs.readFileSync(homeScreenPath, 'utf-8');
+  it('should use shield icon (🛡️) for auth button in AuthButton', () => {
+    // Read AuthButton.tsx file
+    const authButtonPath = path.join(process.cwd(), 'src/app/components/AuthButton.tsx');
+    const authButtonCode = fs.readFileSync(authButtonPath, 'utf-8');
 
-    // Check for conditional icon
-    // Pattern: {isAnonymous ? '💾' : '🔐'}
-    const hasConditionalIcon = /\{isAnonymous\s*\?\s*['"]💾['"]\s*:\s*['"]🔐['"]\}/m.test(homeScreenCode);
-    expect(hasConditionalIcon).toBe(true);
+    // Check for shield icon in the code
+    const hasShieldIcon = /['"]🛡️['"]/m.test(authButtonCode);
+    expect(hasShieldIcon).toBe(true);
   });
 
-  it('should use conditional button text (HESABINI KAYDET vs GİRİŞ YAP)', () => {
-    // Read HomeScreen.tsx file
-    const homeScreenPath = path.join(process.cwd(), 'src/app/HomeScreen.tsx');
-    const homeScreenCode = fs.readFileSync(homeScreenPath, 'utf-8');
+  it('should use "SAVE" button text in AuthButton', () => {
+    // Read AuthButton.tsx file
+    const authButtonPath = path.join(process.cwd(), 'src/app/components/AuthButton.tsx');
+    const authButtonCode = fs.readFileSync(authButtonPath, 'utf-8');
 
-    // Check for conditional button text
-    // Pattern: {isAnonymous ? 'HESABINI KAYDET' : 'GİRİŞ YAP'}
-    const hasConditionalText = /\{isAnonymous\s*\?\s*['"]HESABINI KAYDET['"]\s*:\s*['"]GİRİŞ YAP['"]\}/m.test(homeScreenCode);
-    expect(hasConditionalText).toBe(true);
+    // Check for SAVE button text in the code
+    const hasSave = /['"]SAVE['"]/m.test(authButtonCode);
+    expect(hasSave).toBe(true);
   });
 });

@@ -1,0 +1,279 @@
+/**
+ * BottomNavigation CSS Module
+ * 
+ * Provides responsive styling for the bottom navigation component with:
+ * - CSS Grid layout for 4 and 5 button configurations
+ * - Responsive breakpoints for mobile devices
+ * - Glass effect with backdrop-filter
+ * - Safe area insets support
+ * - Smooth transitions for state changes
+ * - Performance optimization with will-change property
+ * 
+ * Performance Strategy:
+ * - will-change: transform, opacity is applied to animated elements
+ * - Removed after animation completes (via .animationComplete class) to save memory
+ * - Automatically disabled when prefers-reduced-motion is active
+ * 
+ * Validates: Requirements 1.2, 1.5, 3.3, 4.1, 4.2, 4.5
+ */
+
+/* Main bottom navigation container */
+.bottomNavigation {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px;
+  
+  /* Safe area insets support for iOS notch and Android gesture bar */
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  
+  /* Glass effect styling */
+  background: rgba(10, 14, 26, 0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px); /* Safari support */
+  
+  border-top: 1px solid rgba(0, 212, 255, 0.1);
+  z-index: 1000;
+  
+  /* Smooth transitions for layout changes */
+  transition: all 200ms ease-in-out;
+}
+
+/* Grid layout for 5 buttons (with auth button) */
+.bottomNavigation[data-button-count="5"] {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+/* Grid layout for 4 buttons (without auth button) */
+.bottomNavigation[data-button-count="4"] {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* Responsive breakpoint: Very small mobile devices (320px) */
+@media (max-width: 320px) {
+  .bottomNavigation {
+    gap: 4px;
+    padding: 8px 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Responsive breakpoint: Small mobile devices (375px) */
+@media (min-width: 321px) and (max-width: 375px) {
+  .bottomNavigation {
+    gap: 6px;
+    padding: 10px 14px;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Responsive breakpoint: Standard mobile devices (768px) */
+@media (min-width: 376px) and (max-width: 768px) {
+  .bottomNavigation {
+    gap: 8px;
+    padding: 12px 16px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Responsive breakpoint: Tablet and larger */
+@media (min-width: 769px) {
+  .bottomNavigation {
+    gap: 12px;
+    padding: 16px 24px;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Button base styles */
+.navButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  
+  /* Minimum touch target size */
+  min-width: 44px;
+  min-height: 44px;
+  
+  padding: 8px 4px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  
+  /* Smooth transitions for all state changes */
+  transition: all 200ms ease-in-out;
+  
+  /* Prevent text selection on touch */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  
+  /* Performance optimization: hint browser about transform animations */
+  will-change: transform;
+}
+
+/* Button hover state (desktop) */
+@media (hover: hover) {
+  .navButton:hover {
+    background: rgba(0, 212, 255, 0.1);
+    transform: translateY(-2px);
+  }
+}
+
+/* Button active/pressed state */
+.navButton:active {
+  background: rgba(0, 212, 255, 0.2);
+  transform: scale(0.95);
+}
+
+/* Active button styling */
+.navButton[data-active="true"] {
+  background: rgba(0, 212, 255, 0.15);
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+}
+
+/* Active button hover state */
+@media (hover: hover) {
+  .navButton[data-active="true"]:hover {
+    background: rgba(0, 212, 255, 0.25);
+    box-shadow: 0 0 24px rgba(0, 212, 255, 0.4);
+  }
+}
+
+/* Button icon styling */
+.navButtonIcon {
+  font-size: 20px;
+  transition: all 200ms ease-in-out;
+}
+
+/* Inactive button icon color */
+.navButton:not([data-active="true"]) .navButtonIcon {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Active button icon color */
+.navButton[data-active="true"] .navButtonIcon {
+  color: #00d4ff;
+  filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.6));
+}
+
+/* Button label styling */
+.navButtonLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 200ms ease-in-out;
+}
+
+/* Inactive button label color */
+.navButton:not([data-active="true"]) .navButtonLabel {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Active button label color */
+.navButton[data-active="true"] .navButtonLabel {
+  color: #00d4ff;
+}
+
+/* Hide labels on very small screens */
+@media (max-width: 320px) {
+  .navButtonLabel {
+    display: none;
+  }
+  
+  .navButton {
+    padding: 6px 4px;
+  }
+  
+  .navButtonIcon {
+    font-size: 18px;
+  }
+}
+
+/* Auth button variant (special styling) */
+.authButton {
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(138, 43, 226, 0.2));
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  /* Performance optimization for auth button animations */
+  will-change: transform, opacity;
+}
+
+/* Auth button hover state */
+@media (hover: hover) {
+  .authButton:hover {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.3), rgba(138, 43, 226, 0.3));
+    border-color: rgba(0, 212, 255, 0.5);
+    transform: translateY(-2px);
+  }
+}
+
+/* Auth button active state */
+.authButton:active {
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.4), rgba(138, 43, 226, 0.4));
+  transform: scale(0.95);
+}
+
+/* Loading skeleton state */
+.navButton[data-loading="true"] {
+  pointer-events: none;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Disabled state */
+.navButton:disabled {
+  pointer-events: none;
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Focus visible state for keyboard navigation */
+.navButton:focus-visible {
+  outline: 2px solid #00d4ff;
+  outline-offset: 2px;
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .bottomNavigation,
+  .navButton,
+  .navButtonIcon,
+  .navButtonLabel {
+    transition: none;
+  }
+  
+  .navButton:hover {
+    transform: none;
+  }
+  
+  .navButton:active {
+    transform: none;
+  }
+  
+  /* Remove will-change when motion is reduced */
+  .navButton,
+  .authButton,
+  .buttonWrapper {
+    will-change: auto;
+  }
+}
+
+/* Button wrapper for Framer Motion animations */
+.buttonWrapper {
+  /* Performance optimization for scale and opacity animations */
+  will-change: transform, opacity;
+}
+
+/* Remove will-change after animation completes to save memory */
+.buttonWrapper.animationComplete {
+  will-change: auto;
+}
