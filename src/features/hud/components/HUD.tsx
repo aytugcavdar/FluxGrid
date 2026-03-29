@@ -8,8 +8,6 @@ import { GameMode, AppState } from '@shared/types';
 import { getMuted, toggleMute, playClick, playSkill } from '../../../utils/audio';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MiniEventIndicators } from './MiniEventIndicators';
-import { TierDisplay } from './TierDisplay';
 
 const EVENT_CONFIG: Record<'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID', { label: string; color: string; bg: string }> = {
     ICE_STORM: { label: 'Buz Fırtınası', color: '#185FA5', bg: 'rgba(56,138,221,0.12)' },
@@ -25,8 +23,7 @@ export const HUD: React.FC = () => {
         score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive,
         gameMode, timeLeft, setAppState,
         zenSessionTime, zenBlocksPlaced, zenPaletteIndex,
-        activeEvent, eventMovesRemaining, timedBoostMovesLeft,
-        miniEventState, difficultyTier
+        activeEvent, eventMovesRemaining, timedBoostMovesLeft
     } = useGameStore();
     const colors = useThemeStore(state => state.getThemeColors());
     const [muted, setMuted] = useState(getMuted);
@@ -162,12 +159,6 @@ export const HUD: React.FC = () => {
                                     />
                                 </div>
                                 <span style={{ fontSize: 9, color: colors.textTertiary }}>{Math.floor(flux)}%</span>
-                                {gameMode === GameMode.ENDLESS && (
-                                    <>
-                                        <MiniEventIndicators activeEvents={miniEventState.activeEvents} isMobile={true} />
-                                        <TierDisplay tier={difficultyTier} isMobile={true} />
-                                    </>
-                                )}
                             </div>
                         ) : (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -469,16 +460,6 @@ export const HUD: React.FC = () => {
                         />
                     </div>
                 </div>
-
-                {/* Tier Display - Desktop (ENDLESS mode only) */}
-                {gameMode === GameMode.ENDLESS && (
-                    <TierDisplay tier={difficultyTier} isMobile={false} />
-                )}
-
-                {/* Mini-Event Indicators - Desktop */}
-                {gameMode === GameMode.ENDLESS && (
-                    <MiniEventIndicators activeEvents={miniEventState.activeEvents} isMobile={false} />
-                )}
 
                 {/* Event Duration Display - Desktop */}
                 {activeEvent && (

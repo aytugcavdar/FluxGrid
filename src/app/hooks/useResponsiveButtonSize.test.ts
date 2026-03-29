@@ -206,12 +206,12 @@ describe('useResponsiveButtonSize', () => {
     // Size should still be 44x44px (debounce hasn't completed)
     expect(result.current).toEqual({ width: 44, height: 44 });
 
-    // Wait for debounce to complete
+    // Wait for debounce to complete (300ms + RAF time)
     await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 250));
+      await new Promise(resolve => setTimeout(resolve, 350));
     });
 
-    // Now size should be updated to 40x40px (last resize event)
+    // Now size should be updated to 40x40px (last resize event at 300px)
     expect(result.current).toEqual({ width: 40, height: 40 });
   });
 
