@@ -1,8 +1,24 @@
 import '../i18n';
 import './index.css';
+import './newui.css'; // New UI styles
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import { App } from './App'; // New UI for menu
+import AppWithErrorBoundary from './GameApp'; // Old App for game
+import { useGameStore } from '../features/game/store/gameStore';
+import { AppState } from '@shared/types';
+
+// Root component that switches between menu and game
+const RootApp: React.FC = () => {
+  const appState = useGameStore(state => state.appState);
+  
+  // Show game screen when in GAME state, otherwise show menu
+  if (appState === AppState.GAME) {
+    return <AppWithErrorBoundary />;
+  }
+  
+  return <App />;
+};
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -12,7 +28,7 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <RootApp />
   </React.StrictMode>
 );
 

@@ -30,6 +30,14 @@ interface ThemeColors {
   
   // Piece colors
   pieceColors: string[];
+  
+  // New UI Redesign colors
+  screenBackground: string;
+  cardBackgroundTransparent: string;
+  cardBorderTransparent: string;
+  accentPrimary: string; // Blue for navigation
+  accentSonsuz: string;  // Purple for Endless mode
+  accentTimed: string;   // Orange for Timed mode
 }
 
 const THEMES: Record<ThemeType, ThemeColors> = {
@@ -49,7 +57,14 @@ const THEMES: Record<ThemeType, ThemeColors> = {
     modalOverlay: 'rgba(0,0,0,0.8)',
     cardBackground: '#1f2937',
     cardBorder: 'rgba(255,255,255,0.08)',
-    pieceColors: ['#f59e0b', '#3b82f6', '#a78bfa', '#10b981', '#f472b6', '#6366f1']
+    pieceColors: ['#f59e0b', '#3b82f6', '#a78bfa', '#10b981', '#f472b6', '#6366f1'],
+    // New UI Redesign colors
+    screenBackground: '#0a0e1a',
+    cardBackgroundTransparent: 'rgba(255,255,255,0.03)',
+    cardBorderTransparent: 'rgba(255,255,255,0.05)',
+    accentPrimary: '#3b82f6',
+    accentSonsuz: '#a855f7',
+    accentTimed: '#f59e0b',
   },
   light: {
     gridBase: '#e5e7eb',
@@ -59,15 +74,22 @@ const THEMES: Record<ThemeType, ThemeColors> = {
     hudBackground: '#ffffff',
     hudBorder: 'rgba(0,0,0,0.08)',
     trayBackground: '#f1f5f9',
-    textPrimary: '#1e293b',
-    textSecondary: '#64748b',
-    textTertiary: '#94a3b8',
-    accentColor: '#3b82f6',
+    textPrimary: '#0f172a',
+    textSecondary: '#475569',
+    textTertiary: '#64748b',
+    accentColor: '#2563eb',
     surgeColor: '#d97706',
     modalOverlay: 'rgba(15,23,42,0.7)',
     cardBackground: '#ffffff',
     cardBorder: 'rgba(0,0,0,0.1)',
-    pieceColors: ['#f59e0b', '#3b82f6', '#a78bfa', '#10b981', '#f472b6', '#6366f1']
+    pieceColors: ['#f59e0b', '#3b82f6', '#a78bfa', '#10b981', '#f472b6', '#6366f1'],
+    // New UI Redesign colors
+    screenBackground: '#f0f4f8',
+    cardBackgroundTransparent: 'rgba(255,255,255,0.6)',
+    cardBorderTransparent: 'rgba(0,0,0,0.08)',
+    accentPrimary: '#2563eb',
+    accentSonsuz: '#7c3aed',
+    accentTimed: '#ea580c',
   },
   neon: {
     gridBase: '#1a0a2e',
@@ -85,7 +107,14 @@ const THEMES: Record<ThemeType, ThemeColors> = {
     modalOverlay: 'rgba(15,14,23,0.9)',
     cardBackground: '#1a0a2e',
     cardBorder: 'rgba(232,121,249,0.12)',
-    pieceColors: ['#e879f9', '#06b6d4', '#a78bfa', '#10b981', '#f472b6', '#818cf8']
+    pieceColors: ['#e879f9', '#06b6d4', '#a78bfa', '#10b981', '#f472b6', '#818cf8'],
+    // New UI Redesign colors
+    screenBackground: '#0f0e17',
+    cardBackgroundTransparent: 'rgba(232,121,249,0.05)',
+    cardBorderTransparent: 'rgba(232,121,249,0.08)',
+    accentPrimary: '#e879f9',
+    accentSonsuz: '#c084fc',
+    accentTimed: '#06b6d4',
   },
   ocean: {
     gridBase: '#0c1821',
@@ -103,7 +132,14 @@ const THEMES: Record<ThemeType, ThemeColors> = {
     modalOverlay: 'rgba(10,25,41,0.9)',
     cardBackground: '#0c1821',
     cardBorder: 'rgba(56,189,248,0.1)',
-    pieceColors: ['#38bdf8', '#0ea5e9', '#22d3ee', '#34d399', '#67e8f9', '#7dd3fc']
+    pieceColors: ['#38bdf8', '#0ea5e9', '#22d3ee', '#34d399', '#67e8f9', '#7dd3fc'],
+    // New UI Redesign colors
+    screenBackground: '#0a1929',
+    cardBackgroundTransparent: 'rgba(56,189,248,0.03)',
+    cardBorderTransparent: 'rgba(56,189,248,0.06)',
+    accentPrimary: '#38bdf8',
+    accentSonsuz: '#7dd3fc',
+    accentTimed: '#22d3ee',
   }
 };
 
@@ -112,6 +148,7 @@ interface ThemeStore {
   setTheme: (theme: ThemeType) => void;
   getThemeColors: () => ThemeColors;
   getPieceColors: () => string[];
+  getColors: () => ThemeColors; // Alias for getThemeColors
 }
 
 export const useThemeStore = create<ThemeStore>((set, get) => ({
@@ -128,5 +165,9 @@ export const useThemeStore = create<ThemeStore>((set, get) => ({
   
   getPieceColors: () => {
     return THEMES[get().currentTheme].pieceColors;
-  }
+  },
+  
+  getColors: () => {
+    return THEMES[get().currentTheme];
+  },
 }));

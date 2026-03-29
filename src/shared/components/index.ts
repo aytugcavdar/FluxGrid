@@ -1,1 +1,9 @@
 export { shouldShowTutorial } from './Tutorial';
+
+// UI Redesign Components
+export { StatCard } from './StatCard';
+export { ProgressBar } from './ProgressBar';
+export { AchievementCard } from './AchievementCard';
+export { ThemeCard } from './ThemeCard';
+export { ToggleSwitch } from './ToggleSwitch';
+export { PerformanceCard } from './PerformanceCard';
