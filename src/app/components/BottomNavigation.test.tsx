@@ -58,16 +58,15 @@ describe('BottomNavigation', () => {
 
       const buttons = Array.from(container.querySelectorAll('button'));
       
-      // Expected order: Dashboard, Quests, Auth (login), Rank, Profile
-      expect(buttons.length).toBe(5);
+      // Expected order: Dashboard, Quests, Rank, Profile (no auth button in local-first)
+      expect(buttons.length).toBe(4);
       
       // Verify buttons are in DOM order (which determines tab order)
       const labels = buttons.map(btn => btn.getAttribute('aria-label'));
       expect(labels[0]).toContain('HOME');
       expect(labels[1]).toContain('BATTLE');
-      expect(labels[2]).toContain('SAVE'); // Auth button
-      expect(labels[3]).toContain('RANK');
-      expect(labels[4]).toContain('PROFILE');
+      expect(labels[2]).toContain('RANK');
+      expect(labels[3]).toContain('PROFILE');
     });
 
     it('should support Enter key navigation on all buttons', async () => {
@@ -148,18 +147,6 @@ describe('BottomNavigation', () => {
       expect(screen.getByLabelText(/PROFILE navigation button/i)).toBeTruthy();
     });
 
-    it('should render auth button when user is not authenticated', () => {
-      render(
-        <BottomNavigation
-          onOpenProfile={() => {}}
-          onOpenLeaderboard={() => {}}
-          activeTab="dashboard"
-        />
-      );
-
-      expect(screen.getByLabelText(/SAVE navigation button/i)).toBeTruthy();
-    });
-
     it('should apply correct data-button-count attribute', () => {
       const { container } = render(
         <BottomNavigation
@@ -170,7 +157,7 @@ describe('BottomNavigation', () => {
       );
 
       const navigationContainer = container.querySelector('[data-button-count]');
-      expect(navigationContainer?.getAttribute('data-button-count')).toBe('5');
+      expect(navigationContainer?.getAttribute('data-button-count')).toBe('4');
     });
   });
 

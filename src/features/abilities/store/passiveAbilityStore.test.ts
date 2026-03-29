@@ -1,18 +1,31 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { usePassiveAbilityStore } from './passiveAbilityStore';
 import { PassiveAbilityType } from '../types';
+import { LocalStorageService } from '../../../services/local/localStorageService';
 
-describe('passiveAbilityStore - initializeFromFirestore', () => {
+// Mock LocalStorageService
+vi.mock('../../../services/local/localStorageService', () => ({
+  LocalStorageService: {
+    loadPassiveAbilities: vi.fn(),
+    savePassiveAbilities: vi.fn(),
+  },
+}));
+
+describe('passiveAbilityStore - initializePassives', () => {
   beforeEach(() => {
+    // Clear mocks
+    vi.clearAllMocks();
+    
     // Reset store before each test
     const store = usePassiveAbilityStore.getState();
-    store.initializeFromFirestore([], [], 0);
+    
+    // Mock empty localStorage
+    vi.mocked(LocalStorageService.loadPassiveAbilities).mockReturnValue(null);
+    
+    store.initializePassives();
   });
 
   it('should initialize all passive abilities from PASSIVE_DEFINITIONS', () => {
-    const store = usePassiveAbilityStore.getState();
-    store.initializeFromFirestore([], [], 0);
-
     const { passiveAbilities } = usePassiveAbilityStore.getState();
 
     // Should have all 5 passive abilities
@@ -24,10 +37,16 @@ describe('passiveAbilityStore - initializeFromFirestore', () => {
     expect(passiveAbilities.has(PassiveAbilityType.ICE_BREAKER)).toBe(true);
   });
 
-  it('should unlock abilities based on maxLevel', () => {
+  it('should load abilities from localStorage when available', () => {
+    // Mock localStorage with saved data
+    vi.mocked(LocalStorageService.loadPassiveAbilities).mockReturnValue({
+      unlocked: [PassiveAbilityType.FLUX_BOOST, PassiveAbilityType.SCORE_MULTIPLIER],
+      equipped: [PassiveAbilityType.FLUX_BOOST],
+      maxLevel: 0,
+    });
+
     const store = usePassiveAbilityStore.getState();
-    // maxLevel 10 should unlock FLUX_BOOST (level 3) and SCORE_MULTIPLIER (level 8)
-    store.initializeFromFirestore([], [], 10);
+    store.initializePassives();
 
     const { passiveAbilities } = usePassiveAbilityStore.getState();
 
@@ -36,45 +55,22 @@ describe('passiveAbilityStore - initializeFromFirestore', () => {
     const luckyPieces = passiveAbilities.get(PassiveAbilityType.LUCKY_PIECES);
 
     expect(fluxBoost?.unlocked).toBe(true);
-    expect(scoreMultiplier?.unlocked).toBe(true);
-    expect(luckyPieces?.unlocked).toBe(false); // Requires level 15
-  });
-
-  it('should unlock abilities from unlocks array', () => {
-    const store = usePassiveAbilityStore.getState();
-    // Explicitly unlock LUCKY_PIECES even though maxLevel is 0
-    store.initializeFromFirestore([PassiveAbilityType.LUCKY_PIECES], [], 0);
-
-    const { passiveAbilities } = usePassiveAbilityStore.getState();
-
-    const luckyPieces = passiveAbilities.get(PassiveAbilityType.LUCKY_PIECES);
-    expect(luckyPieces?.unlocked).toBe(true);
-  });
-
-  it('should mark abilities as equipped from equipped array', () => {
-    const store = usePassiveAbilityStore.getState();
-    store.initializeFromFirestore(
-      [PassiveAbilityType.FLUX_BOOST, PassiveAbilityType.SCORE_MULTIPLIER],
-      [PassiveAbilityType.FLUX_BOOST],
-      10
-    );
-
-    const { passiveAbilities } = usePassiveAbilityStore.getState();
-
-    const fluxBoost = passiveAbilities.get(PassiveAbilityType.FLUX_BOOST);
-    const scoreMultiplier = passiveAbilities.get(PassiveAbilityType.SCORE_MULTIPLIER);
-
     expect(fluxBoost?.equipped).toBe(true);
+    expect(scoreMultiplier?.unlocked).toBe(true);
     expect(scoreMultiplier?.equipped).toBe(false);
+    expect(luckyPieces?.unlocked).toBe(false);
   });
 
-  it('should restore equipped slots from Firestore data', () => {
+  it('should restore equipped slots from localStorage', () => {
+    // Mock localStorage with equipped abilities
+    vi.mocked(LocalStorageService.loadPassiveAbilities).mockReturnValue({
+      unlocked: [PassiveAbilityType.FLUX_BOOST, PassiveAbilityType.SCORE_MULTIPLIER],
+      equipped: [PassiveAbilityType.FLUX_BOOST, PassiveAbilityType.SCORE_MULTIPLIER],
+      maxLevel: 0,
+    });
+
     const store = usePassiveAbilityStore.getState();
-    const equipped = [
-      PassiveAbilityType.FLUX_BOOST,
-      PassiveAbilityType.SCORE_MULTIPLIER,
-    ];
-    store.initializeFromFirestore(equipped, equipped, 10);
+    store.initializePassives();
 
     const { equippedSlots } = usePassiveAbilityStore.getState();
 
@@ -83,10 +79,8 @@ describe('passiveAbilityStore - initializeFromFirestore', () => {
     expect(equippedSlots[2]).toBe(null);
   });
 
-  it('should handle empty Firestore data', () => {
-    const store = usePassiveAbilityStore.getState();
-    store.initializeFromFirestore([], [], 0);
-
+  it('should handle empty localStorage', () => {
+    // Already mocked as null in beforeEach
     const { passiveAbilities, equippedSlots } = usePassiveAbilityStore.getState();
 
     // All abilities should be locked
@@ -99,24 +93,7 @@ describe('passiveAbilityStore - initializeFromFirestore', () => {
     expect(equippedSlots).toEqual([null, null, null]);
   });
 
-  it('should handle maxLevel unlocking multiple abilities', () => {
-    const store = usePassiveAbilityStore.getState();
-    // maxLevel 30 should unlock all abilities up to level 25
-    store.initializeFromFirestore([], [], 30);
-
-    const { passiveAbilities } = usePassiveAbilityStore.getState();
-
-    expect(passiveAbilities.get(PassiveAbilityType.FLUX_BOOST)?.unlocked).toBe(true);
-    expect(passiveAbilities.get(PassiveAbilityType.SCORE_MULTIPLIER)?.unlocked).toBe(true);
-    expect(passiveAbilities.get(PassiveAbilityType.LUCKY_PIECES)?.unlocked).toBe(true);
-    expect(passiveAbilities.get(PassiveAbilityType.COMBO_MASTER)?.unlocked).toBe(true);
-    expect(passiveAbilities.get(PassiveAbilityType.ICE_BREAKER)?.unlocked).toBe(false); // Requires level 35
-  });
-
   it('should preserve ability effects from PASSIVE_DEFINITIONS', () => {
-    const store = usePassiveAbilityStore.getState();
-    store.initializeFromFirestore([], [], 10);
-
     const { passiveAbilities } = usePassiveAbilityStore.getState();
 
     const fluxBoost = passiveAbilities.get(PassiveAbilityType.FLUX_BOOST);

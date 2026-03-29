@@ -30,6 +30,23 @@ export interface GameStats {
   iceBroken: number;
   gamesPlayed: number;
   skillUses: { [key: string]: number };
+  
+  // Endless mode stats
+  endlessGamesPlayed?: number;
+  endlessHighScore?: number;
+  endlessMaxCombo?: number;
+  endlessTotalLines?: number;
+  endlessMaxTier?: number;
+  endlessEventCount?: number;
+  
+  // Timed mode stats
+  timedGamesPlayed?: number;
+  timedHighScore?: number;
+  timedMaxCombo?: number;
+  timedTotalLines?: number;
+  timedMaxDuration?: number;
+  timedChronoBonus?: number;
+  timedSprintBonusTotal?: number;
 }
 
 // Touch & Gesture Types

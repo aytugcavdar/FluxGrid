@@ -1,25 +1,18 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { useAuthStore } from '@features/auth/store/authStore';
 import { usePassiveAbilityStore } from '@features/abilities/store/passiveAbilityStore';
-import { syncScore } from '../../../services/firebase/syncManager';
 
 /**
- * Hook to sync game data to Firestore when game ends
+ * Hook to sync game data to localStorage when game ends
  * 
- * This hook watches the isGameOver state and triggers Firestore sync
+ * This hook watches the isGameOver state and triggers localStorage sync
  * when the game ends, including score, stats, and abilities data.
  * 
- * IMPORTANT: Only syncs if user is logged in. If not logged in, scores
- * are only saved to localStorage.
- * 
  * Offline Support:
- * - When online: Syncs directly to Firestore
- * - When offline: Adds to pendingWrites queue for later sync
+ * - All data is saved to localStorage immediately
  */
 export function useGameSync() {
   const { isGameOver, score, gameMode, stats, maxLevelReached } = useGameStore();
-  const { user } = useAuthStore();
   const { passiveAbilities, equippedSlots } = usePassiveAbilityStore();
   
   // Track game start time to calculate session duration
@@ -40,76 +33,14 @@ export function useGameSync() {
       return;
     }
 
-    // If no user, skip Firestore sync (localStorage only)
-    if (!user) {
-      console.log('useGameSync: No user logged in, skipping Firestore sync');
-      return;
-    }
-
     const syncData = async () => {
       try {
-        // Build passiveUnlocks array from unlocked abilities
-        const passiveUnlocks: string[] = [];
-        passiveAbilities.forEach((ability, type) => {
-          if (ability.unlocked) {
-            passiveUnlocks.push(type);
-          }
-        });
-
-        // Build passiveEquipped array from equipped slots
-        const passiveEquipped = equippedSlots.filter(slot => slot !== null) as string[];
-
-        // Prepare abilities data
-        const abilitiesData = {
-          passiveUnlocks,
-          passiveEquipped,
-          maxUnlockedLevel: maxLevelReached
-        };
-
-        // Calculate session duration in seconds
-        const sessionDurationSecs = Math.floor((Date.now() - gameStartTimeRef.current) / 1000);
-        
-        console.log('useGameSync: Syncing game data', {
-          score,
-          gameMode,
-          sessionDurationSecs,
-          user: user.uid
-        });
-
-        // Check if online or offline
-        if (navigator.onLine) {
-          // Online: Sync directly to Firestore
-          await syncScore(
-            user.uid,
-            gameMode,
-            score,
-            user.displayName || 'Oyuncu',
-            user.photoURL || null,
-            sessionDurationSecs,
-            abilitiesData,
-            stats // Pass stats to be synced
-          );
-          console.log('useGameSync: Successfully synced game data');
-        } else {
-          // Offline: Save to localStorage and add to pending writes queue
-          try {
-            localStorage.setItem('flux_highscores', JSON.stringify(useGameStore.getState().highScores));
-            localStorage.setItem('flux_stats', JSON.stringify(stats));
-          } catch (error) {
-            console.error('useGameSync: Failed to save to localStorage:', error);
-          }
-          
-          const { addToPendingWrites } = await import('../../../services/firebase/syncManager');
-          await addToPendingWrites(user.uid, 'score', {
-            mode: gameMode,
-            score,
-            displayName: user.displayName || 'Oyuncu',
-            photoURL: user.photoURL || null,
-            sessionDurationSecs,
-            abilities: abilitiesData,
-            stats // Include stats in pending writes
-          });
-          console.log('useGameSync: Added to pending writes (offline)');
+        // Save to localStorage
+        try {
+          localStorage.setItem('flux_highscores', JSON.stringify(useGameStore.getState().highScores));
+          localStorage.setItem('flux_stats', JSON.stringify(stats));
+        } catch (error) {
+          console.error('useGameSync: Failed to save to localStorage:', error);
         }
       } catch (error) {
         console.error('useGameSync: Failed to sync game data:', error);
@@ -117,7 +48,7 @@ export function useGameSync() {
     };
 
     syncData();
-  }, [isGameOver, user, score, gameMode, stats, maxLevelReached, passiveAbilities, equippedSlots]);
+  }, [isGameOver, score, gameMode, stats, maxLevelReached, passiveAbilities, equippedSlots]);
 
   return {};
 }

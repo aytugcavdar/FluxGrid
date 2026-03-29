@@ -1,11 +1,8 @@
 import React, { useMemo, useCallback, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { NavButton } from './NavButton';
-import { AuthButton } from './AuthButton';
-import { useAuthWithTimeout } from '../hooks/useAuthWithTimeout';
 import { useResponsiveButtonSize } from '../hooks/useResponsiveButtonSize';
 import { getSafeAreaInsets } from '@utils/responsive';
-import { useAuthStore } from '@features/auth/store/authStore';
 import { GameMode } from '@shared/types';
 import styles from './BottomNavigation.module.css';
 
@@ -18,13 +15,10 @@ export interface BottomNavigationProps {
 /**
  * BottomNavigation Component
  * 
- * Main bottom navigation component that integrates NavButton and AuthButton components
- * with responsive layout and animations.
+ * Main bottom navigation component with responsive layout and animations.
  * 
  * Features:
  * - Responsive CSS Grid layout
- * - Conditional auth button rendering
- * - Loading state management with timeout
  * - Safe area insets support
  * - Framer Motion animations
  * 
@@ -35,20 +29,14 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   onOpenLeaderboard,
   activeTab = 'dashboard',
 }) => {
-  // Auth state with timeout to prevent flash effect
-  const { user, isAnonymous, isLoading } = useAuthWithTimeout(1000);
-  
   // Responsive button sizing
   const buttonSize = useResponsiveButtonSize();
   
   // Get safe area insets for device compatibility
   const safeAreaInsets = useMemo(() => getSafeAreaInsets(), []);
   
-  // Calculate if auth button should be visible
-  const isAuthButtonVisible = !user || isAnonymous;
-  
-  // Calculate button count for grid layout
-  const buttonCount = isAuthButtonVisible ? 5 : 4;
+  // Fixed button count (no auth button)
+  const buttonCount = 4;
   
   // Track animation completion to remove will-change
   const [animationComplete, setAnimationComplete] = useState(false);
@@ -60,15 +48,6 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
     }, 500); // 300ms animation + 200ms buffer
     
     return () => clearTimeout(timer);
-  }, []);
-  
-  // Auth button handlers - memoized to prevent re-creation on every render
-  const handleLogin = useCallback(() => {
-    useAuthStore.getState().signInWithGoogle();
-  }, []);
-  
-  const handleSaveAccount = useCallback(() => {
-    useAuthStore.getState().linkWithGoogle();
   }, []);
   
   // Memoized empty handler for dashboard and quests (not yet implemented)
@@ -181,7 +160,6 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
           label={buttonConfigs[0].label}
           isActive={buttonConfigs[0].isActive}
           onClick={buttonConfigs[0].onClick}
-          isLoading={isLoading}
         />
       </motion.div>
       
@@ -195,26 +173,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
           label={buttonConfigs[1].label}
           isActive={buttonConfigs[1].isActive}
           onClick={buttonConfigs[1].onClick}
-          isLoading={isLoading}
         />
       </motion.div>
-      
-      {/* Auth Button (conditional) */}
-      {isAuthButtonVisible && (
-        <motion.div 
-          variants={buttonVariants}
-          className={`${styles.buttonWrapper} ${animationComplete ? styles.animationComplete : ''}`}
-        >
-          <AuthButton
-            user={user}
-            isAnonymous={isAnonymous}
-            isLoading={isLoading}
-            onLogin={handleLogin}
-            onSaveAccount={handleSaveAccount}
-            prefersReducedMotion={prefersReducedMotion}
-          />
-        </motion.div>
-      )}
       
       {/* Rank Button */}
       <motion.div 
@@ -226,7 +186,6 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
           label={buttonConfigs[2].label}
           isActive={buttonConfigs[2].isActive}
           onClick={buttonConfigs[2].onClick}
-          isLoading={isLoading}
         />
       </motion.div>
       
@@ -240,7 +199,6 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
           label={buttonConfigs[3].label}
           isActive={buttonConfigs[3].isActive}
           onClick={buttonConfigs[3].onClick}
-          isLoading={isLoading}
         />
       </motion.div>
     </motion.div>

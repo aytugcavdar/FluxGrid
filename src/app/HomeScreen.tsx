@@ -1,16 +1,12 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../features/game/store/gameStore';
-import { useAuthStore } from '../features/auth/store/authStore';
-import { useLeaderboardStore } from '../features/leaderboard/store/leaderboardStore';
 import { GameMode } from '@shared/types';
 import { playClick } from '@utils/audio';
 import { getDailyPlayedToday, getStreak } from '@utils/streakManager';
 
 interface HomeScreenProps {
-  onOpenProfile: () => void;
   onOpenThemeSelector: () => void;
-  onOpenLeaderboard: (mode: GameMode) => void;
 }
 
 const MODE_INFO: Record<GameMode, { label: string; desc: string; icon: string; color: string }> = {
@@ -23,45 +19,16 @@ const MODE_INFO: Record<GameMode, { label: string; desc: string; icon: string; c
 const WEEK_DAYS = ['P', 'S', 'Ç', 'P', 'C', 'C', 'B'];
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
-  onOpenProfile,
   onOpenThemeSelector,
-  onOpenLeaderboard,
 }) => {
   const { initGame, highScores } = useGameStore();
-  const { userRanks, userPercentiles, isLoading } = useLeaderboardStore();
   const [selectedMode, setSelectedMode] = useState<GameMode>(GameMode.ENDLESS);
-  const user = useAuthStore(state => state.user);
-  const isAnonymous = useAuthStore(state => state.isAnonymous);
-  const authError = useAuthStore(state => state.error);
-  const linkWithGoogle = useAuthStore(state => state.linkWithGoogle);
-  const signInWithGoogle = useAuthStore(state => state.signInWithGoogle);
-
-  // BUG FIX 1: fetchUserRank dependency'den çıkarıldı
-  useEffect(() => {
-    if (user?.uid) {
-      useLeaderboardStore.getState().fetchUserRank(user.uid, selectedMode);
-    }
-  }, [user?.uid, selectedMode]);
 
   // Get best score for selected mode
   const selectedModeBestScore = useMemo(() => {
     const val = highScores[selectedMode];
     return typeof val === 'number' && val >= 0 ? val : 0;
   }, [selectedMode, highScores]);
-
-  // BUG FIX 3: isLoading state eklendi
-  const userRank = userRanks.get(selectedMode);
-  const rankDisplay = isLoading 
-    ? '...' 
-    : userRank 
-      ? (typeof userRank === 'number' ? `#${userRank.toLocaleString()}` : userRank)
-      : '—';
-
-  // NEW FEATURE 3: Percentile display
-  const pct = userPercentiles.get(selectedMode);
-  const percentileDisplay = (!isAnonymous && pct != null)
-    ? `Üst %${Math.round(pct)}`
-    : null;
 
   // NEW FEATURE 1: Daily puzzle state
   const dailyPlayedToday = getDailyPlayedToday();
@@ -240,12 +207,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             {selectedModeInfo.desc}
           </div>
 
-          {/* Stats Row with Dividers */}
+          {/* Stats Row */}
           <div style={{ 
             display: 'flex', 
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '16px',
             marginBottom: '20px',
           }}>
             {/* High Score */}
@@ -267,68 +233,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 {selectedModeBestScore.toLocaleString()}
               </div>
             </div>
-
-            {/* Divider */}
-            {!isAnonymous && (
-              <div style={{
-                width: '1px',
-                height: '32px',
-                background: 'rgba(255,255,255,0.1)',
-              }} />
-            )}
-
-            {/* Rank (hide for anonymous) */}
-            {!isAnonymous && (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ 
-                  fontSize: '10px', 
-                  color: 'rgba(255,255,255,0.4)', 
-                  marginBottom: '4px', 
-                  textTransform: 'uppercase',
-                  fontWeight: 600,
-                }}>
-                  Sıralama
-                </div>
-                <div style={{
-                  fontSize: '20px',
-                  fontWeight: 700,
-                  color: '#00d4ff',
-                }}>
-                  {rankDisplay}
-                </div>
-              </div>
-            )}
-
-            {/* Divider */}
-            {!isAnonymous && percentileDisplay && (
-              <div style={{
-                width: '1px',
-                height: '32px',
-                background: 'rgba(255,255,255,0.1)',
-              }} />
-            )}
-
-            {/* NEW FEATURE 3: Percentile (only for authenticated users with data) */}
-            {!isAnonymous && percentileDisplay && (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ 
-                  fontSize: '10px', 
-                  color: 'rgba(255,255,255,0.4)', 
-                  marginBottom: '4px', 
-                  textTransform: 'uppercase',
-                  fontWeight: 600,
-                }}>
-                  Dilim
-                </div>
-                <div style={{
-                  fontSize: '20px',
-                  fontWeight: 700,
-                  color: '#10b981',
-                }}>
-                  {percentileDisplay}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Play Button */}
@@ -584,188 +488,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             })}
           </div>
         </motion.div>
-
-        {/* NEW FEATURE 4: ANONYMOUS USER BANNER */}
-        {isAnonymous && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.15 }}
-            onClick={() => { 
-              playClick(); 
-              if (isAnonymous) {
-                linkWithGoogle();
-              } else {
-                signInWithGoogle();
-              }
-            }}
-            style={{
-              background: 'rgba(59,130,246,0.06)',
-              border: '0.5px solid rgba(59,130,246,0.2)',
-              borderRadius: '12px',
-              padding: '12px',
-              marginBottom: '16px',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-            }}
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-          >
-            {/* Icon Box */}
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              background: 'rgba(59,130,246,0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-            </div>
-
-            {/* Text */}
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                color: '#93c5fd',
-                marginBottom: '2px',
-              }}>
-                Hesabını kaydet
-              </div>
-              <div style={{
-                fontSize: '10px',
-                fontWeight: 500,
-                color: 'rgba(255,255,255,0.35)',
-              }}>
-                Skorlarını kaybetme, sıralamaya gir
-              </div>
-              {/* BUG FIX 4: Show auth error if exists */}
-              {authError && (
-                <div style={{ 
-                  fontSize: '9px', 
-                  color: '#ef4444', 
-                  marginTop: '4px',
-                }}>
-                  {authError}
-                </div>
-              )}
-            </div>
-
-            {/* Chevron */}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2">
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </motion.div>
-        )}
         </div>
-      </div>
-
-      {/* BOTTOM NAVIGATION (fixed at bottom) */}
-      <div style={{
-        background: 'rgba(10,14,26,0.98)',
-        borderTop: '0.5px solid rgba(0,212,255,0.08)',
-        padding: '12px 8px 16px',
-        display: 'flex',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-      }}>
-        {/* Oyun Tab (Active) */}
-        <button
-          onClick={() => playClick()}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '4px',
-            padding: '4px 8px',
-            borderRadius: '8px',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" strokeWidth="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-            <path d="M3 9h18M9 21V9" />
-          </svg>
-          <span style={{
-            fontSize: '9px',
-            fontWeight: 700,
-            color: '#00d4ff',
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-          }}>
-            OYUN
-          </span>
-        </button>
-
-        {/* Sıralama Tab (Inactive) */}
-        <button
-          onClick={() => { playClick(); onOpenLeaderboard(selectedMode); }}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '4px',
-            padding: '4px 8px',
-            borderRadius: '8px',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2">
-            <path d="M16 16v5M12 14v7M8 12v9M4 6h16M4 10h16" />
-          </svg>
-          <span style={{
-            fontSize: '9px',
-            fontWeight: 700,
-            color: 'rgba(255,255,255,0.35)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-          }}>
-            SIRALAMA
-          </span>
-        </button>
-
-        {/* Profil Tab (Inactive) */}
-        <button
-          onClick={() => { playClick(); onOpenProfile(); }}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '4px',
-            padding: '4px 8px',
-            borderRadius: '8px',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-          <span style={{
-            fontSize: '9px',
-            fontWeight: 700,
-            color: 'rgba(255,255,255,0.35)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-          }}>
-            PROFİL
-          </span>
-        </button>
       </div>
     </div>
   );

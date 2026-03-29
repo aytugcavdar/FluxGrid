@@ -4,24 +4,18 @@ import { useGameStore } from '../features/game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
 import { useAbilityStore } from '../features/abilities/store/abilityStore';
 import { usePassiveAbilityStore } from '../features/abilities/store/passiveAbilityStore';
-import { useProfileStore } from '../features/profile/store/profileStore';
 import { DragOverlay } from '@features/hud';
 import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
-import { ProfileView } from '../features/profile/components/ProfileView';
-import { LeaderboardView } from '../features/leaderboard/components';
 import { HomeScreen } from './HomeScreen';
 import { GameOverModal, GameScreen } from './components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { unlockAudio, playGameOver, playClick, playChronoBonus } from '@utils/audio';
 import { generateShareText, shareResult } from '@utils/shareResult';
-import { startHeartbeat, stopHeartbeat } from '@utils/heartbeat';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { AppState, GameMode } from '@shared/types';
 import { X } from 'lucide-react';
 import { useCountUp } from '@shared/hooks/useCountUp';
-import { initializeFirebase } from '../services/firebase/config';
-import { useAuthStore } from '../features/auth/store/authStore';
 import { useBrowserHistory } from './hooks/useBrowserHistory';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { useGameSync } from '../features/game/hooks/useGameSync';
@@ -54,14 +48,11 @@ const App: React.FC = () => {
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
     dailyClearHistory, highScore, stats, highScores,
     activeSkill, activateSkill,
-    maxCombo, chronoBonus, timedBoostMovesLeft, finalSprintBonus
+    maxCombo, chronoBonus, timedBoostMovesLeft, finalSprintBonus, difficultyTier
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors } = useThemeStore();
   const colors = getThemeColors();
   const [showAbilities, setShowAbilities] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [leaderboardMode, setLeaderboardMode] = useState<GameMode>(GameMode.ENDLESS);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [prevGameOver, setPrevGameOver] = useState(false);
   const [scorePopups, setScorePopups] = useState<ScorePopup[]>([]);
@@ -113,31 +104,19 @@ const App: React.FC = () => {
 
   // Initialize stores on mount
   useEffect(() => {
+    // Run migration from Firebase to localStorage (one-time)
+    import('../utils/migration').then(({ migrateFromFirebase }) => {
+      const result = migrateFromFirebase();
+      console.log('Migration result:', result);
+    });
+
     // Clean up deprecated localStorage keys
     import('../utils/cleanupLocalStorage').then(({ cleanupDeprecatedKeys }) => {
       cleanupDeprecatedKeys();
     });
-
-    // Initialize Firebase
-    initializeFirebase();
-    
-    // Config kontrolü — initializeFirebase'den hemen sonra
-    import('../services/firebase/configService').then(({ getAppConfig, isMaintenanceMode }) => {
-      getAppConfig().then(config => {
-        if (isMaintenanceMode(config)) {
-          // Bakım modunu store veya state'e aktar
-          // Şimdilik console.warn yeterli, ileride UI eklenebilir
-          console.warn('App is in maintenance mode:', config?.maintenanceMessage);
-        }
-      });
-    });
-    
-    // Initialize auth
-    useAuthStore.getState().initAuth();
     
     useAbilityStore.getState().initializeAbilities();
     usePassiveAbilityStore.getState().initializePassives();
-    useProfileStore.getState().initializeProfile();
     
     // Babylon.js tamamen hazır olunca splash kapat
     // (initGame çağrılmadan önce)
@@ -145,34 +124,9 @@ const App: React.FC = () => {
       (window as any).splashComplete();
       delete (window as any).splashComplete;
     }
-
-    // Cleanup on unmount
-    return () => {
-      useAuthStore.getState().cleanup();
-    };
   }, []);
 
-  // Heartbeat management
-  useEffect(() => {
-    const { user } = useAuthStore.getState();
-    if (user) {
-      startHeartbeat(user.uid);
-    }
 
-    // Auth store değişikliklerini dinle
-    const unsub = useAuthStore.subscribe((state) => {
-      if (state.user) {
-        startHeartbeat(state.user.uid);
-      } else {
-        stopHeartbeat();
-      }
-    });
-
-    return () => {
-      stopHeartbeat();
-      unsub();
-    };
-  }, []);
 
   // Warn before closing/refreshing if game is in progress
   useEffect(() => {
@@ -439,9 +393,7 @@ const App: React.FC = () => {
       <AnimatePresence mode="wait">
         {appState === AppState.HOME && (
           <HomeScreen
-            onOpenProfile={() => setShowProfile(true)}
             onOpenThemeSelector={() => setShowThemeSelector(true)}
-            onOpenLeaderboard={(mode) => { setLeaderboardMode(mode); setShowLeaderboard(true); }}
           />
         )}
 
@@ -477,31 +429,6 @@ const App: React.FC = () => {
       <DragOverlay />
       <AnimatePresence>
         {showAbilities && <AbilityPanel onClose={() => setShowAbilities(false)} />}
-        {showProfile && <ProfileView onClose={() => setShowProfile(false)} onOpenLeaderboard={(mode) => { setShowProfile(false); setLeaderboardMode(mode); setShowLeaderboard(true); }} />}
-        {showLeaderboard && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[80] bg-gray-900 overflow-y-auto"
-          >
-            <div className="sticky top-0 bg-gray-900/80 backdrop-blur-md z-10 px-6 py-8 flex items-center justify-between border-b border-white/5">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => { playClick(); setShowLeaderboard(false); }}
-                  className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/60 hover:text-white"
-                >
-                  <X size={20} />
-                </button>
-                <div>
-                  <h1 className="text-xl font-black text-white tracking-tight italic uppercase">LİDERLİK TABLOSU</h1>
-                  <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">{leaderboardMode}</p>
-                </div>
-              </div>
-            </div>
-            <LeaderboardView mode={leaderboardMode} />
-          </motion.div>
-        )}
       </AnimatePresence>
 
       <AnimatePresence>
@@ -537,6 +464,7 @@ const App: React.FC = () => {
           chronoBonus={chronoBonus}
           finalSprintBonus={finalSprintBonus}
           stats={stats}
+          difficultyTier={difficultyTier}
           surgeWasUsed={surgeWasUsed}
           dailyClearHistory={dailyClearHistory}
           shareStatus={shareStatus}

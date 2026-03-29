@@ -21,6 +21,7 @@ interface GameOverModalProps {
   chronoBonus: number;
   finalSprintBonus: number;
   stats: any;
+  difficultyTier: number;
   surgeWasUsed: boolean;
   dailyClearHistory: boolean[][];
   shareStatus: 'idle' | 'copied' | 'shared';
@@ -60,6 +61,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   chronoBonus,
   finalSprintBonus,
   stats,
+  difficultyTier,
   surgeWasUsed,
   dailyClearHistory,
   shareStatus,
@@ -165,7 +167,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           </div>
         )}
 
-        {/* Stats Chips */}
+        {/* Stats Chips - Mode-Specific */}
         {stats && (
           <div className="flex gap-2 mb-4">
             {gameMode === GameMode.TIMED ? (
@@ -196,6 +198,27 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                     <div className="text-[10px] text-gray-500 uppercase">Sprint</div>
                   </div>
                 )}
+              </>
+            ) : gameMode === GameMode.ENDLESS ? (
+              <>
+                <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                  <div className="text-sm font-bold text-amber-400">
+                    {maxCombo > 0 ? `x${maxCombo}` : '--'}
+                  </div>
+                  <div className="text-[10px] text-gray-500 uppercase">Max Combo</div>
+                </div>
+                <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                  <div className="text-sm font-bold text-purple-400">
+                    {stats.linesCleared || 0}
+                  </div>
+                  <div className="text-[10px] text-gray-500 uppercase">Satır</div>
+                </div>
+                <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                  <div className="text-sm font-bold text-orange-400">
+                    T{difficultyTier}
+                  </div>
+                  <div className="text-[10px] text-gray-500 uppercase">Max Tier</div>
+                </div>
               </>
             ) : (
               <>

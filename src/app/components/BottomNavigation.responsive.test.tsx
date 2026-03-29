@@ -558,7 +558,7 @@ describe('BottomNavigation - Device and Screen Size Tests (Task 12.1)', () => {
         
         // Should have correct button count
         const buttonCount = navigation?.getAttribute('data-button-count');
-        expect(buttonCount).toBe('5'); // 5 buttons when auth button is visible
+        expect(buttonCount).toBe('4'); // 4 buttons in local-first (no auth button)
       });
     });
 
@@ -578,8 +578,8 @@ describe('BottomNavigation - Device and Screen Size Tests (Task 12.1)', () => {
 
         const navigation = container.querySelector('[data-button-count]') as HTMLElement;
         
-        // Should have grid-template-columns set to repeat(5, 1fr)
-        expect(navigation.style.gridTemplateColumns).toBe('repeat(5, 1fr)');
+        // Should have grid-template-columns set to repeat(4, 1fr)
+        expect(navigation.style.gridTemplateColumns).toBe('repeat(4, 1fr)');
       });
     });
   });

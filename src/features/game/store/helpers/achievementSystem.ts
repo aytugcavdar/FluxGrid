@@ -1,6 +1,4 @@
 import type { Achievement } from '../../types';
-import { syncAchievement } from '../../../../services/firebase/syncManager';
-import { useAuthStore } from '../../../auth/store/authStore';
 
 /**
  * Update achievements based on game progress
@@ -56,23 +54,12 @@ export function updateAchievements(
 }
 
 /**
- * Sync newly unlocked achievement to Firestore
+ * Sync newly unlocked achievement (no-op in local-first mode)
  */
 export function syncNewAchievement(
   previousAchievements: Achievement[],
   updatedAchievements: Achievement[]
 ): void {
-  const newUnlock = updatedAchievements.find((ach, i) => 
-    ach.unlocked && !previousAchievements[i].unlocked
-  );
-  
-  if (newUnlock) {
-    const user = useAuthStore.getState().user;
-    if (user) {
-      syncAchievement(user.uid, {
-        ...newUnlock,
-        unlockedAt: newUnlock.unlocked ? Date.now() : null,
-      }).catch(console.error);
-    }
-  }
+  // No-op: Firebase sync removed in local-first refactor
+  // Achievements are now stored locally only
 }

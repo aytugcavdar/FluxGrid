@@ -18,6 +18,7 @@ import { usePassiveAbilityStore } from '../../abilities/store/passiveAbilityStor
 import { createMiniEventState, checkMiniEvents, tickMiniEvents } from './helpers/miniEventSystem';
 import { calculateScore, calculateFluxGain } from './helpers/scoreCalculator';
 import { migrateSaveData, SaveData } from './helpers/migration';
+import { LocalStorageService } from '@services/local/localStorageService';
 
 export interface GameStore {
   grid: GridState;
@@ -107,13 +108,30 @@ const INITIAL_STATS: GameStats = {
   bombsExploded: 0,
   iceBroken: 0,
   gamesPlayed: 0,
-  skillUses: {}
+  skillUses: {},
+  
+  // Endless mode stats
+  endlessGamesPlayed: 0,
+  endlessHighScore: 0,
+  endlessMaxCombo: 0,
+  endlessTotalLines: 0,
+  endlessMaxTier: 0,
+  endlessEventCount: 0,
+  
+  // Timed mode stats
+  timedGamesPlayed: 0,
+  timedHighScore: 0,
+  timedMaxCombo: 0,
+  timedTotalLines: 0,
+  timedMaxDuration: 0,
+  timedChronoBonus: 0,
+  timedSprintBonusTotal: 0,
 };
 
 export const useGameStore = create<GameStore>((set, get) => {
-  // Initial state: no localStorage reads for game data (Firestore is source of truth)
-  const savedHighScores = {};
-  const savedStats = INITIAL_STATS;
+  // Initial state: Load from localStorage via LocalStorageService
+  const savedHighScores = LocalStorageService.loadHighScores();
+  const savedStats = LocalStorageService.loadStats() || INITIAL_STATS;
   const savedMaxLevel = 0;
   const savedHighScore = 0;
   
@@ -234,11 +252,20 @@ export const useGameStore = create<GameStore>((set, get) => {
           isPiecesLoading: false
         });
         
-        // Increment games played
+        // Increment games played (global and mode-specific)
         const newStats = { ...get().stats, gamesPlayed: get().stats.gamesPlayed + 1 };
+        
+        // Increment mode-specific games played
+        if (mode === GameMode.ENDLESS) {
+          newStats.endlessGamesPlayed = (newStats.endlessGamesPlayed || 0) + 1;
+        } else if (mode === GameMode.TIMED) {
+          newStats.timedGamesPlayed = (newStats.timedGamesPlayed || 0) + 1;
+        }
+        
         set({ stats: newStats });
         
-        // Stats are synced to Firestore via useGameSync hook, not localStorage
+        // Save stats to localStorage
+        LocalStorageService.saveStats(newStats);
         
         return true;
       },
@@ -575,7 +602,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       currentLevelIndex: 0,
     });
 
-    // Sync newly unlocked achievement to Firestore
+    // Sync newly unlocked achievement to localStorage
     syncNewAchievement(previousAchievements, updatedAchievements);
     
     // Handle just unlocked achievement
@@ -669,7 +696,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       const newHighs = { ...currentHighs, [modeKey]: newScore };
       set({ highScores: newHighs, highScore: newScore });
       
-      // HighScores are synced to Firestore via useGameSync hook, not localStorage
+      // Save high score to localStorage
+      LocalStorageService.saveHighScore(modeKey, newScore);
     }
 
     // Time Reward logic
@@ -773,9 +801,30 @@ export const useGameStore = create<GameStore>((set, get) => {
       bombsExploded: currentStats.bombsExploded + bombsExploded,
       iceBroken: currentStats.iceBroken + iceBroken,
     };
+    
+    // Update mode-specific stats
+    if (gameMode === GameMode.ENDLESS) {
+      // Endless mode stats
+      nextStats.endlessTotalLines = (currentStats.endlessTotalLines || 0) + linesCleared;
+      nextStats.endlessMaxCombo = Math.max(currentStats.endlessMaxCombo || 0, newCombo);
+      nextStats.endlessMaxTier = Math.max(currentStats.endlessMaxTier || 0, get().difficultyTier);
+      
+      // Track event count (increment when a new tier event is activated)
+      if (tierResult && tierResult.activeEvent) {
+        nextStats.endlessEventCount = (currentStats.endlessEventCount || 0) + 1;
+      }
+    } else if (gameMode === GameMode.TIMED) {
+      // Timed mode stats
+      nextStats.timedTotalLines = (currentStats.timedTotalLines || 0) + linesCleared;
+      nextStats.timedMaxCombo = Math.max(currentStats.timedMaxCombo || 0, newCombo);
+      nextStats.timedChronoBonus = (currentStats.timedChronoBonus || 0) + chronoBonusSeconds;
+      nextStats.timedSprintBonusTotal = (currentStats.timedSprintBonusTotal || 0) + sprintBonusGained;
+    }
+    
     set({ stats: nextStats });
     
-    // Stats are synced to Firestore via useGameSync hook, not localStorage
+    // Save stats to localStorage
+    LocalStorageService.saveStats(nextStats);
 
     get().checkGameOver();
     
@@ -816,6 +865,24 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (gameMode === GameMode.DAILY_CHALLENGE) {
         checkAndUpdateStreak();
       }
+      
+      // Update mode-specific high scores and stats on game end
+      const currentStats = get().stats;
+      const finalScore = get().score;
+      const updatedStats = { ...currentStats };
+      
+      if (gameMode === GameMode.ENDLESS) {
+        updatedStats.endlessHighScore = Math.max(currentStats.endlessHighScore || 0, finalScore);
+      } else if (gameMode === GameMode.TIMED) {
+        updatedStats.timedHighScore = Math.max(currentStats.timedHighScore || 0, finalScore);
+        
+        // Calculate duration (60 seconds - timeLeft)
+        const duration = 60 - get().timeLeft;
+        updatedStats.timedMaxDuration = Math.max(currentStats.timedMaxDuration || 0, duration);
+      }
+      
+      set({ stats: updatedStats });
+      LocalStorageService.saveStats(updatedStats);
       
       playGameOver();
       set({ isGameOver: true });

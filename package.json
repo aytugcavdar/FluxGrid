@@ -18,7 +18,6 @@
   "dependencies": {
     "babylonjs": "7.0.0",
     "clsx": "^2.1.1",
-    "firebase": "^12.10.0",
     "framer-motion": "^12.34.2",
     "i18next": "^25.8.18",
     "lucide-react": "^0.574.0",

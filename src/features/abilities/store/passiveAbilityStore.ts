@@ -1,17 +1,15 @@
 import { create } from 'zustand';
 import { PassiveAbilityType, PassiveAbility, PassiveAbilityState } from '../types';
-import { syncAbilities } from '../../../services/firebase/syncManager';
+import { LocalStorageService } from '../../../services/local/localStorageService';
 
 interface PassiveAbilityStore extends PassiveAbilityState {
   // Actions
   initializePassives: () => void;
-  initializeFromFirestore: (unlocks: string[], equipped: string[], maxLevel: number) => void;
   equipPassive: (type: PassiveAbilityType) => boolean;
   unequipPassive: (type: PassiveAbilityType) => void;
   unlockPassive: (type: PassiveAbilityType) => void;
   isPassiveEquipped: (type: PassiveAbilityType) => boolean;
   getEquippedPassives: () => PassiveAbility[];
-  syncToFirestore: () => void;
   
   // Effect Calculators
   calculateFluxMultiplier: () => number;
@@ -57,77 +55,74 @@ export const usePassiveAbilityStore = create<PassiveAbilityStore>((set, get) => 
       },
     ];
     
-    // Start with default values (will be loaded from Firestore)
-    PASSIVE_DEFINITIONS.forEach(def => {
-      passives.set(def.type, {
-        type: def.type,
-        unlocked: false,
-        equipped: false,
-        effect: def.effect
+    // Load from localStorage
+    const savedData = LocalStorageService.loadPassiveAbilities();
+    
+    if (savedData) {
+      // Restore from localStorage
+      PASSIVE_DEFINITIONS.forEach(def => {
+        const isUnlocked = savedData.unlocked.includes(def.type);
+        const isEquipped = savedData.equipped.includes(def.type);
+        
+        passives.set(def.type, {
+          type: def.type,
+          unlocked: isUnlocked,
+          equipped: isEquipped,
+          effect: def.effect
+        });
       });
-    });
-    
-    // Initialize with empty slots
-    const emptySlots: [PassiveAbilityType | null, PassiveAbilityType | null, PassiveAbilityType | null] = [null, null, null];
-    
-    set({ passiveAbilities: passives, equippedSlots: emptySlots });
+      
+      // Restore equipped slots
+      const restoredSlots: [PassiveAbilityType | null, PassiveAbilityType | null, PassiveAbilityType | null] = [null, null, null];
+      savedData.equipped.forEach((type, i) => {
+        if (i < 3) {
+          restoredSlots[i] = type as PassiveAbilityType;
+        }
+      });
+      
+      set({ passiveAbilities: passives, equippedSlots: restoredSlots });
+    } else {
+      // Initialize with default values
+      PASSIVE_DEFINITIONS.forEach(def => {
+        passives.set(def.type, {
+          type: def.type,
+          unlocked: false,
+          equipped: false,
+          effect: def.effect
+        });
+      });
+      
+      const emptySlots: [PassiveAbilityType | null, PassiveAbilityType | null, PassiveAbilityType | null] = [null, null, null];
+      set({ passiveAbilities: passives, equippedSlots: emptySlots });
+    }
   },
 
-  initializeFromFirestore: (unlocks: string[], equipped: string[], maxLevel: number) => {
-    const passives = new Map<PassiveAbilityType, PassiveAbility>();
+  unlockPassive: (type: PassiveAbilityType) => {
+    const { passiveAbilities } = get();
+    const passive = passiveAbilities.get(type);
     
-    // PASSIVE_DEFINITIONS - same as in initializePassives
-    const PASSIVE_DEFINITIONS = [
-      {
-        type: PassiveAbilityType.FLUX_BOOST,
-        unlockLevel: 3,
-        effect: { multiplier: 1.25 }
-      },
-      {
-        type: PassiveAbilityType.SCORE_MULTIPLIER,
-        unlockLevel: 8,
-        effect: { multiplier: 1.5 }
-      },
-      {
-        type: PassiveAbilityType.LUCKY_PIECES,
-        unlockLevel: 15,
-        effect: { probability: 0.4 }
-      },
-      {
-        type: PassiveAbilityType.COMBO_MASTER,
-        unlockLevel: 25,
-        effect: { duration: 3000 }
-      },
-      {
-        type: PassiveAbilityType.ICE_BREAKER,
-        unlockLevel: 35,
-        effect: { healthModifier: -1 }
-      },
-    ];
+    if (!passive) return;
     
-    // Create all abilities from PASSIVE_DEFINITIONS
-    PASSIVE_DEFINITIONS.forEach(def => {
-      // Check if unlocked: either by level or explicitly in unlocks array
-      const isUnlocked = maxLevel >= def.unlockLevel || unlocks.includes(def.type);
-      const isEquipped = equipped.includes(def.type);
-      
-      passives.set(def.type, {
-        type: def.type,
-        unlocked: isUnlocked,
-        equipped: isEquipped,
-        effect: def.effect
-      });
+    const newPassives = new Map(passiveAbilities);
+    const updatedPassive = { ...passive, unlocked: true };
+    newPassives.set(type, updatedPassive);
+    
+    set({ passiveAbilities: newPassives });
+    
+    // Save to localStorage
+    const unlocked: PassiveAbilityType[] = [];
+    const equipped: PassiveAbilityType[] = [];
+    
+    newPassives.forEach((p, key) => {
+      if (p.unlocked) unlocked.push(key);
+      if (p.equipped) equipped.push(key);
     });
     
-    // Restore equipped slots from Firestore data
-    const restoredSlots: [PassiveAbilityType | null, PassiveAbilityType | null, PassiveAbilityType | null] = [null, null, null];
-    equipped.forEach((type, i) => {
-      if (i < 3) {
-        restoredSlots[i] = type as PassiveAbilityType;
-      }
+    LocalStorageService.savePassiveAbilities({
+      unlocked,
+      equipped,
+      maxLevel: 0 // Not used in local-first version
     });
-    
-    set({ passiveAbilities: passives, equippedSlots: restoredSlots });
   },
 
   equipPassive: (type: PassiveAbilityType) => {
@@ -157,8 +152,20 @@ export const usePassiveAbilityStore = create<PassiveAbilityStore>((set, get) => 
       passiveAbilities: newPassives
     });
     
-    // Sync to Firestore
-    get().syncToFirestore();
+    // Save to localStorage
+    const unlocked: PassiveAbilityType[] = [];
+    const equipped: PassiveAbilityType[] = [];
+    
+    newPassives.forEach((p, key) => {
+      if (p.unlocked) unlocked.push(key);
+      if (p.equipped) equipped.push(key);
+    });
+    
+    LocalStorageService.savePassiveAbilities({
+      unlocked,
+      equipped,
+      maxLevel: 0 // Not used in local-first version
+    });
     
     return true;
   },
@@ -187,28 +194,20 @@ export const usePassiveAbilityStore = create<PassiveAbilityStore>((set, get) => 
       passiveAbilities: newPassives
     });
     
-    // Sync to Firestore
-    get().syncToFirestore();
-  },
-
-  unlockPassive: (type: PassiveAbilityType) => {
-    const { passiveAbilities } = get();
-    const passive = passiveAbilities.get(type);
-    
-    if (!passive) return;
-    
-    const newPassives = new Map(passiveAbilities);
-    const updatedPassive = { ...passive, unlocked: true };
-    newPassives.set(type, updatedPassive);
-    
-    set({ passiveAbilities: newPassives });
-    
     // Save to localStorage
-    const unlocks: Record<string, boolean> = {};
+    const unlocked: PassiveAbilityType[] = [];
+    const equipped: PassiveAbilityType[] = [];
+    
     newPassives.forEach((p, key) => {
-      if (p.unlocked) unlocks[key] = true;
+      if (p.unlocked) unlocked.push(key);
+      if (p.equipped) equipped.push(key);
     });
-    localStorage.setItem('flux_passive_unlocks', JSON.stringify(unlocks));
+    
+    LocalStorageService.savePassiveAbilities({
+      unlocked,
+      equipped,
+      maxLevel: 0 // Not used in local-first version
+    });
   },
 
   isPassiveEquipped: (type: PassiveAbilityType) => {
@@ -223,54 +222,6 @@ export const usePassiveAbilityStore = create<PassiveAbilityStore>((set, get) => 
       .map(type => passiveAbilities.get(type!))
       .filter(p => p !== undefined) as PassiveAbility[];
   },
-
-  syncToFirestore: (() => {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    
-    return () => {
-      // Clear existing timeout
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      
-      // Debounce for 1000ms
-      timeoutId = setTimeout(async () => {
-        try {
-          // Dynamic import to avoid circular dependency
-          const { useAuthStore } = await import('@features/auth/store/authStore');
-          const { user } = useAuthStore.getState();
-          
-          if (!user) {
-            console.log('syncToFirestore: No user, skipping sync');
-            return;
-          }
-          
-          const { equippedSlots, passiveAbilities } = get();
-          
-          // Build equipped array from slots
-          const equipped = equippedSlots.filter(s => s !== null) as string[];
-          
-          // Build unlocks array
-          const unlocks: string[] = [];
-          passiveAbilities.forEach((passive, type) => {
-            if (passive.unlocked) {
-              unlocks.push(type);
-            }
-          });
-          
-          // Call syncAbilities
-          await syncAbilities(user.uid, {
-            passiveEquipped: equipped,
-            passiveUnlocks: unlocks,
-          });
-          
-          console.log('syncToFirestore: Successfully synced abilities');
-        } catch (error) {
-          console.error('syncToFirestore error:', error);
-        }
-      }, 1000);
-    };
-  })(),
 
   calculateFluxMultiplier: () => {
     const equipped = get().getEquippedPassives();

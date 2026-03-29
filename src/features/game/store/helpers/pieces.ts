@@ -5,7 +5,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { Piece, PieceShape, GridState, GRID_SIZE, CellType } from '../../types';
 import { SHAPES } from '../../constants';
 import { SeededRNG, getDailySeed } from '@utils/seededRng';
-import { getDailySeedFromServer, getCachedDailySeed, cacheDailySeed } from '../../../../services/firebase/dailyChallengeService';
 import { GameMode } from '@shared/types';
 
 function weightedPick(
@@ -23,25 +22,15 @@ function weightedPick(
 }
 
 let currentDailyRNG: SeededRNG | null = null;
-let dailySeedPromise: Promise<number> | null = null;
 
 /**
- * Initialize daily RNG with server seed
+ * Initialize daily RNG with local seed
  */
-async function initializeDailyRNG(): Promise<number> {
+function initializeDailyRNG(): number {
   if (currentDailyRNG) return 0;
 
-  // Check cache first
-  const cached = getCachedDailySeed();
-  if (cached) {
-    currentDailyRNG = new SeededRNG(cached.seed);
-    return cached.seed;
-  }
-
-  // Fetch from server
-  const seed = await getDailySeedFromServer();
-  const today = new Date().toISOString().split('T')[0];
-  cacheDailySeed(seed, today);
+  // Use local getDailySeed function
+  const seed = getDailySeed();
   currentDailyRNG = new SeededRNG(seed);
   return seed;
 }
@@ -66,12 +55,9 @@ export const getRandomPiecesSync = (
   let useSeededRNG = false;
   if (isDaily) {
     if (!currentDailyRNG) {
-      // Try to initialize from cache synchronously
-      const cached = getCachedDailySeed();
-      if (cached) {
-        currentDailyRNG = new SeededRNG(cached.seed);
-        useSeededRNG = true;
-      }
+      // Initialize from local seed
+      initializeDailyRNG();
+      useSeededRNG = true;
     } else {
       useSeededRNG = true;
     }
@@ -274,23 +260,20 @@ export const getRandomPiecesSync = (
  * @param difficultyTier Optional difficulty tier (0-4) for Endless mode
  * @param gameMode Optional game mode for mode-specific piece generation
  */
-export const getRandomPieces = async (
+export const getRandomPieces = (
   count: number, 
   grid?: GridState, 
   isDaily?: boolean,
   colors?: string[],
   difficultyTier?: number,
   gameMode?: GameMode
-): Promise<Piece[]> => {
+): Piece[] => {
   const newPieces: Piece[] = [];
   const tier = difficultyTier ?? 0;
   
   if (isDaily) {
-    // Initialize daily RNG if needed (with caching)
-    if (!dailySeedPromise) {
-      dailySeedPromise = initializeDailyRNG();
-    }
-    await dailySeedPromise;
+    // Initialize daily RNG if needed
+    initializeDailyRNG();
   }
 
   // Calculate grid density if grid is provided
