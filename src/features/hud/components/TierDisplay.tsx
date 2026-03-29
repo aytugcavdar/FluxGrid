@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { TIER_SCORE_MULTIPLIERS } from '../../game/constants';
 import { motion } from 'framer-motion';
 
@@ -28,6 +28,25 @@ const TIER_COLORS: Record<number, { primary: string; bg: string; border: string 
 };
 
 export const TierDisplay: React.FC<TierDisplayProps> = ({ tier, isMobile = false }) => {
+  const [prevTier, setPrevTier] = useState(tier);
+  const [animationKey, setAnimationKey] = useState(0);
+  const [showGlow, setShowGlow] = useState(false);
+  
+  useEffect(() => {
+    // Only trigger animation when tier actually changes
+    if (tier !== prevTier) {
+      setAnimationKey(prev => prev + 1);
+      
+      // Show glow effect if tier increased
+      if (tier > prevTier) {
+        setShowGlow(true);
+        setTimeout(() => setShowGlow(false), 700);
+      }
+      
+      setPrevTier(tier);
+    }
+  }, [tier]); // Only depend on tier, not prevTier
+  
   const tierName = TIER_NAMES[tier] ?? `Tier ${tier}`;
   const multiplier = TIER_SCORE_MULTIPLIERS[tier] ?? 1.0;
   const colors = TIER_COLORS[tier] ?? TIER_COLORS[0];
@@ -35,9 +54,10 @@ export const TierDisplay: React.FC<TierDisplayProps> = ({ tier, isMobile = false
   if (isMobile) {
     return (
       <motion.div
-        key={tier}
+        key={animationKey}
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.7 }}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -47,6 +67,7 @@ export const TierDisplay: React.FC<TierDisplayProps> = ({ tier, isMobile = false
           background: colors.bg,
           border: `1px solid ${colors.border}`,
           flexShrink: 0,
+          boxShadow: showGlow ? `0 0 20px ${colors.primary}60` : 'none',
         }}
       >
         <span
@@ -77,9 +98,10 @@ export const TierDisplay: React.FC<TierDisplayProps> = ({ tier, isMobile = false
   // Desktop layout
   return (
     <motion.div
-      key={tier}
+      key={animationKey}
       initial={{ scale: 0.9, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
+      transition={{ duration: 0.7 }}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -91,6 +113,7 @@ export const TierDisplay: React.FC<TierDisplayProps> = ({ tier, isMobile = false
         border: `1px solid ${colors.border}`,
         minWidth: 80,
         gap: 2,
+        boxShadow: showGlow ? `0 0 20px ${colors.primary}60` : 'none',
       }}
     >
       <span

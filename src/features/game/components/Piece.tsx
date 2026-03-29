@@ -85,16 +85,35 @@ export const Piece: React.FC<Props> = ({ piece }) => {
   const isDragging = draggedPiece?.instanceId === piece.instanceId;
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <div
+    <motion.div 
+      style={{ position: 'relative', width: '100%', height: '100%' }}
+      initial={{ scale: 0, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ 
+        type: "spring", 
+        stiffness: 260, 
+        damping: 20,
+        mass: 0.8
+      }}
+    >
+      <motion.div
         ref={ref}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         className={clsx(
-          "relative w-full h-full flex items-center justify-center transition-all duration-200 cursor-grab active:cursor-grabbing touch-none select-none",
-          { "opacity-25 scale-90": isDragging }
+          "relative w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none",
+          { "opacity-25": isDragging }
         )}
+        animate={{ 
+          scale: isDragging ? 0.9 : 1,
+          rotate: isDragging ? 2 : 0
+        }}
+        transition={{ 
+          type: "spring", 
+          stiffness: 300, 
+          damping: 25 
+        }}
         // Ensure minimum tap target
         style={{ minWidth: 44, minHeight: 44 }}
       >
@@ -111,7 +130,7 @@ export const Piece: React.FC<Props> = ({ piece }) => {
         )}
 
         {renderShape(piece)}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };

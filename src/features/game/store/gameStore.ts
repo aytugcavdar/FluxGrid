@@ -19,6 +19,7 @@ import { createMiniEventState, checkMiniEvents, tickMiniEvents } from './helpers
 import { calculateScore, calculateFluxGain } from './helpers/scoreCalculator';
 import { migrateSaveData, SaveData } from './helpers/migration';
 import { LocalStorageService } from '@services/local/localStorageService';
+import { useVisualEffectStore } from '../../visual-effects/store/visualEffectStore';
 
 export interface GameStore {
   grid: GridState;
@@ -476,11 +477,15 @@ export const useGameStore = create<GameStore>((set, get) => {
     // 2. Update Grid
     const tempGrid = grid.map(row => row.map(cell => ({ ...cell })));
     let blocksPlaced = 0;
+    const placedBlockCoords: Array<{x: number, y: number, color: string}> = [];
 
     for (let row = 0; row < piece.shape.length; row++) {
       for (let col = 0; col < piece.shape[row].length; col++) {
         if (piece.shape[row][col] === 1) {
-          tempGrid[startY + row][startX + col] = {
+          const gridX = startX + col;
+          const gridY = startY + row;
+          
+          tempGrid[gridY][gridX] = {
             filled: true,
             color: piece.color,
             id: uuidv4(),
@@ -488,12 +493,59 @@ export const useGameStore = create<GameStore>((set, get) => {
             health: piece.type === CellType.ICE ? 2 : undefined
           };
           blocksPlaced++;
+          
+          // Track placed block coordinates for pulse effect
+          placedBlockCoords.push({ x: gridX, y: gridY, color: piece.color });
         }
       }
     }
+    
+    // Pulse effect disabled for performance
+    // const performanceMode = useVisualEffectStore.getState().performanceMode;
+    // if (performanceMode !== 'low') {
+    //   placedBlockCoords.forEach(block => {
+    //     useVisualEffectStore.getState().addEffect({
+    //       type: 'pulse',
+    //       duration: 300,
+    //       target: `cell-${block.x}-${block.y}`,
+    //       props: {
+    //         x: block.x,
+    //         y: block.y,
+    //         color: block.color
+    //       }
+    //     });
+    //   });
+    // }
 
     // 3. Process Grid
     const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken, actions } = processGrid(tempGrid);
+
+    // Handle CELL_CLEAR actions - trigger explosion effects
+    actions.forEach(action => {
+      if (action.type === 'CELL_CLEAR') {
+        const clearAction = action as any; // Type assertion for CELL_CLEAR
+        clearAction.cells.forEach((cell: any) => {
+          // Add explosion effect for each cleared cell
+          // Add delay based on chain index for chain reactions
+          const delay = (clearAction.chainIndex - 1) * 200; // 200ms delay per chain step
+          
+          setTimeout(() => {
+            useVisualEffectStore.getState().addEffect({
+              type: 'explosion',
+              duration: 180, // Faster: 180ms (was 250ms)
+              target: `cell-${cell.x}-${cell.y}`,
+              props: {
+                x: cell.x,
+                y: cell.y,
+                color: cell.color,
+                blockSize: 20,
+                cellType: cell.cellType
+              }
+            });
+          }, delay);
+        });
+      }
+    });
 
     // Handle CHRONO_BONUS actions
     let chronoBonusSeconds = 0;

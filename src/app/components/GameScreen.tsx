@@ -5,7 +5,7 @@ import { GameMode } from '@shared/types';
 import { SkillType } from '../../features/game/types';
 import { Grid } from '../../features/game/components/Grid';
 import { Piece } from '../../features/game/components/Piece';
-import { HUD, ScorePopups, ChainCounter, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, MultiplierBreakdownDisplay, ChronoPopup, EventStartVisual } from '@features/hud';
+import { HUD, ScorePopups, ChainCounter, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual } from '@features/hud';
 import { useGameStore } from '../../features/game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
 import { playClick } from '@utils/audio';
@@ -50,7 +50,6 @@ interface GameScreenProps {
   timedWarning: '30sn' | '10sn' | null;
   shownChain: number;
   showPerfect: boolean;
-  milestoneTier: { tier: number; tierName: string; multiplier: number } | null;
   eventStartVisual: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
   setEventStartVisual: React.Dispatch<React.SetStateAction<'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null>>;
 }
@@ -75,7 +74,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   timedWarning,
   shownChain,
   showPerfect,
-  milestoneTier,
   eventStartVisual,
   setEventStartVisual,
 }) => {
@@ -244,7 +242,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       <ComboRushFlash active={showRushStart} movesLeft={timedBoostMovesLeft} onStart={true} />
       <ComboRushFlash active={showRushEnd} movesLeft={0} onStart={false} />
       {gameMode !== GameMode.ZEN && <ComboBar />}
-      <MultiplierBreakdownDisplay />
       
       {/* Event Start Visual */}
       <EventStartVisual 
@@ -355,59 +352,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         )}
       </AnimatePresence>
 
-      <div className="fixed top-20 left-0 right-0 flex flex-col items-center gap-2 pointer-events-none z-50">
-        <AnimatePresence mode="popLayout">
+      <div className="fixed top-20 left-0 right-0 flex flex-col items-center gap-2 pointer-events-none z-10">
+        <AnimatePresence mode="wait">
           {shownChain >= 2 && <ChainCounter key={`c${shownChain}`} chain={shownChain} />}
           {showPerfect && <PerfectBonus key="perfect" show={showPerfect} />}
         </AnimatePresence>
       </div>
-
-      {/* Milestone Banner */}
-      <AnimatePresence>
-        {milestoneTier && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: -20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 1.1, y: -30 }}
-            style={{
-              position: 'fixed',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              zIndex: 60,
-              pointerEvents: 'none',
-              textAlign: 'center'
-            }}
-          >
-            <div style={{ 
-              fontSize: 28, 
-              fontWeight: 700, 
-              color: '#f59e0b', 
-              letterSpacing: '-0.02em',
-              textShadow: '0 2px 8px rgba(245,158,11,0.5)'
-            }}>
-              Tier {milestoneTier.tier}: {milestoneTier.tierName.toUpperCase()}
-            </div>
-            <div style={{ 
-              fontSize: 16, 
-              fontWeight: 600,
-              color: '#f59e0b',
-              marginTop: 4,
-              letterSpacing: '0.05em'
-            }}>
-              {milestoneTier.multiplier.toFixed(2)}x Çarpan
-            </div>
-            <div style={{ 
-              fontSize: 11, 
-              color: 'rgba(255,255,255,0.4)', 
-              marginTop: 2,
-              letterSpacing: '0.1em'
-            }}>
-              YENİ ZOR SEVİYE
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 };

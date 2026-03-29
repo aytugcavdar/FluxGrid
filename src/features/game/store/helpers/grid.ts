@@ -3,6 +3,18 @@
  */
 import { GridState, GRID_SIZE, GridCell, CellType } from '../../types';
 
+// ClearAction interface for tracking cleared cells
+export interface ClearAction {
+  type: 'CELL_CLEAR';
+  cells: Array<{
+    x: number;
+    y: number;
+    color: string;
+    cellType?: CellType;
+  }>;
+  chainIndex: number; // Which chain step this clear happened in
+}
+
 /**
  * Create an empty grid
  */
@@ -137,9 +149,21 @@ export const processGrid = (initialGrid: GridState): {
 
       // Execute Clears
       let chronoBlocksCleared = 0;
+      const clearedCells: ClearAction['cells'] = [];
+      
       finalCellsToClear.forEach(key => {
         const [x, y] = key.split(',').map(Number);
         const cell = currentGrid[y][x];
+        
+        // Track cleared cell for CELL_CLEAR event
+        if (cell.filled) {
+          clearedCells.push({
+            x,
+            y,
+            color: cell.color,
+            cellType: cell.type
+          });
+        }
         
         // Count CHRONO blocks before clearing
         if (cell.type === CellType.CHRONO) {
@@ -148,6 +172,15 @@ export const processGrid = (initialGrid: GridState): {
         
         currentGrid[y][x] = { filled: false, color: '' };
       });
+      
+      // Add CELL_CLEAR action for this chain step
+      if (clearedCells.length > 0) {
+        actions.push({
+          type: 'CELL_CLEAR',
+          cells: clearedCells,
+          chainIndex: chainCount
+        });
+      }
       
       // Add CHRONO_BONUS action if any CHRONO blocks were cleared
       if (chronoBlocksCleared > 0) {

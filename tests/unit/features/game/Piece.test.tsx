@@ -142,7 +142,8 @@ describe('Piece', () => {
       useGameStore.setState({ draggedPiece: mockPiece });
 
       const { container } = render(<Piece piece={mockPiece} />);
-      const piece = container.querySelector('.scale-90');
+      // Framer Motion applies inline styles, not CSS classes
+      const piece = container.querySelector('.opacity-25');
       
       expect(piece).toBeInTheDocument();
     });

@@ -20,7 +20,7 @@ export const ComboRushFlash: React.FC<ComboRushFlashProps> = ({ active, movesLef
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 1.1 }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
-          className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center"
+          className="fixed inset-0 pointer-events-none z-10 flex items-center justify-center"
         >
           <div className="flex flex-col items-center">
             <motion.span
@@ -44,7 +44,7 @@ export const ComboRushFlash: React.FC<ComboRushFlashProps> = ({ active, movesLef
           animate={{ opacity: [0, 0.2, 0] }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2, times: [0, 0.5, 1] }}
-          className="fixed inset-0 pointer-events-none z-40"
+          className="fixed inset-0 pointer-events-none z-5"
           style={{ background: 'radial-gradient(circle at center, rgba(245,158,11,0.3) 0%, transparent 60%)' }}
         />
       )}

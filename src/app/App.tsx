@@ -6,6 +6,7 @@ import { useAbilityStore } from '../features/abilities/store/abilityStore';
 import { usePassiveAbilityStore } from '../features/abilities/store/passiveAbilityStore';
 import { DragOverlay } from '@features/hud';
 import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
+import { ParticleExplosionOverlay } from '../features/visual-effects/components/ParticleExplosionOverlay';
 import { HomeScreen } from './HomeScreen';
 import { GameOverModal, GameScreen } from './components';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,7 +20,6 @@ import { useCountUp } from '@shared/hooks/useCountUp';
 import { useBrowserHistory } from './hooks/useBrowserHistory';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { useGameSync } from '../features/game/hooks/useGameSync';
-import { TIER_SCORE_MULTIPLIERS } from '../features/game/constants';
 
 interface ScorePopup {
   id: number;
@@ -63,7 +63,6 @@ const App: React.FC = () => {
   const [showSurgeFlash, setShowSurgeFlash] = useState(false);
   const lastActionRef = useRef<typeof lastAction>(null);
   const prevSurgeRef = useRef(false);
-  const [milestoneTier, setMilestoneTier] = useState<{ tier: number; tierName: string; multiplier: number } | null>(null);
   const [timePopups, setTimePopups] = useState<TimePopup[]>([]);
   const timePopupIdRef = useRef(0);
   const [chronoPopups, setChronoPopups] = useState<ChronoPopup[]>([]);
@@ -104,17 +103,6 @@ const App: React.FC = () => {
 
   // Initialize stores on mount
   useEffect(() => {
-    // Run migration from Firebase to localStorage (one-time)
-    import('../utils/migration').then(({ migrateFromFirebase }) => {
-      const result = migrateFromFirebase();
-      console.log('Migration result:', result);
-    });
-
-    // Clean up deprecated localStorage keys
-    import('../utils/cleanupLocalStorage').then(({ cleanupDeprecatedKeys }) => {
-      cleanupDeprecatedKeys();
-    });
-    
     useAbilityStore.getState().initializeAbilities();
     usePassiveAbilityStore.getState().initializePassives();
     
@@ -211,17 +199,6 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!lastAction || lastAction === lastActionRef.current) return;
     lastActionRef.current = lastAction;
-    
-    // Handle MILESTONE type for difficulty tier progression
-    if (lastAction.type === 'MILESTONE') {
-      const tier = lastAction.tier ?? 0;
-      const tierName = lastAction.tierName ?? '';
-      const multiplier = TIER_SCORE_MULTIPLIERS[tier] ?? 1.0;
-      
-      setMilestoneTier({ tier, tierName, multiplier });
-      setTimeout(() => setMilestoneTier(null), 2500);
-      return;
-    }
     
     if (lastAction.type !== 'CLEAR') return;
 
@@ -418,7 +395,6 @@ const App: React.FC = () => {
             timedWarning={timedWarning}
             shownChain={shownChain}
             showPerfect={showPerfect}
-            milestoneTier={milestoneTier}
             eventStartVisual={eventStartVisual}
             setEventStartVisual={setEventStartVisual}
           />
@@ -427,6 +403,7 @@ const App: React.FC = () => {
 
       {/* Persistence and Global Overlays */}
       <DragOverlay />
+      <ParticleExplosionOverlay />
       <AnimatePresence>
         {showAbilities && <AbilityPanel onClose={() => setShowAbilities(false)} />}
       </AnimatePresence>

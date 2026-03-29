@@ -12,3 +12,4 @@ export { MultiplierBreakdownDisplay } from './MultiplierBreakdownDisplay';
 export { TierDisplay } from './TierDisplay';
 export { ChronoPopup } from './ChronoPopup';
 export { EventStartVisual } from './EventStartVisual';
+export { TierMilestoneNotification } from './TierMilestoneNotification';
