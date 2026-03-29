@@ -1,3 +1,4 @@
+import React from 'react';
 import { ThemeCardProps } from '../types/ui';
 
 export const ThemeCard: React.FC<ThemeCardProps> = ({

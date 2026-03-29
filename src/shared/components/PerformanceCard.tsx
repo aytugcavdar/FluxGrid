@@ -1,3 +1,4 @@
+import React from 'react';
 import { PerformanceCardProps } from '../types/ui';
 import { useThemeStore } from '../store/themeStore';
 import { GameMode } from '../types';
@@ -7,7 +8,7 @@ export const PerformanceCard: React.FC<PerformanceCardProps> = ({
   bestScore,
   maxCombo,
   maxTier,
-  maxDuration,
+  maxDuration: _maxDuration,
   chronoBonus,
   color,
 }) => {

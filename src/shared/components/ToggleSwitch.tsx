@@ -1,3 +1,4 @@
+import React from 'react';
 import { motion } from 'framer-motion';
 import { useThemeStore } from '../store/themeStore';
 import { ToggleSwitchProps } from '../types/ui';

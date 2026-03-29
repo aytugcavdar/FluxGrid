@@ -1,3 +1,4 @@
+import React from 'react';
 import { AchievementCardProps } from '../types/ui';
 import { useThemeStore } from '../store/themeStore';
 import { ProgressBar } from './ProgressBar';
