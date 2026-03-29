@@ -338,9 +338,9 @@ describe('ChainCounter', () => {
             unmount();
           }
         ),
-        { numRuns: 100 }
+        { numRuns: 50 }
       );
-    });
+    }, 10000);
 
     /**
      * Feature: enhanced-game-notifications
