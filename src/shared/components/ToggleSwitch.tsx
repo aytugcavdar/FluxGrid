@@ -14,42 +14,37 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
   const colors = getThemeColors();
   
   return (
-    <div
-      className="flex items-center justify-between p-5 rounded-2xl"
+    <button
+      onClick={() => !disabled && onChange(!value)}
+      disabled={disabled}
+      className="w-full flex items-center justify-between p-4 rounded-xl transition-all active:scale-[0.98]"
       style={{
         background: colors.cardBackgroundTransparent,
         border: `1px solid ${colors.cardBorderTransparent}`,
         opacity: disabled ? 0.5 : 1,
       }}
     >
-      <div className="flex-1 pr-4">
-        <h4 className="text-sm font-semibold mb-1" style={{ color: colors.textPrimary }}>{label}</h4>
+      <div className="flex-1 text-left pr-3">
+        <div className="text-sm font-medium leading-tight mb-1" style={{ color: colors.textPrimary }}>
+          {label}
+        </div>
         {description && (
-          <p className="text-xs" style={{ color: colors.textSecondary }}>{description}</p>
+          <div className="text-xs leading-tight opacity-70" style={{ color: colors.textSecondary }}>
+            {description}
+          </div>
         )}
       </div>
       
-      <button
-        role="switch"
-        aria-checked={value}
-        aria-label={label}
-        onClick={() => !disabled && onChange(!value)}
-        disabled={disabled}
-        className="relative flex-shrink-0 w-14 h-8 rounded-full transition-all cursor-pointer"
+      <div
+        className="relative flex-shrink-0 w-11 h-6 rounded-full transition-all duration-300"
         style={{
-          background: value 
-            ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' 
-            : 'rgba(255,255,255,0.15)',
-          boxShadow: value ? '0 0 20px rgba(59,130,246,0.3)' : 'none',
+          backgroundColor: value ? '#3b82f6' : 'rgba(156, 163, 175, 0.3)',
         }}
       >
         <motion.div
-          className="absolute top-1 w-6 h-6 rounded-full shadow-lg"
-          style={{
-            background: 'white',
-          }}
+          className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm"
           animate={{
-            left: value ? '30px' : '4px',
+            x: value ? 20 : 0,
           }}
           transition={{
             type: 'spring',
@@ -57,7 +52,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
             damping: 30,
           }}
         />
-      </button>
-    </div>
+      </div>
+    </button>
   );
 };

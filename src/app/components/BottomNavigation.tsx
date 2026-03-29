@@ -43,7 +43,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 onClick={() => onTabChange(tab.id)}
                 aria-label={tab.label}
                 aria-pressed={isActive}
-                className="flex flex-col items-center gap-1 py-2 px-4 relative transition-all"
+                className="flex flex-col items-center gap-1 py-2 px-4 transition-all"
                 style={{
                   opacity: isActive ? 1 : 0.5,
                 }}
@@ -57,19 +57,6 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 >
                   {tab.label}
                 </span>
-                
-                {isActive && (
-                  <motion.div
-                    layoutId="activeIndicator"
-                    className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full"
-                    style={{ background: colors.accentPrimary }}
-                    transition={{
-                      type: 'spring',
-                      stiffness: 500,
-                      damping: 30,
-                    }}
-                  />
-                )}
               </button>
             );
           })}
