@@ -3,6 +3,59 @@ import { vi, afterEach } from 'vitest';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
+// Mock framer-motion globally with simple components
+vi.mock('framer-motion', () => {
+  const React = require('react');
+  
+  // Filter out framer-motion specific props but keep children and other valid props
+  const filterProps = (props: any) => {
+    const { 
+      initial, animate, exit, transition, variants, 
+      whileHover, whileTap, whileFocus, whileDrag,
+      drag, dragConstraints, dragElastic, dragMomentum,
+      layout, layoutId, 
+      ...domProps 
+    } = props;
+    return domProps;
+  };
+  
+  return {
+    motion: {
+      div: React.forwardRef((props: any, ref: any) => {
+        const filteredProps = filterProps(props);
+        return React.createElement('div', { ...filteredProps, ref });
+      }),
+      button: React.forwardRef((props: any, ref: any) => {
+        const filteredProps = filterProps(props);
+        return React.createElement('button', { ...filteredProps, ref });
+      }),
+      span: React.forwardRef((props: any, ref: any) => {
+        const filteredProps = filterProps(props);
+        return React.createElement('span', { ...filteredProps, ref });
+      }),
+      a: React.forwardRef((props: any, ref: any) => {
+        const filteredProps = filterProps(props);
+        return React.createElement('a', { ...filteredProps, ref });
+      }),
+      p: React.forwardRef((props: any, ref: any) => {
+        const filteredProps = filterProps(props);
+        return React.createElement('p', { ...filteredProps, ref });
+      }),
+    },
+    AnimatePresence: ({ children }: any) => children,
+    useAnimation: () => ({
+      start: vi.fn(),
+      stop: vi.fn(),
+      set: vi.fn(),
+    }),
+    useMotionValue: (initial: any) => ({
+      get: () => initial,
+      set: vi.fn(),
+      onChange: vi.fn(),
+    }),
+  };
+});
+
 // localStorage mock
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
@@ -80,7 +133,7 @@ vi.mock('firebase/app', () => ({
 
 vi.mock('firebase/auth', () => ({
   getAuth: vi.fn(() => ({})),
-  onAuthStateChanged: vi.fn((auth, callback) => {
+  onAuthStateChanged: vi.fn(() => {
     // Return unsubscribe function
     return vi.fn();
   }),

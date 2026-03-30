@@ -1,48 +1,140 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useThemeStore } from '../shared/store/themeStore';
 import { GameMode } from '@shared/types';
-import { PerformanceCard, ProgressBar, StatCard, AchievementCard } from '../shared/components';
+import { PerformanceCard, ProgressBar, StatCard, AchievementCard, SectionHeader } from '../shared/components';
 import { Achievement } from '../shared/types/ui';
+
+type TabType = 'stats' | 'achievements';
 
 export const StatisticsScreen: React.FC = () => {
   const { highScores, stats, achievements: gameAchievements } = useGameStore();
   const { getThemeColors } = useThemeStore();
   const colors = getThemeColors();
+  const [activeTab, setActiveTab] = useState<TabType>('stats');
 
-  // Get mode-specific data
-  const sonsuzBestScore = highScores[GameMode.ENDLESS] || 0;
-  const timedBestScore = highScores[GameMode.TIMED] || 0;
+  // Get mode-specific data - handle undefined highScores
+  const sonsuzBestScore = highScores?.[GameMode.ENDLESS] || 0;
+  const timedBestScore = highScores?.[GameMode.TIMED] || 0;
 
-  // Convert game achievements to UI format
-  const achievements: Achievement[] = gameAchievements.map(ach => {
+  // Convert game achievements to UI format - handle undefined achievements
+  const achievements: Achievement[] = (gameAchievements || []).map(ach => {
     const progress = ach.targetValue > 0 
       ? Math.floor((ach.currentValue / ach.targetValue) * 100) 
       : 0;
+    
+    // Category-specific icons
+    const getCategoryIcon = (category?: string, isLocked?: boolean) => {
+      if (isLocked) return '🔒';
+      switch (category) {
+        case 'SCORE': return '🏆';
+        case 'COMBO': return '⚡';
+        case 'SPECIAL_BLOCKS': return '💣';
+        case 'ABILITIES': return '🔮';
+        case 'PROGRESSION': return '📈';
+        default: return '🏆';
+      }
+    };
     
     return {
       id: ach.id,
       title: ach.name,
       description: ach.description,
-      icon: '🏆', // Default icon, can be customized based on category
+      icon: getCategoryIcon(ach.category, !ach.unlocked && progress === 0),
       status: ach.unlocked ? 'unlocked' : (progress > 0 ? 'in-progress' : 'locked'),
       progress: progress,
+      category: ach.category,
+      hidden: ach.hidden,
+      currentValue: ach.currentValue,
+      targetValue: ach.targetValue,
     };
   });
+
+  // Group achievements by category
+  const achievementsByCategory = achievements.reduce((acc, ach) => {
+    const category = ach.category || 'OTHER';
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(ach);
+    return acc;
+  }, {} as Record<string, typeof achievements>);
+
+  // Calculate achievement summary
+  const unlockedCount = achievements.filter(a => a.status === 'unlocked').length;
+  const totalCount = achievements.length;
+  const overallProgress = totalCount > 0 ? Math.floor((unlockedCount / totalCount) * 100) : 0;
+
+  // Category display names
+  const categoryNames: Record<string, string> = {
+    SCORE: 'Skor Başarımları',
+    COMBO: 'Kombo Başarımları',
+    SPECIAL_BLOCKS: 'Özel Blok Başarımları',
+    ABILITIES: 'Yetenek Başarımları',
+    PROGRESSION: 'İlerleme Başarımları',
+  };
 
   return (
     <div
       className="fixed inset-0 flex flex-col overflow-hidden"
       style={{ background: colors.background }}
     >
+      {/* Visually hidden h1 for accessibility */}
+      <h1 style={{ 
+        position: 'absolute', 
+        width: '1px', 
+        height: '1px', 
+        padding: '0', 
+        margin: '-1px', 
+        overflow: 'hidden', 
+        clip: 'rect(0,0,0,0)', 
+        whiteSpace: 'nowrap', 
+        border: '0' 
+      }}>
+        İstatistikler
+      </h1>
+      
+      {/* Fixed Tab Header */}
+      <div 
+        className="flex-shrink-0 px-4 pt-4 pb-3"
+        style={{ 
+          borderBottom: `1px solid ${colors.cardBorderTransparent}`,
+        }}
+      >
+        <div className="w-full max-w-[448px] mx-auto flex gap-2">
+          <button
+            onClick={() => setActiveTab('stats')}
+            className="flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all"
+            style={{
+              background: activeTab === 'stats' ? 'rgba(59,130,246,0.15)' : 'transparent',
+              color: activeTab === 'stats' ? '#3b82f6' : colors.textSecondary,
+              border: activeTab === 'stats' ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
+            }}
+            aria-pressed={activeTab === 'stats'}
+          >
+            İstatistik
+          </button>
+          <button
+            onClick={() => setActiveTab('achievements')}
+            className="flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all"
+            style={{
+              background: activeTab === 'achievements' ? 'rgba(59,130,246,0.15)' : 'transparent',
+              color: activeTab === 'achievements' ? '#3b82f6' : colors.textSecondary,
+              border: activeTab === 'achievements' ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
+            }}
+            aria-pressed={activeTab === 'achievements'}
+          >
+            Başarımlar
+          </button>
+        </div>
+      </div>
+      
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="w-full max-w-[448px] mx-auto">
+          {activeTab === 'stats' && (
+            <>
           {/* MOD PERFORMANSI Section */}
           <div className="mb-6">
-            <h2 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: colors.textSecondary }}>
-              MOD PERFORMANSI
-            </h2>
+            <SectionHeader title="MOD PERFORMANSI" />
             
             <div className="space-y-3">
               <PerformanceCard
@@ -65,9 +157,7 @@ export const StatisticsScreen: React.FC = () => {
 
           {/* GENEL İLERLEME Section */}
           <div className="mb-6">
-            <h2 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: colors.textSecondary }}>
-              GENEL İLERLEME
-            </h2>
+            <SectionHeader title="GENEL İLERLEME" />
             
             <div
               className="rounded-xl p-4 space-y-4"
@@ -114,10 +204,8 @@ export const StatisticsScreen: React.FC = () => {
           </div>
 
           {/* GENEL Section */}
-          <div className="mb-6">
-            <h2 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: colors.textSecondary }}>
-              GENEL
-            </h2>
+          <div className="mb-6 pb-24">
+            <SectionHeader title="GENEL" />
             
             <div className="grid grid-cols-2 gap-3">
               <StatCard
@@ -149,24 +237,64 @@ export const StatisticsScreen: React.FC = () => {
               />
             </div>
           </div>
+            </>
+          )}
 
-          {/* BAŞARIMLAR Section */}
+          {activeTab === 'achievements' && (
+            <>
+          {/* Achievement Summary */}
           <div className="mb-6">
-            <h2 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: colors.textSecondary }}>
-              BAŞARIMLAR
-            </h2>
-            
-            <div className="grid grid-cols-1 gap-3">
-              {achievements.map((achievement) => (
-                <AchievementCard
-                  key={achievement.id}
-                  achievement={achievement}
-                  status={achievement.status}
-                  progress={achievement.progress}
+            <div
+              className="rounded-xl p-4"
+              style={{
+                background: colors.cardBackgroundTransparent,
+                border: `1px solid ${colors.cardBorderTransparent}`,
+              }}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                  {unlockedCount} / {totalCount} açıldı
+                </span>
+                <span className="text-xs" style={{ color: colors.textSecondary }}>
+                  %{overallProgress}
+                </span>
+              </div>
+              <div
+                className="w-full h-2 rounded-full overflow-hidden"
+                style={{ background: colors.cardBorderTransparent }}
+              >
+                <div
+                  className="h-full transition-all duration-300"
+                  style={{
+                    width: `${overallProgress}%`,
+                    background: 'linear-gradient(90deg, #fbbf24, #f59e0b)',
+                  }}
                 />
-              ))}
+              </div>
             </div>
           </div>
+
+          {/* Achievements by Category */}
+          {Object.entries(achievementsByCategory).map(([category, categoryAchievements]) => (
+            <div key={category} className="mb-6">
+              <SectionHeader title={categoryNames[category] || category} />
+              
+              <div className="space-y-3">
+                {categoryAchievements.map((achievement) => (
+                  <AchievementCard
+                    key={achievement.id}
+                    achievement={achievement}
+                    status={achievement.status}
+                    progress={achievement.progress}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <div className="pb-24" />
+            </>
+          )}
         </div>
       </div>
     </div>

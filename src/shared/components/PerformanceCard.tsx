@@ -20,10 +20,12 @@ export const PerformanceCard: React.FC<PerformanceCardProps> = ({
   
   return (
     <div
-      className="rounded-xl p-4"
+      className="rounded-xl"
       style={{
         background: colors.cardBackgroundTransparent,
         border: `1px solid ${color}30`,
+        borderRadius: '12px',
+        padding: '10px 12px',
       }}
     >
       <div className="flex items-center gap-2 mb-4">
@@ -69,7 +71,7 @@ export const PerformanceCard: React.FC<PerformanceCardProps> = ({
             </>
           ) : (
             <>
-              <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>Ödül</p>
+              <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>Chrono Bonus</p>
               <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
                 +{chronoBonus || 0}s
               </p>

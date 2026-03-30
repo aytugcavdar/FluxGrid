@@ -7,3 +7,7 @@ export { AchievementCard } from './AchievementCard';
 export { ThemeCard } from './ThemeCard';
 export { ToggleSwitch } from './ToggleSwitch';
 export { PerformanceCard } from './PerformanceCard';
+export { ModeCard } from './ModeCard';
+export type { ModeCardProps } from './ModeCard';
+export { SectionHeader } from './SectionHeader';
+export type { SectionHeaderProps } from './SectionHeader';

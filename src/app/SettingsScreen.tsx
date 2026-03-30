@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../shared/store/settingsStore';
 import { useThemeStore, ThemeType } from '../shared/store/themeStore';
-import { ThemeCard, ToggleSwitch } from '../shared/components';
+import { ToggleSwitch, SectionHeader } from '../shared/components';
 
 export const SettingsScreen: React.FC = () => {
   const { i18n } = useTranslation();
@@ -30,11 +30,11 @@ export const SettingsScreen: React.FC = () => {
     i18n.changeLanguage(lang);
   };
 
-  const themes: Array<{ theme: ThemeType; label: string; colors: string[]; icon: string }> = [
-    { theme: 'dark', label: 'Koyu', colors: ['#3b82f6', '#a855f7', '#f59e0b'], icon: '🌙' },
-    { theme: 'light', label: 'Açık', colors: ['#60a5fa', '#c084fc', '#fbbf24'], icon: '☀️' },
-    { theme: 'neon', label: 'Neon', colors: ['#e879f9', '#06b6d4', '#a78bfa'], icon: '⚡' },
-    { theme: 'ocean', label: 'Okyanus', colors: ['#38bdf8', '#22d3ee', '#7dd3fc'], icon: '🌊' },
+  const themes: Array<{ theme: ThemeType; label: string; colors: string[] }> = [
+    { theme: 'dark', label: 'Koyu', colors: ['#3b82f6', '#a855f7', '#f59e0b'] },
+    { theme: 'light', label: 'Açık', colors: ['#60a5fa', '#c084fc', '#fbbf24'] },
+    { theme: 'neon', label: 'Neon', colors: ['#e879f9', '#06b6d4', '#a78bfa'] },
+    { theme: 'ocean', label: 'Okyanus', colors: ['#38bdf8', '#22d3ee', '#7dd3fc'] },
   ];
 
   const handleExport = async () => {
@@ -91,40 +91,47 @@ export const SettingsScreen: React.FC = () => {
         <div className="w-full max-w-[448px] mx-auto">
           {/* GÖRÜNÜM Section */}
           <div className="mb-8">
-            <h2 className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: colors.textSecondary }}>
-              GÖRÜNÜM
-            </h2>
+            <SectionHeader title="GÖRÜNÜM" />
             
             <div className="grid grid-cols-2 gap-3">
-              {themes.map(({ theme, label, colors: themeColors, icon }) => (
+              {themes.map(({ theme, label, colors: themeColors }) => (
                 <button
                   key={theme}
                   onClick={() => setTheme(theme)}
-                  className="p-5 rounded-2xl text-left transition-all"
+                  className="text-left transition-all cursor-pointer"
                   style={{
+                    padding: '10px',
+                    borderRadius: '10px',
                     background: currentTheme === theme 
                       ? 'rgba(59,130,246,0.1)' 
-                      : colors.cardBackgroundTransparent,
+                      : 'transparent',
                     border: currentTheme === theme 
                       ? '2px solid #3b82f6' 
-                      : `2px solid ${colors.cardBorderTransparent}`,
+                      : '1.5px solid rgba(255,255,255,0.06)',
                   }}
                   aria-label={`${label} temasını seç`}
                   aria-pressed={currentTheme === theme}
                 >
-                  <div className="text-3xl mb-3">{icon}</div>
+                  {/* 32px height preview gradient */}
+                  <div 
+                    className="mb-2"
+                    style={{
+                      height: '32px',
+                      borderRadius: '6px',
+                      background: `linear-gradient(135deg, ${themeColors[0]} 0%, ${themeColors[1]} 50%, ${themeColors[2]} 100%)`,
+                    }}
+                  />
                   
-                  <div className="flex items-center gap-2 mb-3">
-                    {themeColors.map((color, index) => (
-                      <div
-                        key={index}
-                        className="w-5 h-5 rounded-full"
-                        style={{ background: color }}
-                      />
-                    ))}
-                  </div>
-                  
-                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{label}</p>
+                  {/* Theme name and subtitle */}
+                  <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
+                    {label}
+                  </p>
+                  <p className="text-xs" style={{ color: colors.textTertiary }}>
+                    {theme === 'dark' && 'Varsayılan tema'}
+                    {theme === 'light' && 'Aydınlık mod'}
+                    {theme === 'neon' && 'Canlı renkler'}
+                    {theme === 'ocean' && 'Sakin tonlar'}
+                  </p>
                 </button>
               ))}
             </div>
@@ -132,9 +139,7 @@ export const SettingsScreen: React.FC = () => {
 
           {/* SES VE TİTREŞİM Section */}
           <div className="mb-8">
-            <h2 className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: colors.textSecondary }}>
-              SES VE TİTREŞİM
-            </h2>
+            <SectionHeader title="SES VE TİTREŞİM" />
             
             <div className="space-y-3">
               <ToggleSwitch
@@ -155,9 +160,7 @@ export const SettingsScreen: React.FC = () => {
 
           {/* DİL Section */}
           <div className="mb-8">
-            <h2 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: colors.textSecondary }}>
-              DİL
-            </h2>
+            <SectionHeader title="DİL" />
             <p className="text-xs mb-4" style={{ color: colors.textTertiary }}>
               Dil ayarı sadece oyun içinde geçerlidir
             </p>
@@ -177,7 +180,7 @@ export const SettingsScreen: React.FC = () => {
                 aria-label="Türkçe dilini seç"
                 aria-pressed={language === 'tr'}
               >
-                <div className="text-3xl mb-3">🇹🇷</div>
+                <div style={{ fontSize: '20px' }} className="mb-3">🇹🇷</div>
                 <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>Türkçe</p>
               </button>
               
@@ -195,7 +198,7 @@ export const SettingsScreen: React.FC = () => {
                 aria-label="İngilizce dilini seç"
                 aria-pressed={language === 'en'}
               >
-                <div className="text-3xl mb-3">🇬🇧</div>
+                <div style={{ fontSize: '20px' }} className="mb-3">🇬🇧</div>
                 <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>English</p>
               </button>
             </div>
@@ -203,9 +206,7 @@ export const SettingsScreen: React.FC = () => {
 
           {/* OYUN Section */}
           <div className="mb-8">
-            <h2 className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: colors.textSecondary }}>
-              OYUN
-            </h2>
+            <SectionHeader title="OYUN" />
             
             <div className="space-y-3">
               <ToggleSwitch
@@ -256,9 +257,7 @@ export const SettingsScreen: React.FC = () => {
 
           {/* TEHLİKE BÖLGESİ Section */}
           <div className="mb-8">
-            <h2 className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: colors.textSecondary }}>
-              TEHLİKE BÖLGESİ
-            </h2>
+            <SectionHeader title="TEHLİKE BÖLGESİ" dividerColor="rgba(239,68,68,0.15)" />
             
             <button
               onClick={handleReset}

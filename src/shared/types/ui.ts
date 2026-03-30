@@ -100,6 +100,10 @@ export interface Achievement {
   progress?: number; // 0-100 for in-progress
   requirement?: number;
   current?: number;
+  category?: string;
+  hidden?: boolean;
+  currentValue?: number;
+  targetValue?: number;
 }
 
 // Export Data Interface
