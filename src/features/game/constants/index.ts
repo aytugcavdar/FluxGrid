@@ -110,10 +110,11 @@ export const TIMED_MODE = {
 
 // CHRONO Block (Timed Mode)
 export const CHRONO_BLOCK = {
-  color: '#fbbf24',  // Golden/amber color
-  icon: '⏱️',         // Clock emoji or custom SVG
-  glowColor: '#fef3c7',  // Light golden glow
+  color: '#fde68a',  // Golden yellow
+  icon: '⏱',         // Clock emoji
+  glowColor: '#fbbf24',  // Golden glow
   type: 'CHRONO' as const,
+  bonusSeconds: 5,
 };
 
 // Achievements

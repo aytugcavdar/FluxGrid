@@ -63,16 +63,31 @@ export const Piece: React.FC<Props> = ({ piece }) => {
             className={clsx(
               "rounded-sm transition-all duration-300",
               filled && p.type === CellType.ICE && !isNativeApp && "animate-pulse",
-              filled && p.type === CellType.BOMB && !isNativeApp && "animate-pulse"
+              filled && p.type === CellType.BOMB && !isNativeApp && "animate-pulse",
+              filled && p.type === CellType.CHRONO && !isNativeApp && "animate-pulse"
             )}
             style={{
               width: blockSize,
               height: blockSize,
               backgroundColor: filled
-                ? (p.type === CellType.ICE ? '#a5f3fc' : p.type === CellType.BOMB ? '#ef4444' : p.color)
+                ? (p.type === CellType.ICE 
+                    ? '#a5f3fc' 
+                    : p.type === CellType.BOMB 
+                      ? '#ef4444' 
+                      : p.type === CellType.CHRONO
+                        ? '#fde68a'
+                        : p.color)
                 : 'transparent',
               boxShadow: filled && !isNativeApp
-                ? `0 0 ${isMobile ? 2 : 4}px ${p.type === CellType.ICE ? '#93c5fd' : p.type === CellType.BOMB ? '#f87171' : p.color}40`
+                ? `0 0 ${isMobile ? 2 : 4}px ${
+                    p.type === CellType.ICE 
+                      ? '#93c5fd' 
+                      : p.type === CellType.BOMB 
+                        ? '#f87171' 
+                        : p.type === CellType.CHRONO
+                          ? '#fbbf24'
+                          : p.color
+                  }40`
                 : 'none',
               opacity: filled ? 1 : 0,
             }}
@@ -126,6 +141,21 @@ export const Piece: React.FC<Props> = ({ piece }) => {
         {piece.type === CellType.BOMB && (
           <div className="absolute -top-0.5 -right-0.5 w-4 h-4 md:w-5 md:h-5 bg-red-500 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white shadow-lg z-10">
             💣
+          </div>
+        )}
+        {piece.type === CellType.CHRONO && (
+          <div 
+            className="absolute -top-0.5 -right-0.5 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shadow-lg z-10"
+            style={{
+              background: '#fbbf24',
+              fontSize: '9px',
+              fontWeight: 700,
+              color: '#78350f',
+              lineHeight: 1,
+            }}
+          >
+            <span>⏱</span>
+            <span>+5s</span>
           </div>
         )}
 

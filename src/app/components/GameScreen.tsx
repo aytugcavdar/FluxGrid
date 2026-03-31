@@ -19,15 +19,11 @@ interface ScorePopup {
 interface TimePopup {
   id: number;
   value: number;
-  x: number;
-  y: number;
 }
 
 interface ChronoPopupData {
   id: number;
   seconds: number;
-  gridX: number;
-  gridY: number;
 }
 
 interface GameScreenProps {
@@ -47,7 +43,6 @@ interface GameScreenProps {
   setTimePopups: React.Dispatch<React.SetStateAction<TimePopup[]>>;
   chronoPopups: ChronoPopupData[];
   setChronoPopups: React.Dispatch<React.SetStateAction<ChronoPopupData[]>>;
-  timedWarning: '30sn' | '10sn' | null;
   shownChain: number;
   showPerfect: boolean;
   eventStartVisual: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
@@ -71,7 +66,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   setTimePopups,
   chronoPopups,
   setChronoPopups,
-  timedWarning,
   shownChain,
   showPerfect,
   eventStartVisual,
@@ -254,15 +248,16 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         {timePopups.map(popup => (
           <motion.div
             key={popup.id}
-            initial={{ opacity: 0, y: 0, scale: 0.8 }}
-            animate={{ opacity: 1, y: -60, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.5 }}
+            initial={{ opacity: 0, x: 0 }}
+            animate={{ opacity: 1, x: 40 }}
+            exit={{ opacity: 0, x: 40 }}
             transition={{ duration: 1.2, ease: 'easeOut' }}
             style={{
               position: 'fixed',
-              left: `${popup.x}%`,
-              top: `${popup.y}%`,
-              fontSize: 24,
+              left: '50%',
+              top: `calc(var(--hud-height) + 8px + ${(popup.id % 3) * 28}px)`,
+              transform: 'translateX(-50%)',
+              fontSize: '24px',
               fontWeight: 900,
               color: '#ef4444',
               textShadow: '0 2px 8px rgba(0,0,0,0.5)',
@@ -285,8 +280,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             key={popup.id}
             id={popup.id}
             seconds={popup.seconds}
-            x={popup.gridX}
-            y={popup.gridY}
             onComplete={(id: number) => {
               setChronoPopups(prev => prev.filter(p => p.id !== id));
             }}
@@ -295,62 +288,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       </AnimatePresence>
 
 
-
-      {/* TIMED Mode Warnings */}
-      <AnimatePresence>
-        {timedWarning === '30sn' && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-24 left-0 right-0 flex justify-center pointer-events-none z-50"
-          >
-            <div style={{
-              background: 'rgba(249,115,22,0.95)',
-              border: '2px solid rgba(249,115,22,1)',
-              borderRadius: 16,
-              padding: '12px 24px',
-              boxShadow: '0 8px 32px rgba(249,115,22,0.4)',
-            }}>
-              <div style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: '#fff',
-                textAlign: 'center',
-                letterSpacing: '0.05em'
-              }}>
-                ⚡ Son 30 saniye — 1.5× puan kazanıyorsun!
-              </div>
-            </div>
-          </motion.div>
-        )}
-        {timedWarning === '10sn' && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="fixed top-24 left-0 right-0 flex justify-center pointer-events-none z-50"
-          >
-            <div style={{
-              background: 'rgba(239,68,68,0.95)',
-              border: '2px solid rgba(239,68,68,1)',
-              borderRadius: 16,
-              padding: '14px 28px',
-              boxShadow: '0 8px 32px rgba(239,68,68,0.5)',
-            }}>
-              <div style={{
-                fontSize: 18,
-                fontWeight: 900,
-                color: '#fff',
-                textAlign: 'center',
-                letterSpacing: '0.05em'
-              }}>
-                🔥 Şimdi veya hiç! — Son 10 saniye
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <div className="fixed top-20 left-0 right-0 flex flex-col items-center gap-2 pointer-events-none z-10">
         <AnimatePresence mode="wait">

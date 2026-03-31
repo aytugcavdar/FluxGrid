@@ -48,6 +48,18 @@ export const HUD: React.FC = () => {
 
     return (
         <>
+            {/* Red tint background overlay for final seconds warning */}
+            {gameMode === GameMode.TIMED && timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(239,68,68,0.05)',
+                    pointerEvents: 'none',
+                    zIndex: 5,
+                    transition: 'opacity 0.5s ease',
+                }} />
+            )}
+
             {/* MOBILE LAYOUT - 2 ROWS */}
             <div 
                 className="md:hidden w-full h-full flex flex-col" 
@@ -192,7 +204,7 @@ export const HUD: React.FC = () => {
                             flexDirection: 'column',
                             alignItems: 'center',
                             minWidth: 34,
-                            animation: (gameMode === GameMode.TIMED && timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD) ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none',
+                            animation: (timeLeft === 30 ? 'pulse 0.5s ease-in-out 3' : (gameMode === GameMode.TIMED && timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD) ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none'),
                             transition: 'background 0.5s ease, border-color 0.5s ease'
                         }}>
                             <span style={{ 
@@ -379,10 +391,15 @@ export const HUD: React.FC = () => {
                         </div>
 
                         {gameMode === GameMode.TIMED ? (
-                            <div className={clsx(
-                                "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-black tracking-tight transition-all duration-500",
-                                (timeLeft <= 10 ? "bg-rose-500/20 text-rose-400 animate-pulse" : timeLeft <= 30 ? "bg-orange-500/20 text-orange-400" : "bg-blue-500/20 text-blue-400")
-                            )}>
+                            <div 
+                                className={clsx(
+                                    "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-black tracking-tight transition-all duration-500",
+                                    (timeLeft <= 10 ? "bg-rose-500/20 text-rose-400 animate-pulse" : timeLeft <= 30 ? "bg-orange-500/20 text-orange-400" : "bg-blue-500/20 text-blue-400")
+                                )}
+                                style={{
+                                    animation: timeLeft === 30 ? 'pulse 0.5s ease-in-out 3' : undefined
+                                }}
+                            >
                                 <span>{timeLeft} Saniye</span>
                             </div>
                         ) : gameMode === GameMode.ZEN ? (

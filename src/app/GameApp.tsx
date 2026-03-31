@@ -31,15 +31,11 @@ interface ScorePopup {
 interface TimePopup {
   id: number;
   value: number;
-  x: number;
-  y: number;
 }
 
 interface ChronoPopup {
   id: number;
   seconds: number;
-  gridX: number;
-  gridY: number;
 }
 
 const App: React.FC = () => {
@@ -69,7 +65,6 @@ const App: React.FC = () => {
   const [chronoPopups, setChronoPopups] = useState<ChronoPopup[]>([]);
   const chronoPopupIdRef = useRef(0);
   const prevTimeLeftRef = useRef(timeLeft);
-  const [timedWarning, setTimedWarning] = useState<'30sn' | '10sn' | null>(null);
   const prevComboRef = useRef(combo);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared'>('idle');
   const [surgeWasUsed, setSurgeWasUsed] = useState(false);
@@ -215,13 +210,11 @@ const App: React.FC = () => {
       // Play sound
       playChronoBonus();
       
-      // Create popup at grid center (approximate position)
+      // Create popup with fixed positioning (no grid coordinates needed)
       const id = chronoPopupIdRef.current++;
       setChronoPopups(prev => [...prev, {
         id,
         seconds: lastAction.chronoBonus!,
-        gridX: 5, // Center of 10x10 grid
-        gridY: 3, // Upper-middle area
       }]);
     }
 
@@ -245,23 +238,10 @@ const App: React.FC = () => {
     prevSurgeRef.current = isSurgeActive;
   }, [isSurgeActive]);
 
-  // 30 second warning for TIMED mode
-  // TIMED mode warnings: 30 second and 10 second
+  // Track previous timeLeft for combo break detection
   useEffect(() => {
-    if (gameMode === GameMode.TIMED) {
-      // 30 second warning
-      if (timeLeft === 30 && prevTimeLeftRef.current === 31) {
-        setTimedWarning('30sn');
-        setTimeout(() => setTimedWarning(null), 2500);
-      }
-      // 10 second warning
-      if (timeLeft === 10 && prevTimeLeftRef.current === 11) {
-        setTimedWarning('10sn');
-        setTimeout(() => setTimedWarning(null), 2000);
-      }
-    }
     prevTimeLeftRef.current = timeLeft;
-  }, [timeLeft, gameMode]);
+  }, [timeLeft]);
 
   // Combo break penalty visual feedback for TIMED mode
   useEffect(() => {
@@ -270,8 +250,6 @@ const App: React.FC = () => {
       setTimePopups(prev => [...prev, {
         id: timePopupIdRef.current++,
         value: -1,
-        x: Math.random() * 60 + 20, // Random x position 20-80%
-        y: 30
       }]);
     }
     prevComboRef.current = combo;
@@ -412,7 +390,6 @@ const App: React.FC = () => {
             setTimePopups={setTimePopups}
             chronoPopups={chronoPopups}
             setChronoPopups={setChronoPopups}
-            timedWarning={timedWarning}
             shownChain={shownChain}
             showPerfect={showPerfect}
             eventStartVisual={eventStartVisual}

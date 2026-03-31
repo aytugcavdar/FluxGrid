@@ -7,7 +7,7 @@
 
 export const ANIMATION_DURATIONS = {
   // CHRONO Popup
-  CHRONO_POPUP: 1200, // ms
+  CHRONO_POPUP: 1400, // ms
   
   // Line Clear
   LINE_CLEAR_FLASH: 150, // ms
@@ -31,6 +31,7 @@ export const ANIMATION_DURATIONS = {
   // COMBO RUSH
   COMBO_RUSH_START: 800, // ms (reduced from 1500)
   COMBO_RUSH_END: 200, // ms (reduced from 300)
+  COMBO_RUSH_FLASH: 500, // ms
 } as const;
 
 // ─── Easing Functions ───

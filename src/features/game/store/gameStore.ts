@@ -773,11 +773,16 @@ export const useGameStore = create<GameStore>((set, get) => {
       // Add CHRONO bonus
       extraTime += chronoBonusSeconds;
       
-      // Timer'ı 60 saniyede cap'le ve timerExpectedEnd'i güncelle
+      // Timer'ı güncelle - CHRONO bonus için cap'i geçici olarak kaldır
       const currentExpectedEnd = get().timerExpectedEnd;
       if (currentExpectedEnd) {
+        // CHRONO bonus varsa, 60 saniye cap'ini geçici olarak yükselt
+        const maxTime = chronoBonusSeconds > 0 
+          ? get().timerStartTime! + 75000  // CHRONO bonus için 75 saniye cap
+          : get().timerStartTime! + 60000; // Normal 60 saniye cap
+          
         const newExpectedEnd = Math.min(
-          get().timerStartTime! + 60000, // Max 60 seconds from start
+          maxTime,
           currentExpectedEnd + (extraTime * 1000)
         );
         const newTimeLeft = Math.max(0, Math.ceil((newExpectedEnd - Date.now()) / 1000));

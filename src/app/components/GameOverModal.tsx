@@ -95,7 +95,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   // Mode suggestions
   const MODE_SUGGESTIONS: Record<string, { mode: GameMode; label: string; desc: string }> = {
     [GameMode.ENDLESS]: { mode: GameMode.TIMED, label: 'Zamanlı Modu Dene', desc: '60 saniye içinde en yüksek skoru yap' },
-    [GameMode.TIMED]: { mode: GameMode.ZEN, label: 'Zen Modunu Dene', desc: 'Stressiz, zamansız oyun deneyimi' },
+    [GameMode.TIMED]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Sınırsız oyun, skor rekorları kır' },
     [GameMode.ZEN]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Sınırsız oyun, skor rekorları kır' },
     [GameMode.DAILY_CHALLENGE]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Günlük meydan okuma sonrası pratik yap' },
   };
