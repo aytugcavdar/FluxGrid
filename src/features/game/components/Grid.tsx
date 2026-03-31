@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import * as BABYLON from 'babylonjs';
 import { useGameStore } from '../store/gameStore';
 import { useThemeStore } from '../../../shared/store/themeStore';
+import { useVisualEffectStore } from '../../visual-effects/store/visualEffectStore';
 import { GRID_SIZE, SkillType, CellType, GridState } from '../types';
 import { GameMode } from '@shared/types';
 import { getDragYOffset, setCanvasRect } from '../../../utils/responsive';
@@ -41,6 +42,7 @@ export const Grid: React.FC = () => {
     // Refs for render loop logic
     const lastHandledActionRef = useRef<any>(null);
     const shakeIntensityRef = useRef(0);
+    const prevSurgeActiveRef = useRef(false);
     
     // Line clear animation state
     const lineClearAnimationRef = useRef<{
@@ -50,6 +52,7 @@ export const Grid: React.FC = () => {
         startTime: number;
         clearedCells: Set<string>;
         affectedBlocks: Map<string, { startY: number; targetY: number }>;
+        originalColors: Map<string, BABYLON.Color3>;
     } | null>(null);
     
     // Game over animation state
@@ -411,6 +414,46 @@ export const Grid: React.FC = () => {
                 for (let y = 0; y < GRID_SIZE; y++) clearedCells.add(`${x},${y}`);
             });
             
+            // Store original colors for each cleared cell
+            const originalColors = new Map<string, BABYLON.Color3>();
+            clearedCells.forEach(key => {
+                const [x, y] = key.split(',').map(Number);
+                const cell = stateRef.current.grid[y]?.[x];
+                if (cell?.id) {
+                    const mesh = meshMapRef.current.get(cell.id);
+                    if (mesh?.material) {
+                        const mat = mesh.material as BABYLON.StandardMaterial;
+                        originalColors.set(key, mat.diffuseColor.clone());
+                    }
+                }
+            });
+            
+            // Add particle explosions for cleared cells (skip on low-end devices)
+            if (!isLowEndDevice) {
+                clearedCells.forEach(key => {
+                    const [x, y] = key.split(',').map(Number);
+                    const cell = stateRef.current.grid[y]?.[x];
+                    if (cell) {
+                        const worldPos = getVectorPos(x, y);
+                        const delay = Math.random() * 80; // 0-80ms stagger
+                        
+                        setTimeout(() => {
+                            useVisualEffectStore.getState().addEffect({
+                                type: 'explosion',
+                                duration: 180,
+                                props: {
+                                    x: worldPos.x,
+                                    y: worldPos.y,
+                                    color: cell.color,
+                                    blockSize: 28,
+                                    cellType: cell.type
+                                }
+                            });
+                        }, delay);
+                    }
+                });
+            }
+            
             // Calculate affected blocks (blocks above cleared rows)
             const affectedBlocks = new Map<string, { startY: number; targetY: number }>();
             const clearedRowsSorted = [...rows].sort((a, b) => b - a); // Sort descending
@@ -439,7 +482,8 @@ export const Grid: React.FC = () => {
                 progress: 0,
                 startTime: Date.now(),
                 clearedCells,
-                affectedBlocks
+                affectedBlocks,
+                originalColors
             };
         };
         
@@ -512,6 +556,8 @@ export const Grid: React.FC = () => {
                 }
 
                 box.isPickable = false;
+                box.position.y = 12;
+                
                 return box;
 
             } else if (type === CellType.BOMB) {
@@ -546,6 +592,8 @@ export const Grid: React.FC = () => {
                 fuseBase.isPickable = false;
 
                 box.isPickable = false;
+                box.position.y = 12;
+                
                 return box;
 
             } else if (type === CellType.CHRONO) {
@@ -575,6 +623,8 @@ export const Grid: React.FC = () => {
                 marker.isPickable = false;
 
                 box.isPickable = false;
+                box.position.y = 12;
+                
                 return box;
 
             } else {
@@ -594,6 +644,8 @@ export const Grid: React.FC = () => {
                 box.edgesColor = new BABYLON.Color4(1, 1, 1, 0.12);
 
                 box.isPickable = false;
+                box.position.y = 12;
+                
                 return box;
             }
         };
@@ -688,7 +740,8 @@ export const Grid: React.FC = () => {
         let frameCount = 0; // Frame counter for throttling animations
 
         scene.registerBeforeRender(() => {
-            time += engine.getDeltaTime() / 1000; // Use actual delta time instead of fixed 0.02
+            const deltaTime = engine.getDeltaTime() / 1000; // Convert to seconds
+            time += deltaTime;
             frameCount++;
             const { grid, draggedPiece, activeSkill, score, combo, lastAction, isGameOver, gameMode: currentGameMode, timeLeft: currentTimeLeft, difficultyTier: currentTier } = stateRef.current;
 
@@ -709,6 +762,13 @@ export const Grid: React.FC = () => {
                 };
             }
             prevTierRef.current = currentTier;
+            
+            // ─── Surge Detection ───
+            const { isSurgeActive: currentSurgeActive } = stateRef.current;
+            if (currentSurgeActive !== prevSurgeActiveRef.current) {
+                // Just track state change, no visual changes to grid
+                prevSurgeActiveRef.current = currentSurgeActive;
+            }
             
             // Animate tier flash
             if (tierFlashRef.current?.active) {
@@ -900,11 +960,11 @@ export const Grid: React.FC = () => {
                 const elapsed = Date.now() - anim.startTime;
                 
                 if (anim.phase === 'flash') {
-                    // Flash phase: 150ms, white emissive
-                    if (elapsed < 150) {
-                        anim.progress = elapsed / 150;
+                    // Flash phase: 220ms, 3-step interpolation
+                    if (elapsed < 220) {
+                        anim.progress = elapsed / 220;
                         
-                        // Apply white flash to cleared cells
+                        // Apply 3-step flash to cleared cells
                         anim.clearedCells.forEach(key => {
                             const [x, y] = key.split(',').map(Number);
                             const cell = grid[y]?.[x];
@@ -912,7 +972,23 @@ export const Grid: React.FC = () => {
                                 const mesh = meshMapRef.current.get(cell.id);
                                 if (mesh?.material) {
                                     const mat = mesh.material as BABYLON.StandardMaterial;
-                                    mat.emissiveColor = BABYLON.Color3.White();
+                                    const originalColor = anim.originalColors.get(key) || mat.diffuseColor;
+                                    const white = BABYLON.Color3.White();
+                                    const coloredEmissive = originalColor.scale(2.0);
+                                    
+                                    if (anim.progress < 0.33) {
+                                        // Step 1: Original to White (0-0.33)
+                                        const stepProgress = anim.progress / 0.33;
+                                        mat.emissiveColor = BABYLON.Color3.Lerp(originalColor, white, stepProgress);
+                                    } else if (anim.progress < 0.66) {
+                                        // Step 2: White to 2x Colored (0.33-0.66)
+                                        const stepProgress = (anim.progress - 0.33) / 0.33;
+                                        mat.emissiveColor = BABYLON.Color3.Lerp(white, coloredEmissive, stepProgress);
+                                    } else {
+                                        // Step 3: 2x Colored to Zero (0.66-1.0)
+                                        const stepProgress = (anim.progress - 0.66) / 0.34;
+                                        mat.emissiveColor = BABYLON.Color3.Lerp(coloredEmissive, BABYLON.Color3.Black(), stepProgress);
+                                    }
                                     (mat as any).emissiveIntensity = 1.0;
                                 }
                             }
@@ -965,7 +1041,11 @@ export const Grid: React.FC = () => {
                     // Shake intensity based on lines cleared and combo
                     const lines = lastAction.lines || 1;
                     const cmb = lastAction.combo || 1;
-                    shakeIntensityRef.current = prefersReducedMotion ? 0 : (0.2 + (lines * 0.1) + (cmb * 0.05));
+                    const baseIntensity = 0.35;
+                    const lineBonus = lines * 0.18;
+                    const comboBonus = cmb * 0.08;
+                    const calculatedIntensity = Math.min(baseIntensity + lineBonus + comboBonus, 1.2);
+                    shakeIntensityRef.current = prefersReducedMotion ? 0 : calculatedIntensity;
                     
                     // Trigger line clear animation
                     const { rows, cols } = detectLineClear(grid);
@@ -1111,7 +1191,7 @@ export const Grid: React.FC = () => {
                     }
                 }
             }
-
+            
             // 2. Holographic Ghost (The Wireframe Preview) - Pool-based
             // Hide all ghosts first
             ghostMeshesRef.current.forEach(m => { m.isVisible = false; });

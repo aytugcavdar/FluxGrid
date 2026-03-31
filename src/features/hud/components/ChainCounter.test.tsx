@@ -18,53 +18,53 @@ describe('ChainCounter', () => {
 
       it('should render when chain is 2', () => {
         render(<ChainCounter chain={2} />);
-        expect(screen.getByText(/x2 ZİNCİR/i)).toBeInTheDocument();
+        expect(screen.getByText(/x2/i)).toBeInTheDocument();
       });
 
       it('should render when chain is 3', () => {
         render(<ChainCounter chain={3} />);
-        expect(screen.getByText(/x3 ZİNCİR/i)).toBeInTheDocument();
+        expect(screen.getByText(/x3/i)).toBeInTheDocument();
       });
 
       it('should render when chain is 4', () => {
         render(<ChainCounter chain={4} />);
-        expect(screen.getByText(/x4 ZİNCİR/i)).toBeInTheDocument();
+        expect(screen.getByText(/x4/i)).toBeInTheDocument();
       });
 
       it('should render when chain is 10', () => {
         render(<ChainCounter chain={10} />);
-        expect(screen.getByText(/x10 ZİNCİR/i)).toBeInTheDocument();
+        expect(screen.getByText(/x10/i)).toBeInTheDocument();
       });
     });
 
     describe('Color Mapping', () => {
       it('should use blue color (#60a5fa) when chain is 2', () => {
         const { container } = render(<ChainCounter chain={2} />);
-        const mainText = screen.getByText(/x2 ZİNCİR/i);
+        const mainText = screen.getByText(/x2/i);
         expect(mainText).toHaveStyle({ color: '#60a5fa' });
       });
 
       it('should use purple color (#a78bfa) when chain is 3', () => {
         const { container } = render(<ChainCounter chain={3} />);
-        const mainText = screen.getByText(/x3 ZİNCİR/i);
+        const mainText = screen.getByText(/x3/i);
         expect(mainText).toHaveStyle({ color: '#a78bfa' });
       });
 
       it('should use gold color (#f59e0b) when chain is 4', () => {
         const { container } = render(<ChainCounter chain={4} />);
-        const mainText = screen.getByText(/x4 ZİNCİR/i);
+        const mainText = screen.getByText(/x4/i);
         expect(mainText).toHaveStyle({ color: '#f59e0b' });
       });
 
       it('should use gold color (#f59e0b) when chain is 5', () => {
         const { container } = render(<ChainCounter chain={5} />);
-        const mainText = screen.getByText(/x5 ZİNCİR/i);
+        const mainText = screen.getByText(/x5/i);
         expect(mainText).toHaveStyle({ color: '#f59e0b' });
       });
 
       it('should use gold color (#f59e0b) when chain is 10', () => {
         const { container } = render(<ChainCounter chain={10} />);
-        const mainText = screen.getByText(/x10 ZİNCİR/i);
+        const mainText = screen.getByText(/x10/i);
         expect(mainText).toHaveStyle({ color: '#f59e0b' });
       });
     });
@@ -113,14 +113,14 @@ describe('ChainCounter', () => {
     describe('Typography', () => {
       it('should display main text with correct format', () => {
         render(<ChainCounter chain={5} />);
-        const mainText = screen.getByText(/x5 ZİNCİR/i);
+        const mainText = screen.getByText(/x5/i);
         expect(mainText).toBeInTheDocument();
-        expect(mainText.textContent).toBe('x5 ZİNCİR');
+        expect(mainText.textContent).toBe('x5');
       });
 
       it('should have text shadow on main text', () => {
         render(<ChainCounter chain={2} />);
-        const mainText = screen.getByText(/x2 ZİNCİR/i);
+        const mainText = screen.getByText(/x2/i);
         const style = window.getComputedStyle(mainText);
         expect(style.textShadow).toBeTruthy();
       });
@@ -191,7 +191,7 @@ describe('ChainCounter', () => {
         });
 
         render(<ChainCounter chain={2} />);
-        const mainText = screen.getByText(/x2 ZİNCİR/i);
+        const mainText = screen.getByText(/x2/i);
         
         // Verify text shadow is applied
         expect(mainText.style.textShadow).toBeTruthy();
@@ -207,7 +207,7 @@ describe('ChainCounter', () => {
         });
 
         render(<ChainCounter chain={4} />);
-        const mainText = screen.getByText(/x4 ZİNCİR/i);
+        const mainText = screen.getByText(/x4/i);
         
         expect(mainText.style.textShadow).toContain('f59e0b'); // Gold color
       });
@@ -221,7 +221,7 @@ describe('ChainCounter', () => {
         });
 
         render(<ChainCounter chain={3} />);
-        const mainText = screen.getByText(/x3 ZİNCİR/i);
+        const mainText = screen.getByText(/x3/i);
         
         expect(mainText.style.textShadow).toContain('a78bfa'); // Purple color
       });
@@ -262,7 +262,7 @@ describe('ChainCounter', () => {
           fc.integer({ min: 2, max: 100 }),
           (chain) => {
             const { unmount } = render(<ChainCounter chain={chain} />);
-            const mainText = screen.getByText(new RegExp(`x${chain} ZİNCİR`, 'i'));
+            const mainText = screen.getByText(new RegExp(`x${chain}`, 'i'));
             
             const expectedColor = chain >= 4 ? '#f59e0b' : chain === 3 ? '#a78bfa' : '#60a5fa';
             expect(mainText).toHaveStyle({ color: expectedColor });
@@ -293,7 +293,7 @@ describe('ChainCounter', () => {
               expect(container.firstChild).toBeNull();
             } else {
               expect(container.firstChild).not.toBeNull();
-              expect(screen.getByText(new RegExp(`x${chain} ZİNCİR`, 'i'))).toBeInTheDocument();
+              expect(screen.getByText(new RegExp(`x${chain}`, 'i'))).toBeInTheDocument();
             }
             
             // Cleanup for next iteration
@@ -325,7 +325,7 @@ describe('ChainCounter', () => {
           (chain) => {
             const { container, unmount } = render(<ChainCounter chain={chain} />);
             const wrapper = container.firstChild as HTMLElement;
-            const mainText = screen.getByText(new RegExp(`x${chain} ZİNCİR`, 'i'));
+            const mainText = screen.getByText(new RegExp(`x${chain}`, 'i'));
             
             const expectedColor = chain >= 4 ? '#f59e0b' : chain === 3 ? '#a78bfa' : '#60a5fa';
             const expectedRgb = hexToRgb(expectedColor);
@@ -355,7 +355,7 @@ describe('ChainCounter', () => {
           (chain) => {
             const { unmount } = render(<ChainCounter chain={chain} />);
             
-            expect(screen.getByText(new RegExp(`x${chain} ZİNCİR`, 'i'))).toBeInTheDocument();
+            expect(screen.getByText(new RegExp(`x${chain}`, 'i'))).toBeInTheDocument();
             
             // Cleanup for next iteration
             unmount();
@@ -394,7 +394,7 @@ describe('ChainCounter', () => {
             
             // Component should render regardless of motion preference
             expect(container.firstChild).not.toBeNull();
-            expect(screen.getByText(new RegExp(`x${chain} ZİNCİR`, 'i'))).toBeInTheDocument();
+            expect(screen.getByText(new RegExp(`x${chain}`, 'i'))).toBeInTheDocument();
             
             // Verify matchMedia was called
             expect(matchMediaMock).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)');

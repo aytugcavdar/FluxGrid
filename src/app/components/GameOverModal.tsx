@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
@@ -74,6 +74,22 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   onInstallPWA,
   onCloseIOSInstructions,
 }) => {
+  const [visibleStats, setVisibleStats] = useState(0);
+
+  useEffect(() => {
+    if (isGameOver) {
+      const timers = [
+        setTimeout(() => setVisibleStats(1), 400),
+        setTimeout(() => setVisibleStats(2), 580),
+        setTimeout(() => setVisibleStats(3), 760),
+        setTimeout(() => setVisibleStats(4), 940),
+      ];
+      return () => timers.forEach(clearTimeout);
+    } else {
+      setVisibleStats(0);
+    }
+  }, [isGameOver]);
+
   if (!isGameOver) return null;
 
   // Mode suggestions
@@ -129,8 +145,16 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           
           {isNewRecord && showRecordBadge && (
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: -10, scale: 0.5 }}
+              animate={{
+                opacity: showRecordBadge ? 1 : 0,
+                y: showRecordBadge ? 0 : -10,
+                scale: showRecordBadge ? [0.5, 1.15, 1.0] : 0.5,
+              }}
+              transition={{
+                duration: 0.4,
+                times: [0, 0.7, 1],
+              }}
               className="mt-2 text-amber-400 text-sm font-semibold"
             >
               🏆 Yeni Rekor!
@@ -172,68 +196,149 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           <div className="flex gap-2 mb-4">
             {gameMode === GameMode.TIMED ? (
               <>
-                <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
+                  animate={{
+                    opacity: visibleStats >= 1 ? 1 : 0,
+                    y: visibleStats >= 1 ? 0 : 8,
+                    scale: visibleStats >= 1 ? 1 : 0.85,
+                  }}
+                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
+                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
+                >
                   <div className="text-sm font-bold text-amber-400">
                     {maxCombo > 0 ? `x${maxCombo}` : '--'}
                   </div>
                   <div className="text-[10px] text-gray-500 uppercase">Max Combo</div>
-                </div>
-                <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
+                  animate={{
+                    opacity: visibleStats >= 2 ? 1 : 0,
+                    y: visibleStats >= 2 ? 0 : 8,
+                    scale: visibleStats >= 2 ? 1 : 0.85,
+                  }}
+                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
+                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
+                >
                   <div className="text-sm font-bold text-purple-400">
                     {stats.linesCleared || 0}
                   </div>
                   <div className="text-[10px] text-gray-500 uppercase">Satır</div>
-                </div>
-                <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
+                  animate={{
+                    opacity: visibleStats >= 3 ? 1 : 0,
+                    y: visibleStats >= 3 ? 0 : 8,
+                    scale: visibleStats >= 3 ? 1 : 0.85,
+                  }}
+                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
+                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
+                >
                   <div className="text-sm font-bold text-blue-400">
                     +{chronoBonus}s
                   </div>
                   <div className="text-[10px] text-gray-500 uppercase">Chrono</div>
-                </div>
+                </motion.div>
                 {finalSprintBonus > 0 && (
-                  <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.85 }}
+                    animate={{
+                      opacity: visibleStats >= 4 ? 1 : 0,
+                      y: visibleStats >= 4 ? 0 : 8,
+                      scale: visibleStats >= 4 ? 1 : 0.85,
+                    }}
+                    transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
+                    className="flex-1 bg-white/5 rounded-lg py-2 px-3"
+                  >
                     <div className="text-sm font-bold text-green-400">
                       +{finalSprintBonus}
                     </div>
                     <div className="text-[10px] text-gray-500 uppercase">Sprint</div>
-                  </div>
+                  </motion.div>
                 )}
               </>
             ) : gameMode === GameMode.ENDLESS ? (
               <>
-                <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
+                  animate={{
+                    opacity: visibleStats >= 1 ? 1 : 0,
+                    y: visibleStats >= 1 ? 0 : 8,
+                    scale: visibleStats >= 1 ? 1 : 0.85,
+                  }}
+                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
+                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
+                >
                   <div className="text-sm font-bold text-amber-400">
                     {maxCombo > 0 ? `x${maxCombo}` : '--'}
                   </div>
                   <div className="text-[10px] text-gray-500 uppercase">Max Combo</div>
-                </div>
-                <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
+                  animate={{
+                    opacity: visibleStats >= 2 ? 1 : 0,
+                    y: visibleStats >= 2 ? 0 : 8,
+                    scale: visibleStats >= 2 ? 1 : 0.85,
+                  }}
+                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
+                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
+                >
                   <div className="text-sm font-bold text-purple-400">
                     {stats.linesCleared || 0}
                   </div>
                   <div className="text-[10px] text-gray-500 uppercase">Satır</div>
-                </div>
-                <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
+                  animate={{
+                    opacity: visibleStats >= 3 ? 1 : 0,
+                    y: visibleStats >= 3 ? 0 : 8,
+                    scale: visibleStats >= 3 ? 1 : 0.85,
+                  }}
+                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
+                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
+                >
                   <div className="text-sm font-bold text-orange-400">
                     T{difficultyTier}
                   </div>
                   <div className="text-[10px] text-gray-500 uppercase">Max Tier</div>
-                </div>
+                </motion.div>
               </>
             ) : (
               <>
-                <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
+                  animate={{
+                    opacity: visibleStats >= 1 ? 1 : 0,
+                    y: visibleStats >= 1 ? 0 : 8,
+                    scale: visibleStats >= 1 ? 1 : 0.85,
+                  }}
+                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
+                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
+                >
                   <div className="text-sm font-bold text-blue-400">
                     {maxCombo > 0 ? `x${maxCombo}` : '--'}
                   </div>
                   <div className="text-[10px] text-gray-500 uppercase">Max Combo</div>
-                </div>
-                <div className="flex-1 bg-white/5 rounded-lg py-2 px-3">
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
+                  animate={{
+                    opacity: visibleStats >= 2 ? 1 : 0,
+                    y: visibleStats >= 2 ? 0 : 8,
+                    scale: visibleStats >= 2 ? 1 : 0.85,
+                  }}
+                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
+                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
+                >
                   <div className="text-sm font-bold text-purple-400">
                     {stats.linesCleared || 0}
                   </div>
                   <div className="text-[10px] text-gray-500 uppercase">Satır</div>
-                </div>
+                </motion.div>
               </>
             )}
           </div>

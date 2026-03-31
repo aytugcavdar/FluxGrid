@@ -4,7 +4,7 @@ import { useGameStore } from '../features/game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
 import { useAbilityStore } from '../features/abilities/store/abilityStore';
 import { usePassiveAbilityStore } from '../features/abilities/store/passiveAbilityStore';
-import { DragOverlay } from '@features/hud';
+import { DragOverlay, TierCelebrationOverlay } from '@features/hud';
 import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
 import { ParticleExplosionOverlay } from '../features/visual-effects/components/ParticleExplosionOverlay';
 import { GameOverModal, GameScreen } from './components';
@@ -19,6 +19,8 @@ import { useCountUp } from '@shared/hooks/useCountUp';
 import { useBrowserHistory } from './hooks/useBrowserHistory';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { useGameSync } from '../features/game/hooks/useGameSync';
+import { TIER_SCORE_MULTIPLIERS } from '../features/game/constants';
+import { playSkill, playHaptic } from '@utils/audio';
 
 interface ScorePopup {
   id: number;
@@ -83,11 +85,18 @@ const App: React.FC = () => {
   const prevActiveEventRef = useRef<typeof activeEvent>(null);
   
   // Score display animation state
-  const displayScore = useCountUp(score, 600, isGameOver);
+  const displayScore = useCountUp(score, 450, isGameOver);
   const currentModeHighScore = highScores[gameMode] || 0;
   const isNewRecord = score > 0 && score >= currentModeHighScore;
   const [showRecordBadge, setShowRecordBadge] = useState(false);
   const [showButtons, setShowButtons] = useState(false);
+  
+  // Tier celebration state
+  const [tierCelebration, setTierCelebration] = useState<{
+    tier: number;
+    tierName: string;
+    multiplier: number;
+  } | null>(null);
   
   // Grid sizing with ResizeObserver for safe area compatibility
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -295,6 +304,24 @@ const App: React.FC = () => {
     prevActiveEventRef.current = activeEvent;
   }, [activeEvent]);
 
+  // Tier celebration detection
+  useEffect(() => {
+    if (lastAction?.type === 'MILESTONE' && lastAction.tier && lastAction.tierName) {
+      const multiplier = TIER_SCORE_MULTIPLIERS[lastAction.tier] || 1.0;
+      
+      setTierCelebration({
+        tier: lastAction.tier,
+        tierName: lastAction.tierName,
+        multiplier
+      });
+      
+      playSkill();
+      playHaptic('surge');
+      
+      setTimeout(() => setTierCelebration(null), 2800);
+    }
+  }, [lastAction]);
+
   // Time popups for TIMED mode (removed BLITZ)
   // Note: BLITZ mechanics can be integrated into TIMED mode with a speed parameter in the future
 
@@ -414,6 +441,24 @@ const App: React.FC = () => {
               <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest opacity-60">Başarım Açıldı!</span>
               <span className="font-bold text-sm sm:text-base truncate">{achievements.find(a => a.id === unlockedAchievementId)?.name}</span>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Tier Celebration Overlay */}
+      <AnimatePresence>
+        {tierCelebration && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[65] flex items-center justify-center pointer-events-none"
+          >
+            <TierCelebrationOverlay
+              tier={tierCelebration.tier}
+              tierName={tierCelebration.tierName}
+              multiplier={tierCelebration.multiplier}
+            />
           </motion.div>
         )}
       </AnimatePresence>

@@ -120,7 +120,7 @@ export const ChainCounter: React.FC<ChainCounterProps> = ({ chain }) => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4 }}
       >
-        x{chain} ZİNCİR
+        x{chain}
       </motion.span>
     </motion.div>
   );

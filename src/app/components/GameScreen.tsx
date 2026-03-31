@@ -5,7 +5,7 @@ import { GameMode } from '@shared/types';
 import { SkillType } from '../../features/game/types';
 import { Grid } from '../../features/game/components/Grid';
 import { Piece } from '../../features/game/components/Piece';
-import { HUD, ScorePopups, ChainCounter, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual } from '@features/hud';
+import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual } from '@features/hud';
 import { useGameStore } from '../../features/game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
 import { playClick } from '@utils/audio';
@@ -354,7 +354,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
       <div className="fixed top-20 left-0 right-0 flex flex-col items-center gap-2 pointer-events-none z-10">
         <AnimatePresence mode="wait">
-          {shownChain >= 2 && <ChainCounter key={`c${shownChain}`} chain={shownChain} />}
           {showPerfect && <PerfectBonus key="perfect" show={showPerfect} />}
         </AnimatePresence>
       </div>
