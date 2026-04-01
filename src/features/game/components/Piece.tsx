@@ -32,15 +32,25 @@ export const Piece: React.FC<Props> = ({ piece }) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
+    
+    // Add scroll prevention
+    document.body.classList.add('dragging');
+    
     setDraggedPiece(piece);
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
     e.currentTarget.releasePointerCapture(e.pointerId);
+    
+    // Remove scroll prevention
+    document.body.classList.remove('dragging');
   };
 
   const handlePointerCancel = (e: React.PointerEvent) => {
     e.currentTarget.releasePointerCapture(e.pointerId);
+    
+    // Remove scroll prevention on cancel
+    document.body.classList.remove('dragging');
   };
 
   const renderShape = (p: PieceType) => {

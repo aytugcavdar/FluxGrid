@@ -99,6 +99,14 @@ body {
   overscroll-behavior: none;
 }
 
+/* Prevent scrolling during piece drag */
+body.dragging {
+  overflow: hidden !important;
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
 /* Prevent text selection during drag */
 body[data-dragging="true"] * {
   user-select: none;
@@ -330,12 +338,8 @@ canvas {
   position: fixed;
   inset: 0;
   z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  pointer-events: none;
+  /* No background - game should be fully visible during tutorial */
 }
 
 .tutorial-card {

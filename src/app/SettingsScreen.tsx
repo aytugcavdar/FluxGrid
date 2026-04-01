@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../shared/store/settingsStore';
 import { useThemeStore, ThemeType } from '../shared/store/themeStore';
+import { useGameStore } from '../features/game/store/gameStore';
+import { useTutorialStore } from '../shared/store/tutorialStore';
+import { GameMode } from '@shared/types';
 import { ToggleSwitch, SectionHeader } from '../shared/components';
 
 export const SettingsScreen: React.FC = () => {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const {
     soundEnabled,
     hapticEnabled,
@@ -22,6 +25,8 @@ export const SettingsScreen: React.FC = () => {
   } = useSettingsStore();
 
   const { currentTheme, setTheme, getThemeColors } = useThemeStore();
+  const { initGame } = useGameStore();
+  const { start: startTutorial } = useTutorialStore();
   const colors = getThemeColors();
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'success' | 'error'>('idle');
   
@@ -79,6 +84,12 @@ export const SettingsScreen: React.FC = () => {
       resetAllData();
       alert('Tüm veriler başarıyla sıfırlandı.');
     }
+  };
+  
+  const handleReplayTutorial = () => {
+    localStorage.removeItem('flux_onboard_v1');
+    initGame(GameMode.ENDLESS);
+    startTutorial();
   };
 
   return (
@@ -248,6 +259,29 @@ export const SettingsScreen: React.FC = () => {
                         Veriyi Dışa Aktar
                       </p>
                       <p className="text-xs" style={{ color: colors.textSecondary }}>JSON formatında</p>
+                    </div>
+                  </div>
+                </div>
+              </button>
+              
+              {/* Tutorial Replay Button */}
+              <button
+                onClick={handleReplayTutorial}
+                className="w-full p-5 rounded-2xl transition-all"
+                style={{
+                  background: 'rgba(168,85,247,0.1)',
+                  border: '2px solid rgba(168,85,247,0.3)',
+                }}
+                aria-label={t('settings.replayTutorial')}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">🎓</span>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
+                        {t('settings.replayTutorial')}
+                      </p>
+                      <p className="text-xs" style={{ color: colors.textSecondary }}>İlk oyun deneyimini tekrarla</p>
                     </div>
                   </div>
                 </div>

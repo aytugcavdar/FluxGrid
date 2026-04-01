@@ -18,6 +18,9 @@ export interface SaveData {
   eventMovesRemaining?: number;
   miniEventState?: MiniEventState;
   totalMovesPlayed?: number;
+  bonusRerolls?: number;
+  bonusShatter?: number;
+  bonusBomb?: number;
   saveVersion?: number;
   [key: string]: any; // Allow other fields to pass through
 }
@@ -30,6 +33,7 @@ export interface SaveData {
  * - Convert infinite event durations (999) to standardized durations
  * - Initialize miniEventState if missing
  * - Initialize totalMovesPlayed if missing
+ * - Initialize bonus skill counters if missing (bonusRerolls, bonusShatter, bonusBomb)
  * 
  * @param saveData - The save data to migrate
  * @returns Migrated save data with saveVersion = 2
@@ -68,6 +72,17 @@ export function migrateSaveData(saveData: SaveData): SaveData {
     // Initialize totalMovesPlayed if missing
     if (migratedData.totalMovesPlayed === undefined) {
       migratedData.totalMovesPlayed = 0;
+    }
+    
+    // Initialize bonus skill counters if missing
+    if (migratedData.bonusRerolls === undefined) {
+      migratedData.bonusRerolls = 0;
+    }
+    if (migratedData.bonusShatter === undefined) {
+      migratedData.bonusShatter = 0;
+    }
+    if (migratedData.bonusBomb === undefined) {
+      migratedData.bonusBomb = 0;
     }
     
     // Set saveVersion to 2

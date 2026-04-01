@@ -99,7 +99,33 @@
     "step5Sub": "Your cyberpunk adventure begins",
     "start": "Start Playing",
     "next": "Next",
-    "skip": "Skip"
+    "skip": "Skip",
+    "step1": {
+      "title": "Drag the Piece",
+      "description": "Drag the piece below and drop it on the grid"
+    },
+    "step2": {
+      "title": "Fill a Row",
+      "description": "Fill a complete row"
+    },
+    "step3": {
+      "title": "Great!",
+      "description": "Row cleared! You earned points"
+    },
+    "step4": {
+      "title": "Build Flux",
+      "description": "Use abilities when Flux is full"
+    },
+    "step5": {
+      "title": "Reroll Ability",
+      "description": "Click the reroll button"
+    },
+    "step6": {
+      "title": "You're Ready! 🎉",
+      "description": "You can now play the game"
+    },
+    "wrongPlacement": "Not here!",
+    "correctPlacement": "Great!"
   },
   "settings": {
     "title": "Choose Theme",
@@ -115,7 +141,8 @@
     "neon": "Neon",
     "neonSub": "Purple Tone",
     "ocean": "Ocean",
-    "oceanSub": "Blue Tone"
+    "oceanSub": "Blue Tone",
+    "replayTutorial": "Replay Tutorial"
   },
   "levels": {
     "region1": "Beginner",

@@ -23,7 +23,8 @@ export const HUD: React.FC = () => {
         score, highScore, flux, combo, activateSkill, activeSkill, isSurgeActive,
         gameMode, timeLeft, setAppState,
         zenSessionTime, zenBlocksPlaced, zenPaletteIndex,
-        activeEvent, eventMovesRemaining, timedBoostMovesLeft
+        activeEvent, eventMovesRemaining, timedBoostMovesLeft,
+        bonusRerolls, bonusShatter, bonusBomb
     } = useGameStore();
     const colors = useThemeStore(state => state.getThemeColors());
     const [muted, setMuted] = useState(getMuted);
@@ -507,6 +508,7 @@ export const HUD: React.FC = () => {
                         colorClass="text-emerald-400 border-emerald-500/20 bg-emerald-900/10"
                         activeClass="bg-emerald-500 text-white"
                         desc="Tüm parçaları değiştir"
+                        bonusCount={bonusRerolls}
                     />
 
                     <SkillButton
@@ -518,6 +520,7 @@ export const HUD: React.FC = () => {
                         colorClass="text-rose-400 border-rose-500/20 bg-rose-900/10"
                         activeClass="bg-rose-500 text-white ring-2 ring-rose-400/50"
                         desc="Bir bloğa dokun → kır"
+                        bonusCount={bonusShatter}
                     />
 
                     <SkillButton
@@ -535,6 +538,7 @@ export const HUD: React.FC = () => {
                         colorClass="text-orange-400 border-orange-500/20 bg-orange-900/10"
                         activeClass="bg-orange-500 text-white ring-2 ring-orange-400/50"
                         desc="3×3 alanı temizle"
+                        bonusCount={bonusBomb}
                     />
                 </div>
 
@@ -637,9 +641,9 @@ const MobileSkillButton = ({ icon, cost, currentFlux, isActive, onClick, accentC
     );
 };
 
-const SkillButton = ({ icon, cost, currentFlux, isActive, onClick, colorClass, activeClass, mobile, desc }: any) => {
-    const disabled = currentFlux < cost && !isActive;
-    const isAffordable = currentFlux >= cost && !isActive;
+const SkillButton = ({ icon, cost, currentFlux, isActive, onClick, colorClass, activeClass, mobile, desc, bonusCount }: any) => {
+    const disabled = currentFlux < cost && !isActive && (!bonusCount || bonusCount === 0);
+    const isAffordable = (currentFlux >= cost || (bonusCount && bonusCount > 0)) && !isActive;
 
     return (
         <button
@@ -658,6 +662,13 @@ const SkillButton = ({ icon, cost, currentFlux, isActive, onClick, colorClass, a
                 {icon}
                 <span className={clsx("font-semibold opacity-70 leading-none", mobile ? "text-[6px]" : "text-[8px]")}>{cost}</span>
             </div>
+            
+            {/* Bonus count badge */}
+            {bonusCount > 0 && (
+                <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center z-20 shadow-lg">
+                    +{bonusCount}
+                </div>
+            )}
         </button>
     );
 };

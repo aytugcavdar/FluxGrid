@@ -116,6 +116,54 @@ describe('Piece', () => {
       }
     });
 
+    it('should add dragging class to body on pointer down', () => {
+      const setDraggedPiece = vi.fn();
+      useGameStore.setState({ setDraggedPiece });
+
+      const { container } = render(<Piece piece={mockPiece} />);
+      const piece = container.querySelector('.cursor-grab') as HTMLElement;
+
+      if (piece) {
+        piece.setPointerCapture = vi.fn();
+        piece.releasePointerCapture = vi.fn();
+        
+        fireEvent.pointerDown(piece, { button: 0, pointerType: 'touch', pointerId: 1 });
+        expect(document.body.classList.contains('dragging')).toBe(true);
+      }
+    });
+
+    it('should remove dragging class from body on pointer up', () => {
+      const { container } = render(<Piece piece={mockPiece} />);
+      const piece = container.querySelector('.cursor-grab') as HTMLElement;
+
+      if (piece) {
+        piece.setPointerCapture = vi.fn();
+        piece.releasePointerCapture = vi.fn();
+        
+        // Add class first
+        document.body.classList.add('dragging');
+        
+        fireEvent.pointerUp(piece, { pointerId: 1 });
+        expect(document.body.classList.contains('dragging')).toBe(false);
+      }
+    });
+
+    it('should remove dragging class from body on pointer cancel', () => {
+      const { container } = render(<Piece piece={mockPiece} />);
+      const piece = container.querySelector('.cursor-grab') as HTMLElement;
+
+      if (piece) {
+        piece.setPointerCapture = vi.fn();
+        piece.releasePointerCapture = vi.fn();
+        
+        // Add class first
+        document.body.classList.add('dragging');
+        
+        fireEvent.pointerCancel(piece, { pointerId: 1 });
+        expect(document.body.classList.contains('dragging')).toBe(false);
+      }
+    });
+
     it('should not trigger drag on right click', () => {
       const setDraggedPiece = vi.fn();
       useGameStore.setState({ setDraggedPiece });

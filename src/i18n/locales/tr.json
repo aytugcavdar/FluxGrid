@@ -99,7 +99,33 @@
     "step5Sub": "Cyberpunk bulmaca maceran başlıyor",
     "start": "Oynamaya Başla",
     "next": "Devam",
-    "skip": "Atla"
+    "skip": "Atla",
+    "step1": {
+      "title": "Parçayı Sürükle",
+      "description": "Alttaki parçayı sürükle ve ızgaraya bırak"
+    },
+    "step2": {
+      "title": "Satırı Doldur",
+      "description": "Bir satırı tamamen doldur"
+    },
+    "step3": {
+      "title": "Harika!",
+      "description": "Satır temizlendi! Puan kazandın"
+    },
+    "step4": {
+      "title": "Flux Biriktir",
+      "description": "Flux dolunca yetenek kullanabilirsin"
+    },
+    "step5": {
+      "title": "Yenile Yeteneği",
+      "description": "Yenile butonuna tıkla"
+    },
+    "step6": {
+      "title": "Hazırsın! 🎉",
+      "description": "Artık oyunu oynayabilirsin"
+    },
+    "wrongPlacement": "Buraya değil!",
+    "correctPlacement": "Harika!"
   },
   "settings": {
     "title": "Tema Seç",
@@ -115,7 +141,8 @@
     "neon": "Neon",
     "neonSub": "Mor Ton",
     "ocean": "Okyanus",
-    "oceanSub": "Mavi Ton"
+    "oceanSub": "Mavi Ton",
+    "replayTutorial": "Tutorial'ı Tekrar Gör"
   },
   "levels": {
     "region1": "Başlangıç",

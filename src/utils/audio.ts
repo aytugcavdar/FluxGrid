@@ -47,60 +47,130 @@ export const getMuted = (): boolean => isMuted();
 
 // ─── Sound Effects ───
 
-/** Short thud for piece placement */
+/** Short thud for piece placement with low pulse and high bounce */
 export const playPlace = () => {
   if (isMuted()) return;
   const ctx = getCtx();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.connect(gain);
-  gain.connect(ctx.destination);
+  
+  // Low frequency pulse (180Hz → 80Hz)
+  const oscLow = ctx.createOscillator();
+  const gainLow = ctx.createGain();
+  oscLow.connect(gainLow);
+  gainLow.connect(ctx.destination);
 
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(180, ctx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.08);
-  gain.gain.setValueAtTime(0.15, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+  oscLow.type = 'sine';
+  oscLow.frequency.setValueAtTime(180, ctx.currentTime);
+  oscLow.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.08);
+  gainLow.gain.setValueAtTime(0.15, ctx.currentTime);
+  gainLow.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
 
-  osc.start(ctx.currentTime);
-  osc.stop(ctx.currentTime + 0.1);
+  oscLow.start(ctx.currentTime);
+  oscLow.stop(ctx.currentTime + 0.1);
+
+  // High pitch bounce (400Hz spike)
+  const oscHigh = ctx.createOscillator();
+  const gainHigh = ctx.createGain();
+  oscHigh.connect(gainHigh);
+  gainHigh.connect(ctx.destination);
+
+  oscHigh.type = 'sine';
+  oscHigh.frequency.setValueAtTime(400, ctx.currentTime + 0.05);
+  gainHigh.gain.setValueAtTime(0.08, ctx.currentTime + 0.05);
+  gainHigh.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+
+  oscHigh.start(ctx.currentTime + 0.05);
+  oscHigh.stop(ctx.currentTime + 0.1);
 };
 
-/** Swoosh for line clear */
+/** Three-part sound for line clear: sweep up, crystal ping, bass drop */
 export const playClear = (lines: number = 1) => {
   if (isMuted()) return;
   const ctx = getCtx();
   
-  const baseFreq = 400 + (lines * 100);
-  
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.connect(gain);
-  gain.connect(ctx.destination);
+  // Part 1: Frequency sweep (400Hz → 800Hz)
+  const oscSweep = ctx.createOscillator();
+  const gainSweep = ctx.createGain();
+  oscSweep.connect(gainSweep);
+  gainSweep.connect(ctx.destination);
 
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(baseFreq * 2, ctx.currentTime + 0.15);
-  gain.gain.setValueAtTime(0.12, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+  oscSweep.type = 'triangle';
+  oscSweep.frequency.setValueAtTime(400, ctx.currentTime);
+  oscSweep.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.15);
+  gainSweep.gain.setValueAtTime(0.12, ctx.currentTime);
+  gainSweep.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
 
-  osc.start(ctx.currentTime);
-  osc.stop(ctx.currentTime + 0.25);
+  oscSweep.start(ctx.currentTime);
+  oscSweep.stop(ctx.currentTime + 0.2);
+
+  // Part 2: Crystal ping (1200Hz)
+  const oscPing = ctx.createOscillator();
+  const gainPing = ctx.createGain();
+  oscPing.connect(gainPing);
+  gainPing.connect(ctx.destination);
+
+  oscPing.type = 'sine';
+  oscPing.frequency.setValueAtTime(1200, ctx.currentTime + 0.1);
+  gainPing.gain.setValueAtTime(0.1, ctx.currentTime + 0.1);
+  gainPing.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+
+  oscPing.start(ctx.currentTime + 0.1);
+  oscPing.stop(ctx.currentTime + 0.25);
+
+  // Part 3: Bass drop (200Hz → 100Hz)
+  const oscBass = ctx.createOscillator();
+  const gainBass = ctx.createGain();
+  oscBass.connect(gainBass);
+  gainBass.connect(ctx.destination);
+
+  oscBass.type = 'sine';
+  oscBass.frequency.setValueAtTime(200, ctx.currentTime + 0.2);
+  oscBass.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.4);
+  gainBass.gain.setValueAtTime(0.15, ctx.currentTime + 0.2);
+  gainBass.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+
+  oscBass.start(ctx.currentTime + 0.2);
+  oscBass.stop(ctx.currentTime + 0.45);
 };
 
-/** Escalating tone for combo */
+// Pentatonic Scale (C Major Pentatonic) for pleasant-sounding melodies
+const PENTATONIC_SCALE = [
+  261.63,  // C4
+  293.66,  // D4
+  329.63,  // E4
+  392.00,  // G4
+  440.00,  // A4
+  523.25,  // C5
+  587.33,  // D5
+  659.25,  // E5
+  783.99,  // G5
+  880.00,  // A5
+];
+
+/** Escalating tone for combo using pentatonic scale */
 export const playCombo = (level: number) => {
   if (isMuted()) return;
   const ctx = getCtx();
 
-  for (let i = 0; i < Math.min(level, 5); i++) {
+  // Determine number of notes based on combo level
+  let noteCount: number;
+  if (level >= 10) {
+    noteCount = 7;  // High combo: 7 notes
+  } else if (level >= 5) {
+    noteCount = 5;  // Medium combo: 5 notes
+  } else {
+    noteCount = Math.min(level, 5);  // Low combo: up to 5 notes
+  }
+
+  // Play melody using pentatonic scale
+  for (let i = 0; i < noteCount; i++) {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.type = 'sine';
-    const freq = 500 + (i * 150);
+    // Use pentatonic scale frequencies, wrapping around if needed
+    const freq = PENTATONIC_SCALE[i % PENTATONIC_SCALE.length];
     const t = ctx.currentTime + (i * 0.06);
     osc.frequency.setValueAtTime(freq, t);
     gain.gain.setValueAtTime(0.08, t);
@@ -254,14 +324,16 @@ export const playChronoBonus = () => {
 
 // ─── Haptic Feedback ───
 
-type HapticPattern = 'hover' | 'place' | 'clear' | 'clear_multi' | 'combo' | 'surge' | 'game_over' | 'skill';
+type HapticPattern = 'hover' | 'place' | 'clear' | 'clear_single' | 'clear_multi' | 'combo' | 'combo_milestone' | 'surge' | 'game_over' | 'skill';
 
 const HAPTIC_PATTERNS: Record<HapticPattern, number | number[]> = {
   hover: 4,
-  place: 15,
+  place: [15, 5, 15],
   clear: [20, 10, 20],
-  clear_multi: [50, 30, 50, 30, 100],
-  combo: [30, 20, 30, 20, 50],
+  clear_single: [30, 20, 60],
+  clear_multi: [50, 30, 100, 30, 150],
+  combo: [30, 20, 60, 20, 80],
+  combo_milestone: [30, 20, 60, 20, 80, 20, 120],
   surge: [100, 50, 100],
   game_over: [200, 100, 200, 100, 300],
   skill: [80, 50, 80]

@@ -82,6 +82,11 @@ export interface GameState {
   combo: number;
   flux: number;
   
+  // Bonus Skills (Daily Reward System)
+  bonusRerolls: number;
+  bonusShatter: number;
+  bonusBomb: number;
+  
   // Grid state
   grid: GridState;
   pieces: Piece[];

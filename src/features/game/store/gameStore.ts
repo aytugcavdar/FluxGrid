@@ -10,6 +10,7 @@ import { createEmptyGrid, processGrid } from './helpers/grid';
 import { getRandomPiecesSync } from './helpers/pieces';
 import { useThemeStore } from '@shared/store/themeStore';
 import { useProfileStore } from '../../profile/store/profileStore';
+import { useTutorialStore } from '@shared/store/tutorialStore';
 import { checkAndUpdateStreak } from '@utils/streakManager';
 import { tickTimerImpl } from './helpers/timerLogic';
 import { checkTierEvent, tickActiveEvent } from './helpers/eventSystem';
@@ -43,6 +44,14 @@ export interface GameStore {
     tierName?: string;
     chronoBonus?: number; // CHRONO bonus seconds
   } | null;
+  
+  // Bonus Skills (Daily Reward System)
+  bonusRerolls: number;
+  bonusShatter: number;
+  bonusBomb: number;
+  
+  // Tutorial Integration
+  isTutorialActive: boolean;
   
   // Achievements State
   achievements: Achievement[];
@@ -149,6 +158,14 @@ export const useGameStore = create<GameStore>((set, get) => {
   draggedPiece: null,
   lastAction: null,
   
+  // Bonus Skills Initial State
+  bonusRerolls: 0,
+  bonusShatter: 0,
+  bonusBomb: 0,
+  
+  // Tutorial Integration Initial State
+  isTutorialActive: false,
+  
   // Achievements Initial State
   achievements: safeJSONParse(safeLocalStorageGet('flux_achievements', JSON.stringify(EXPANDED_ACHIEVEMENTS)), EXPANDED_ACHIEVEMENTS),
   unlockedAchievementId: null,
@@ -200,6 +217,10 @@ export const useGameStore = create<GameStore>((set, get) => {
         
         const now = Date.now();
         
+        // Sync tutorial state from tutorialStore
+        const tutorialState = useTutorialStore.getState();
+        const isTutorialActive = tutorialState.isActive;
+        
         // Run migration if saved data is provided
         let migratedData: SaveData | undefined = savedData;
         if (savedData) {
@@ -216,7 +237,15 @@ export const useGameStore = create<GameStore>((set, get) => {
         
         set({
           grid: initialGrid,
-          pieces: getRandomPiecesSync(3, initialGrid, isDaily, isZen ? ZEN_PALETTES[0] : useThemeStore.getState().getPieceColors(), loadedTier, mode),
+          pieces: getRandomPiecesSync(
+            3, 
+            initialGrid, 
+            isDaily, 
+            isZen ? ZEN_PALETTES[0] : useThemeStore.getState().getPieceColors(), 
+            loadedTier, 
+            mode,
+            isTutorialActive ? tutorialState.currentStep : undefined
+          ),
           score: loadedScore,
           flux: isZen ? 100 : 50,
           combo: 0,
@@ -231,6 +260,8 @@ export const useGameStore = create<GameStore>((set, get) => {
           timerStartTime: isTimed ? now : null,
           timerExpectedEnd: isTimed ? now + 60000 : null,
           difficultyTier: loadedTier,
+          // Tutorial state sync
+          isTutorialActive,
           // ZEN mode initialization
           zenSessionTime: isZen ? 0 : get().zenSessionTime,
           zenBlocksPlaced: isZen ? 0 : get().zenBlocksPlaced,
@@ -297,7 +328,7 @@ export const useGameStore = create<GameStore>((set, get) => {
   setDraggedPiece: (piece) => set({ draggedPiece: piece }),
 
   activateSkill: (skill) => {
-    const { flux, pieces, activeSkill } = get();
+    const { flux, pieces, activeSkill, bonusRerolls, bonusShatter, bonusBomb } = get();
     
     if (activeSkill === skill) {
       set({ activeSkill: null }); // Toggle off
@@ -305,11 +336,50 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
 
     if (skill === SkillType.REROLL) {
-      if (flux >= FLUX_COST.REROLL) {
+      // Check bonus first, then flux
+      if (bonusRerolls > 0) {
         const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
+        
+        // Get tutorial step if tutorial is active
+        const tutorialState = useTutorialStore.getState();
+        const tutorialStep = tutorialState.isActive ? tutorialState.currentStep : undefined;
+        
+        set({
+          bonusRerolls: bonusRerolls - 1,
+          pieces: getRandomPiecesSync(
+            3, 
+            get().grid, 
+            get().gameMode === GameMode.DAILY_CHALLENGE, 
+            useThemeStore.getState().getPieceColors(), 
+            currentTier, 
+            get().gameMode,
+            tutorialStep
+          ),
+          activeSkill: null
+        });
+        
+        // Sync to profileStore
+        useProfileStore.getState().incrementSkillUse('REROLL' as any);
+        
+        get().checkGameOver();
+      } else if (flux >= FLUX_COST.REROLL) {
+        const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
+        
+        // Get tutorial step if tutorial is active
+        const tutorialState = useTutorialStore.getState();
+        const tutorialStep = tutorialState.isActive ? tutorialState.currentStep : undefined;
+        
         set({
           flux: flux - FLUX_COST.REROLL,
-          pieces: getRandomPiecesSync(3, get().grid, get().gameMode === GameMode.DAILY_CHALLENGE, useThemeStore.getState().getPieceColors(), currentTier, get().gameMode),
+          pieces: getRandomPiecesSync(
+            3, 
+            get().grid, 
+            get().gameMode === GameMode.DAILY_CHALLENGE, 
+            useThemeStore.getState().getPieceColors(), 
+            currentTier, 
+            get().gameMode,
+            tutorialStep
+          ),
           activeSkill: null
         });
         
@@ -319,18 +389,24 @@ export const useGameStore = create<GameStore>((set, get) => {
         get().checkGameOver();
       }
     } else if (skill === SkillType.SHATTER) {
-      if (flux >= FLUX_COST.SHATTER) {
+      // Check bonus first, then flux
+      if (bonusShatter > 0) {
+        set({ activeSkill: SkillType.SHATTER });
+      } else if (flux >= FLUX_COST.SHATTER) {
         set({ activeSkill: SkillType.SHATTER });
       }
     } else if (skill === SkillType.BOMB) {
-      if (flux >= FLUX_COST.BOMB) {
+      // Check bonus first, then flux
+      if (bonusBomb > 0) {
+        set({ activeSkill: SkillType.BOMB });
+      } else if (flux >= FLUX_COST.BOMB) {
         set({ activeSkill: SkillType.BOMB });
       }
     }
   },
 
   useShatter: (x, y) => {
-    const { grid, flux, score } = get();
+    const { grid, flux, score, bonusShatter } = get();
     if (!grid[y][x].filled) return;
 
     // Remove block
@@ -357,21 +433,29 @@ export const useGameStore = create<GameStore>((set, get) => {
     const newScore = score + 5 + extraScore;
     const newHighScore = Math.max(newScore, get().highScore);
 
-    set({
+    // Deduct cost: bonus first, then flux
+    const updates: Partial<GameStore> = {
       grid: finalGrid,
-      flux: flux - FLUX_COST.SHATTER,
       score: newScore,
       highScore: newHighScore,
       combo: newCombo,
       activeSkill: null
-    });
+    };
+    
+    if (bonusShatter > 0) {
+      updates.bonusShatter = bonusShatter - 1;
+    } else {
+      updates.flux = flux - FLUX_COST.SHATTER;
+    }
+
+    set(updates);
     
     // Sync to profileStore
     useProfileStore.getState().incrementSkillUse('SHATTER' as any);
   },
 
   useBomb: (x, y) => {
-    const { grid, flux, score } = get();
+    const { grid, flux, score, bonusBomb } = get();
     
     const tempGrid = grid.map(row => row.map(cell => ({ ...cell })));
     let blocksDestroyed = 0;
@@ -420,14 +504,22 @@ export const useGameStore = create<GameStore>((set, get) => {
     const newScore = score + (blocksDestroyed * 5) + extraScore;
     const newHighScore = Math.max(newScore, get().highScore);
 
-    set({
+    // Deduct cost: bonus first, then flux
+    const updates: Partial<GameStore> = {
       grid: finalGrid,
-      flux: flux - FLUX_COST.BOMB,
       score: newScore,
       highScore: newHighScore,
       combo: newCombo,
       activeSkill: null
-    });
+    };
+    
+    if (bonusBomb > 0) {
+      updates.bonusBomb = bonusBomb - 1;
+    } else {
+      updates.flux = flux - FLUX_COST.BOMB;
+    }
+
+    set(updates);
     
     // Sync to profileStore
     useProfileStore.getState().incrementSkillUse('BOMB' as any);
@@ -455,7 +547,20 @@ export const useGameStore = create<GameStore>((set, get) => {
   },
 
   placePiece: (piece, startX, startY) => {
-    const { grid, score, combo, flux, highScore, isSurgeActive, gameMode } = get();
+    const { grid, score, combo, flux, highScore, isSurgeActive, gameMode, isTutorialActive } = get();
+    
+    // Tutorial mode - just advance to next step on any placement, don't block
+    if (isTutorialActive) {
+      const tutorialState = useTutorialStore.getState();
+      const forcedPiece = tutorialState.getForcedPiece(tutorialState.currentStep);
+      
+      console.log('[Tutorial] Piece placed - advancing to next step');
+      
+      // Always advance tutorial on any successful placement
+      if (forcedPiece) {
+        tutorialState.nextStep();
+      }
+    }
     
     // Store the placed piece for boss mechanics (before it's removed from pieces array)
     const justPlacedPiece = piece;
@@ -725,7 +830,20 @@ export const useGameStore = create<GameStore>((set, get) => {
       const isZen = get().gameMode === GameMode.ZEN;
       const zenPalette = isZen ? ZEN_PALETTES[get().zenPaletteIndex] : undefined;
       const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
-      currentPieces = getRandomPiecesSync(pieceCount, newGrid, isDaily, zenPalette ?? useThemeStore.getState().getPieceColors(), currentTier, get().gameMode);
+      
+      // Get tutorial step if tutorial is active
+      const tutorialState = useTutorialStore.getState();
+      const tutorialStep = tutorialState.isActive ? tutorialState.currentStep : undefined;
+      
+      currentPieces = getRandomPiecesSync(
+        pieceCount, 
+        newGrid, 
+        isDaily, 
+        zenPalette ?? useThemeStore.getState().getPieceColors(), 
+        currentTier, 
+        get().gameMode,
+        tutorialStep
+      );
       
       set({ isPiecesLoading: false });
     }

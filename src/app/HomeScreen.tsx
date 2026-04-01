@@ -1,17 +1,88 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useSettingsStore } from '../shared/store/settingsStore';
 import { useThemeStore } from '../shared/store/themeStore';
+import { useDailyRewardStore } from '../shared/store/dailyRewardStore';
+import { useTutorialStore } from '../shared/store/tutorialStore';
+import { shouldShowTutorial } from '../shared/components/Tutorial';
 import { GameMode } from '@shared/types';
 import { playClick } from '@utils/audio';
 import { ModeCard } from '../shared/components/ModeCard';
 import { SectionHeader } from '../shared/components/SectionHeader';
+import { DailyRewardModal } from './components/DailyRewardModal';
+
+// Streak Indicator Component
+const StreakIndicator: React.FC = () => {
+  const { currentStreak } = useDailyRewardStore();
+  
+  if (currentStreak === 0) return null;
+  
+  return (
+    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/20 border border-orange-500">
+      <span className="text-xl">🔥</span>
+      <span className="text-sm font-bold text-orange-400">{currentStreak} Gün Serisi</span>
+    </div>
+  );
+};
+
+// Reward Badge Component
+interface RewardBadgeProps {
+  onClick: () => void;
+}
+
+const RewardBadge: React.FC<RewardBadgeProps> = ({ onClick }) => {
+  const { canClaimToday } = useDailyRewardStore();
+  
+  // Detect reduced motion preference
+  const prefersReducedMotion = typeof window !== 'undefined' 
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches 
+    : false;
+  
+  if (!canClaimToday) return null;
+  
+  return (
+    <motion.button
+      onClick={onClick}
+      animate={prefersReducedMotion ? {} : {
+        scale: [1, 1.05, 1],
+        boxShadow: [
+          '0 0 0 0 rgba(168, 85, 247, 0)',
+          '0 0 0 8px rgba(168, 85, 247, 0.3)',
+          '0 0 0 0 rgba(168, 85, 247, 0)',
+        ],
+      }}
+      transition={{ duration: 2, repeat: Infinity }}
+      className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500"
+    >
+      <span className="text-xl">🎁</span>
+      <span className="text-sm font-bold text-purple-400">Ödül Hazır!</span>
+    </motion.button>
+  );
+};
 
 export const HomeScreen: React.FC = () => {
   const { initGame, highScores, stats } = useGameStore();
   const { soundEnabled } = useSettingsStore();
   const { getThemeColors } = useThemeStore();
+  const { initializeRewards } = useDailyRewardStore();
+  const { start: startTutorial } = useTutorialStore();
   const colors = getThemeColors();
+  
+  const [showRewardModal, setShowRewardModal] = useState(false);
+
+  // Initialize rewards on mount
+  useEffect(() => {
+    initializeRewards();
+  }, [initializeRewards]);
+  
+  // Check if tutorial should be shown on mount
+  useEffect(() => {
+    if (shouldShowTutorial()) {
+      initGame(GameMode.ENDLESS);
+      startTutorial();
+    }
+  }, [initGame, startTutorial]);
 
   // Get best scores - handle undefined highScores
   const sonsuzBestScore = highScores?.[GameMode.ENDLESS] || 0;
@@ -38,7 +109,7 @@ export const HomeScreen: React.FC = () => {
         <div className="w-full max-w-[448px] mx-auto flex flex-col h-full">
           {/* Header - Compact */}
           <div className="flex items-center justify-between mb-4">
-            <div className="w-8 h-8" /> {/* Spacer */}
+            <StreakIndicator />
             
             <h1 className="text-lg font-bold tracking-wider">
               <span style={{ color: colors.textPrimary }}>FLUX</span>
@@ -56,6 +127,11 @@ export const HomeScreen: React.FC = () => {
             >
               <span className="text-base">{soundEnabled ? '🔊' : '🔇'}</span>
             </button>
+          </div>
+          
+          {/* Reward Badge */}
+          <div className="flex justify-center mb-3">
+            <RewardBadge onClick={() => setShowRewardModal(true)} />
           </div>
 
           {/* Game Mode Cards - Compact */}
@@ -153,6 +229,12 @@ export const HomeScreen: React.FC = () => {
           </div>
         </div>
       </div>
+      
+      {/* Daily Reward Modal */}
+      <DailyRewardModal
+        isOpen={showRewardModal}
+        onClose={() => setShowRewardModal(false)}
+      />
     </div>
   );
 };

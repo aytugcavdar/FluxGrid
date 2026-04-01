@@ -47,12 +47,32 @@ export const Grid: React.FC = () => {
     // Line clear animation state
     const lineClearAnimationRef = useRef<{
         active: boolean;
-        phase: 'flash' | 'collapse';
+        phase: 'brightness' | 'particles' | 'collapse';
         progress: number;
         startTime: number;
         clearedCells: Set<string>;
         affectedBlocks: Map<string, { startY: number; targetY: number }>;
         originalColors: Map<string, BABYLON.Color3>;
+    } | null>(null);
+    
+    // Placement animation state (Juice System)
+    const placementAnimationRef = useRef<{
+        active: boolean;
+        startTime: number;
+        cellAnimations: Map<string, {
+            cellId: string;
+            startTime: number;
+            originalScale: BABYLON.Vector3;
+            originalEmissive: BABYLON.Color3;
+        }>;
+    } | null>(null);
+    
+    // Combo celebration state (Juice System)
+    const comboStateRef = useRef<{
+        active: boolean;
+        level: number;
+        startTime: number;
+        flashProgress: number;
     } | null>(null);
     
     // Game over animation state
@@ -428,32 +448,6 @@ export const Grid: React.FC = () => {
                 }
             });
             
-            // Add particle explosions for cleared cells (skip on low-end devices)
-            if (!isLowEndDevice) {
-                clearedCells.forEach(key => {
-                    const [x, y] = key.split(',').map(Number);
-                    const cell = stateRef.current.grid[y]?.[x];
-                    if (cell) {
-                        const worldPos = getVectorPos(x, y);
-                        const delay = Math.random() * 80; // 0-80ms stagger
-                        
-                        setTimeout(() => {
-                            useVisualEffectStore.getState().addEffect({
-                                type: 'explosion',
-                                duration: 180,
-                                props: {
-                                    x: worldPos.x,
-                                    y: worldPos.y,
-                                    color: cell.color,
-                                    blockSize: 28,
-                                    cellType: cell.type
-                                }
-                            });
-                        }, delay);
-                    }
-                });
-            }
-            
             // Calculate affected blocks (blocks above cleared rows)
             const affectedBlocks = new Map<string, { startY: number; targetY: number }>();
             const clearedRowsSorted = [...rows].sort((a, b) => b - a); // Sort descending
@@ -478,7 +472,7 @@ export const Grid: React.FC = () => {
             
             lineClearAnimationRef.current = {
                 active: true,
-                phase: 'flash',
+                phase: 'brightness', // Start with brightness wave phase
                 progress: 0,
                 startTime: Date.now(),
                 clearedCells,
@@ -503,6 +497,180 @@ export const Grid: React.FC = () => {
                 progress: 0,
                 startTime: Date.now(),
                 allBlockIds
+            };
+        };
+
+        // ─── Juice System Helper Functions ───
+        
+        /**
+         * Calculate spring curve value at given progress
+         * Spring curve: [1.0 → 1.15 → 1.0] (or [1.0 → 1.05 → 1.0] for reduced motion)
+         * @param progress - Animation progress from 0.0 to 1.0
+         * @param curve - Spring curve values [start, peak, end]
+         * @returns Interpolated scale value
+         */
+        const applySpringCurve = (progress: number, curve: [number, number, number]): number => {
+            const [start, peak, end] = curve;
+            
+            if (progress < 0.5) {
+                // First half: interpolate from start to peak
+                const t = progress * 2; // 0.0 to 1.0
+                return start + (peak - start) * t;
+            } else {
+                // Second half: interpolate from peak to end
+                const t = (progress - 0.5) * 2; // 0.0 to 1.0
+                return peak + (end - peak) * t;
+            }
+        };
+        
+        /**
+         * Calculate staggered start time for cell animation
+         * @param cellIndex - Index of the cell in the piece
+         * @param staggerDelay - Delay in milliseconds per cell
+         * @returns Start time offset in milliseconds
+         */
+        const calculateStaggerDelay = (cellIndex: number, staggerDelay: number): number => {
+            return cellIndex * staggerDelay;
+        };
+        
+        /**
+         * Ease-out-quad easing function
+         * @param t - Progress from 0.0 to 1.0
+         * @returns Eased value
+         */
+        const easeOutQuad = (t: number): number => {
+            return t * (2 - t);
+        };
+        
+        /**
+         * Update placement animations in the render loop
+         * @param currentTime - Current timestamp in milliseconds
+         */
+        const updatePlacementAnimations = (currentTime: number) => {
+            if (!placementAnimationRef.current?.active) return;
+            
+            const anim = placementAnimationRef.current;
+            const ANIMATION_DURATION = 80; // 80ms total animation
+            const EMISSIVE_DURATION = 300; // 300ms emissive glow
+            const springCurve: [number, number, number] = prefersReducedMotion ? [1.0, 1.05, 1.0] : [1.0, 1.15, 1.0];
+            
+            let allComplete = true;
+            
+            anim.cellAnimations.forEach((cellAnim, cellId) => {
+                const mesh = meshMapRef.current.get(cellId);
+                if (!mesh) return;
+                
+                const elapsed = currentTime - cellAnim.startTime;
+                
+                // Scale animation (80ms)
+                if (elapsed < ANIMATION_DURATION) {
+                    allComplete = false;
+                    const progress = elapsed / ANIMATION_DURATION;
+                    const scale = applySpringCurve(progress, springCurve);
+                    mesh.scaling = cellAnim.originalScale.scale(scale);
+                } else {
+                    // Ensure final scale is restored
+                    mesh.scaling = cellAnim.originalScale;
+                }
+                
+                // Emissive glow animation (300ms)
+                if (elapsed < EMISSIVE_DURATION && mesh.material) {
+                    allComplete = false;
+                    const mat = mesh.material as BABYLON.StandardMaterial;
+                    const progress = elapsed / EMISSIVE_DURATION;
+                    const intensity = 1.0 - progress; // Fade from 1.0 to 0.0
+                    
+                    // Apply enhanced emissive color
+                    const enhancedEmissive = cellAnim.originalEmissive.scale(1.0 + intensity * 2.0);
+                    mat.emissiveColor = enhancedEmissive;
+                } else if (mesh.material) {
+                    // Restore original emissive
+                    const mat = mesh.material as BABYLON.StandardMaterial;
+                    mat.emissiveColor = cellAnim.originalEmissive;
+                }
+            });
+            
+            // Clean up animation state when all animations complete
+            if (allComplete) {
+                placementAnimationRef.current = null;
+            }
+        };
+        
+        /**
+         * Animate placement of cells with spring curve and stagger timing
+         * @param cellIds - Array of cell IDs to animate
+         */
+        const animatePlacement = (cellIds: string[]) => {
+            if (disableAnimations || prefersReducedMotion) {
+                // Skip animation setup if animations are disabled
+                // Reduced motion will still use a subtle spring curve in updatePlacementAnimations
+                if (prefersReducedMotion) {
+                    // Still set up animation but with reduced motion curve
+                    const currentTime = Date.now();
+                    const STAGGER_DELAY = 15; // 15ms per cell
+                    
+                    const cellAnimations = new Map<string, {
+                        cellId: string;
+                        startTime: number;
+                        originalScale: BABYLON.Vector3;
+                        originalEmissive: BABYLON.Color3;
+                    }>();
+                    
+                    cellIds.forEach((cellId, index) => {
+                        const mesh = meshMapRef.current.get(cellId);
+                        if (!mesh) return;
+                        
+                        const staggerDelay = calculateStaggerDelay(index, STAGGER_DELAY);
+                        
+                        cellAnimations.set(cellId, {
+                            cellId,
+                            startTime: currentTime + staggerDelay,
+                            originalScale: new BABYLON.Vector3(1, 1, 1),
+                            originalEmissive: mesh.material 
+                                ? (mesh.material as BABYLON.StandardMaterial).emissiveColor.clone()
+                                : BABYLON.Color3.Black()
+                        });
+                    });
+                    
+                    placementAnimationRef.current = {
+                        active: true,
+                        startTime: currentTime,
+                        cellAnimations
+                    };
+                }
+                return;
+            }
+            
+            const currentTime = Date.now();
+            const STAGGER_DELAY = 15; // 15ms per cell
+            
+            const cellAnimations = new Map<string, {
+                cellId: string;
+                startTime: number;
+                originalScale: BABYLON.Vector3;
+                originalEmissive: BABYLON.Color3;
+            }>();
+            
+            cellIds.forEach((cellId, index) => {
+                const mesh = meshMapRef.current.get(cellId);
+                if (!mesh) return;
+                
+                const staggerDelay = calculateStaggerDelay(index, STAGGER_DELAY);
+                
+                cellAnimations.set(cellId, {
+                    cellId,
+                    startTime: currentTime + staggerDelay,
+                    originalScale: new BABYLON.Vector3(1, 1, 1),
+                    originalEmissive: mesh.material 
+                        ? (mesh.material as BABYLON.StandardMaterial).emissiveColor.clone()
+                        : BABYLON.Color3.Black()
+                });
+            });
+            
+            placementAnimationRef.current = {
+                active: true,
+                startTime: currentTime,
+                cellAnimations
             };
         };
 
@@ -743,7 +911,11 @@ export const Grid: React.FC = () => {
             const deltaTime = engine.getDeltaTime() / 1000; // Convert to seconds
             time += deltaTime;
             frameCount++;
+            const currentTime = Date.now(); // Current timestamp for animations
             const { grid, draggedPiece, activeSkill, score, combo, lastAction, isGameOver, gameMode: currentGameMode, timeLeft: currentTimeLeft, difficultyTier: currentTier } = stateRef.current;
+
+            // ─── Juice System: Update Placement Animations ───
+            updatePlacementAnimations(currentTime);
 
             // ─── Tier Transition Flash ───
             if (currentTier > prevTierRef.current && currentTier > 0) {
@@ -954,17 +1126,89 @@ export const Grid: React.FC = () => {
                 startGameOverAnimation();
             }
 
-            // ─── Line Clear Animation ───
+            // ─── Line Clear Animation (Three-Stage System) ───
             if (lineClearAnimationRef.current?.active) {
                 const anim = lineClearAnimationRef.current;
                 const elapsed = Date.now() - anim.startTime;
                 
-                if (anim.phase === 'flash') {
-                    // Flash phase: 220ms, 3-step interpolation
-                    if (elapsed < 220) {
-                        anim.progress = elapsed / 220;
+                if (anim.phase === 'brightness') {
+                    // Stage 1: Brightness wave (0-150ms)
+                    if (elapsed < 150) {
+                        anim.progress = elapsed / 150;
                         
-                        // Apply 3-step flash to cleared cells
+                        // Convert cleared cells to array and sort left-to-right for wave effect
+                        const cellsArray = Array.from(anim.clearedCells).map(key => {
+                            const [x, y] = key.split(',').map(Number);
+                            return { key, x, y };
+                        }).sort((a, b) => a.x - b.x); // Sort by x coordinate (left-to-right)
+                        
+                        // Apply brightness wave that sweeps left-to-right
+                        cellsArray.forEach((cellData, index) => {
+                            const cell = grid[cellData.y]?.[cellData.x];
+                            if (cell?.id) {
+                                const mesh = meshMapRef.current.get(cell.id);
+                                if (mesh?.material) {
+                                    const mat = mesh.material as BABYLON.StandardMaterial;
+                                    const originalColor = anim.originalColors.get(cellData.key) || mat.diffuseColor;
+                                    
+                                    // Calculate wave progress for this cell
+                                    // Each cell's peak brightness occurs progressively later
+                                    const cellWaveProgress = (anim.progress * cellsArray.length - index) / cellsArray.length;
+                                    const clampedProgress = Math.max(0, Math.min(1, cellWaveProgress));
+                                    
+                                    // Brightness peaks at 0.5 progress, then fades
+                                    let brightness: number;
+                                    if (clampedProgress < 0.5) {
+                                        brightness = clampedProgress * 2; // 0 to 1
+                                    } else {
+                                        brightness = 2 - (clampedProgress * 2); // 1 to 0
+                                    }
+                                    
+                                    // Apply white brightness overlay
+                                    const white = BABYLON.Color3.White();
+                                    mat.emissiveColor = BABYLON.Color3.Lerp(originalColor, white, brightness * 0.8);
+                                    (mat as any).emissiveIntensity = 1.0;
+                                }
+                            }
+                        });
+                    } else {
+                        // Transition to particles phase
+                        anim.phase = 'particles';
+                        anim.startTime = Date.now();
+                        anim.progress = 0;
+                    }
+                } else if (anim.phase === 'particles') {
+                    // Stage 2: Particle emission (150-300ms)
+                    if (elapsed < 150) {
+                        anim.progress = elapsed / 150;
+                        
+                        // Trigger particle explosions at the start of this phase (only once)
+                        if (anim.progress < 0.1 && !isLowEndDevice) {
+                            const particleCount = isLowEndDevice ? 3 : 6;
+                            
+                            anim.clearedCells.forEach(key => {
+                                const [x, y] = key.split(',').map(Number);
+                                const cell = grid[y]?.[x];
+                                if (cell) {
+                                    const worldPos = getVectorPos(x, y);
+                                    
+                                    useVisualEffectStore.getState().addEffect({
+                                        type: 'explosion',
+                                        duration: 180,
+                                        props: {
+                                            x: worldPos.x,
+                                            y: worldPos.y,
+                                            color: cell.color,
+                                            blockSize: 28,
+                                            cellType: cell.type,
+                                            particleCount: particleCount
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                        
+                        // Fade out cleared cells during particle phase
                         anim.clearedCells.forEach(key => {
                             const [x, y] = key.split(',').map(Number);
                             const cell = grid[y]?.[x];
@@ -972,24 +1216,8 @@ export const Grid: React.FC = () => {
                                 const mesh = meshMapRef.current.get(cell.id);
                                 if (mesh?.material) {
                                     const mat = mesh.material as BABYLON.StandardMaterial;
-                                    const originalColor = anim.originalColors.get(key) || mat.diffuseColor;
-                                    const white = BABYLON.Color3.White();
-                                    const coloredEmissive = originalColor.scale(2.0);
-                                    
-                                    if (anim.progress < 0.33) {
-                                        // Step 1: Original to White (0-0.33)
-                                        const stepProgress = anim.progress / 0.33;
-                                        mat.emissiveColor = BABYLON.Color3.Lerp(originalColor, white, stepProgress);
-                                    } else if (anim.progress < 0.66) {
-                                        // Step 2: White to 2x Colored (0.33-0.66)
-                                        const stepProgress = (anim.progress - 0.33) / 0.33;
-                                        mat.emissiveColor = BABYLON.Color3.Lerp(white, coloredEmissive, stepProgress);
-                                    } else {
-                                        // Step 3: 2x Colored to Zero (0.66-1.0)
-                                        const stepProgress = (anim.progress - 0.66) / 0.34;
-                                        mat.emissiveColor = BABYLON.Color3.Lerp(coloredEmissive, BABYLON.Color3.Black(), stepProgress);
-                                    }
-                                    (mat as any).emissiveIntensity = 1.0;
+                                    mat.emissiveColor = BABYLON.Color3.Black();
+                                    mat.alpha = 1.0 - anim.progress; // Fade out
                                 }
                             }
                         });
@@ -998,11 +1226,14 @@ export const Grid: React.FC = () => {
                         anim.phase = 'collapse';
                         anim.startTime = Date.now();
                         anim.progress = 0;
+                        
+                        // TODO: Trigger whoosh sound here (will be implemented in audio task)
+                        // playWhoosh();
                     }
                 } else if (anim.phase === 'collapse') {
-                    // Collapse phase: 250ms, ease-out-quad
-                    if (elapsed < 250) {
-                        anim.progress = elapsed / 250;
+                    // Stage 3: Collapse with whoosh (300-500ms = 200ms duration)
+                    if (elapsed < 200) {
+                        anim.progress = elapsed / 200;
                         const easedProgress = anim.progress * (2 - anim.progress); // ease-out-quad
                         
                         // Animate falling blocks
@@ -1103,6 +1334,7 @@ export const Grid: React.FC = () => {
 
             // 1. Sync Active Grid
             const activeIds = new Set<string>();
+            const newlyCreatedIds: string[] = []; // Track newly created blocks for placement animation
             
             // Throttle animations: only update emissive colors every 3 frames (20fps instead of 60fps)
             const shouldUpdateAnimations = !disableAnimations && (frameCount % 3 === 0);
@@ -1121,6 +1353,9 @@ export const Grid: React.FC = () => {
                             mesh.position = targetPos.clone();
                             mesh.position.y = 12; // Drop from higher
                             meshMap.set(cell.id, mesh);
+                            
+                            // Track newly created block for placement animation
+                            newlyCreatedIds.push(cell.id);
                         }
 
                         mesh.isVisible = true;
@@ -1190,6 +1425,11 @@ export const Grid: React.FC = () => {
                         meshMap.delete(id);
                     }
                 }
+            }
+            
+            // Trigger placement animation for newly created blocks
+            if (newlyCreatedIds.length > 0) {
+                animatePlacement(newlyCreatedIds);
             }
             
             // 2. Holographic Ghost (The Wireframe Preview) - Pool-based

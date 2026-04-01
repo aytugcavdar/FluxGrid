@@ -8,25 +8,51 @@ export const setCanvasRect = (rect: DOMRect): void => {
   cacheTime = Date.now();
 };
 
+/**
+ * Get screen orientation based on window dimensions
+ * @returns 'portrait' if height > width, 'landscape' otherwise
+ */
+export const getOrientation = (): 'portrait' | 'landscape' => {
+  return window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
+};
+
+/**
+ * Determine if tablet layout should be used
+ * @returns true when device is tablet AND landscape orientation
+ */
+export const shouldUseTabletLayout = (): boolean => {
+  return getDeviceType() === 'tablet' && getOrientation() === 'landscape';
+};
+
+/**
+ * Calculate padding needed to reach minimum touch target size
+ * @param visualSize - The visual size of the element
+ * @param minSize - Minimum touch target size (default: 52px per Apple HIG)
+ * @returns Padding value to add on each side
+ */
+export const getTouchTargetPadding = (visualSize: number, minSize: number = 52): number => {
+  if (visualSize >= minSize) return 0;
+  return (minSize - visualSize) / 2;
+};
+
 export const getDragYOffset = (): number => {
-  const isMobile = window.innerWidth < 768;
-  if (!isMobile) return 0;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
   
-  // Use cached canvas rect if available and valid
-  const now = Date.now();
-  if (cachedCanvasRect && (now - cacheTime) < CACHE_VALIDITY_MS) {
-    // Calculate offset based on actual canvas position
-    const screenHeight = window.innerHeight;
-    if (screenHeight < 700) return -70;
-    if (screenHeight < 800) return -90;
-    return Math.min(-90, -screenHeight * 0.11);
+  // Desktop - no offset
+  if (width >= 768 && navigator.maxTouchPoints === 0) {
+    return 0;
   }
   
-  // Fallback to screen-based calculation
-  const screenHeight = window.innerHeight;
-  if (screenHeight < 700) return -70;
-  if (screenHeight < 800) return -90;
-  return Math.min(-90, -screenHeight * 0.11);
+  // iPad detection (768px+ width with touch)
+  if (width >= 768 && navigator.maxTouchPoints > 0) {
+    return -40;
+  }
+  
+  // Mobile - height-based offset
+  if (height < 700) return -70;
+  if (height < 800) return -90;
+  return Math.min(-90, -height * 0.11);
 };
 
 /**
@@ -58,4 +84,18 @@ export const getSafeAreaInsets = (): {
   const right = Math.max(0, parseInt(style.getPropertyValue('--safe-area-inset-right') || '0', 10) || 0);
   
   return { top, bottom, left, right };
+};
+
+/**
+ * Detect device type based on screen width and touch capability
+ * 
+ * @returns 'mobile' for phones (< 768px), 'tablet' for touch devices >= 768px, 'desktop' for non-touch >= 768px
+ */
+export const getDeviceType = (): 'mobile' | 'tablet' | 'desktop' => {
+  const width = window.innerWidth;
+  const hasTouch = navigator.maxTouchPoints > 0;
+  
+  if (width < 768) return 'mobile';
+  if (width >= 768 && hasTouch) return 'tablet';
+  return 'desktop';
 };

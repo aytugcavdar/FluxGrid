@@ -7,6 +7,7 @@ import { usePassiveAbilityStore } from '../features/abilities/store/passiveAbili
 import { DragOverlay, TierCelebrationOverlay } from '@features/hud';
 import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
 import { ParticleExplosionOverlay } from '../features/visual-effects/components/ParticleExplosionOverlay';
+import { TutorialOverlay } from '../shared/components/TutorialOverlay';
 import { GameOverModal, GameScreen } from './components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { unlockAudio, playGameOver, playClick, playChronoBonus } from '@utils/audio';
@@ -115,7 +116,16 @@ const App: React.FC = () => {
       (window as any).splashComplete();
       delete (window as any).splashComplete;
     }
-  }, []);
+    
+    // Listen for tutorial completion to return to home
+    const handleTutorialReturnHome = () => {
+      resetGame();
+      setAppState(AppState.HOME);
+    };
+    
+    window.addEventListener('tutorial-return-home', handleTutorialReturnHome);
+    return () => window.removeEventListener('tutorial-return-home', handleTutorialReturnHome);
+  }, [resetGame, setAppState]);
 
 
 
@@ -401,6 +411,7 @@ const App: React.FC = () => {
       {/* Persistence and Global Overlays */}
       <DragOverlay />
       <ParticleExplosionOverlay />
+      <TutorialOverlay />
       <AnimatePresence>
         {showAbilities && <AbilityPanel onClose={() => setShowAbilities(false)} />}
       </AnimatePresence>
