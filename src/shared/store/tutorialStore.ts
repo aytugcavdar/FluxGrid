@@ -4,124 +4,20 @@ import { create } from 'zustand';
 // TYPES & INTERFACES
 // ============================================================================
 
-export interface ForcedPieceConfig {
-  shape: number[][];
-  color: string;
-  targetX: number;
-  targetY: number;
-  pieceIndex: number; // Which piece in the tray (0-2)
-}
-
-export interface TutorialStepConfig {
-  targetElement: string; // CSS selector for spotlight
-  tooltipPosition: 'top' | 'bottom' | 'left' | 'right';
-  showHandAnimation: boolean;
-  handPath?: { startX: number; startY: number; endX: number; endY: number };
-  autoAdvance: boolean; // Auto-advance after timeout
-  autoAdvanceDelay?: number; // Milliseconds
-}
-
-export interface SpotlightConfig {
-  clipPath: string; // CSS clip-path polygon string
-  targetRect: DOMRect | null; // Bounding rect of target element
-}
-
-export interface TooltipPosition {
-  top: number; // Absolute Y position (px)
-  left: number; // Absolute X position (px)
-  arrowDirection: 'up' | 'down' | 'left' | 'right';
-}
-
 export interface TutorialStore {
   // State
-  isActive: boolean;
-  currentStep: number; // 0-6 (0 = inactive, 1-6 = active steps)
-  isCompleted: boolean;
+  isActive: boolean;           // Tutorial is currently running
+  currentStep: number;         // 0 = inactive, 1-4 = active steps
+  isCompleted: boolean;        // Tutorial has been completed (persisted)
   
   // Actions
-  start: () => void;
-  nextStep: () => void;
-  previousStep: () => void;
-  complete: () => void;
-  skip: () => void;
-  
-  // Helpers
-  getForcedPiece: (step: number) => ForcedPieceConfig | null;
-  getStepConfig: (step: number) => TutorialStepConfig;
+  start: () => void;           // Initialize tutorial (set step to 1)
+  nextStep: () => void;        // Advance to next step
+  skip: () => void;            // Skip tutorial and mark as completed
+  complete: () => void;        // Complete tutorial and persist
+  shouldShow: () => boolean;   // Check if tutorial should be shown
+  reset: () => void;           // Reset tutorial (for testing)
 }
-
-// ============================================================================
-// FORCED PIECE CONFIGURATIONS
-// ============================================================================
-
-const FORCED_PIECES: Record<number, ForcedPieceConfig> = {
-  1: {
-    shape: [[1, 1, 1]], // Horizontal line (3 blocks)
-    color: '#3b82f6', // Blue
-    targetX: 3,
-    targetY: 8,
-    pieceIndex: 0,
-  },
-  2: {
-    shape: [[1], [1], [1]], // Vertical line (3 blocks)
-    color: '#10b981', // Green
-    targetX: 6,
-    targetY: 6,
-    pieceIndex: 1,
-  },
-  5: {
-    shape: [[1, 1]], // Small horizontal (2 blocks)
-    color: '#f59e0b', // Orange
-    targetX: 0,
-    targetY: 9,
-    pieceIndex: 0,
-  },
-};
-
-// ============================================================================
-// TUTORIAL STEP CONFIGURATIONS
-// ============================================================================
-
-const TUTORIAL_STEPS: Record<number, TutorialStepConfig> = {
-  1: {
-    targetElement: '[data-piece-slot="0"]', // First piece in the tray (use data attribute)
-    tooltipPosition: 'top',
-    showHandAnimation: true,
-    handPath: { startX: 50, startY: 80, endX: 50, endY: 40 },
-    autoAdvance: false,
-  },
-  2: {
-    targetElement: 'canvas', // The 3D grid canvas
-    tooltipPosition: 'right',
-    showHandAnimation: false,
-    autoAdvance: false,
-  },
-  3: {
-    targetElement: 'canvas', // The 3D grid canvas
-    tooltipPosition: 'top',
-    showHandAnimation: false,
-    autoAdvance: false, // Event-driven: advances on line clear
-  },
-  4: {
-    targetElement: '[data-testid="flux-meter"]', // Flux meter in HUD
-    tooltipPosition: 'bottom',
-    showHandAnimation: false,
-    autoAdvance: false, // Event-driven: advances on flux change
-  },
-  5: {
-    targetElement: '[data-testid="mobile-skill-button-reroll"]', // First skill button (Reroll)
-    tooltipPosition: 'top',
-    showHandAnimation: true,
-    handPath: { startX: 20, startY: 90, endX: 20, endY: 85 },
-    autoAdvance: false, // Event-driven: advances on skill activation
-  },
-  6: {
-    targetElement: 'canvas', // The 3D grid canvas
-    tooltipPosition: 'top',
-    showHandAnimation: false,
-    autoAdvance: false, // Event-driven: auto-complete after delay
-  },
-};
 
 // ============================================================================
 // LOCALSTORAGE HELPERS
@@ -133,7 +29,7 @@ const safeLocalStorageWrite = (key: string, value: string): void => {
   try {
     localStorage.setItem(key, value);
   } catch (error) {
-    console.error(`Failed to write to localStorage: ${key}`, error);
+    console.error(`[Tutorial] Failed to write to localStorage: ${key}`, error);
     // Continue execution - tutorial completion still tracked in memory
   }
 };
@@ -142,7 +38,7 @@ const safeLocalStorageRead = (key: string): string | null => {
   try {
     return localStorage.getItem(key);
   } catch (error) {
-    console.error(`Failed to read from localStorage: ${key}`, error);
+    console.error(`[Tutorial] Failed to read from localStorage: ${key}`, error);
     return null; // Safe default - assume tutorial not completed
   }
 };
@@ -152,13 +48,21 @@ const safeLocalStorageRead = (key: string): string | null => {
 // ============================================================================
 
 export const useTutorialStore = create<TutorialStore>((set, get) => ({
-  // Initial State
+  // Initial State - load completion status from localStorage
   isActive: false,
   currentStep: 0,
   isCompleted: safeLocalStorageRead(TUTORIAL_STORAGE_KEY) === 'true',
   
   // Actions
   start: () => {
+    const { isCompleted } = get();
+    
+    // Don't start if already completed
+    if (isCompleted) {
+      console.log('[Tutorial] Already completed, skipping');
+      return;
+    }
+    
     console.log('[Tutorial] Starting tutorial - step 1');
     set({
       isActive: true,
@@ -170,34 +74,51 @@ export const useTutorialStore = create<TutorialStore>((set, get) => ({
   nextStep: () => {
     const { currentStep, isActive } = get();
     
-    if (!isActive) return;
+    // Ignore if tutorial not active
+    if (!isActive) {
+      console.warn('[Tutorial] nextStep called but tutorial not active');
+      return;
+    }
     
-    // Validate state
-    if (currentStep < 1 || currentStep > 6) {
-      console.error(`Invalid tutorial state: step ${currentStep}`);
+    // Validate current step
+    if (currentStep < 1 || currentStep > 4) {
+      console.error(`[Tutorial] Invalid step: ${currentStep}, resetting`);
       set({ isActive: false, currentStep: 0 });
       return;
     }
     
-    if (currentStep === 6) {
-      // Last step - complete tutorial
+    // If on step 4, complete tutorial
+    if (currentStep === 4) {
+      console.log('[Tutorial] Reached final step, completing');
       get().complete();
-    } else {
-      set({ currentStep: currentStep + 1 });
+      return;
     }
+    
+    // Advance to next step
+    const nextStep = currentStep + 1;
+    console.log(`[Tutorial] Advancing from step ${currentStep} to ${nextStep}`);
+    set({ currentStep: nextStep });
   },
   
-  previousStep: () => {
-    const { currentStep, isActive } = get();
+  skip: () => {
+    console.log('[Tutorial] Skipping tutorial');
+    set({
+      isActive: false,
+      isCompleted: true,
+      currentStep: 0,
+    });
     
-    if (!isActive) return;
+    // Persist completion to localStorage
+    safeLocalStorageWrite(TUTORIAL_STORAGE_KEY, 'true');
     
-    if (currentStep > 1) {
-      set({ currentStep: currentStep - 1 });
+    // Dispatch custom event for any listeners
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tutorial-complete'));
     }
   },
   
   complete: () => {
+    console.log('[Tutorial] Completing tutorial');
     set({
       isActive: false,
       isCompleted: true,
@@ -207,66 +128,31 @@ export const useTutorialStore = create<TutorialStore>((set, get) => ({
     // Persist completion to localStorage
     safeLocalStorageWrite(TUTORIAL_STORAGE_KEY, 'true');
     
-    // Check for reduced motion preference
-    const prefersReducedMotion = typeof window !== 'undefined'
-      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      : false;
-    
-    // Trigger confetti effect via custom event (only if not reduced motion)
-    if (typeof window !== 'undefined' && !prefersReducedMotion) {
+    // Dispatch custom event for any listeners
+    if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('tutorial-complete'));
     }
-    
-    // Return to home screen after confetti (1s delay)
-    if (typeof window !== 'undefined') {
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('tutorial-return-home'));
-      }, 1000);
-    }
   },
   
-  skip: () => {
+  shouldShow: (): boolean => {
+    return safeLocalStorageRead(TUTORIAL_STORAGE_KEY) !== 'true';
+  },
+  
+  reset: () => {
+    console.log('[Tutorial] Resetting tutorial (for testing)');
+    
+    // Remove from localStorage
+    try {
+      localStorage.removeItem(TUTORIAL_STORAGE_KEY);
+    } catch (error) {
+      console.error('[Tutorial] Failed to remove from localStorage', error);
+    }
+    
+    // Reset state
     set({
       isActive: false,
-      isCompleted: true,
       currentStep: 0,
+      isCompleted: false,
     });
-    
-    // Persist completion to localStorage
-    safeLocalStorageWrite(TUTORIAL_STORAGE_KEY, 'true');
-    
-    // Return to home screen immediately when skipped
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('tutorial-return-home'));
-    }
-  },
-  
-  // Helpers
-  getForcedPiece: (step: number): ForcedPieceConfig | null => {
-    const config = FORCED_PIECES[step];
-    
-    if (!config) {
-      console.warn(`No forced piece configuration for step ${step}`);
-      return null;
-    }
-    
-    return config;
-  },
-  
-  getStepConfig: (step: number): TutorialStepConfig => {
-    const config = TUTORIAL_STEPS[step];
-    
-    if (!config) {
-      console.warn(`No step configuration for step ${step}`);
-      // Return default config
-      return {
-        targetElement: '.grid',
-        tooltipPosition: 'top',
-        showHandAnimation: false,
-        autoAdvance: false,
-      };
-    }
-    
-    return config;
   },
 }));

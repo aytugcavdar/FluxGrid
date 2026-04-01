@@ -1,4 +1,8 @@
-export { shouldShowTutorial } from './Tutorial';
+// Tutorial Components
+export { TutorialManager } from './TutorialManager';
+export { TutorialTooltip } from './TutorialTooltip';
+export { TutorialHighlight } from './TutorialHighlight';
+export { TutorialConfetti } from './TutorialConfetti';
 
 // UI Redesign Components
 export { StatCard } from './StatCard';

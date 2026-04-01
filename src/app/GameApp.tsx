@@ -7,7 +7,7 @@ import { usePassiveAbilityStore } from '../features/abilities/store/passiveAbili
 import { DragOverlay, TierCelebrationOverlay } from '@features/hud';
 import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
 import { ParticleExplosionOverlay } from '../features/visual-effects/components/ParticleExplosionOverlay';
-import { TutorialOverlay } from '../shared/components/TutorialOverlay';
+import { TutorialManager } from '@shared/components';
 import { GameOverModal, GameScreen } from './components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { unlockAudio, playGameOver, playClick, playChronoBonus } from '@utils/audio';
@@ -434,7 +434,7 @@ const App: React.FC = () => {
       {/* Persistence and Global Overlays */}
       <DragOverlay />
       <ParticleExplosionOverlay />
-      <TutorialOverlay />
+      <TutorialManager />
       <AnimatePresence>
         {showAbilities && <AbilityPanel onClose={() => setShowAbilities(false)} />}
       </AnimatePresence>

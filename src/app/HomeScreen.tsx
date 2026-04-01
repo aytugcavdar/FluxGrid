@@ -5,7 +5,6 @@ import { useSettingsStore } from '../shared/store/settingsStore';
 import { useThemeStore } from '../shared/store/themeStore';
 import { useDailyRewardStore } from '../shared/store/dailyRewardStore';
 import { useTutorialStore } from '../shared/store/tutorialStore';
-import { shouldShowTutorial } from '../shared/components/Tutorial';
 import { GameMode } from '@shared/types';
 import { playClick } from '@utils/audio';
 import { ModeCard } from '../shared/components/ModeCard';
@@ -66,7 +65,6 @@ export const HomeScreen: React.FC = () => {
   const { soundEnabled } = useSettingsStore();
   const { getThemeColors } = useThemeStore();
   const { initializeRewards } = useDailyRewardStore();
-  const { start: startTutorial } = useTutorialStore();
   const colors = getThemeColors();
   
   const [showRewardModal, setShowRewardModal] = useState(false);
@@ -76,24 +74,15 @@ export const HomeScreen: React.FC = () => {
     initializeRewards();
   }, [initializeRewards]);
   
-  // Check if tutorial should be shown on mount
+  // Check if tutorial should be shown on mount (only once)
   useEffect(() => {
-    if (shouldShowTutorial()) {
-      // Start tutorial first
-      startTutorial();
-      
-      // Wait for tutorial state to update, then init game
-      // Use a longer delay to ensure Zustand state is updated
-      setTimeout(() => {
-        const tutorialState = useTutorialStore.getState();
-        console.log('[HomeScreen] Tutorial state after start:', {
-          isActive: tutorialState.isActive,
-          currentStep: tutorialState.currentStep
-        });
-        initGame(GameMode.ENDLESS);
-      }, 200);
+    const { shouldShow, start } = useTutorialStore.getState();
+    if (shouldShow()) {
+      initGame(GameMode.ENDLESS); // Önce oyunu başlat
+      setTimeout(() => start(), 500); // Sonra tutorial'ı başlat (canvas yüklensin)
     }
-  }, [initGame, startTutorial]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only run once on mount
 
   // Get best scores - handle undefined highScores
   const sonsuzBestScore = highScores?.[GameMode.ENDLESS] || 0;

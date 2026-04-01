@@ -6,7 +6,6 @@ import { Piece, PieceShape, GridState, GRID_SIZE, CellType } from '../../types';
 import { SHAPES } from '../../constants';
 import { SeededRNG, getDailySeed } from '@utils/seededRng';
 import { GameMode } from '@shared/types';
-import { useTutorialStore } from '@shared/store/tutorialStore';
 
 function weightedPick(
   shapes: PieceShape[],
@@ -47,50 +46,10 @@ export const getRandomPiecesSync = (
   isDaily?: boolean,
   colors?: string[],
   difficultyTier?: number,
-  gameMode?: GameMode,
-  tutorialStep?: number
+  gameMode?: GameMode
 ): Piece[] => {
   const newPieces: Piece[] = [];
   const tier = difficultyTier ?? 0;
-  
-  // Check if we need to generate forced pieces for tutorial
-  if (tutorialStep !== undefined) {
-    console.log('[getRandomPiecesSync] Tutorial step:', tutorialStep);
-    const tutorialState = useTutorialStore.getState();
-    const forcedConfig = tutorialState.getForcedPiece(tutorialStep);
-    
-    console.log('[getRandomPiecesSync] Forced config:', forcedConfig);
-    
-    if (forcedConfig) {
-      // Generate pieces array with forced piece at correct index
-      for (let i = 0; i < count; i++) {
-        if (i === forcedConfig.pieceIndex) {
-          // Generate forced piece
-          newPieces.push({
-            id: `forced-${tutorialStep}`,
-            shape: forcedConfig.shape,
-            color: forcedConfig.color,
-            instanceId: uuidv4(),
-            type: CellType.NORMAL,
-          });
-        } else {
-          // Generate random piece using existing logic
-          const randVal = isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
-          const selectedShape = SHAPES[Math.floor(randVal * SHAPES.length)];
-          const pieceColor = colors ? colors[i % colors.length] : selectedShape.color;
-          
-          newPieces.push({ 
-            ...selectedShape,
-            color: pieceColor,
-            instanceId: uuidv4(),
-            type: CellType.NORMAL
-          });
-        }
-      }
-      
-      return newPieces;
-    }
-  }
   
   // For daily mode, try to use cached RNG, otherwise fall back to Math.random
   let useSeededRNG = false;

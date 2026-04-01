@@ -26,7 +26,7 @@ export const SettingsScreen: React.FC = () => {
 
   const { currentTheme, setTheme, getThemeColors } = useThemeStore();
   const { initGame } = useGameStore();
-  const { start: startTutorial } = useTutorialStore();
+  const { reset: resetTutorial } = useTutorialStore();
   const colors = getThemeColors();
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'success' | 'error'>('idle');
   
@@ -87,9 +87,13 @@ export const SettingsScreen: React.FC = () => {
   };
   
   const handleReplayTutorial = () => {
-    localStorage.removeItem('flux_onboard_v1');
+    resetTutorial(); // Reset tutorial state and localStorage
     initGame(GameMode.ENDLESS);
-    startTutorial();
+    
+    // Start tutorial after a short delay (let canvas load)
+    setTimeout(() => {
+      useTutorialStore.getState().start();
+    }, 500);
   };
 
   return (
