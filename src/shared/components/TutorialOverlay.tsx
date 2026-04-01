@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useTutorialStore } from '../store/tutorialStore';
+import { useGameStore } from '../../features/game/store/gameStore';
 
 // ============================================================================
 // TYPES
@@ -210,20 +211,35 @@ export const TutorialOverlay: React.FC = () => {
     left: 0,
     arrowDirection: 'down',
   });
+  const [spotlightConfig, setSpotlightConfig] = useState<SpotlightConfig>({
+    clipPath: 'none',
+    targetRect: null,
+  });
   const [showConfetti, setShowConfetti] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   
   const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Check for reduced motion preference
-  const prefersReducedMotion = typeof window !== 'undefined'
-    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    : false;
+  // Check for reduced motion preference and listen for changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mediaQuery.matches);
+    
+    const handleChange = (e: MediaQueryListEvent) => {
+      setPrefersReducedMotion(e.matches);
+    };
+    
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
   
   // Listen for tutorial completion event to trigger confetti
   useEffect(() => {
     const handleTutorialComplete = () => {
       setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 2500);
+      setTimeout(() => setShowConfetti(false), 1000); // Match tutorialStore delay
     };
     
     window.addEventListener('tutorial-complete', handleTutorialComplete);
@@ -236,30 +252,57 @@ export const TutorialOverlay: React.FC = () => {
     
     const stepConfig = getStepConfig(currentStep);
     
-    // Wait for DOM to be ready (especially for canvas)
+    // Wait for DOM to be ready (especially for canvas and pieces)
     const calculatePositions = () => {
       const config = calculateSpotlight(stepConfig.targetElement);
+      setSpotlightConfig(config);
       
       const tooltipPos = calculateTooltipPosition(config.targetRect, stepConfig.tooltipPosition);
       setTooltipPosition(tooltipPos);
+      
+      // Debug logging
+      console.log('[Tutorial] Step', currentStep, 'spotlight config:', {
+        selector: stepConfig.targetElement,
+        found: config.targetRect !== null,
+        rect: config.targetRect ? {
+          x: config.targetRect.left,
+          y: config.targetRect.top,
+          width: config.targetRect.width,
+          height: config.targetRect.height
+        } : null
+      });
     };
     
-    // Delay calculation to ensure DOM is ready
-    const timer = setTimeout(calculatePositions, 100);
-    
-    // Auto-advance logic for steps 3, 4, 6
-    if (stepConfig.autoAdvance && stepConfig.autoAdvanceDelay) {
-      const autoAdvanceTimer = setTimeout(() => {
-        useTutorialStore.getState().nextStep();
-      }, stepConfig.autoAdvanceDelay);
+    // Retry logic for step 1 - pieces may not be rendered yet
+    if (currentStep === 1) {
+      let attempts = 0;
+      const maxAttempts = 10;
+      const retryDelay = 200;
       
-      return () => {
-        clearTimeout(timer);
-        clearTimeout(autoAdvanceTimer);
+      const tryCalculate = () => {
+        attempts++;
+        const element = document.querySelector(stepConfig.targetElement);
+        
+        if (element) {
+          console.log('[Tutorial] Element found on attempt', attempts);
+          calculatePositions();
+        } else if (attempts < maxAttempts) {
+          console.log('[Tutorial] Element not found, retrying... (attempt', attempts, '/', maxAttempts, ')');
+          setTimeout(tryCalculate, retryDelay);
+        } else {
+          console.error('[Tutorial] Element not found after', maxAttempts, 'attempts');
+          calculatePositions(); // Calculate anyway with fallback
+        }
       };
+      
+      // Start first attempt after initial delay
+      const timer = setTimeout(tryCalculate, 500);
+      return () => clearTimeout(timer);
+    } else {
+      // For other steps, use simple delay
+      const timer = setTimeout(calculatePositions, 100);
+      return () => clearTimeout(timer);
     }
-    
-    return () => clearTimeout(timer);
   }, [isActive, currentStep, getStepConfig]);
   
   // Recalculate spotlight and tooltip on window resize (throttled)
@@ -276,6 +319,7 @@ export const TutorialOverlay: React.FC = () => {
       resizeTimeoutRef.current = setTimeout(() => {
         const stepConfig = getStepConfig(currentStep);
         const config = calculateSpotlight(stepConfig.targetElement);
+        setSpotlightConfig(config);
         
         const tooltipPos = calculateTooltipPosition(config.targetRect, stepConfig.tooltipPosition);
         setTooltipPosition(tooltipPos);
@@ -291,6 +335,74 @@ export const TutorialOverlay: React.FC = () => {
       }
     };
   }, [isActive, currentStep, getStepConfig]);
+  
+  // Flux change listener for step 4
+  useEffect(() => {
+    if (!isActive || currentStep !== 4) return;
+    
+    let prevFlux = useGameStore.getState().flux;
+    const unsubscribe = useGameStore.subscribe(
+      (state) => {
+        if (state.flux !== prevFlux) {
+          prevFlux = state.flux;
+          console.log('[Tutorial] Flux changed - advancing to next step');
+          useTutorialStore.getState().nextStep();
+        }
+      }
+    );
+    
+    return unsubscribe;
+  }, [isActive, currentStep]);
+  
+  // Auto-complete timer for step 6
+  useEffect(() => {
+    if (!isActive || currentStep !== 6) return;
+    
+    const timer = setTimeout(() => {
+      console.log('[Tutorial] Step 6 complete - finishing tutorial');
+      useTutorialStore.getState().complete();
+    }, 2000);
+    
+    return () => clearTimeout(timer);
+  }, [isActive, currentStep]);
+  
+  // Keyboard navigation
+  useEffect(() => {
+    if (!isActive) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'Escape':
+          skip();
+          break;
+        case 'ArrowRight':
+        case 'Enter':
+          // Only allow manual progression on non-game-action steps
+          if (![1, 2, 5].includes(currentStep)) {
+            useTutorialStore.getState().nextStep();
+          }
+          break;
+        case 'ArrowLeft':
+          if (currentStep > 1) {
+            useTutorialStore.getState().previousStep();
+          }
+          break;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isActive, currentStep, skip]);
+  
+  // Focus management - focus skip button when tooltip opens
+  useEffect(() => {
+    if (!isActive) return;
+    
+    const skipButton = document.querySelector('.tutorial-skip') as HTMLButtonElement;
+    if (skipButton) {
+      skipButton.focus();
+    }
+  }, [isActive, currentStep]);
   
   // Don't render anything when tutorial is not active
   if (!isActive && !showConfetti) {
@@ -417,6 +529,10 @@ export const TutorialOverlay: React.FC = () => {
       {isActive && (
         <div
           className="tutorial-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Game Tutorial"
+          aria-describedby="tutorial-description"
           style={{
             position: 'fixed',
             inset: 0,
@@ -424,7 +540,47 @@ export const TutorialOverlay: React.FC = () => {
             pointerEvents: 'none',
           }}
         >
-          {/* No backdrop - just show tooltip and controls so game is fully visible */}
+          {/* Backdrop layer with spotlight cutout - only render if target found */}
+          {spotlightConfig.targetRect && spotlightConfig.clipPath !== 'none' && (
+            <div
+              className="tutorial-backdrop"
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                clipPath: spotlightConfig.clipPath,
+                pointerEvents: 'auto',
+                zIndex: 9998,
+              }}
+            />
+          )}
+          
+          {/* Spotlight border (animated pulse) */}
+          {spotlightConfig.targetRect && (
+            <motion.div
+              key={`spotlight-${currentStep}`}
+              className="tutorial-spotlight-border"
+              animate={{
+                scale: [1, 1.02, 1],
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
+              style={{
+                position: 'fixed',
+                left: spotlightConfig.targetRect.left - 8,
+                top: spotlightConfig.targetRect.top - 8,
+                width: spotlightConfig.targetRect.width + 16,
+                height: spotlightConfig.targetRect.height + 16,
+                border: '2px solid #3b82f6',
+                borderRadius: '8px',
+                pointerEvents: 'none',
+                zIndex: 9999,
+              }}
+            />
+          )}
           
           {/* Tooltip balloon */}
           <motion.div
@@ -461,14 +617,45 @@ export const TutorialOverlay: React.FC = () => {
                 {t(`tutorial.step${currentStep}.title`)}
               </p>
               <p
+                id="tutorial-description"
                 style={{
                   fontSize: '14px',
                   color: 'rgba(255, 255, 255, 0.8)',
                   lineHeight: 1.5,
+                  marginBottom: '12px',
                 }}
               >
                 {t(`tutorial.step${currentStep}.description`)}
               </p>
+              
+              {/* Progress indicator */}
+              <div
+                className="tutorial-progress"
+                style={{
+                  display: 'flex',
+                  gap: '6px',
+                  justifyContent: 'center',
+                  marginTop: '12px',
+                }}
+              >
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      width: i + 1 === currentStep ? '10px' : '6px',
+                      height: i + 1 === currentStep ? '10px' : '6px',
+                      borderRadius: '50%',
+                      background:
+                        i + 1 === currentStep
+                          ? '#3b82f6' // Current step: blue
+                          : i + 1 < currentStep
+                          ? '#10b981' // Completed: green
+                          : 'rgba(255, 255, 255, 0.2)', // Upcoming: gray
+                      transition: 'all 0.3s ease',
+                    }}
+                  />
+                ))}
+              </div>
             </div>
             
             {/* Arrow pointer */}

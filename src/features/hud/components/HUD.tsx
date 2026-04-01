@@ -158,7 +158,7 @@ export const HUD: React.FC = () => {
                         
                         {/* Flux bar row */}
                         {gameMode !== GameMode.ZEN ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <div data-testid="flux-meter" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                 <Zap size={10} color={flux >= 100 || isSurgeActive ? '#f59e0b' : (flux >= 80 ? '#f59e0b' : '#3b82f6')} fill={flux >= 100 || isSurgeActive ? '#f59e0b' : 'none'} />
                                 <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 3 }}>
                                     <motion.div
@@ -295,6 +295,7 @@ export const HUD: React.FC = () => {
                         accentBorder="rgba(16,185,129,0.2)"
                         label="Yenile"
                         desc="Tüm parçaları değiştir"
+                        dataTestId="mobile-skill-button-reroll"
                     />
 
                     <MobileSkillButton
@@ -308,6 +309,7 @@ export const HUD: React.FC = () => {
                         accentBorder="rgba(239,68,68,0.2)"
                         label="Kır"
                         desc="Bir bloğa dokun → kır"
+                        dataTestId="mobile-skill-button-shatter"
                     />
 
                     <MobileSkillButton
@@ -327,6 +329,7 @@ export const HUD: React.FC = () => {
                         accentBorder="rgba(249,115,22,0.2)"
                         label="Bomba"
                         desc="3×3 alanı temizle"
+                        dataTestId="mobile-skill-button-bomb"
                     />
                 </div>
 
@@ -550,7 +553,7 @@ export const HUD: React.FC = () => {
     );
 };
 
-const MobileSkillButton = ({ icon, cost, currentFlux, isActive, onClick, accentColor, accentBg, accentBorder, label, desc }: any) => {
+const MobileSkillButton = ({ icon, cost, currentFlux, isActive, onClick, accentColor, accentBg, accentBorder, label, desc, dataTestId }: any) => {
     const canUse = currentFlux >= cost || isActive;
     const disabled = !canUse && !isActive;
     
@@ -559,7 +562,7 @@ const MobileSkillButton = ({ icon, cost, currentFlux, isActive, onClick, accentC
             <button
                 onClick={() => { playClick(); onClick(); }}
                 disabled={disabled}
-                data-testid="mobile-skill-button"
+                data-testid={dataTestId}
                 style={{
                     width: '100%',
                     minHeight: 44,

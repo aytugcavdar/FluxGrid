@@ -221,6 +221,12 @@ export const useGameStore = create<GameStore>((set, get) => {
         const tutorialState = useTutorialStore.getState();
         const isTutorialActive = tutorialState.isActive;
         
+        console.log('[initGame] Tutorial state:', {
+          isActive: isTutorialActive,
+          currentStep: tutorialState.currentStep,
+          willGenerateForcedPiece: isTutorialActive && tutorialState.currentStep > 0
+        });
+        
         // Run migration if saved data is provided
         let migratedData: SaveData | undefined = savedData;
         if (savedData) {
@@ -328,7 +334,7 @@ export const useGameStore = create<GameStore>((set, get) => {
   setDraggedPiece: (piece) => set({ draggedPiece: piece }),
 
   activateSkill: (skill) => {
-    const { flux, pieces, activeSkill, bonusRerolls, bonusShatter, bonusBomb } = get();
+    const { flux, pieces, activeSkill, bonusRerolls, bonusShatter, bonusBomb, isTutorialActive } = get();
     
     if (activeSkill === skill) {
       set({ activeSkill: null }); // Toggle off
@@ -361,6 +367,12 @@ export const useGameStore = create<GameStore>((set, get) => {
         // Sync to profileStore
         useProfileStore.getState().incrementSkillUse('REROLL' as any);
         
+        // Tutorial mode - detect reroll for step 5
+        if (isTutorialActive && tutorialState && tutorialState.currentStep === 5) {
+          console.log('[Tutorial] Reroll activated - advancing to next step');
+          tutorialState.nextStep();
+        }
+        
         get().checkGameOver();
       } else if (flux >= FLUX_COST.REROLL) {
         const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
@@ -385,6 +397,12 @@ export const useGameStore = create<GameStore>((set, get) => {
         
         // Sync to profileStore
         useProfileStore.getState().incrementSkillUse('REROLL' as any);
+        
+        // Tutorial mode - detect reroll for step 5
+        if (isTutorialActive && tutorialState && tutorialState.currentStep === 5) {
+          console.log('[Tutorial] Reroll activated - advancing to next step');
+          tutorialState.nextStep();
+        }
         
         get().checkGameOver();
       }
@@ -549,22 +567,6 @@ export const useGameStore = create<GameStore>((set, get) => {
   placePiece: (piece, startX, startY) => {
     const { grid, score, combo, flux, highScore, isSurgeActive, gameMode, isTutorialActive } = get();
     
-    // Tutorial mode - just advance to next step on any placement, don't block
-    if (isTutorialActive) {
-      const tutorialState = useTutorialStore.getState();
-      const forcedPiece = tutorialState.getForcedPiece(tutorialState.currentStep);
-      
-      console.log('[Tutorial] Piece placed - advancing to next step');
-      
-      // Always advance tutorial on any successful placement
-      if (forcedPiece) {
-        tutorialState.nextStep();
-      }
-    }
-    
-    // Store the placed piece for boss mechanics (before it's removed from pieces array)
-    const justPlacedPiece = piece;
-    
     // Grid validation
     if (!grid || grid.length !== GRID_SIZE) {
       console.error('placePiece: invalid grid state');
@@ -573,6 +575,30 @@ export const useGameStore = create<GameStore>((set, get) => {
     
     // 1. Validate placement
     if (!get().canPlacePiece(grid, piece, startX, startY)) return false;
+    
+    // Tutorial mode - validate correct placement
+    if (isTutorialActive) {
+      const tutorialState = useTutorialStore.getState();
+      const forcedPiece = tutorialState.getForcedPiece(tutorialState.currentStep);
+      
+      if (forcedPiece) {
+        // Check if placement matches target coordinates
+        const isCorrectPosition = startX === forcedPiece.targetX && startY === forcedPiece.targetY;
+        
+        if (isCorrectPosition) {
+          console.log('[Tutorial] Correct placement - advancing to next step');
+          tutorialState.nextStep();
+        } else {
+          console.log('[Tutorial] Incorrect placement - piece must be placed at target position');
+          console.log('[Tutorial] Expected:', { x: forcedPiece.targetX, y: forcedPiece.targetY }, 'Got:', { x: startX, y: startY });
+          // Block incorrect placement in tutorial mode
+          return false;
+        }
+      }
+    }
+    
+    // Store the placed piece for boss mechanics (before it's removed from pieces array)
+    const justPlacedPiece = piece;
 
     // Increment totalMovesPlayed (only for ENDLESS mode)
     if (gameMode === GameMode.ENDLESS) {
@@ -624,6 +650,15 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     // 3. Process Grid
     const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken, actions } = processGrid(tempGrid);
+
+    // Tutorial mode - detect line clear for step 3
+    if (isTutorialActive && linesCleared > 0) {
+      const tutorialState = useTutorialStore.getState();
+      if (tutorialState.currentStep === 3) {
+        console.log('[Tutorial] Line cleared - advancing to next step');
+        tutorialState.nextStep();
+      }
+    }
 
     // Handle CELL_CLEAR actions - trigger explosion effects
     actions.forEach(action => {

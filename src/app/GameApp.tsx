@@ -70,6 +70,11 @@ const App: React.FC = () => {
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared'>('idle');
   const [surgeWasUsed, setSurgeWasUsed] = useState(false);
   
+  // Enhanced visual feedback states
+  const [showComboMilestone, setShowComboMilestone] = useState(false);
+  const [lineCountToShow, setLineCountToShow] = useState(0);
+  const [showLineCount, setShowLineCount] = useState(false);
+  
   // COMBO RUSH state'leri
   const [showRushStart, setShowRushStart] = useState(false);
   const [showRushEnd, setShowRushEnd] = useState(false);
@@ -237,6 +242,14 @@ const App: React.FC = () => {
       setShowPerfect(true);
       setTimeout(() => setShowPerfect(false), 1600);
     }
+    
+    // Line count display (2+ lines cleared)
+    const linesCleared = lastAction.lines || 0;
+    if (linesCleared >= 2) {
+      setLineCountToShow(linesCleared);
+      setShowLineCount(true);
+      setTimeout(() => setShowLineCount(false), 1000);
+    }
   }, [lastAction]);
 
   // Surge flash
@@ -262,6 +275,13 @@ const App: React.FC = () => {
         value: -1,
       }]);
     }
+    
+    // Combo milestone detection (5, 10, 15, 20)
+    if ([5, 10, 15, 20].includes(combo) && combo > prevComboRef.current) {
+      setShowComboMilestone(true);
+      setTimeout(() => setShowComboMilestone(false), 800);
+    }
+    
     prevComboRef.current = combo;
   }, [combo, gameMode]);
 
@@ -404,6 +424,9 @@ const App: React.FC = () => {
             showPerfect={showPerfect}
             eventStartVisual={eventStartVisual}
             setEventStartVisual={setEventStartVisual}
+            showComboMilestone={showComboMilestone}
+            lineCountToShow={lineCountToShow}
+            showLineCount={showLineCount}
           />
         )}
       </AnimatePresence>

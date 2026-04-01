@@ -55,8 +55,11 @@ export const getRandomPiecesSync = (
   
   // Check if we need to generate forced pieces for tutorial
   if (tutorialStep !== undefined) {
+    console.log('[getRandomPiecesSync] Tutorial step:', tutorialStep);
     const tutorialState = useTutorialStore.getState();
     const forcedConfig = tutorialState.getForcedPiece(tutorialStep);
+    
+    console.log('[getRandomPiecesSync] Forced config:', forcedConfig);
     
     if (forcedConfig) {
       // Generate pieces array with forced piece at correct index

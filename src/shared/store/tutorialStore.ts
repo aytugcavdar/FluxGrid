@@ -21,6 +21,17 @@ export interface TutorialStepConfig {
   autoAdvanceDelay?: number; // Milliseconds
 }
 
+export interface SpotlightConfig {
+  clipPath: string; // CSS clip-path polygon string
+  targetRect: DOMRect | null; // Bounding rect of target element
+}
+
+export interface TooltipPosition {
+  top: number; // Absolute Y position (px)
+  left: number; // Absolute X position (px)
+  arrowDirection: 'up' | 'down' | 'left' | 'right';
+}
+
 export interface TutorialStore {
   // State
   isActive: boolean;
@@ -89,29 +100,26 @@ const TUTORIAL_STEPS: Record<number, TutorialStepConfig> = {
     targetElement: 'canvas', // The 3D grid canvas
     tooltipPosition: 'top',
     showHandAnimation: false,
-    autoAdvance: true,
-    autoAdvanceDelay: 2000,
+    autoAdvance: false, // Event-driven: advances on line clear
   },
   4: {
-    targetElement: 'header', // HUD header containing flux meter
+    targetElement: '[data-testid="flux-meter"]', // Flux meter in HUD
     tooltipPosition: 'bottom',
     showHandAnimation: false,
-    autoAdvance: true,
-    autoAdvanceDelay: 3000,
+    autoAdvance: false, // Event-driven: advances on flux change
   },
   5: {
-    targetElement: '[data-testid="mobile-skill-button"]', // First skill button (Reroll)
+    targetElement: '[data-testid="mobile-skill-button-reroll"]', // First skill button (Reroll)
     tooltipPosition: 'top',
     showHandAnimation: true,
     handPath: { startX: 20, startY: 90, endX: 20, endY: 85 },
-    autoAdvance: false,
+    autoAdvance: false, // Event-driven: advances on skill activation
   },
   6: {
     targetElement: 'canvas', // The 3D grid canvas
     tooltipPosition: 'top',
     showHandAnimation: false,
-    autoAdvance: true,
-    autoAdvanceDelay: 2000,
+    autoAdvance: false, // Event-driven: auto-complete after delay
   },
 };
 
@@ -199,14 +207,21 @@ export const useTutorialStore = create<TutorialStore>((set, get) => ({
     // Persist completion to localStorage
     safeLocalStorageWrite(TUTORIAL_STORAGE_KEY, 'true');
     
-    // Trigger confetti effect via custom event
-    if (typeof window !== 'undefined') {
+    // Check for reduced motion preference
+    const prefersReducedMotion = typeof window !== 'undefined'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false;
+    
+    // Trigger confetti effect via custom event (only if not reduced motion)
+    if (typeof window !== 'undefined' && !prefersReducedMotion) {
       window.dispatchEvent(new CustomEvent('tutorial-complete'));
-      
-      // Return to home screen after tutorial completes
+    }
+    
+    // Return to home screen after confetti (1s delay)
+    if (typeof window !== 'undefined') {
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('tutorial-return-home'));
-      }, 2500); // Wait for confetti to finish
+      }, 1000);
     }
   },
   

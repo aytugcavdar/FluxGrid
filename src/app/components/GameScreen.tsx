@@ -5,7 +5,7 @@ import { GameMode } from '@shared/types';
 import { SkillType } from '../../features/game/types';
 import { Grid } from '../../features/game/components/Grid';
 import { Piece } from '../../features/game/components/Piece';
-import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual } from '@features/hud';
+import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual, ComboMilestone, LineCountDisplay } from '@features/hud';
 import { useGameStore } from '../../features/game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
 import { playClick } from '@utils/audio';
@@ -47,6 +47,9 @@ interface GameScreenProps {
   showPerfect: boolean;
   eventStartVisual: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
   setEventStartVisual: React.Dispatch<React.SetStateAction<'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null>>;
+  showComboMilestone: boolean;
+  lineCountToShow: number;
+  showLineCount: boolean;
 }
 
 export const GameScreen: React.FC<GameScreenProps> = ({
@@ -70,6 +73,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   showPerfect,
   eventStartVisual,
   setEventStartVisual,
+  showComboMilestone,
+  lineCountToShow,
+  showLineCount,
 }) => {
   const { getThemeColors } = useThemeStore();
   const colors = getThemeColors();
@@ -202,7 +208,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         <div className="max-w-2xl mx-auto h-full flex flex-col" style={{ padding: '4px 6px' }}>
           <div className="grid grid-cols-3 flex-1 min-h-0" style={{ gap: '4px' }}>
             <AnimatePresence mode="popLayout">
-              {pieces.map((piece) => (
+              {pieces.map((piece, index) => (
                 <motion.div
                   key={piece.instanceId}
                   layout
@@ -221,7 +227,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     borderColor: piece.type === 'NORMAL' ? colors.cardBorder : undefined
                   }}
                 >
-                  <Piece piece={piece} />
+                  <Piece piece={piece} index={index} />
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -236,6 +242,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       <ComboRushFlash active={showRushStart} movesLeft={timedBoostMovesLeft} onStart={true} />
       <ComboRushFlash active={showRushEnd} movesLeft={0} onStart={false} />
       {gameMode !== GameMode.ZEN && <ComboBar />}
+      <ComboMilestone combo={combo} show={showComboMilestone} />
+      <LineCountDisplay lineCount={lineCountToShow} show={showLineCount} />
       
       {/* Event Start Visual */}
       <EventStartVisual 

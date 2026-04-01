@@ -6,9 +6,10 @@ import clsx from 'clsx';
 
 interface Props {
   piece: PieceType;
+  index?: number;
 }
 
-export const Piece: React.FC<Props> = ({ piece }) => {
+export const Piece: React.FC<Props> = ({ piece, index = 0 }) => {
   const { setDraggedPiece, draggedPiece, pieces, activeEvent } = useGameStore();
   const ref = useRef<HTMLDivElement>(null);
   const [windowWidth, setWindowWidth] = React.useState(window.innerWidth);
@@ -111,6 +112,7 @@ export const Piece: React.FC<Props> = ({ piece }) => {
 
   return (
     <motion.div 
+      data-piece-slot={index}
       style={{ position: 'relative', width: '100%', height: '100%' }}
       initial={{ scale: 0, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}

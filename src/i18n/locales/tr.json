@@ -87,42 +87,32 @@
     "useBomb": "Bomba"
   },
   "tutorial": {
-    "step1Title": "Parçalarını tanı",
-    "step1Sub": "Her turda 3 parça gelir",
-    "step2Title": "Parçayı yerleştir",
-    "step2Sub": "Sürükle veya tıkla",
-    "step3Title": "Satır doldur",
-    "step3Sub": "Tam satır = puan",
-    "step4Title": "Yetenekleri kullan",
-    "step4Sub": "Flux biriktir, harcama yap",
-    "step5Title": "Hazırsın!",
-    "step5Sub": "Cyberpunk bulmaca maceran başlıyor",
     "start": "Oynamaya Başla",
     "next": "Devam",
     "skip": "Atla",
     "step1": {
       "title": "Parçayı Sürükle",
-      "description": "Alttaki parçayı sürükle ve ızgaraya bırak"
+      "description": "Mavi parçayı tutup ızgaradaki vurgulanan alana bırak."
     },
     "step2": {
-      "title": "Satırı Doldur",
-      "description": "Bir satırı tamamen doldur"
+      "title": "Başka Bir Parça Yerleştir",
+      "description": "Yeşil parçayı yerleştirerek inşa etmeye devam et."
     },
     "step3": {
-      "title": "Harika!",
-      "description": "Satır temizlendi! Puan kazandın"
+      "title": "Satır Temizle",
+      "description": "Bir satır veya sütunu tamamlayarak temizle ve puan kazan!"
     },
     "step4": {
-      "title": "Flux Biriktir",
-      "description": "Flux dolunca yetenek kullanabilirsin"
+      "title": "Flux'unu İzle",
+      "description": "Parça yerleştirdikçe flux ölçer dolar. %100'de Surge modu aktif olur ve 2× puan kazanırsın!"
     },
     "step5": {
-      "title": "Yenile Yeteneği",
-      "description": "Yenile butonuna tıkla"
+      "title": "Bir Yetenek Kullan",
+      "description": "Sıkıştığında yeni parçalar almak için Yenile butonuna dokun."
     },
     "step6": {
-      "title": "Hazırsın! 🎉",
-      "description": "Artık oyunu oynayabilirsin"
+      "title": "Hazırsın!",
+      "description": "Temelleri öğrendin. Şimdi git ve yüksek skorunu oluştur!"
     },
     "wrongPlacement": "Buraya değil!",
     "correctPlacement": "Harika!"

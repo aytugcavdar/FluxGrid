@@ -14,3 +14,5 @@ export { ChronoPopup } from './ChronoPopup';
 export { EventStartVisual } from './EventStartVisual';
 export { TierMilestoneNotification } from './TierMilestoneNotification';
 export { TierCelebrationOverlay } from './TierCelebrationOverlay';
+export { ComboMilestone } from './ComboMilestone';
+export { LineCountDisplay } from './LineCountDisplay';

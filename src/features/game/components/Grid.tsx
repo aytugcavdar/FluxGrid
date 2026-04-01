@@ -17,6 +17,8 @@ const GRID_OFFSET = ((GRID_SIZE - 1) * TOTAL_CELL_SIZE) / 2;
 const GHOST_POOL_SIZE = 25;
 const SKILL_OVERLAY_POOL_SIZE = 10;
 const GUIDED_HIGHLIGHT_POOL_SIZE = 25;
+const FRAGMENT_POOL_SIZE = 50; // Max concurrent fragments
+const FRAGMENT_LIFETIME = 400; // ms
 
 export const Grid: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -38,6 +40,21 @@ export const Grid: React.FC = () => {
     const glowLayerRef = useRef<BABYLON.GlowLayer | null>(null);
     const placementHandledRef = useRef(false);
     const skillOverlayMeshesRef = useRef<BABYLON.Mesh[]>([]);
+    
+    // Fragment pool for break apart animation
+    const fragmentPoolRef = useRef<{
+        pool: BABYLON.Mesh[];
+        activeFragments: Map<string, {
+            mesh: BABYLON.Mesh;
+            velocity: BABYLON.Vector3;
+            rotationVelocity: BABYLON.Vector3;
+            startTime: number;
+            startAlpha: number;
+        }>;
+    }>({
+        pool: [],
+        activeFragments: new Map()
+    });
 
     // Refs for render loop logic
     const lastHandledActionRef = useRef<any>(null);
@@ -382,10 +399,33 @@ export const Grid: React.FC = () => {
             return pool;
         };
 
+        const initFragmentPool = (scene: BABYLON.Scene): BABYLON.Mesh[] => {
+            const pool: BABYLON.Mesh[] = [];
+            for (let i = 0; i < FRAGMENT_POOL_SIZE; i++) {
+                // Küçük random boyutlu fragment
+                const size = 0.15 + Math.random() * 0.1; // 0.15-0.25
+                const fragment = BABYLON.MeshBuilder.CreateBox(
+                    `fragment-pool-${i}`,
+                    { width: size, height: size, depth: size },
+                    scene
+                );
+                
+                const mat = new BABYLON.StandardMaterial(`fragment-mat-${i}`, scene);
+                mat.specularColor = BABYLON.Color3.Black();
+                fragment.material = mat;
+                fragment.isPickable = false;
+                fragment.isVisible = false;
+                
+                pool.push(fragment);
+            }
+            return pool;
+        };
+
         // Initialize pools
         ghostMeshesRef.current = initGhostPool(scene);
         skillOverlayMeshesRef.current = initSkillOverlayPool(scene);
         guidedHighlightMeshesRef.current = initGuidedHighlightPool(scene);
+        fragmentPoolRef.current.pool = initFragmentPool(scene);
 
 
         // --- Logic Helpers ---
@@ -395,6 +435,147 @@ export const Grid: React.FC = () => {
                 0,
                 -((gy * TOTAL_CELL_SIZE) - GRID_OFFSET)
             );
+        };
+        
+        // Update fragments in render loop
+        const updateFragments = (currentTime: number): void => {
+            const GRAVITY = -0.015; // Yerçekimi
+            
+            fragmentPoolRef.current.activeFragments.forEach((data, key) => {
+                const elapsed = currentTime - data.startTime;
+                
+                if (elapsed > FRAGMENT_LIFETIME) {
+                    // Fade out tamamlandı, fragment'i geri pool'a al
+                    data.mesh.isVisible = false;
+                    fragmentPoolRef.current.activeFragments.delete(key);
+                    return;
+                }
+                
+                // Physics update
+                data.velocity.y += GRAVITY; // Gravity
+                data.mesh.position.addInPlace(data.velocity);
+                data.mesh.rotation.addInPlace(data.rotationVelocity);
+                
+                // Fade out
+                const fadeProgress = elapsed / FRAGMENT_LIFETIME;
+                if (data.mesh.material) {
+                    const mat = data.mesh.material as BABYLON.StandardMaterial;
+                    mat.alpha = data.startAlpha * (1 - fadeProgress);
+                }
+            });
+        };
+        
+        // Create break apart fragments for a cell
+        const createBreakApartFragments = (
+            cellX: number,
+            cellY: number,
+            color: string,
+            cellType: CellType
+        ): void => {
+            if (isLowEndDevice || prefersReducedMotion) return;
+            
+            const fragmentCount = isMobile ? 3 : 5; // Mobile'de daha az
+            const worldPos = getVectorPos(cellX, cellY);
+            
+            // Pool'dan fragment al
+            let fragmentsCreated = 0;
+            for (let i = 0; i < fragmentPoolRef.current.pool.length && fragmentsCreated < fragmentCount; i++) {
+                const fragment = fragmentPoolRef.current.pool[i];
+                if (!fragment.isVisible) {
+                    // Fragment'i aktif et
+                    fragment.position = worldPos.clone();
+                    fragment.position.y = 0; // Grid seviyesinde
+                    
+                    // Random outward velocity
+                    const angle = (Math.PI * 2 * fragmentsCreated) / fragmentCount;
+                    const speed = 0.3 + Math.random() * 0.5; // 0.3-0.8
+                    const velocity = new BABYLON.Vector3(
+                        Math.cos(angle) * speed,
+                        0.5 + Math.random() * 0.3, // Yukarı fırlama
+                        Math.sin(angle) * speed
+                    );
+                    
+                    // Random rotation
+                    const rotationVelocity = new BABYLON.Vector3(
+                        (Math.random() - 0.5) * 0.2,
+                        (Math.random() - 0.5) * 0.2,
+                        (Math.random() - 0.5) * 0.2
+                    );
+                    
+                    // Material setup
+                    const mat = fragment.material as BABYLON.StandardMaterial;
+                    mat.diffuseColor = BABYLON.Color3.FromHexString(color);
+                    mat.emissiveColor = BABYLON.Color3.FromHexString(color).scale(0.3);
+                    mat.alpha = 1.0;
+                    
+                    fragment.isVisible = true;
+                    
+                    // Aktif fragment listesine ekle
+                    fragmentPoolRef.current.activeFragments.set(`fragment-${i}`, {
+                        mesh: fragment,
+                        velocity,
+                        rotationVelocity,
+                        startTime: Date.now(),
+                        startAlpha: 1.0
+                    });
+                    
+                    fragmentsCreated++;
+                }
+            }
+        };
+        
+        // Update camera shake in render loop
+        const updateCameraShake = (camera: BABYLON.ArcRotateCamera, deltaTime: number): void => {
+            if (prefersReducedMotion) {
+                // Ensure camera is at default position
+                const isPortrait = window.innerHeight > window.innerWidth;
+                camera.target.y = isPortrait ? -0.1 : -0.2;
+                return;
+            }
+            
+            if (shakeIntensityRef.current > 0) {
+                const intensity = shakeIntensityRef.current;
+                
+                // Shake pattern: up → down → return (200ms cycle)
+                const shakeTime = Date.now() % 200; // 200ms cycle
+                let offset = 0;
+                
+                if (shakeTime < 50) {
+                    // Up phase (0-50ms)
+                    offset = (shakeTime / 50) * 0.1 * intensity;
+                } else if (shakeTime < 100) {
+                    // Down phase (50-100ms)
+                    offset = 0.1 * intensity - ((shakeTime - 50) / 50) * 0.15 * intensity;
+                } else {
+                    // Return phase (100-200ms)
+                    offset = -0.05 * intensity * (1 - (shakeTime - 100) / 100);
+                }
+                
+                // Apply to camera target Y
+                const isPortrait = window.innerHeight > window.innerWidth;
+                const baseTargetY = isPortrait ? -0.1 : -0.2;
+                camera.target.y = baseTargetY + offset;
+                
+                // Decay shake intensity (2 units/sec)
+                shakeIntensityRef.current = Math.max(0, intensity - deltaTime * 2);
+            } else {
+                // Ensure camera is at default position
+                const isPortrait = window.innerHeight > window.innerWidth;
+                camera.target.y = isPortrait ? -0.1 : -0.2;
+            }
+        };
+        
+        // Trigger camera shake based on line count
+        const triggerCameraShake = (lineCount: number): void => {
+            if (prefersReducedMotion) return;
+            
+            if (lineCount === 1) {
+                shakeIntensityRef.current = 0.3;
+            } else if (lineCount === 2) {
+                shakeIntensityRef.current = 0.6;
+            } else {
+                shakeIntensityRef.current = 1.0;
+            }
         };
         
         // Detect full rows and columns for line clear animation
@@ -425,6 +606,10 @@ export const Grid: React.FC = () => {
         // Start line clear animation
         const startLineClearAnimation = (rows: number[], cols: number[]) => {
             if (lineClearAnimationRef.current?.active) return; // Prevent concurrent animations
+            
+            // Trigger camera shake based on line count
+            const totalLines = rows.length + cols.length;
+            triggerCameraShake(totalLines);
             
             const clearedCells = new Set<string>();
             rows.forEach(y => {
@@ -916,6 +1101,9 @@ export const Grid: React.FC = () => {
 
             // ─── Juice System: Update Placement Animations ───
             updatePlacementAnimations(currentTime);
+            
+            // ─── Fragment System: Update Break Apart Fragments ───
+            updateFragments(currentTime);
 
             // ─── Tier Transition Flash ───
             if (currentTier > prevTierRef.current && currentTier > 0) {
@@ -1192,6 +1380,7 @@ export const Grid: React.FC = () => {
                                 if (cell) {
                                     const worldPos = getVectorPos(x, y);
                                     
+                                    // Trigger visual effect explosion
                                     useVisualEffectStore.getState().addEffect({
                                         type: 'explosion',
                                         duration: 180,
@@ -1204,6 +1393,11 @@ export const Grid: React.FC = () => {
                                             particleCount: particleCount
                                         }
                                     });
+                                    
+                                    // Create break apart fragments
+                                    if (cell.type) {
+                                        createBreakApartFragments(x, y, cell.color, cell.type);
+                                    }
                                 }
                             });
                         }
@@ -1296,25 +1490,8 @@ export const Grid: React.FC = () => {
                 glowLayerRef.current.intensity = 0; // Keep it zero
             }
 
-            // Screen Shake Decay
-            if (shakeIntensityRef.current > 0) {
-                const intensity = shakeIntensityRef.current;
-                const shakeX = (Math.random() - 0.5) * intensity;
-                const shakeY = (Math.random() - 0.5) * intensity;
-                const shakeZ = (Math.random() - 0.5) * intensity;
-
-                // Apply shake to camera target
-                const isPortrait = window.innerHeight > window.innerWidth;
-                const baseTarget = isPortrait ? new BABYLON.Vector3(0, -0.2, 0) : new BABYLON.Vector3(0, -0.5, 0);
-
-                camera.target = baseTarget.add(new BABYLON.Vector3(shakeX, shakeY, shakeZ));
-
-                shakeIntensityRef.current *= 0.9; // Decay
-                if (shakeIntensityRef.current < 0.01) {
-                    shakeIntensityRef.current = 0;
-                    camera.target = baseTarget;
-                }
-            }
+            // Camera Shake System
+            updateCameraShake(camera, deltaTime);
 
             // Detect Score Change for Impact
             // (This is a simplified way; ideally we'd have an event, but polling works for visual fx)
@@ -1646,6 +1823,10 @@ export const Grid: React.FC = () => {
             console.log('WebGL context restored');
             // Clear mesh map to force recreation
             meshMapRef.current.clear();
+            // Reinitialize fragment pool
+            fragmentPoolRef.current.pool = [];
+            fragmentPoolRef.current.activeFragments.clear();
+            fragmentPoolRef.current.pool = initFragmentPool(scene);
         });
 
         const resize = () => engine.resize();
@@ -1670,6 +1851,11 @@ export const Grid: React.FC = () => {
             // Dispose guided highlight meshes
             guidedHighlightMeshesRef.current.forEach(m => m?.dispose());
             guidedHighlightMeshesRef.current = [];
+            
+            // Dispose fragment pool
+            fragmentPoolRef.current.pool.forEach(m => m?.dispose());
+            fragmentPoolRef.current.pool = [];
+            fragmentPoolRef.current.activeFragments.clear();
             
             scene.dispose();
             engine.dispose();

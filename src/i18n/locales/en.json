@@ -87,42 +87,32 @@
     "useBomb": "Bombs"
   },
   "tutorial": {
-    "step1Title": "Meet your pieces",
-    "step1Sub": "3 pieces per turn",
-    "step2Title": "Place a piece",
-    "step2Sub": "Drag or tap",
-    "step3Title": "Fill a row",
-    "step3Sub": "Full row = points",
-    "step4Title": "Use abilities",
-    "step4Sub": "Build Flux, spend it",
-    "step5Title": "You're ready!",
-    "step5Sub": "Your cyberpunk adventure begins",
     "start": "Start Playing",
     "next": "Next",
     "skip": "Skip",
     "step1": {
-      "title": "Drag the Piece",
-      "description": "Drag the piece below and drop it on the grid"
+      "title": "Drag a Piece",
+      "description": "Drag the blue piece to the highlighted area on the grid."
     },
     "step2": {
-      "title": "Fill a Row",
-      "description": "Fill a complete row"
+      "title": "Place Another Piece",
+      "description": "Place the green piece to continue building."
     },
     "step3": {
-      "title": "Great!",
-      "description": "Row cleared! You earned points"
+      "title": "Clear a Line",
+      "description": "Complete a row or column to clear it and earn points!"
     },
     "step4": {
-      "title": "Build Flux",
-      "description": "Use abilities when Flux is full"
+      "title": "Watch Your Flux",
+      "description": "The flux meter fills as you place pieces. At 100%, you activate Surge mode for 2× points!"
     },
     "step5": {
-      "title": "Reroll Ability",
-      "description": "Click the reroll button"
+      "title": "Use a Skill",
+      "description": "Tap the Reroll button to get new pieces when you're stuck."
     },
     "step6": {
-      "title": "You're Ready! 🎉",
-      "description": "You can now play the game"
+      "title": "You're Ready!",
+      "description": "You've learned the basics. Now go build your high score!"
     },
     "wrongPlacement": "Not here!",
     "correctPlacement": "Great!"

@@ -79,8 +79,19 @@ export const HomeScreen: React.FC = () => {
   // Check if tutorial should be shown on mount
   useEffect(() => {
     if (shouldShowTutorial()) {
-      initGame(GameMode.ENDLESS);
+      // Start tutorial first
       startTutorial();
+      
+      // Wait for tutorial state to update, then init game
+      // Use a longer delay to ensure Zustand state is updated
+      setTimeout(() => {
+        const tutorialState = useTutorialStore.getState();
+        console.log('[HomeScreen] Tutorial state after start:', {
+          isActive: tutorialState.isActive,
+          currentStep: tutorialState.currentStep
+        });
+        initGame(GameMode.ENDLESS);
+      }, 200);
     }
   }, [initGame, startTutorial]);
 

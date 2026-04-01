@@ -28,6 +28,16 @@ export const App: React.FC = () => {
       i18n.changeLanguage(language);
     }
   }, [language, i18n]);
+  
+  // Listen for tutorial return home event as fallback
+  useEffect(() => {
+    const handleTutorialReturnHome = () => {
+      setActiveTab('home');
+    };
+    
+    window.addEventListener('tutorial-return-home', handleTutorialReturnHome);
+    return () => window.removeEventListener('tutorial-return-home', handleTutorialReturnHome);
+  }, [setActiveTab]);
 
   const renderScreen = () => {
     switch (activeTab) {
