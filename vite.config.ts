@@ -9,8 +9,11 @@ export default defineConfig(({ mode }) => {
     // Generate build-time version for service worker cache busting
     const buildVersion = new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).slice(2,6);
     
+    // Determine base path based on mode
+    const basePath = mode === 'production' ? '/FluxGrid/' : '/';
+    
     return {
-      base: '/FluxGrid/',
+      base: basePath,
       server: {
         port: 3000,
         host: '0.0.0.0',
@@ -27,6 +30,36 @@ export default defineConfig(({ mode }) => {
                 return content
                   .toString()
                   .replace('{{BUILD_VERSION}}', buildVersion);
+              }
+            },
+            {
+              src: 'public/manifest.json',
+              dest: '',
+              transform: (content) => {
+                // Update manifest paths based on base path
+                const manifest = JSON.parse(content.toString());
+                manifest.start_url = basePath;
+                manifest.scope = basePath;
+                
+                // Update icon paths
+                manifest.icons = manifest.icons.map(icon => ({
+                  ...icon,
+                  src: `${basePath}${icon.src.replace(/^\/FluxGrid\//, '')}`
+                }));
+                
+                // Update shortcut URLs and icons
+                if (manifest.shortcuts) {
+                  manifest.shortcuts = manifest.shortcuts.map(shortcut => ({
+                    ...shortcut,
+                    url: shortcut.url.replace('/FluxGrid/', basePath),
+                    icons: shortcut.icons.map(icon => ({
+                      ...icon,
+                      src: `${basePath}${icon.src.replace(/^\/FluxGrid\//, '')}`
+                    }))
+                  }));
+                }
+                
+                return JSON.stringify(manifest, null, 2);
               }
             }
           ]

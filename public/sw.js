@@ -1,9 +1,12 @@
 const CACHE_NAME = 'fluxgrid-{{BUILD_VERSION}}';
 
+// Get base path dynamically
+const BASE_PATH = self.location.pathname.replace(/\/sw\.js$/, '') || '/';
+
 // Critical assets to pre-cache on install
 const PRECACHE_ASSETS = [
-  '/FluxGrid/',
-  '/FluxGrid/index.html',
+  `${BASE_PATH}/`,
+  `${BASE_PATH}/index.html`,
   // BabylonJS is bundled with Vite, so it will be in the build output
   // We'll cache it on first fetch instead of pre-caching
 ];
@@ -63,7 +66,7 @@ self.addEventListener('fetch', (event) => {
           .catch(() => {
             if (cached) return cached;
             // Return offline page if available
-            return caches.match('/FluxGrid/index.html').then((offlinePage) => {
+            return caches.match(`${BASE_PATH}/index.html`).then((offlinePage) => {
               return offlinePage || new Response('Offline - Please check your connection', { 
                 status: 503,
                 headers: { 'Content-Type': 'text/plain' }

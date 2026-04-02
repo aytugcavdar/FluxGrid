@@ -91,8 +91,8 @@ export const SettingsScreen: React.FC = () => {
 
     if (!deferredPromptRef.current) {
       console.log('No deferred prompt available');
-      // Fallback: show instructions anyway
-      alert('Bu tarayıcıda otomatik yükleme desteklenmiyor. Tarayıcı menüsünden "Ana ekrana ekle" seçeneğini kullanabilirsiniz.');
+      // Fallback: show instructions for other browsers
+      setShowIOSInstructions(true); // Use same modal for all browsers
       return;
     }
     
@@ -466,32 +466,59 @@ export const SettingsScreen: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold mb-4" style={{ color: colors.textPrimary }}>
-              Ana Ekrana Ekle
+              {isIOS ? 'Ana Ekrana Ekle' : 'Uygulamayı Yükle'}
             </h3>
             <div className="space-y-3 mb-6">
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">1️⃣</span>
-                <p className="text-sm" style={{ color: colors.textSecondary }}>
-                  Safari'de <strong>Paylaş</strong> butonuna dokun (⬆️)
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">2️⃣</span>
-                <p className="text-sm" style={{ color: colors.textSecondary }}>
-                  <strong>"Ana Ekrana Ekle"</strong> seçeneğini bul
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">3️⃣</span>
-                <p className="text-sm" style={{ color: colors.textSecondary }}>
-                  <strong>"Ekle"</strong> butonuna dokun
-                </p>
-              </div>
+              {isIOS ? (
+                <>
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">1️⃣</span>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                      Safari'de <strong>Paylaş</strong> butonuna dokun (⬆️)
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">2️⃣</span>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                      <strong>"Ana Ekrana Ekle"</strong> seçeneğini bul
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">3️⃣</span>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                      <strong>"Ekle"</strong> butonuna dokun
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">1️⃣</span>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                      Tarayıcı menüsünü aç (⋮ veya ⋯)
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">2️⃣</span>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                      <strong>"Ana ekrana ekle"</strong> veya <strong>"Yükle"</strong> seçeneğini bul
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">3️⃣</span>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                      Talimatları takip ederek uygulamayı yükle
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
             <button
               onClick={() => {
                 setShowIOSInstructions(false);
-                localStorage.setItem('ios_pwa_instructions_shown', 'true');
+                if (isIOS) {
+                  localStorage.setItem('ios_pwa_instructions_shown', 'true');
+                }
               }}
               className="w-full py-3 rounded-xl font-bold transition-all"
               style={{
