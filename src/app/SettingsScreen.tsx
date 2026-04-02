@@ -81,16 +81,25 @@ export const SettingsScreen: React.FC = () => {
   }, []);
 
   const handleInstallPWA = async () => {
+    console.log('PWA Install button clicked!', { isIOS, canInstallPWA, deferredPrompt: !!deferredPromptRef.current });
+    
     if (isIOS) {
       // Show iOS instructions
       setShowIOSInstructions(true);
       return;
     }
 
-    if (!deferredPromptRef.current) return;
+    if (!deferredPromptRef.current) {
+      console.log('No deferred prompt available');
+      // Fallback: show instructions anyway
+      alert('Bu tarayıcıda otomatik yükleme desteklenmiyor. Tarayıcı menüsünden "Ana ekrana ekle" seçeneğini kullanabilirsiniz.');
+      return;
+    }
     
     deferredPromptRef.current.prompt();
     const { outcome } = await deferredPromptRef.current.userChoice;
+    
+    console.log('User choice:', outcome);
     
     if (outcome === 'accepted') {
       localStorage.setItem('pwa_installed', 'true');
@@ -357,16 +366,22 @@ export const SettingsScreen: React.FC = () => {
                 </div>
               </button>
 
-              {/* PWA Install Button */}
-              {!isPWAInstalled && (canInstallPWA || isIOS) && (
-                <button
+              {/* PWA Install Button - Always visible */}
+              {!isPWAInstalled && (
+                <div
                   onClick={handleInstallPWA}
-                  className="w-full p-5 rounded-2xl transition-all"
+                  className="w-full p-5 rounded-2xl transition-all cursor-pointer"
                   style={{
                     background: 'rgba(34,197,94,0.1)',
                     border: '2px solid rgba(34,197,94,0.3)',
                   }}
-                  aria-label="Uygulamayı yükle"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      handleInstallPWA();
+                    }
+                  }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -381,7 +396,7 @@ export const SettingsScreen: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                </button>
+                </div>
               )}
 
               {isPWAInstalled && (
