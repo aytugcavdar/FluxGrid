@@ -1,16 +1,24 @@
 import '../i18n';
 import './index.css';
 import './newui.css'; // New UI styles
-import React from 'react';
+import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App'; // New UI for menu
 import AppWithErrorBoundary from './GameApp'; // Old App for game
 import { useGameStore } from '../features/game/store/gameStore';
 import { AppState } from '@shared/types';
+import { AdManager } from '@utils/adManager';
+import { useStreakStore } from '@shared/store/streakStore';
 
 // Root component that switches between menu and game
 const RootApp: React.FC = () => {
   const appState = useGameStore(state => state.appState);
+  
+  // Initialize monetization systems on mount
+  useEffect(() => {
+    AdManager.initialize();
+    useStreakStore.getState().initialize();
+  }, []);
   
   // Show game screen when in GAME state, otherwise show menu
   if (appState === AppState.GAME) {

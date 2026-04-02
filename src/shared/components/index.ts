@@ -15,3 +15,6 @@ export { ModeCard } from './ModeCard';
 export type { ModeCardProps } from './ModeCard';
 export { SectionHeader } from './SectionHeader';
 export type { SectionHeaderProps } from './SectionHeader';
+
+// Monetization Components
+export { StreakBadge } from './StreakBadge';

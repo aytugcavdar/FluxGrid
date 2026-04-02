@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../../game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
+import { useStreakStore } from '@shared/store/streakStore';
 import { Zap, RefreshCw, Hammer, Volume2, VolumeX, Home, RotateCw } from 'lucide-react';
 import { FLUX_COST, ZEN_PALETTES, TIMED_MODE } from '../../game/constants';
 import { SkillType } from '../../game/types';
@@ -8,6 +9,9 @@ import { GameMode, AppState } from '@shared/types';
 import { getMuted, toggleMute, playClick, playSkill } from '../../../utils/audio';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
+import { StreakBadge } from '@shared/components/StreakBadge';
+import { StreakShieldModal } from '../../../app/components/StreakShieldModal';
+import { AdManager } from '../../../utils/adManager';
 
 const EVENT_CONFIG: Record<'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID', { label: string; color: string; bg: string }> = {
     ICE_STORM: { label: 'Buz Fırtınası', color: '#185FA5', bg: 'rgba(56,138,221,0.12)' },
@@ -26,8 +30,10 @@ export const HUD: React.FC = () => {
         activeEvent, eventMovesRemaining, timedBoostMovesLeft,
         bonusRerolls, bonusShatter, bonusBomb
     } = useGameStore();
+    const { currentStreak, todayPlayed, streakShields, addStreakShield } = useStreakStore();
     const colors = useThemeStore(state => state.getThemeColors());
     const [muted, setMuted] = useState(getMuted);
+    const [showShieldModal, setShowShieldModal] = useState(false);
 
     const handleMute = () => {
         const newVal = toggleMute();
@@ -42,6 +48,19 @@ export const HUD: React.FC = () => {
     const handleCancelSkill = () => {
         playClick();
         activateSkill(activeSkill!); // Toggle off
+    };
+
+    const handleShieldPress = () => {
+        playClick();
+        setShowShieldModal(true);
+    };
+
+    const handleWatchAd = async () => {
+        const result = await AdManager.showRewardedStreakShield();
+        if (result.success) {
+            addStreakShield();
+        }
+        setShowShieldModal(false);
     };
     
     // Calculate HUD height dynamically based on active event
@@ -69,7 +88,7 @@ export const HUD: React.FC = () => {
                     '--hud-height': `${hudHeight}px`
                 } as React.CSSProperties}
             >
-                {/* ROW 1: Home + Score/Flux + Timer/Moves + Mute */}
+                {/* ROW 1: Home + Score/Flux + Timer/Moves + Streak + Mute */}
                 <div style={{ height: 52, display: 'flex', alignItems: 'center', gap: 6, padding: '0 6px' }}>
                     {/* Home button - 36×36px */}
                     <button
@@ -237,6 +256,16 @@ export const HUD: React.FC = () => {
                             {Math.floor(zenSessionTime / 60)}:{(zenSessionTime % 60).toString().padStart(2, '0')}
                         </div>
                     )}
+
+                    {/* Streak Badge */}
+                    <div style={{ flexShrink: 0 }}>
+                        <StreakBadge
+                            streak={currentStreak}
+                            todayPlayed={todayPlayed}
+                            shields={streakShields}
+                            onShieldPress={handleShieldPress}
+                        />
+                    </div>
 
                     {/* Mute button - 36×36px */}
                     <button
@@ -545,10 +574,30 @@ export const HUD: React.FC = () => {
                     />
                 </div>
 
+                {/* Streak Badge - Desktop */}
+                <div className="flex-shrink-0">
+                    <StreakBadge
+                        streak={currentStreak}
+                        todayPlayed={todayPlayed}
+                        shields={streakShields}
+                        onShieldPress={handleShieldPress}
+                    />
+                </div>
+
                 <button onClick={handleMute} className="w-12 h-full bg-white/[0.04] rounded-xl border border-white/[0.06] flex items-center justify-center hover:bg-white/[0.08] transition-colors">
                     {muted ? <VolumeX size={16} className="text-white/25" /> : <Volume2 size={16} className="text-white/40" />}
                 </button>
             </div>
+
+            {/* Streak Shield Modal */}
+            <StreakShieldModal
+                isVisible={showShieldModal}
+                currentStreak={currentStreak}
+                streakBroken={false}
+                onWatchAd={handleWatchAd}
+                onClose={() => setShowShieldModal(false)}
+                shieldsAvailable={streakShields}
+            />
         </>
     );
 };

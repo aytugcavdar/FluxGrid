@@ -5,3 +5,8 @@ export type { NavButtonProps } from './NavButton';
 export { BottomNavigation } from './BottomNavigation';
 export type { BottomNavigationProps } from './BottomNavigation';
 export { DailyRewardModal } from './DailyRewardModal';
+export { ContinueModal } from './ContinueModal';
+export type { ContinueModalProps } from './ContinueModal';
+export { StreakShieldModal } from './StreakShieldModal';
+export { AdBanner } from './AdBanner';
+export type { AdBannerProps } from './AdBanner';

@@ -1024,6 +1024,29 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({ stats: updatedStats });
       LocalStorageService.saveStats(updatedStats);
       
+      // Monetization integration: Record game end and streak
+      try {
+        // Dynamic import to avoid circular dependency
+        import('../../../utils/adManager').then(({ AdManager }) => {
+          AdManager.recordGameEnd();
+        }).catch((error) => {
+          console.error('[GameStore] Failed to record game end:', error);
+        });
+      } catch (error) {
+        console.error('[GameStore] Failed to record game end:', error);
+      }
+      
+      try {
+        // Dynamic import to avoid circular dependency
+        import('../../../shared/store/streakStore').then(({ useStreakStore }) => {
+          useStreakStore.getState().recordGameCompleted();
+        }).catch((error) => {
+          console.error('[GameStore] Failed to record game completion:', error);
+        });
+      } catch (error) {
+        console.error('[GameStore] Failed to record game completion:', error);
+      }
+      
       playGameOver();
       set({ isGameOver: true });
     }

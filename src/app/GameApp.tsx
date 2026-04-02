@@ -1,27 +1,31 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { ErrorBoundary } from './ErrorBoundary';
-import { useGameStore } from '../features/game/store/gameStore';
-import { useThemeStore } from '@shared/store/themeStore';
-import { useAbilityStore } from '../features/abilities/store/abilityStore';
-import { usePassiveAbilityStore } from '../features/abilities/store/passiveAbilityStore';
-import { DragOverlay, TierCelebrationOverlay } from '@features/hud';
-import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
-import { ParticleExplosionOverlay } from '../features/visual-effects/components/ParticleExplosionOverlay';
-import { TutorialManager } from '@shared/components';
-import { GameOverModal, GameScreen } from './components';
-import { motion, AnimatePresence } from 'framer-motion';
-import { unlockAudio, playGameOver, playClick, playChronoBonus } from '@utils/audio';
-import { generateShareText, shareResult } from '@utils/shareResult';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
-import { AppState, GameMode } from '@shared/types';
-import { X } from 'lucide-react';
+import { useThemeStore } from '../shared/store/themeStore';
+import { useGameStore } from '../features/game/store/gameStore';
+import { GameMode, AppState } from '@shared/types';
 import { useCountUp } from '@shared/hooks/useCountUp';
 import { useBrowserHistory } from './hooks/useBrowserHistory';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { useGameSync } from '../features/game/hooks/useGameSync';
 import { TIER_SCORE_MULTIPLIERS } from '../features/game/constants';
-import { playSkill, playHaptic } from '@utils/audio';
+import { playSkill, playHaptic, unlockAudio, playGameOver, playChronoBonus, playClick } from '@utils/audio';
+import { AdManager } from '@utils/adManager';
+import { createContinueGrid } from '@utils/gameHelpers';
+import { getRandomPiecesSync } from '../features/game/store/helpers/pieces';
+import { useAbilityStore } from '../features/abilities/store/abilityStore';
+import { usePassiveAbilityStore } from '../features/abilities/store/passiveAbilityStore';
+import { GameScreen } from './components/GameScreen';
+import { DragOverlay } from '../features/hud/components/DragOverlay';
+import { ParticleExplosionOverlay } from '../features/visual-effects/components/ParticleExplosionOverlay';
+import { TutorialManager } from '../shared/components/TutorialManager';
+import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
+import { TierCelebrationOverlay } from '../features/hud/components/TierCelebrationOverlay';
+import { ContinueModal } from './components/ContinueModal';
+import { GameOverModal } from './components/GameOverModal';
+import { generateShareText, shareResult } from '../utils/shareResult';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface ScorePopup {
   id: number;
@@ -46,9 +50,9 @@ const App: React.FC = () => {
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
     dailyClearHistory, highScore, stats, highScores,
     activeSkill, activateSkill,
-    maxCombo, chronoBonus, timedBoostMovesLeft, finalSprintBonus, difficultyTier
+    maxCombo, chronoBonus, timedBoostMovesLeft, finalSprintBonus, difficultyTier, grid
   } = useGameStore();
-  const { currentTheme, setTheme, getThemeColors } = useThemeStore();
+  const { currentTheme, setTheme, getThemeColors, getPieceColors } = useThemeStore();
   const colors = getThemeColors();
   const [showAbilities, setShowAbilities] = useState(false);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
@@ -102,6 +106,10 @@ const App: React.FC = () => {
   // Grid sizing with ResizeObserver for safe area compatibility
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [gridSize, setGridSize] = useState(0);
+  
+  // Continue feature state
+  const [showContinueModal, setShowContinueModal] = useState(false);
+  const [continueUsesRemaining, setContinueUsesRemaining] = useState(3);
   
   // Custom hooks
   useBrowserHistory();
@@ -199,6 +207,61 @@ const App: React.FC = () => {
     }
     setPrevGameOver(isGameOver);
   }, [isGameOver]);
+
+  // Show continue modal when game over and continue is available
+  useEffect(() => {
+    if (isGameOver && !prevGameOver) {
+      const canContinue = AdManager.canShowRewardedContinue();
+      if (canContinue) {
+        setShowContinueModal(true);
+        const remaining = 3 - (parseInt(localStorage.getItem('flux_ad_rewarded_daily') || '0', 10));
+        setContinueUsesRemaining(Math.max(0, remaining));
+      }
+    }
+  }, [isGameOver, prevGameOver]);
+
+  // Handle continue feature
+  const handleContinue = async () => {
+    try {
+      const result = await AdManager.showRewardedContinue();
+      
+      if (result.success) {
+        // Create completely empty grid for fresh start
+        const emptyGrid = createContinueGrid();
+        
+        const newPieces = getRandomPiecesSync(
+          3,
+          emptyGrid,
+          gameMode === GameMode.DAILY_CHALLENGE,
+          useThemeStore.getState().getPieceColors(),
+          0, // Reset tier to 0 so easier pieces are generated
+          gameMode
+        );
+        
+        useGameStore.setState({
+          grid: emptyGrid,
+          pieces: newPieces,
+          isGameOver: false,
+          combo: 0,
+          lastAction: null,
+          isSurgeActive: false,
+          activeSkill: null,
+        });
+        
+        setShowContinueModal(false);
+      } else {
+        // Ad failed, show game over modal
+        setShowContinueModal(false);
+      }
+    } catch (error) {
+      console.error('[GameApp] Continue failed:', error);
+      setShowContinueModal(false);
+    }
+  };
+
+  const handleDecline = () => {
+    setShowContinueModal(false);
+  };
 
   // Score popup on score change
   useEffect(() => {
@@ -475,8 +538,18 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       <AnimatePresence>
+        <ContinueModal
+          isVisible={showContinueModal}
+          onContinue={handleContinue}
+          onDecline={handleDecline}
+          canContinue={AdManager.canShowRewardedContinue()}
+          usesRemaining={continueUsesRemaining}
+        />
+      </AnimatePresence>
+
+      <AnimatePresence>
         <GameOverModal
-          isGameOver={isGameOver}
+          isGameOver={isGameOver && !showContinueModal}
           score={score}
           displayScore={displayScore}
           highScore={highScore}

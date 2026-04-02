@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../shared/store/settingsStore';
 import { useThemeStore, ThemeType } from '../shared/store/themeStore';
@@ -6,6 +6,11 @@ import { useGameStore } from '../features/game/store/gameStore';
 import { useTutorialStore } from '../shared/store/tutorialStore';
 import { GameMode } from '@shared/types';
 import { ToggleSwitch, SectionHeader } from '../shared/components';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
 
 export const SettingsScreen: React.FC = () => {
   const { i18n, t } = useTranslation();
@@ -30,9 +35,70 @@ export const SettingsScreen: React.FC = () => {
   const colors = getThemeColors();
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'success' | 'error'>('idle');
   
+  // PWA Install state
+  const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
+  const [canInstallPWA, setCanInstallPWA] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isPWAInstalled, setIsPWAInstalled] = useState(false);
+  const [showIOSInstructions, setShowIOSInstructions] = useState(false);
+  
   const handleLanguageChange = (lang: 'tr' | 'en') => {
     setLanguage(lang);
     i18n.changeLanguage(lang);
+  };
+
+  // PWA Install setup
+  useEffect(() => {
+    // Check if already installed
+    const pwaInstalled = localStorage.getItem('pwa_installed') === 'true';
+    setIsPWAInstalled(pwaInstalled);
+
+    // Detect iOS
+    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    setIsIOS(isIOSDevice);
+
+    // For iOS, check if already in standalone mode
+    if (isIOSDevice) {
+      const isStandalone = (navigator as any).standalone || window.matchMedia('(display-mode: standalone)').matches;
+      if (isStandalone) {
+        setIsPWAInstalled(true);
+        localStorage.setItem('pwa_installed', 'true');
+      }
+    }
+
+    // For non-iOS, capture beforeinstallprompt event
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      deferredPromptRef.current = e as BeforeInstallPromptEvent;
+      setCanInstallPWA(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallPWA = async () => {
+    if (isIOS) {
+      // Show iOS instructions
+      setShowIOSInstructions(true);
+      return;
+    }
+
+    if (!deferredPromptRef.current) return;
+    
+    deferredPromptRef.current.prompt();
+    const { outcome } = await deferredPromptRef.current.userChoice;
+    
+    if (outcome === 'accepted') {
+      localStorage.setItem('pwa_installed', 'true');
+      setIsPWAInstalled(true);
+      setCanInstallPWA(false);
+    }
+    
+    deferredPromptRef.current = null;
   };
 
   const themes: Array<{ theme: ThemeType; label: string; colors: string[] }> = [
@@ -290,6 +356,55 @@ export const SettingsScreen: React.FC = () => {
                   </div>
                 </div>
               </button>
+
+              {/* PWA Install Button */}
+              {!isPWAInstalled && (canInstallPWA || isIOS) && (
+                <button
+                  onClick={handleInstallPWA}
+                  className="w-full p-5 rounded-2xl transition-all"
+                  style={{
+                    background: 'rgba(34,197,94,0.1)',
+                    border: '2px solid rgba(34,197,94,0.3)',
+                  }}
+                  aria-label="Uygulamayı yükle"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">📱</span>
+                      <div className="text-left">
+                        <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
+                          Uygulamayı Yükle
+                        </p>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>
+                          {isIOS ? 'Ana ekrana ekle' : 'Cihazına indir'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              )}
+
+              {isPWAInstalled && (
+                <div
+                  className="w-full p-5 rounded-2xl"
+                  style={{
+                    background: 'rgba(34,197,94,0.1)',
+                    border: '2px solid rgba(34,197,94,0.3)',
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">✅</span>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
+                        Uygulama Yüklü
+                      </p>
+                      <p className="text-xs" style={{ color: colors.textSecondary }}>
+                        Ana ekrandan erişebilirsin
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -319,6 +434,61 @@ export const SettingsScreen: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* iOS Instructions Modal */}
+      {showIOSInstructions && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.8)' }}
+          onClick={() => setShowIOSInstructions(false)}
+        >
+          <div
+            className="max-w-sm w-full p-6 rounded-2xl"
+            style={{
+              background: colors.cardBackground,
+              border: `2px solid ${colors.cardBorder}`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-4" style={{ color: colors.textPrimary }}>
+              Ana Ekrana Ekle
+            </h3>
+            <div className="space-y-3 mb-6">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">1️⃣</span>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  Safari'de <strong>Paylaş</strong> butonuna dokun (⬆️)
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">2️⃣</span>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  <strong>"Ana Ekrana Ekle"</strong> seçeneğini bul
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">3️⃣</span>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  <strong>"Ekle"</strong> butonuna dokun
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setShowIOSInstructions(false);
+                localStorage.setItem('ios_pwa_instructions_shown', 'true');
+              }}
+              className="w-full py-3 rounded-xl font-bold transition-all"
+              style={{
+                background: '#3b82f6',
+                color: 'white',
+              }}
+            >
+              Anladım
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

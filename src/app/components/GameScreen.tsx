@@ -8,7 +8,10 @@ import { Piece } from '../../features/game/components/Piece';
 import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual, ComboMilestone, LineCountDisplay } from '@features/hud';
 import { useGameStore } from '../../features/game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
+import { useTutorialStore } from '@shared/store/tutorialStore';
 import { playClick } from '@utils/audio';
+import { AdBanner } from './AdBanner';
+import { AdManager } from '@utils/adManager';
 
 interface ScorePopup {
   id: number;
@@ -79,8 +82,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 }) => {
   const { getThemeColors } = useThemeStore();
   const colors = getThemeColors();
-  const activeEvent = useGameStore(state => state.activeEvent);
-  const eventMovesRemaining = useGameStore(state => state.eventMovesRemaining);
+  const isTutorialActive = useTutorialStore(state => state.isActive);
+
+  // Check if banner should be shown
+  const showBanner = typeof window !== 'undefined' && 
+                     window.innerWidth >= 390 && 
+                     !AdManager.isNoAdsActive() &&
+                     !isTutorialActive; // Hide during tutorial
 
   return (
     <motion.div
@@ -201,7 +209,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       {/* Piece Tray */}
       <div style={{ 
         height: `calc(var(--tray-height, 90px) + env(safe-area-inset-bottom, 0px))`,
-        paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + 4px)`,
+        paddingBottom: showBanner ? `calc(env(safe-area-inset-bottom, 0px) + 4px + 50px)` : `calc(env(safe-area-inset-bottom, 0px) + 4px)`,
         backgroundColor: colors.trayBackground,
         borderTop: `1px solid ${colors.hudBorder}`
       }}>
@@ -234,6 +242,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Ad Banner */}
+      {showBanner && <AdBanner position="bottom" />}
 
       {/* Game Visual Effects */}
       <ScorePopups popups={scorePopups} />
