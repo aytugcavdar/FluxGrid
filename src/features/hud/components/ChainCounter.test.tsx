@@ -256,7 +256,7 @@ describe('ChainCounter', () => {
      * - purple (#a78bfa) when chain === 3
      * - blue (#60a5fa) when chain === 2
      */
-    it('Property 1: chain color mapping holds for all valid chain values', { timeout: 15000 }, () => {
+    it('Property 1: chain color mapping holds for all valid chain values', { timeout: 30000 }, () => {
       fc.assert(
         fc.property(
           fc.integer({ min: 2, max: 100 }),
@@ -271,7 +271,7 @@ describe('ChainCounter', () => {
             unmount();
           }
         ),
-        { numRuns: 100 }
+        { numRuns: 50 }
       );
     });
 

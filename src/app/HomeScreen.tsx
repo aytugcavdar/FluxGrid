@@ -68,6 +68,9 @@ export const HomeScreen: React.FC = () => {
   const colors = getThemeColors();
   
   const [showRewardModal, setShowRewardModal] = useState(false);
+  
+  // Mobile detection for responsive layout
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 390;
 
   // Initialize rewards on mount
   useEffect(() => {
@@ -105,13 +108,13 @@ export const HomeScreen: React.FC = () => {
       style={{ background: colors.background }}
     >
       {/* Fixed Content - No Scroll */}
-      <div className="flex-1 flex flex-col px-4 pt-3 pb-20">
+      <div className={`flex-1 flex flex-col ${isMobile ? 'px-3 pt-2 pb-16' : 'px-4 pt-3 pb-20'}`}>
         <div className="w-full max-w-[448px] mx-auto flex flex-col h-full">
           {/* Header - Compact */}
-          <div className="flex items-center justify-between mb-4">
+          <div className={`flex items-center justify-between ${isMobile ? 'mb-3' : 'mb-4'}`}>
             <StreakIndicator />
             
-            <h1 className="text-lg font-bold tracking-wider">
+            <h1 className={`${isMobile ? 'text-base' : 'text-lg'} font-bold tracking-wider`}>
               <span style={{ color: colors.textPrimary }}>FLUX</span>
               <span style={{ color: colors.accentPrimary }}>GRID</span>
             </h1>
@@ -139,7 +142,7 @@ export const HomeScreen: React.FC = () => {
             <SectionHeader title="OYUN MODU SEÇ" />
             
             {/* Endless Mode Card */}
-            <div className="mb-3">
+            <div className={isMobile ? 'mb-2' : 'mb-3'}>
               <ModeCard
                 mode={GameMode.ENDLESS}
                 bestScore={sonsuzBestScore}
@@ -158,7 +161,7 @@ export const HomeScreen: React.FC = () => {
             </div>
             
             {/* Timed Mode Card */}
-            <div className="mb-4">
+            <div className={isMobile ? 'mb-2' : 'mb-4'}>
               <ModeCard
                 mode={GameMode.TIMED}
                 bestScore={timedBestScore}
@@ -177,7 +180,7 @@ export const HomeScreen: React.FC = () => {
             </div>
 
             {/* HIZLI BAKIŞ - Compact */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className={`grid grid-cols-3 ${isMobile ? 'gap-1.5' : 'gap-2'}`}>
               <div
                 className="rounded-xl p-3"
                 style={{
@@ -185,7 +188,7 @@ export const HomeScreen: React.FC = () => {
                   border: `1px solid ${colors.cardBorderTransparent}`,
                 }}
               >
-                <div className="text-2xl font-bold mb-0.5" style={{ color: colors.textPrimary }}>
+                <div className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mb-0.5`} style={{ color: colors.textPrimary }}>
                   {gamesPlayed}
                 </div>
                 <div className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
@@ -201,7 +204,7 @@ export const HomeScreen: React.FC = () => {
                   border: `1px solid ${colors.cardBorderTransparent}`,
                 }}
               >
-                <div className="text-2xl font-bold mb-0.5" style={{ color: colors.textPrimary }}>
+                <div className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mb-0.5`} style={{ color: colors.textPrimary }}>
                   {linesCleared}
                 </div>
                 <div className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
@@ -217,7 +220,7 @@ export const HomeScreen: React.FC = () => {
                   border: `1px solid ${colors.cardBorderTransparent}`,
                 }}
               >
-                <div className="text-2xl font-bold mb-0.5" style={{ color: colors.textPrimary }}>
+                <div className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mb-0.5`} style={{ color: colors.textPrimary }}>
                   {dailyStreak}
                 </div>
                 <div className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>

@@ -31,3 +31,17 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+
+# Capacitor
+android/app/src/main/assets/public/
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/.idea/
+android/*.iml
+
+# Android Signing
+android/app/key.properties
+android/app/*.keystore
+android/app/*.jks

@@ -9,8 +9,9 @@ export default defineConfig(({ mode }) => {
     // Generate build-time version for service worker cache busting
     const buildVersion = new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).slice(2,6);
     
-    // Determine base path based on mode
-    const basePath = mode === 'production' ? '/FluxGrid/' : '/';
+    // Determine base path based on mode and Capacitor build flag
+    const isCapacitorBuild = env.CAPACITOR_BUILD === 'true';
+    const basePath = isCapacitorBuild ? '/' : (mode === 'production' ? '/FluxGrid/' : '/');
     
     return {
       base: basePath,

@@ -324,6 +324,8 @@ export const playChronoBonus = () => {
 
 // ─── Haptic Feedback ───
 
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
+
 type HapticPattern = 'hover' | 'place' | 'clear' | 'clear_single' | 'clear_multi' | 'combo' | 'combo_milestone' | 'surge' | 'game_over' | 'skill';
 
 const HAPTIC_PATTERNS: Record<HapticPattern, number | number[]> = {
@@ -339,14 +341,40 @@ const HAPTIC_PATTERNS: Record<HapticPattern, number | number[]> = {
   skill: [80, 50, 80]
 };
 
-/** Centralized haptic feedback with pattern table */
-export const playHaptic = (pattern: HapticPattern): void => {
-  if (!navigator.vibrate) return;
+/** Map haptic patterns to Capacitor ImpactStyle */
+const mapPatternToImpactStyle = (pattern: HapticPattern): ImpactStyle => {
+  switch (pattern) {
+    case 'surge':
+    case 'game_over':
+    case 'skill':
+      return ImpactStyle.Heavy;
+    case 'clear_multi':
+    case 'combo_milestone':
+    case 'clear':
+      return ImpactStyle.Medium;
+    default:
+      return ImpactStyle.Light;
+  }
+};
+
+/** Centralized haptic feedback with Capacitor Haptics and web fallback */
+export const playHaptic = async (pattern: HapticPattern): Promise<void> => {
+  // Check if native Capacitor platform
+  const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
   
   try {
-    const vibrationPattern = HAPTIC_PATTERNS[pattern];
-    navigator.vibrate(vibrationPattern);
+    if (isNative) {
+      // Use Capacitor Haptics on native platform
+      const style = mapPatternToImpactStyle(pattern);
+      await Haptics.impact({ style });
+    } else {
+      // Fallback to web vibration API
+      if (navigator.vibrate) {
+        const vibrationPattern = HAPTIC_PATTERNS[pattern];
+        navigator.vibrate(vibrationPattern);
+      }
+    }
   } catch (e) {
-    // Ignore if vibration not allowed
+    // Silently fail if haptics not available
   }
 };

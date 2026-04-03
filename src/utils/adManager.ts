@@ -2,11 +2,10 @@
  * Ad Manager - Advertisement Management Utility
  * 
  * Provides abstraction layer for advertisement display and reward management.
- * Uses mock implementations with setTimeout for development and testing.
- * 
- * TODO: Replace mock implementations with Admob SDK integration
+ * Integrates with Capacitor AdMob plugin for native ads.
  */
 
+import { AdMob, BannerAdOptions, BannerAdSize, BannerAdPosition, AdMobBannerSize, InterstitialAdPluginEvents, RewardAdPluginEvents, AdMobRewardItem } from '@capacitor-community/admob';
 import { getTodayISO } from '../shared/store/streakStore';
 
 // ============================================================================
@@ -22,16 +21,47 @@ export interface AdResult {
   error?: string;
 }
 
+interface AdMobConfig {
+  appId: string;
+  testMode: boolean;
+  adUnits: {
+    banner: string;
+    interstitial: string;
+    rewarded: string;
+  };
+}
+
 // ============================================================================
 // Configuration
 // ============================================================================
 
-// TODO: Replace with actual Admob ad unit IDs from environment variables
-export const AD_IDS = {
-  banner: 'ca-app-pub-3940256099942544/6300978111', // Test banner ID
-  interstitial: 'ca-app-pub-3940256099942544/1033173712', // Test interstitial ID
-  rewarded: 'ca-app-pub-3940256099942544/5224354917', // Test rewarded ID
+/**
+ * Get AdMob configuration based on build mode
+ * Uses test IDs in development, production IDs in production
+ */
+const getAdConfig = (): AdMobConfig => {
+  const isProduction = import.meta.env.PROD;
+  
+  return {
+    appId: isProduction 
+      ? 'ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY'  // TODO: Replace with production App ID
+      : 'ca-app-pub-3940256099942544~3347511713', // Test App ID
+    testMode: !isProduction,
+    adUnits: {
+      banner: isProduction 
+        ? 'ca-app-pub-XXXXXXXXXXXXXXXX/BANNER_ID'  // TODO: Replace with production banner ID
+        : 'ca-app-pub-3940256099942544/6300978111', // Test banner ID
+      interstitial: isProduction 
+        ? 'ca-app-pub-XXXXXXXXXXXXXXXX/INTERSTITIAL_ID'  // TODO: Replace with production interstitial ID
+        : 'ca-app-pub-3940256099942544/1033173712', // Test interstitial ID
+      rewarded: isProduction 
+        ? 'ca-app-pub-XXXXXXXXXXXXXXXX/REWARDED_ID'  // TODO: Replace with production rewarded ID
+        : 'ca-app-pub-3940256099942544/5224354917', // Test rewarded ID
+    }
+  };
 };
+
+export const AD_IDS = getAdConfig().adUnits;
 
 // ============================================================================
 // localStorage Keys
@@ -51,6 +81,7 @@ const STORAGE_KEYS = {
 let gamesPlayedSinceInterstitial = 0;
 let dailyRewardedCount = 0;
 let dailyRewardedDate = '';
+let isInitialized = false;
 
 // ============================================================================
 // localStorage Persistence Helpers
@@ -120,35 +151,85 @@ function loadState(): void {
 // ============================================================================
 
 /**
- * Initialize the Ad Manager
- * Loads state from localStorage and resets daily counters if needed
+ * Check if running on native Capacitor platform
  */
-export function initialize(): void {
+const isNative = (): boolean => {
+  return !!(window as any).Capacitor?.isNativePlatform?.();
+};
+
+/**
+ * Initialize the Ad Manager
+ * Loads state from localStorage and initializes AdMob SDK on native platform
+ */
+export async function initialize(): Promise<void> {
   console.log('[AdManager] Initializing...');
   loadState();
+  
+  // Initialize AdMob on native platform
+  if (isNative() && !isInitialized) {
+    try {
+      const config = getAdConfig();
+      await AdMob.initialize({
+        testingDevices: config.testMode ? ['YOUR_TEST_DEVICE_ID'] : [],
+        initializeForTesting: config.testMode,
+      });
+      isInitialized = true;
+      console.log('[AdManager] AdMob initialized successfully');
+    } catch (error) {
+      console.error('[AdManager] Failed to initialize AdMob:', error);
+    }
+  }
+  
   console.log('[AdManager] Initialized:', {
     gamesPlayedSinceInterstitial,
     dailyRewardedCount,
     dailyRewardedDate,
+    isNative: isNative(),
   });
 }
 
 /**
  * Show banner advertisement
- * TODO: Replace with Admob SDK call
  */
-export function showBanner(): void {
+export async function showBanner(): Promise<void> {
   console.log('[AdManager] Showing banner ad');
-  // TODO: AdMob.showBanner(AD_IDS.banner);
+  
+  if (!isNative()) {
+    console.log('[AdManager] Not on native platform, skipping banner');
+    return;
+  }
+  
+  try {
+    const options: BannerAdOptions = {
+      adId: AD_IDS.banner,
+      adSize: BannerAdSize.BANNER,
+      position: BannerAdPosition.BOTTOM_CENTER,
+      margin: 0,
+    };
+    
+    await AdMob.showBanner(options);
+    console.log('[AdManager] Banner ad shown successfully');
+  } catch (error) {
+    console.error('[AdManager] Failed to show banner:', error);
+  }
 }
 
 /**
  * Hide banner advertisement
- * TODO: Replace with Admob SDK call
  */
-export function hideBanner(): void {
+export async function hideBanner(): Promise<void> {
   console.log('[AdManager] Hiding banner ad');
-  // TODO: AdMob.hideBanner();
+  
+  if (!isNative()) {
+    return;
+  }
+  
+  try {
+    await AdMob.hideBanner();
+    console.log('[AdManager] Banner ad hidden successfully');
+  } catch (error) {
+    console.error('[AdManager] Failed to hide banner:', error);
+  }
 }
 
 /**
@@ -172,23 +253,36 @@ export function recordGameEnd(): void {
 
 /**
  * Show interstitial advertisement
- * Mock implementation with 500ms delay
- * TODO: Replace with Admob SDK call
  */
 export async function showInterstitial(): Promise<AdResult> {
   console.log('[AdManager] Showing interstitial ad');
   
-  // TODO: Replace with actual Admob SDK call
-  // await AdMob.showInterstitial(AD_IDS.interstitial);
+  if (!isNative()) {
+    console.log('[AdManager] Not on native platform, using mock delay');
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        console.log('[AdManager] Mock interstitial completed');
+        resolve({ success: true });
+      }, 500);
+    });
+  }
   
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      console.log('[AdManager] Interstitial ad completed');
-      resolve({
-        success: true,
-      });
-    }, 500);
-  });
+  try {
+    await AdMob.prepareInterstitial({
+      adId: AD_IDS.interstitial,
+    });
+    
+    await AdMob.showInterstitial();
+    console.log('[AdManager] Interstitial ad completed');
+    
+    return { success: true };
+  } catch (error) {
+    console.error('[AdManager] Failed to show interstitial:', error);
+    return {
+      success: false,
+      error: String(error),
+    };
+  }
 }
 
 /**
@@ -203,61 +297,124 @@ export function canShowRewardedContinue(): boolean {
 
 /**
  * Show rewarded ad for continue feature
- * Mock implementation with 1000ms delay
- * TODO: Replace with Admob SDK call
  */
 export async function showRewardedContinue(): Promise<AdResult> {
   console.log('[AdManager] Showing rewarded ad: continue');
   
-  // TODO: Replace with actual Admob SDK call
-  // await AdMob.showRewardedAd(AD_IDS.rewarded);
+  if (!isNative()) {
+    console.log('[AdManager] Not on native platform, using mock delay');
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        dailyRewardedCount++;
+        dailyRewardedDate = getTodayISO();
+        saveDailyRewardedState();
+        
+        console.log('[AdManager] Mock rewarded ad completed (continue)');
+        resolve({
+          success: true,
+          reward: {
+            type: 'continue',
+            amount: 1,
+          },
+        });
+      }, 1000);
+    });
+  }
   
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      dailyRewardedCount++;
-      dailyRewardedDate = getTodayISO();
-      saveDailyRewardedState();
-      
-      console.log('[AdManager] Rewarded ad completed (continue):', {
-        dailyRewardedCount,
-        dailyRewardedDate,
+  try {
+    await AdMob.prepareRewardVideoAd({
+      adId: AD_IDS.rewarded,
+    });
+    
+    // Set up reward listener
+    const rewardPromise = new Promise<AdMobRewardItem>((resolve) => {
+      AdMob.addListener(RewardAdPluginEvents.Rewarded, (reward: AdMobRewardItem) => {
+        resolve(reward);
       });
-      
-      resolve({
-        success: true,
-        reward: {
-          type: 'continue',
-          amount: 1,
-        },
-      });
-    }, 1000);
-  });
+    });
+    
+    await AdMob.showRewardVideoAd();
+    await rewardPromise;
+    
+    // Update state
+    dailyRewardedCount++;
+    dailyRewardedDate = getTodayISO();
+    saveDailyRewardedState();
+    
+    console.log('[AdManager] Rewarded ad completed (continue):', {
+      dailyRewardedCount,
+      dailyRewardedDate,
+    });
+    
+    return {
+      success: true,
+      reward: {
+        type: 'continue',
+        amount: 1,
+      },
+    };
+  } catch (error) {
+    console.error('[AdManager] Failed to show rewarded ad (continue):', error);
+    return {
+      success: false,
+      error: String(error),
+    };
+  }
 }
 
 /**
  * Show rewarded ad for streak shield
- * Mock implementation with 1000ms delay
- * TODO: Replace with Admob SDK call
  */
 export async function showRewardedStreakShield(): Promise<AdResult> {
   console.log('[AdManager] Showing rewarded ad: streak shield');
   
-  // TODO: Replace with actual Admob SDK call
-  // await AdMob.showRewardedAd(AD_IDS.rewarded);
+  if (!isNative()) {
+    console.log('[AdManager] Not on native platform, using mock delay');
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        console.log('[AdManager] Mock rewarded ad completed (streak shield)');
+        resolve({
+          success: true,
+          reward: {
+            type: 'shield',
+            amount: 1,
+          },
+        });
+      }, 1000);
+    });
+  }
   
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      console.log('[AdManager] Rewarded ad completed (streak shield)');
-      
-      resolve({
-        success: true,
-        reward: {
-          type: 'shield',
-          amount: 1,
-        },
+  try {
+    await AdMob.prepareRewardVideoAd({
+      adId: AD_IDS.rewarded,
+    });
+    
+    // Set up reward listener
+    const rewardPromise = new Promise<AdMobRewardItem>((resolve) => {
+      AdMob.addListener(RewardAdPluginEvents.Rewarded, (reward: AdMobRewardItem) => {
+        resolve(reward);
       });
-    }, 1000);
-  });
+    });
+    
+    await AdMob.showRewardVideoAd();
+    await rewardPromise;
+    
+    console.log('[AdManager] Rewarded ad completed (streak shield)');
+    
+    return {
+      success: true,
+      reward: {
+        type: 'shield',
+        amount: 1,
+      },
+    };
+  } catch (error) {
+    console.error('[AdManager] Failed to show rewarded ad (streak shield):', error);
+    return {
+      success: false,
+      error: String(error),
+    };
+  }
 }
 
 /**

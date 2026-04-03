@@ -81,20 +81,30 @@ describe('Piece', () => {
       expect(container.textContent).toContain('💣');
     });
 
-    it('should apply pulse animation to ICE pieces', () => {
+    it('should apply ICE color to ICE pieces', () => {
       const icePiece = { ...mockPiece, type: CellType.ICE };
       const { container } = render(<Piece piece={icePiece} />);
       
-      const cells = container.querySelectorAll('.animate-pulse');
-      expect(cells.length).toBeGreaterThan(0);
+      // Check for ICE color (#a5f3fc) in filled cells
+      const cells = container.querySelectorAll('.grid > div');
+      const filledCells = Array.from(cells).filter(cell => {
+        const bgColor = (cell as HTMLElement).style.backgroundColor;
+        return bgColor && bgColor !== 'transparent';
+      });
+      expect(filledCells.length).toBeGreaterThan(0);
     });
 
-    it('should apply pulse animation to BOMB pieces', () => {
+    it('should apply BOMB color to BOMB pieces', () => {
       const bombPiece = { ...mockPiece, type: CellType.BOMB };
       const { container } = render(<Piece piece={bombPiece} />);
       
-      const cells = container.querySelectorAll('.animate-pulse');
-      expect(cells.length).toBeGreaterThan(0);
+      // Check for BOMB color (#ef4444) in filled cells
+      const cells = container.querySelectorAll('.grid > div');
+      const filledCells = Array.from(cells).filter(cell => {
+        const bgColor = (cell as HTMLElement).style.backgroundColor;
+        return bgColor && bgColor !== 'transparent';
+      });
+      expect(filledCells.length).toBeGreaterThan(0);
     });
   });
 

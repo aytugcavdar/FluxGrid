@@ -131,17 +131,33 @@ export const Grid: React.FC = () => {
         const disableAnimations = prefersReducedMotion || isLowEndDevice || isNativeApp;
 
         // Engine configuration based on device capability
-        const engine = new BABYLON.Engine(canvasRef.current, true, {
-            preserveDrawingBuffer: true,
-            stencil: true,
-            antialias: !isMobile && !isLowEndDevice,
-            adaptToDeviceRatio: false,
-            limitDeviceRatio: isLowEndDevice ? 1.0 : Math.min(window.devicePixelRatio, 2),
-            doNotHandleContextLost: false,
-        });
+        let engine: BABYLON.Engine;
+        try {
+          engine = new BABYLON.Engine(canvasRef.current, true, {
+              preserveDrawingBuffer: true,
+              stencil: true,
+              antialias: !isMobile && !isLowEndDevice,
+              adaptToDeviceRatio: false, // Keep false for stability
+              limitDeviceRatio: isLowEndDevice ? 1.0 : (isNativeApp ? 1.5 : Math.min(window.devicePixelRatio, 2)),
+              doNotHandleContextLost: false,
+          });
+          
+          // Verify WebGL is available
+          if (!engine.webGLVersion) {
+            throw new Error('WebGL not supported');
+          }
+        } catch (error) {
+          console.error('[Grid] WebGL initialization failed:', error);
+          // Show user-friendly error message
+          const errorDiv = document.createElement('div');
+          errorDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1f2937;color:#e5e7eb;padding:24px;border-radius:12px;text-align:center;max-width:300px;z-index:9999;';
+          errorDiv.innerHTML = '<h3 style="margin:0 0 12px 0;font-size:18px;">Grafik Desteği Gerekli</h3><p style="margin:0;font-size:14px;opacity:0.8;">Cihazınız WebGL desteklemiyor. Oyun çalıştırılamıyor.</p>';
+          document.body.appendChild(errorDiv);
+          return;
+        }
 
-        // Hardware scaling - more aggressive on low-end devices
-        const hardwareScale = isLowEndDevice ? 2.0 : (isMobile ? Math.min(window.devicePixelRatio, 1.5) : window.devicePixelRatio);
+        // Hardware scaling - balanced approach for native apps
+        const hardwareScale = isLowEndDevice ? 2.0 : (isNativeApp ? 1.2 : (isMobile ? Math.min(window.devicePixelRatio, 1.5) : window.devicePixelRatio));
         engine.setHardwareScalingLevel(1 / hardwareScale);
 
         const scene = new BABYLON.Scene(engine);
@@ -183,19 +199,27 @@ export const Grid: React.FC = () => {
                 let radius: number;
 
                 if (aspectRatio < 0.48) {
-                    fov = 0.98; radius = 13.0; // Çok uzun ekranlar
+                    fov = 1.05; radius = 12.0; // Çok uzun ekranlar - optimized
                 } else if (aspectRatio < 0.55) {
-                    fov = 0.90; radius = 12.5; // Standart telefon
+                    fov = 0.95; radius = 12.0; // Standart telefon - optimized
                 } else if (aspectRatio < 0.65) {
-                    fov = 0.84; radius = 12.5; // Geniş telefon
+                    fov = 0.88; radius = 12.5; // Geniş telefon - optimized
                 } else {
-                    fov = 0.78; radius = 13.0; // Küçük tablet
+                    fov = 0.82; radius = 13.0; // Küçük tablet - optimized
+                }
+                
+                // Native app'lerde grid daha büyük görünsün diye radius'u biraz azalt
+                if (isNativeApp) {
+                    radius = radius - 1.0; // 1 birim daha yakın
                 }
 
                 camera.fovMode = BABYLON.Camera.FOVMODE_HORIZONTAL_FIXED;
                 camera.fov = fov;
                 camera.radius = radius;
-                camera.target = new BABYLON.Vector3(0, -0.1, 0);
+                
+                // Adjust camera target for small screens
+                const targetY = screenW < 390 ? -0.05 : -0.1;
+                camera.target = new BABYLON.Vector3(0, targetY, 0);
 
             } else {
                 // --- DESKTOP / LANDSCAPE ---
@@ -1797,19 +1821,58 @@ export const Grid: React.FC = () => {
         window.addEventListener('pointermove', handleGlobalPointerMove);
         canvasRef.current.addEventListener('pointerup', handleCanvasPointerUp);
 
-        // Start render loop - Babylon.js will call scene.render() automatically
-        engine.runRenderLoop(() => {
-            scene.render();
-        });
+        // Start render loop with proper frame rate control
+        if (isNativeApp) {
+            // Native apps: Use requestAnimationFrame for proper vsync
+            // This prevents Android's setRequestedFrameRate warnings
+            let animationFrameId: number;
+            
+            const renderFrame = () => {
+                scene.render();
+                animationFrameId = requestAnimationFrame(renderFrame);
+            };
+            
+            animationFrameId = requestAnimationFrame(renderFrame);
+            
+            // Store the animation frame ID for cleanup
+            (engine as any)._nativeAnimationFrameId = animationFrameId;
+        } else {
+            // Web: Use default render loop
+            engine.runRenderLoop(() => {
+                scene.render();
+            });
+        }
 
         // Pause rendering when page is hidden to save resources
         const handleVisibilityChange = () => {
             if (document.hidden) {
-                engine.stopRenderLoop();
+                if (isNativeApp) {
+                    // Cancel animation frame for native apps
+                    const animationFrameId = (engine as any)._nativeAnimationFrameId;
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                    }
+                } else {
+                    engine.stopRenderLoop();
+                }
             } else {
-                engine.runRenderLoop(() => {
-                    scene.render();
-                });
+                if (isNativeApp) {
+                    // Restart animation frame for native apps
+                    let animationFrameId: number;
+                    
+                    const renderFrame = () => {
+                        scene.render();
+                        animationFrameId = requestAnimationFrame(renderFrame);
+                    };
+                    
+                    animationFrameId = requestAnimationFrame(renderFrame);
+                    (engine as any)._nativeAnimationFrameId = animationFrameId;
+                } else {
+                    // Web: Use default render loop
+                    engine.runRenderLoop(() => {
+                        scene.render();
+                    });
+                }
             }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);

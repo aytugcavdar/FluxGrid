@@ -119,6 +119,10 @@ body[data-dragging="true"] * {
   height: 100dvh;
   position: fixed;
   inset: 0;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
 }
 
 /* ─── Font Classes ─── */
