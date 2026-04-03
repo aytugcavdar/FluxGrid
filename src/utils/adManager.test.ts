@@ -41,7 +41,10 @@ describe('AdManager', () => {
   });
 
   describe('recordGameEnd', () => {
-    it('should increment game counter', () => {
+    it('should increment game counter', async () => {
+      // Initialize first
+      await AdManager.initialize();
+      
       AdManager.recordGameEnd();
       AdManager.recordGameEnd();
       AdManager.recordGameEnd();
@@ -52,6 +55,9 @@ describe('AdManager', () => {
     });
 
     it('should show interstitial every 4 games', async () => {
+      // Initialize first
+      await AdManager.initialize();
+      
       // Mock console.log to verify interstitial trigger
       const consoleSpy = vi.spyOn(console, 'log');
       
@@ -60,9 +66,14 @@ describe('AdManager', () => {
       AdManager.recordGameEnd(); // 3
       AdManager.recordGameEnd(); // 4 - should trigger
       
-      // Verify interstitial was triggered
+      // Wait for async operations
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Verify interstitial was triggered (check for the actual log message)
       expect(consoleSpy).toHaveBeenCalledWith(
-        '[AdManager] Triggering interstitial (every 4 games)'
+        '[AdManager] Triggering interstitial (game:',
+        4,
+        ')'
       );
       
       // Verify counter reset to 0
@@ -70,7 +81,10 @@ describe('AdManager', () => {
       expect(saved).toBe('0');
     });
 
-    it('should persist game count to localStorage', () => {
+    it('should persist game count to localStorage', async () => {
+      // Initialize first
+      await AdManager.initialize();
+      
       AdManager.recordGameEnd();
       
       const saved = localStorage.getItem('flux_ad_game_count');

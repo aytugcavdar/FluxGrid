@@ -4,6 +4,7 @@ const config: CapacitorConfig = {
   appId: 'com.fluxgrid.app',
   appName: 'FluxGrid',
   webDir: 'dist',
+  appendUserAgent: 'FluxGrid/1.0 Android',
   server: {
     androidScheme: 'https'
   },
@@ -12,11 +13,13 @@ const config: CapacitorConfig = {
       launchShowDuration: 0
     },
     StatusBar: {
-      style: 'dark'
+      style: 'dark',
+      navigationBarColor: '#0d1117'
     }
   },
   android: {
     backgroundColor: '#0d1117',
+    scrollEnabled: false,
     // Optimize WebView rendering for better performance
     webContentsDebuggingEnabled: false,
     allowMixedContent: false

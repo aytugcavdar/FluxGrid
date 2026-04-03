@@ -2,11 +2,11 @@
 
 # ⚡ FluxGrid
 
-**Cyberpunk Blok Bulmaca Oyunu**
+**Cyberpunk Blok Bulmaca Oyunu - Android Native App**
 
 Yerçekimi mekanikleri, aktif yetenekler ve neon estetiği ile 3D blok bulmaca deneyimi.
 
-🎮 [Oyna](https://YOUR_USERNAME.github.io/YOUR_REPO/) 
+📱 Android Native App (Capacitor)
 
 </div>
 
@@ -15,49 +15,58 @@ Yerçekimi mekanikleri, aktif yetenekler ve neon estetiği ile 3D blok bulmaca d
 - 🧊 10x10 3D ızgara (Babylon.js)
 - 🎯 Sürükle-Bırak parça yerleştirme
 - ⚡ Flux enerji sistemi & aktif yetenekler (Shatter, Bomb, Reroll)
-- 🔊 Web Audio API ses efektleri
-- 📱 Mobil uyumlu PWA — offline oyun desteği
+- 🔊 Haptic feedback & ses efektleri
+- 📱 Android native optimizasyonları
 - 🌈 Cyberpunk neon estetik
+- 💰 AdMob entegrasyonu (Banner, Interstitial, Rewarded)
 
-## Çalıştırma
+## Geliştirme
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Derleme
+## Android Build
 
 ```bash
-npm run build
-npm run preview
+# Build ve sync
+npm run android:build
+
+# Android Studio'da aç
+npm run android:open
+
+# Tek komutta build + sync + open
+npm run android:dev
 ```
+
+## AdMob Konfigürasyonu
+
+`.env` dosyasında AdMob Ad Unit ID'lerinizi tanımlayın:
+
+```env
+VITE_ADMOB_APP_ID=ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY
+VITE_ADMOB_BANNER_ID=ca-app-pub-XXXXXXXXXXXXXXXX/BANNER_ID
+VITE_ADMOB_INTERSTITIAL_ID=ca-app-pub-XXXXXXXXXXXXXXXX/INTERSTITIAL_ID
+VITE_ADMOB_REWARDED_ID=ca-app-pub-XXXXXXXXXXXXXXXX/REWARDED_ID
+```
+
+Tanımlanmazsa test ID'leri kullanılır.
 
 ## Teknolojiler
 
-React · Vite · Zustand · Babylon.js · Framer Motion · TypeScript
+React · Vite · Zustand · Babylon.js · Framer Motion · TypeScript · Capacitor · AdMob
 
-## Firebase Kurulumu
+## Android Optimizasyonları
 
-### VAPID Key Yapılandırması
+- Hardware scaling (devicePixelRatio=1.0)
+- Fragment pool reduction (25 vs 50)
+- Particle effects disabled
+- Memory leak fixes
+- Safe area handling
+- Back button navigation
+- Haptic feedback optimization
 
-Web push bildirimleri için VAPID (Voluntary Application Server Identification) anahtarı gereklidir.
+## Lisans
 
-**VAPID Anahtarını Alma:**
-
-1. [Firebase Console](https://console.firebase.google.com/) açın
-2. Projenizi seçin
-3. **Project Settings** (Proje Ayarları) > **Cloud Messaging** sekmesine gidin
-4. **Web Push certificates** bölümüne inin
-5. Eğer anahtar çifti yoksa, **Generate key pair** butonuna tıklayın
-6. Oluşturulan anahtarı kopyalayın
-
-**Projeye Ekleme:**
-
-`.env` dosyanıza aşağıdaki satırı ekleyin:
-
-```
-VITE_FIREBASE_VAPID_KEY=your_vapid_key_here
-```
-
-Not: `.env.example` dosyasında tüm gerekli Firebase yapılandırma değişkenlerini bulabilirsiniz.
+MIT

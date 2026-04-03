@@ -9,21 +9,48 @@ import { getDragYOffset, setCanvasRect } from '../../../utils/responsive';
 import { playHaptic } from '../../../utils/audio';
 import clsx from 'clsx';
 
-// Constants for 3D layout
-const CELL_SIZE = 1.0;
-const CELL_SPACING = 0.05; // Tighter spacing like the image
-const TOTAL_CELL_SIZE = CELL_SIZE + CELL_SPACING;
-const GRID_OFFSET = ((GRID_SIZE - 1) * TOTAL_CELL_SIZE) / 2;
-const GHOST_POOL_SIZE = 25;
-const SKILL_OVERLAY_POOL_SIZE = 10;
-const GUIDED_HIGHLIGHT_POOL_SIZE = 25;
-const FRAGMENT_POOL_SIZE = 50; // Max concurrent fragments
-const FRAGMENT_LIFETIME = 400; // ms
+// Import constants and helpers
+import {
+  CELL_SIZE,
+  TOTAL_CELL_SIZE,
+  GRID_OFFSET,
+  GHOST_POOL_SIZE,
+  SKILL_OVERLAY_POOL_SIZE,
+  FRAGMENT_LIFETIME
+} from './grid/constants';
+
+import {
+  getVectorPos,
+  createBlockMesh,
+  initGhostPool,
+  initSkillOverlayPool,
+  initGuidedHighlightPool,
+  initFragmentPool,
+  updateFragments,
+  createBreakApartFragments,
+  updateCameraShake,
+  triggerCameraShake,
+  updateCameraSettings,
+  detectLineClear,
+  startLineClearAnimation,
+  updateLineClearAnimation,
+  updatePlacementAnimations,
+  animatePlacement,
+  startGameOverAnimation,
+  updateGameOverAnimation,
+  updateTierFlash,
+  updateTimedModeAtmosphere,
+  syncGridMeshes
+} from './grid/helpers';
 
 export const Grid: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier } = useGameStore();
     const { getThemeColors } = useThemeStore();
+
+    // Platform detection - calculate once at initialization
+    const isNativeApp = !!(window as any).Capacitor?.isNativePlatform?.();
+    const isAndroid = isNativeApp && /Android/i.test(navigator.userAgent);
 
     const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier });
     useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier]);
@@ -119,11 +146,6 @@ export const Grid: React.FC = () => {
         const isLowEndDevice = deviceMemory <= 2 || navigator.hardwareConcurrency <= 2;
         const isMobile = window.innerWidth < 768;
         
-        // Native mobile app detection (React Native WebView or Capacitor)
-        const isNativeApp = !!(window as any).ReactNativeWebView || 
-                           !!(window as any).Capacitor || 
-                           /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        
         // Reduced motion preference
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         
@@ -138,7 +160,7 @@ export const Grid: React.FC = () => {
               stencil: true,
               antialias: !isMobile && !isLowEndDevice,
               adaptToDeviceRatio: false, // Keep false for stability
-              limitDeviceRatio: isLowEndDevice ? 1.0 : (isNativeApp ? 1.5 : Math.min(window.devicePixelRatio, 2)),
+              limitDeviceRatio: isAndroid ? 1.0 : (isNativeApp ? 1.5 : Math.min(window.devicePixelRatio, 2)),
               doNotHandleContextLost: false,
           });
           
@@ -187,67 +209,12 @@ export const Grid: React.FC = () => {
             camera.maxZ = 50; // Reduced from default 10000
         }
 
-        const updateCamera = () => {
-            const screenW = window.innerWidth;
-            const screenH = window.innerHeight;
-            const isPortrait = screenH > screenW;
-            const aspectRatio = screenW / screenH;
-
-            if (isPortrait) {
-                // --- MOBİL DİKEY ---
-                let fov: number;
-                let radius: number;
-
-                if (aspectRatio < 0.48) {
-                    fov = 1.05; radius = 12.0; // Çok uzun ekranlar - optimized
-                } else if (aspectRatio < 0.55) {
-                    fov = 0.95; radius = 12.0; // Standart telefon - optimized
-                } else if (aspectRatio < 0.65) {
-                    fov = 0.88; radius = 12.5; // Geniş telefon - optimized
-                } else {
-                    fov = 0.82; radius = 13.0; // Küçük tablet - optimized
-                }
-                
-                // Native app'lerde grid daha büyük görünsün diye radius'u biraz azalt
-                if (isNativeApp) {
-                    radius = radius - 1.0; // 1 birim daha yakın
-                }
-
-                camera.fovMode = BABYLON.Camera.FOVMODE_HORIZONTAL_FIXED;
-                camera.fov = fov;
-                camera.radius = radius;
-                
-                // Adjust camera target for small screens
-                const targetY = screenW < 390 ? -0.05 : -0.1;
-                camera.target = new BABYLON.Vector3(0, targetY, 0);
-
-            } else {
-                // --- DESKTOP / LANDSCAPE ---
-                // VERTICAL_FIXED: fov dikey görüş açısı → küçük değer = daha sıkı/zoom
-                // Grid 10×10 birim, tam sığması için radius ~17-18 ve fov ~0.65
-                let fov: number;
-                let radius: number;
-
-                if (aspectRatio > 2.0) {
-                    fov = 0.58; radius = 17.0; // Ultra-wide
-                } else if (aspectRatio > 1.5) {
-                    fov = 0.65; radius = 17.5; // 16:9 standart
-                } else {
-                    fov = 0.70; radius = 18.0; // Laptop / kare yakın
-                }
-
-                camera.fovMode = BABYLON.Camera.FOVMODE_VERTICAL_FIXED;
-                camera.fov = fov;
-                camera.radius = radius;
-                camera.target = new BABYLON.Vector3(0, -0.2, 0); // Sığdırmak için hafif yukarı
-            }
-        };
-        updateCamera();
+        updateCameraSettings(camera, isNativeApp);
 
         // Resize handler to adjust camera dynamically
         const handleResize = () => {
             engine.resize();
-            updateCamera();
+            updateCameraSettings(camera, isNativeApp);
         };
         window.addEventListener('resize', handleResize);
 
@@ -365,86 +332,6 @@ export const Grid: React.FC = () => {
         // --- Ambient Particles removed ---
         ambientParticlesRef.current = [];
 
-        // --- Pool Initialization Functions ---
-        const initGhostPool = (scene: BABYLON.Scene) => {
-            const pool: BABYLON.Mesh[] = [];
-            for (let i = 0; i < GHOST_POOL_SIZE; i++) {
-                const ghost = BABYLON.MeshBuilder.CreateBox(`ghost-pool-${i}`, 
-                    { size: CELL_SIZE * 0.92, height: 0.65 }, 
-                    scene
-                );
-                const mat = new BABYLON.StandardMaterial(`ghost-mat-${i}`, scene);
-                mat.alpha = 0.5;
-                mat.specularColor = BABYLON.Color3.Black();
-                ghost.material = mat;
-                ghost.isPickable = false;
-                ghost.isVisible = false;
-                pool.push(ghost);
-            }
-            return pool;
-        };
-
-        const initSkillOverlayPool = (scene: BABYLON.Scene) => {
-            const pool: BABYLON.Mesh[] = [];
-            for (let i = 0; i < SKILL_OVERLAY_POOL_SIZE; i++) {
-                const overlay = BABYLON.MeshBuilder.CreateBox(`skill-overlay-${i}`, 
-                    { size: CELL_SIZE * 0.95, height: 0.7 }, 
-                    scene
-                );
-                const mat = new BABYLON.StandardMaterial(`skill-mat-${i}`, scene);
-                mat.emissiveColor = i === 0 
-                    ? BABYLON.Color3.FromHexString("#ef4444") 
-                    : BABYLON.Color3.FromHexString("#f97316");
-                overlay.material = mat;
-                overlay.isPickable = false;
-                overlay.isVisible = false;
-                pool.push(overlay);
-            }
-            return pool;
-        };
-
-        const initGuidedHighlightPool = (scene: BABYLON.Scene) => {
-            const pool: BABYLON.Mesh[] = [];
-            for (let i = 0; i < GUIDED_HIGHLIGHT_POOL_SIZE; i++) {
-                const highlight = BABYLON.MeshBuilder.CreateBox(`guided-highlight-${i}`, 
-                    { size: CELL_SIZE * 0.92, height: 0.65 }, 
-                    scene
-                );
-                const mat = new BABYLON.StandardMaterial(`guided-mat-${i}`, scene);
-                mat.diffuseColor = BABYLON.Color3.FromHexString("#10b981");
-                mat.emissiveColor = BABYLON.Color3.FromHexString("#10b981").scale(0.3);
-                mat.alpha = 0.5;
-                mat.specularColor = BABYLON.Color3.Black();
-                highlight.material = mat;
-                highlight.isPickable = false;
-                highlight.isVisible = false;
-                pool.push(highlight);
-            }
-            return pool;
-        };
-
-        const initFragmentPool = (scene: BABYLON.Scene): BABYLON.Mesh[] => {
-            const pool: BABYLON.Mesh[] = [];
-            for (let i = 0; i < FRAGMENT_POOL_SIZE; i++) {
-                // Küçük random boyutlu fragment
-                const size = 0.15 + Math.random() * 0.1; // 0.15-0.25
-                const fragment = BABYLON.MeshBuilder.CreateBox(
-                    `fragment-pool-${i}`,
-                    { width: size, height: size, depth: size },
-                    scene
-                );
-                
-                const mat = new BABYLON.StandardMaterial(`fragment-mat-${i}`, scene);
-                mat.specularColor = BABYLON.Color3.Black();
-                fragment.material = mat;
-                fragment.isPickable = false;
-                fragment.isVisible = false;
-                
-                pool.push(fragment);
-            }
-            return pool;
-        };
-
         // Initialize pools
         ghostMeshesRef.current = initGhostPool(scene);
         skillOverlayMeshesRef.current = initSkillOverlayPool(scene);
@@ -496,7 +383,7 @@ export const Grid: React.FC = () => {
             color: string,
             cellType: CellType
         ): void => {
-            if (isLowEndDevice || prefersReducedMotion) return;
+            if (isNativeApp || isLowEndDevice || prefersReducedMotion) return;
             
             const fragmentCount = isMobile ? 3 : 5; // Mobile'de daha az
             const worldPos = getVectorPos(cellX, cellY);
@@ -709,322 +596,9 @@ export const Grid: React.FC = () => {
             };
         };
 
-        // ─── Juice System Helper Functions ───
-        
-        /**
-         * Calculate spring curve value at given progress
-         * Spring curve: [1.0 → 1.15 → 1.0] (or [1.0 → 1.05 → 1.0] for reduced motion)
-         * @param progress - Animation progress from 0.0 to 1.0
-         * @param curve - Spring curve values [start, peak, end]
-         * @returns Interpolated scale value
-         */
-        const applySpringCurve = (progress: number, curve: [number, number, number]): number => {
-            const [start, peak, end] = curve;
-            
-            if (progress < 0.5) {
-                // First half: interpolate from start to peak
-                const t = progress * 2; // 0.0 to 1.0
-                return start + (peak - start) * t;
-            } else {
-                // Second half: interpolate from peak to end
-                const t = (progress - 0.5) * 2; // 0.0 to 1.0
-                return peak + (end - peak) * t;
-            }
-        };
-        
-        /**
-         * Calculate staggered start time for cell animation
-         * @param cellIndex - Index of the cell in the piece
-         * @param staggerDelay - Delay in milliseconds per cell
-         * @returns Start time offset in milliseconds
-         */
-        const calculateStaggerDelay = (cellIndex: number, staggerDelay: number): number => {
-            return cellIndex * staggerDelay;
-        };
-        
-        /**
-         * Ease-out-quad easing function
-         * @param t - Progress from 0.0 to 1.0
-         * @returns Eased value
-         */
-        const easeOutQuad = (t: number): number => {
-            return t * (2 - t);
-        };
-        
-        /**
-         * Update placement animations in the render loop
-         * @param currentTime - Current timestamp in milliseconds
-         */
-        const updatePlacementAnimations = (currentTime: number) => {
-            if (!placementAnimationRef.current?.active) return;
-            
-            const anim = placementAnimationRef.current;
-            const ANIMATION_DURATION = 80; // 80ms total animation
-            const EMISSIVE_DURATION = 300; // 300ms emissive glow
-            const springCurve: [number, number, number] = prefersReducedMotion ? [1.0, 1.05, 1.0] : [1.0, 1.15, 1.0];
-            
-            let allComplete = true;
-            
-            anim.cellAnimations.forEach((cellAnim, cellId) => {
-                const mesh = meshMapRef.current.get(cellId);
-                if (!mesh) return;
-                
-                const elapsed = currentTime - cellAnim.startTime;
-                
-                // Scale animation (80ms)
-                if (elapsed < ANIMATION_DURATION) {
-                    allComplete = false;
-                    const progress = elapsed / ANIMATION_DURATION;
-                    const scale = applySpringCurve(progress, springCurve);
-                    mesh.scaling = cellAnim.originalScale.scale(scale);
-                } else {
-                    // Ensure final scale is restored
-                    mesh.scaling = cellAnim.originalScale;
-                }
-                
-                // Emissive glow animation (300ms)
-                if (elapsed < EMISSIVE_DURATION && mesh.material) {
-                    allComplete = false;
-                    const mat = mesh.material as BABYLON.StandardMaterial;
-                    const progress = elapsed / EMISSIVE_DURATION;
-                    const intensity = 1.0 - progress; // Fade from 1.0 to 0.0
-                    
-                    // Apply enhanced emissive color
-                    const enhancedEmissive = cellAnim.originalEmissive.scale(1.0 + intensity * 2.0);
-                    mat.emissiveColor = enhancedEmissive;
-                } else if (mesh.material) {
-                    // Restore original emissive
-                    const mat = mesh.material as BABYLON.StandardMaterial;
-                    mat.emissiveColor = cellAnim.originalEmissive;
-                }
-            });
-            
-            // Clean up animation state when all animations complete
-            if (allComplete) {
-                placementAnimationRef.current = null;
-            }
-        };
-        
-        /**
-         * Animate placement of cells with spring curve and stagger timing
-         * @param cellIds - Array of cell IDs to animate
-         */
-        const animatePlacement = (cellIds: string[]) => {
-            if (disableAnimations || prefersReducedMotion) {
-                // Skip animation setup if animations are disabled
-                // Reduced motion will still use a subtle spring curve in updatePlacementAnimations
-                if (prefersReducedMotion) {
-                    // Still set up animation but with reduced motion curve
-                    const currentTime = Date.now();
-                    const STAGGER_DELAY = 15; // 15ms per cell
-                    
-                    const cellAnimations = new Map<string, {
-                        cellId: string;
-                        startTime: number;
-                        originalScale: BABYLON.Vector3;
-                        originalEmissive: BABYLON.Color3;
-                    }>();
-                    
-                    cellIds.forEach((cellId, index) => {
-                        const mesh = meshMapRef.current.get(cellId);
-                        if (!mesh) return;
-                        
-                        const staggerDelay = calculateStaggerDelay(index, STAGGER_DELAY);
-                        
-                        cellAnimations.set(cellId, {
-                            cellId,
-                            startTime: currentTime + staggerDelay,
-                            originalScale: new BABYLON.Vector3(1, 1, 1),
-                            originalEmissive: mesh.material 
-                                ? (mesh.material as BABYLON.StandardMaterial).emissiveColor.clone()
-                                : BABYLON.Color3.Black()
-                        });
-                    });
-                    
-                    placementAnimationRef.current = {
-                        active: true,
-                        startTime: currentTime,
-                        cellAnimations
-                    };
-                }
-                return;
-            }
-            
-            const currentTime = Date.now();
-            const STAGGER_DELAY = 15; // 15ms per cell
-            
-            const cellAnimations = new Map<string, {
-                cellId: string;
-                startTime: number;
-                originalScale: BABYLON.Vector3;
-                originalEmissive: BABYLON.Color3;
-            }>();
-            
-            cellIds.forEach((cellId, index) => {
-                const mesh = meshMapRef.current.get(cellId);
-                if (!mesh) return;
-                
-                const staggerDelay = calculateStaggerDelay(index, STAGGER_DELAY);
-                
-                cellAnimations.set(cellId, {
-                    cellId,
-                    startTime: currentTime + staggerDelay,
-                    originalScale: new BABYLON.Vector3(1, 1, 1),
-                    originalEmissive: mesh.material 
-                        ? (mesh.material as BABYLON.StandardMaterial).emissiveColor.clone()
-                        : BABYLON.Color3.Black()
-                });
-            });
-            
-            placementAnimationRef.current = {
-                active: true,
-                startTime: currentTime,
-                cellAnimations
-            };
-        };
-
-        const createBlockMesh = (colorHex: string, id: string, type: CellType = CellType.NORMAL, health?: number) => {
-            const mat = new BABYLON.StandardMaterial(`${id}-mat`, scene);
-
-            if (type === CellType.ICE) {
-                // ══ BLOBK: Buz / Kristal ══
-                // Tam buz bloğu — sağlam, parlak, net görünür
-                const box = BABYLON.MeshBuilder.CreateBox(id, { size: CELL_SIZE * 0.92, height: 0.65 }, scene);
-
-                if (health === 1) {
-                    // Kırık buzlu görünüm — daha opak, cracked efekti
-                    const crackedCol = BABYLON.Color3.FromHexString("#bfdbfe"); // açık mavi
-                    mat.diffuseColor = crackedCol;
-                    mat.emissiveColor = BABYLON.Color3.FromHexString("#60a5fa").scale(0.1); // Reduced emissive
-                    mat.specularColor = BABYLON.Color3.Black(); // No shininess
-                    mat.specularPower = 0;
-                    mat.alpha = 0.8;
-                    box.material = mat;
-
-                    // Çatlak efekti için kırmızımsı kenarlar
-                    box.enableEdgesRendering();
-                    box.edgesWidth = 3.5;
-                    box.edgesColor = new BABYLON.Color4(0.9, 0.6, 0.2, 0.9); // turuncu-sarı crack rengi
-                } else {
-                    // Sağlam buz — kristal mavi, şeffaf ve net
-                    const iceCol = BABYLON.Color3.FromHexString("#7dd3fc");
-                    mat.diffuseColor = iceCol;
-                    mat.emissiveColor = BABYLON.Color3.FromHexString("#38bdf8").scale(0.15);
-                    mat.specularColor = BABYLON.Color3.Black(); // No shininess
-                    mat.specularPower = 0;
-                    mat.alpha = 0.85;
-                    box.material = mat;
-
-                    // Parlak beyaz kenarlar — buz netliği
-                    box.enableEdgesRendering();
-                    box.edgesWidth = 2.5;
-                    box.edgesColor = new BABYLON.Color4(0.7, 0.92, 1.0, 0.85);
-
-                    // Üstte snowflake işareti için marker küpü
-                    const marker = BABYLON.MeshBuilder.CreateBox(`${id}-marker`, { size: CELL_SIZE * 0.25, height: 0.05 }, scene);
-                    marker.position.y = 0.35;
-                    const mMat = new BABYLON.StandardMaterial(`${id}-mMat`, scene);
-                    mMat.emissiveColor = BABYLON.Color3.FromHexString("#e0f2fe");
-                    mMat.disableLighting = true;
-                    mMat.alpha = 0.9;
-                    marker.material = mMat;
-                    marker.parent = box;
-                    marker.isPickable = false;
-                }
-
-                box.isPickable = false;
-                box.position.y = 12;
-                
-                return box;
-
-            } else if (type === CellType.BOMB) {
-                // ══ BLOCK: Bomba — Metalik, Tehlikeli, Premium ══
-                const box = BABYLON.MeshBuilder.CreateBox(id, { size: CELL_SIZE * 0.88, height: 0.72 }, scene);
-
-                // Koyu metal gövde — daha küçük ve güçlü görünüm
-                mat.diffuseColor = BABYLON.Color3.FromHexString("#1c1917"); // koyu kahverengi-siyah metal
-                mat.emissiveColor = BABYLON.Color3.FromHexString("#f59e0b").scale(0.1); // Reduced emissive
-                mat.specularColor = BABYLON.Color3.Black(); // No shininess
-                mat.specularPower = 0;
-                mat.alpha = 1.0;
-                box.material = mat;
-
-                // Tehlike çizgileri — kalın sarı-turuncu kenarlar
-                box.enableEdgesRendering();
-                box.edgesWidth = 4.0;
-                box.edgesColor = new BABYLON.Color4(1.0, 0.6, 0.0, 1.0); // parlak turuncu
-
-                // Üst kısımda bomba fitili simgesi (küçük silindir)
-                const fuseBase = BABYLON.MeshBuilder.CreateCylinder(`${id}-fuse`, {
-                    height: 0.2,
-                    diameter: 0.18,
-                    tessellation: 6
-                }, scene);
-                fuseBase.position.y = 0.45;
-                const fuseMat = new BABYLON.StandardMaterial(`${id}-fuseMat`, scene);
-                fuseMat.emissiveColor = BABYLON.Color3.FromHexString("#ef4444"); // kırmızı ateş ucu
-                fuseMat.disableLighting = true;
-                fuseBase.material = fuseMat;
-                fuseBase.parent = box;
-                fuseBase.isPickable = false;
-
-                box.isPickable = false;
-                box.position.y = 12;
-                
-                return box;
-
-            } else if (type === CellType.CHRONO) {
-                // ══ BLOCK: CHRONO — Altın, Zaman Bonusu ══
-                const box = BABYLON.MeshBuilder.CreateBox(id, { size: CELL_SIZE * 0.88, height: 0.68 }, scene);
-                mat.diffuseColor = BABYLON.Color3.FromHexString("#fbbf24");
-                mat.emissiveColor = BABYLON.Color3.FromHexString("#f59e0b").scale(0.2);
-                mat.specularColor = BABYLON.Color3.Black();
-                mat.specularPower = 0;
-                mat.alpha = 1.0;
-                box.material = mat;
-
-                // Altın kenarlık
-                box.enableEdgesRendering();
-                box.edgesWidth = 3.5;
-                box.edgesColor = new BABYLON.Color4(1.0, 0.85, 0.2, 1.0);
-
-                // Üstte saat simgesi marker
-                const marker = BABYLON.MeshBuilder.CreateBox(`${id}-chrono`, { size: CELL_SIZE * 0.3, height: 0.06 }, scene);
-                marker.position.y = 0.37;
-                const mMat = new BABYLON.StandardMaterial(`${id}-chronoMat`, scene);
-                mMat.emissiveColor = BABYLON.Color3.FromHexString("#fef3c7");
-                mMat.disableLighting = true;
-                mMat.alpha = 0.95;
-                marker.material = mMat;
-                marker.parent = box;
-                marker.isPickable = false;
-
-                box.isPickable = false;
-                box.position.y = 12;
-                
-                return box;
-
-            } else {
-                // ══ BLOCK: Normal ══
-                const box = BABYLON.MeshBuilder.CreateBox(id, { size: CELL_SIZE * 0.92, height: 0.6 }, scene);
-                const col = BABYLON.Color3.FromHexString(colorHex);
-                mat.diffuseColor = col;
-                mat.emissiveColor = col.scale(0.05);
-                mat.specularColor = BABYLON.Color3.Black();
-                mat.specularPower = 0;
-                mat.alpha = 0.95;
-                box.material = mat;
-
-                // Clean Edges
-                box.enableEdgesRendering();
-                box.edgesWidth = 1.5;
-                box.edgesColor = new BABYLON.Color4(1, 1, 1, 0.12);
-
-                box.isPickable = false;
-                box.position.y = 12;
-                
-                return box;
-            }
+        // Wrapper for createBlockMesh helper
+        const createBlockMeshLocal = (colorHex: string, id: string, type: CellType = CellType.NORMAL, health?: number) => {
+            return createBlockMesh(colorHex, id, scene, type, health);
         };
 
         // --- Interaction ---
@@ -1124,10 +698,10 @@ export const Grid: React.FC = () => {
             const { grid, draggedPiece, activeSkill, score, combo, lastAction, isGameOver, gameMode: currentGameMode, timeLeft: currentTimeLeft, difficultyTier: currentTier } = stateRef.current;
 
             // ─── Juice System: Update Placement Animations ───
-            updatePlacementAnimations(currentTime);
+            updatePlacementAnimations(currentTime, placementAnimationRef, meshMapRef.current, prefersReducedMotion);
             
             // ─── Fragment System: Update Break Apart Fragments ───
-            updateFragments(currentTime);
+            updateFragments(fragmentPoolRef.current, currentTime);
 
             // ─── Tier Transition Flash ───
             if (currentTier > prevTierRef.current && currentTier > 0) {
@@ -1155,112 +729,11 @@ export const Grid: React.FC = () => {
             }
             
             // Animate tier flash
-            if (tierFlashRef.current?.active) {
-                const flash = tierFlashRef.current;
-                const elapsed = Date.now() - flash.startTime;
-                
-                if (elapsed < 400) {
-                    flash.progress = elapsed / 400;
-                    const intensity = 0.8 * (1 - flash.progress); // Fade from 0.8 to 0
-                    
-                    // Apply flash to all grid blocks
-                    meshMapRef.current.forEach((mesh) => {
-                        if (mesh.material) {
-                            const mat = mesh.material as BABYLON.StandardMaterial;
-                            
-                            // Store original emissive if not already stored
-                            if (!(mat as any)._tierFlashOriginal) {
-                                (mat as any)._tierFlashOriginal = mat.emissiveColor.clone();
-                            }
-                            
-                            // Apply tier color overlay
-                            const original = (mat as any)._tierFlashOriginal;
-                            mat.emissiveColor = BABYLON.Color3.Lerp(original, flash.color, intensity);
-                        }
-                    });
-                } else {
-                    // Flash complete - restore original colors
-                    meshMapRef.current.forEach((mesh) => {
-                        if (mesh.material) {
-                            const mat = mesh.material as BABYLON.StandardMaterial;
-                            if ((mat as any)._tierFlashOriginal) {
-                                mat.emissiveColor = (mat as any)._tierFlashOriginal;
-                                delete (mat as any)._tierFlashOriginal;
-                            }
-                        }
-                    });
-                    
-                    tierFlashRef.current = null;
-                }
-            }
+            updateTierFlash(tierFlashRef, meshMapRef.current);
 
             // ─── Last 10 Seconds Atmosphere (Timed Mode) ───
-            if (currentGameMode === GameMode.TIMED && currentTimeLeft <= 10 && currentTimeLeft > 0) {
-                const intensity = (10 - currentTimeLeft) / 10;
-                const redTint = new BABYLON.Color3(1.0, 0.3, 0.3);
-                
-                // Apply to all grid blocks
-                meshMapRef.current.forEach((mesh) => {
-                    if (mesh.material) {
-                        const mat = mesh.material as BABYLON.StandardMaterial;
-                        
-                        // Store original emissive if not already stored
-                        if (!(mat as any)._originalEmissive) {
-                            (mat as any)._originalEmissive = mat.emissiveColor.clone();
-                        }
-                        
-                        // Apply red tint overlay
-                        const originalEmissive = (mat as any)._originalEmissive;
-                        mat.emissiveColor = BABYLON.Color3.Lerp(
-                            originalEmissive,
-                            redTint,
-                            intensity * 0.5
-                        );
-                        
-                        // Increase emissive intensity
-                        (mat as any).emissiveIntensity = 1.0 + (intensity * 0.5);
-                    }
-                });
-                
-                // Apply to grid base
-                if (gridBaseRef.current?.material) {
-                    const mat = gridBaseRef.current.material as BABYLON.StandardMaterial;
-                    if (!(mat as any)._originalDiffuse) {
-                        (mat as any)._originalDiffuse = mat.diffuseColor.clone();
-                    }
-                    const originalDiffuse = (mat as any)._originalDiffuse;
-                    const darkRed = new BABYLON.Color3(0.3, 0.05, 0.05);
-                    mat.diffuseColor = BABYLON.Color3.Lerp(originalDiffuse, darkRed, intensity);
-                }
-                
-                // Apply to ambient light
-                if (light) {
-                    light.intensity = (isMobile ? 0.45 : 0.7) + (intensity * 0.3);
-                }
-            } else if (currentGameMode === GameMode.TIMED && currentTimeLeft > 10) {
-                // Restore original colors when time > 10
-                meshMapRef.current.forEach((mesh) => {
-                    if (mesh.material) {
-                        const mat = mesh.material as BABYLON.StandardMaterial;
-                        if ((mat as any)._originalEmissive) {
-                            mat.emissiveColor = (mat as any)._originalEmissive;
-                            (mat as any).emissiveIntensity = 1.0;
-                            delete (mat as any)._originalEmissive;
-                        }
-                    }
-                });
-                
-                if (gridBaseRef.current?.material) {
-                    const mat = gridBaseRef.current.material as BABYLON.StandardMaterial;
-                    if ((mat as any)._originalDiffuse) {
-                        mat.diffuseColor = (mat as any)._originalDiffuse;
-                        delete (mat as any)._originalDiffuse;
-                    }
-                }
-                
-                if (light) {
-                    light.intensity = isMobile ? 0.45 : 0.7;
-                }
+            if (currentGameMode === GameMode.TIMED) {
+                updateTimedModeAtmosphere(currentTimeLeft, meshMapRef.current, gridBaseRef, light, isMobile);
             }
 
             // ─── Game Over Animation ───
@@ -1335,152 +808,41 @@ export const Grid: React.FC = () => {
             
             // Trigger game over animation when game ends
             if (isGameOver && !gameOverAnimationRef.current?.active) {
-                startGameOverAnimation();
+                startGameOverAnimation(meshMapRef.current, gameOverAnimationRef);
             }
 
             // ─── Line Clear Animation (Three-Stage System) ───
-            if (lineClearAnimationRef.current?.active) {
+            updateLineClearAnimation(
+                lineClearAnimationRef,
+                grid,
+                meshMapRef.current,
+                isLowEndDevice,
+                useVisualEffectStore
+            );
+            
+            // Create break apart fragments during particle phase
+            if (lineClearAnimationRef.current?.active && lineClearAnimationRef.current.phase === 'particles') {
                 const anim = lineClearAnimationRef.current;
                 const elapsed = Date.now() - anim.startTime;
                 
-                if (anim.phase === 'brightness') {
-                    // Stage 1: Brightness wave (0-150ms)
-                    if (elapsed < 150) {
-                        anim.progress = elapsed / 150;
-                        
-                        // Convert cleared cells to array and sort left-to-right for wave effect
-                        const cellsArray = Array.from(anim.clearedCells).map(key => {
-                            const [x, y] = key.split(',').map(Number);
-                            return { key, x, y };
-                        }).sort((a, b) => a.x - b.x); // Sort by x coordinate (left-to-right)
-                        
-                        // Apply brightness wave that sweeps left-to-right
-                        cellsArray.forEach((cellData, index) => {
-                            const cell = grid[cellData.y]?.[cellData.x];
-                            if (cell?.id) {
-                                const mesh = meshMapRef.current.get(cell.id);
-                                if (mesh?.material) {
-                                    const mat = mesh.material as BABYLON.StandardMaterial;
-                                    const originalColor = anim.originalColors.get(cellData.key) || mat.diffuseColor;
-                                    
-                                    // Calculate wave progress for this cell
-                                    // Each cell's peak brightness occurs progressively later
-                                    const cellWaveProgress = (anim.progress * cellsArray.length - index) / cellsArray.length;
-                                    const clampedProgress = Math.max(0, Math.min(1, cellWaveProgress));
-                                    
-                                    // Brightness peaks at 0.5 progress, then fades
-                                    let brightness: number;
-                                    if (clampedProgress < 0.5) {
-                                        brightness = clampedProgress * 2; // 0 to 1
-                                    } else {
-                                        brightness = 2 - (clampedProgress * 2); // 1 to 0
-                                    }
-                                    
-                                    // Apply white brightness overlay
-                                    const white = BABYLON.Color3.White();
-                                    mat.emissiveColor = BABYLON.Color3.Lerp(originalColor, white, brightness * 0.8);
-                                    (mat as any).emissiveIntensity = 1.0;
-                                }
-                            }
-                        });
-                    } else {
-                        // Transition to particles phase
-                        anim.phase = 'particles';
-                        anim.startTime = Date.now();
-                        anim.progress = 0;
-                    }
-                } else if (anim.phase === 'particles') {
-                    // Stage 2: Particle emission (150-300ms)
-                    if (elapsed < 150) {
-                        anim.progress = elapsed / 150;
-                        
-                        // Trigger particle explosions at the start of this phase (only once)
-                        if (anim.progress < 0.1 && !isLowEndDevice) {
-                            const particleCount = isLowEndDevice ? 3 : 6;
-                            
-                            anim.clearedCells.forEach(key => {
-                                const [x, y] = key.split(',').map(Number);
-                                const cell = grid[y]?.[x];
-                                if (cell) {
-                                    const worldPos = getVectorPos(x, y);
-                                    
-                                    // Trigger visual effect explosion
-                                    useVisualEffectStore.getState().addEffect({
-                                        type: 'explosion',
-                                        duration: 180,
-                                        props: {
-                                            x: worldPos.x,
-                                            y: worldPos.y,
-                                            color: cell.color,
-                                            blockSize: 28,
-                                            cellType: cell.type,
-                                            particleCount: particleCount
-                                        }
-                                    });
-                                    
-                                    // Create break apart fragments
-                                    if (cell.type) {
-                                        createBreakApartFragments(x, y, cell.color, cell.type);
-                                    }
-                                }
-                            });
+                if (elapsed < 150 && anim.progress < 0.1 && !isLowEndDevice) {
+                    anim.clearedCells.forEach((key: string) => {
+                        const [x, y] = key.split(',').map(Number);
+                        const cell = grid[y]?.[x];
+                        if (cell?.type) {
+                            createBreakApartFragments(
+                                x, 
+                                y, 
+                                cell.color, 
+                                cell.type,
+                                fragmentPoolRef.current,
+                                isMobile,
+                                isNativeApp,
+                                isLowEndDevice,
+                                prefersReducedMotion
+                            );
                         }
-                        
-                        // Fade out cleared cells during particle phase
-                        anim.clearedCells.forEach(key => {
-                            const [x, y] = key.split(',').map(Number);
-                            const cell = grid[y]?.[x];
-                            if (cell?.id) {
-                                const mesh = meshMapRef.current.get(cell.id);
-                                if (mesh?.material) {
-                                    const mat = mesh.material as BABYLON.StandardMaterial;
-                                    mat.emissiveColor = BABYLON.Color3.Black();
-                                    mat.alpha = 1.0 - anim.progress; // Fade out
-                                }
-                            }
-                        });
-                    } else {
-                        // Transition to collapse phase
-                        anim.phase = 'collapse';
-                        anim.startTime = Date.now();
-                        anim.progress = 0;
-                        
-                        // TODO: Trigger whoosh sound here (will be implemented in audio task)
-                        // playWhoosh();
-                    }
-                } else if (anim.phase === 'collapse') {
-                    // Stage 3: Collapse with whoosh (300-500ms = 200ms duration)
-                    if (elapsed < 200) {
-                        anim.progress = elapsed / 200;
-                        const easedProgress = anim.progress * (2 - anim.progress); // ease-out-quad
-                        
-                        // Animate falling blocks
-                        anim.affectedBlocks.forEach((data, key) => {
-                            const [x, y] = key.split(',').map(Number);
-                            const cell = grid[y]?.[x];
-                            if (cell?.id) {
-                                const mesh = meshMapRef.current.get(cell.id);
-                                if (mesh) {
-                                    mesh.position.y = data.startY + (data.targetY - data.startY) * easedProgress;
-                                }
-                            }
-                        });
-                    } else {
-                        // Animation complete - remove cleared blocks
-                        anim.clearedCells.forEach(key => {
-                            const [x, y] = key.split(',').map(Number);
-                            const cell = grid[y]?.[x];
-                            if (cell?.id) {
-                                const mesh = meshMapRef.current.get(cell.id);
-                                if (mesh) {
-                                    mesh.dispose();
-                                    meshMapRef.current.delete(cell.id);
-                                }
-                            }
-                        });
-                        
-                        lineClearAnimationRef.current = null;
-                    }
+                    });
                 }
             }
 
@@ -1499,7 +861,14 @@ export const Grid: React.FC = () => {
                     // Trigger line clear animation
                     const { rows, cols } = detectLineClear(grid);
                     if (rows.length > 0 || cols.length > 0) {
-                        startLineClearAnimation(rows, cols);
+                        startLineClearAnimation(
+                            rows, 
+                            cols, 
+                            grid, 
+                            meshMapRef.current, 
+                            lineClearAnimationRef,
+                            (lineCount: number) => triggerCameraShake(lineCount, shakeIntensityRef, prefersReducedMotion)
+                        );
                     }
                 } else if (lastAction.type === 'PLACE') {
                     shakeIntensityRef.current = prefersReducedMotion ? 0 : 0.05; // Tiny thud on placement
@@ -1515,7 +884,7 @@ export const Grid: React.FC = () => {
             }
 
             // Camera Shake System
-            updateCameraShake(camera, deltaTime);
+            updateCameraShake(camera, shakeIntensityRef, deltaTime, prefersReducedMotion);
 
             // Detect Score Change for Impact
             // (This is a simplified way; ideally we'd have an event, but polling works for visual fx)
@@ -1550,7 +919,7 @@ export const Grid: React.FC = () => {
                         const targetPos = getVectorPos(x, y);
                         let mesh = meshMap.get(cell.id);
                         if (!mesh) {
-                            mesh = createBlockMesh(cell.color, cell.id, cell.type, cell.health);
+                            mesh = createBlockMeshLocal(cell.color, cell.id, cell.type, cell.health);
                             mesh.position = targetPos.clone();
                             mesh.position.y = 12; // Drop from higher
                             meshMap.set(cell.id, mesh);
@@ -1630,7 +999,7 @@ export const Grid: React.FC = () => {
             
             // Trigger placement animation for newly created blocks
             if (newlyCreatedIds.length > 0) {
-                animatePlacement(newlyCreatedIds);
+                animatePlacement(newlyCreatedIds, meshMapRef.current, placementAnimationRef, disableAnimations, prefersReducedMotion);
             }
             
             // 2. Holographic Ghost (The Wireframe Preview) - Pool-based
@@ -1844,29 +1213,30 @@ export const Grid: React.FC = () => {
         }
 
         // Pause rendering when page is hidden to save resources
+        let nativeAnimationFrameId: number | null = null;
+        
         const handleVisibilityChange = () => {
             if (document.hidden) {
                 if (isNativeApp) {
                     // Cancel animation frame for native apps
-                    const animationFrameId = (engine as any)._nativeAnimationFrameId;
-                    if (animationFrameId) {
-                        cancelAnimationFrame(animationFrameId);
+                    if (nativeAnimationFrameId !== null) {
+                        cancelAnimationFrame(nativeAnimationFrameId);
+                        nativeAnimationFrameId = null;
                     }
                 } else {
                     engine.stopRenderLoop();
                 }
             } else {
                 if (isNativeApp) {
-                    // Restart animation frame for native apps
-                    let animationFrameId: number;
-                    
-                    const renderFrame = () => {
-                        scene.render();
-                        animationFrameId = requestAnimationFrame(renderFrame);
-                    };
-                    
-                    animationFrameId = requestAnimationFrame(renderFrame);
-                    (engine as any)._nativeAnimationFrameId = animationFrameId;
+                    // Restart animation frame for native apps (only if not already running)
+                    if (nativeAnimationFrameId === null) {
+                        const renderFrame = () => {
+                            scene.render();
+                            nativeAnimationFrameId = requestAnimationFrame(renderFrame);
+                        };
+                        
+                        nativeAnimationFrameId = requestAnimationFrame(renderFrame);
+                    }
                 } else {
                     // Web: Use default render loop
                     engine.runRenderLoop(() => {
@@ -1898,6 +1268,12 @@ export const Grid: React.FC = () => {
         return () => {
             unsubscribeTheme();
             document.removeEventListener('visibilitychange', handleVisibilityChange);
+            
+            // Cancel native animation frame if active
+            if (nativeAnimationFrameId !== null) {
+                cancelAnimationFrame(nativeAnimationFrameId);
+            }
+            
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('pointerup', handleWindowPointerUp);
             window.removeEventListener('pointermove', handleGlobalPointerMove);

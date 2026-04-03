@@ -7,18 +7,17 @@
     "dev": "vite",
     "build": "vite build",
     "build:android": "cross-env CAPACITOR_BUILD=true vite build",
-    "preview": "vite preview",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui",
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android",
-    "android:dev": "npm run build:android && npm run cap:sync && npm run cap:open",
-    "test:env": "node scripts/check-test-environment.js"
+    "android:build": "npm run build:android && npm run cap:sync",
+    "android:open": "npm run android:build && npm run cap:open",
+    "android:dev": "npm run build:android && npm run cap:sync && npm run cap:open"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.0.0",

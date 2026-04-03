@@ -9,6 +9,7 @@ import { StatisticsScreen } from './StatisticsScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ScreenErrorBoundary } from './ScreenErrorBoundary';
+import { useAndroidBackButton } from '../shared/hooks/useAndroidBackButton';
 
 export const App: React.FC = () => {
   const { i18n } = useTranslation();
@@ -16,6 +17,9 @@ export const App: React.FC = () => {
   const { loadSettings, language } = useSettingsStore();
   const { getThemeColors } = useThemeStore();
   const colors = getThemeColors();
+
+  // Integrate Android back button handling
+  useAndroidBackButton(activeTab as 'home' | 'game' | 'settings' | 'statistics', setActiveTab);
 
   // Load settings and sync language on mount
   useEffect(() => {

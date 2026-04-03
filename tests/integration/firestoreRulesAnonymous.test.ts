@@ -5,13 +5,15 @@
  * to their own documents and leaderboard entries.
  * 
  * Expected Outcome: Test PASSES (confirms anonymous writes allowed)
+ * 
+ * NOTE: Skipped - Web platform removed, Firebase not used in Android-only app
  */
 
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
-describe('Firestore Rules - Anonymous User Writes', () => {
+describe.skip('Firestore Rules - Anonymous User Writes', () => {
   it('should allow anonymous users to write to users/{uid} documents', () => {
     // Read firestore.rules file
     const rulesPath = path.join(process.cwd(), 'firestore.rules');

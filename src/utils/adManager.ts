@@ -36,27 +36,61 @@ interface AdMobConfig {
 // ============================================================================
 
 /**
- * Get AdMob configuration based on build mode
- * Uses test IDs in development, production IDs in production
+ * Validate Ad Unit ID format
+ * AdMob IDs should match pattern: ca-app-pub-*
+ */
+const validateAdUnitId = (id: string, type: string): boolean => {
+  if (!id || !id.startsWith('ca-app-pub-')) {
+    console.warn(`[AdManager] Invalid ${type} Ad Unit ID format: ${id}`);
+    return false;
+  }
+  return true;
+};
+
+/**
+ * Get AdMob configuration based on environment variables
+ * Falls back to test IDs if environment variables are not set
  */
 const getAdConfig = (): AdMobConfig => {
   const isProduction = import.meta.env.PROD;
   
+  // Test IDs (Google's official test IDs)
+  const TEST_IDS = {
+    appId: 'ca-app-pub-3940256099942544~3347511713',
+    banner: 'ca-app-pub-3940256099942544/6300978111',
+    interstitial: 'ca-app-pub-3940256099942544/1033173712',
+    rewarded: 'ca-app-pub-3940256099942544/5224354917',
+  };
+  
+  // Read from environment variables
+  const envAppId = import.meta.env.VITE_ADMOB_APP_ID;
+  const envBannerId = import.meta.env.VITE_ADMOB_BANNER_ID;
+  const envInterstitialId = import.meta.env.VITE_ADMOB_INTERSTITIAL_ID;
+  const envRewardedId = import.meta.env.VITE_ADMOB_REWARDED_ID;
+  
+  // Validate and use environment variables or fall back to test IDs
+  const appId = envAppId && validateAdUnitId(envAppId, 'App') ? envAppId : TEST_IDS.appId;
+  const bannerId = envBannerId && validateAdUnitId(envBannerId, 'Banner') ? envBannerId : TEST_IDS.banner;
+  const interstitialId = envInterstitialId && validateAdUnitId(envInterstitialId, 'Interstitial') ? envInterstitialId : TEST_IDS.interstitial;
+  const rewardedId = envRewardedId && validateAdUnitId(envRewardedId, 'Rewarded') ? envRewardedId : TEST_IDS.rewarded;
+  
+  // Log configuration in development
+  if (!isProduction) {
+    console.log('[AdManager] Using Ad Unit IDs:', {
+      appId: appId === TEST_IDS.appId ? 'TEST' : 'CUSTOM',
+      banner: bannerId === TEST_IDS.banner ? 'TEST' : 'CUSTOM',
+      interstitial: interstitialId === TEST_IDS.interstitial ? 'TEST' : 'CUSTOM',
+      rewarded: rewardedId === TEST_IDS.rewarded ? 'TEST' : 'CUSTOM',
+    });
+  }
+  
   return {
-    appId: isProduction 
-      ? 'ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY'  // TODO: Replace with production App ID
-      : 'ca-app-pub-3940256099942544~3347511713', // Test App ID
+    appId,
     testMode: !isProduction,
     adUnits: {
-      banner: isProduction 
-        ? 'ca-app-pub-XXXXXXXXXXXXXXXX/BANNER_ID'  // TODO: Replace with production banner ID
-        : 'ca-app-pub-3940256099942544/6300978111', // Test banner ID
-      interstitial: isProduction 
-        ? 'ca-app-pub-XXXXXXXXXXXXXXXX/INTERSTITIAL_ID'  // TODO: Replace with production interstitial ID
-        : 'ca-app-pub-3940256099942544/1033173712', // Test interstitial ID
-      rewarded: isProduction 
-        ? 'ca-app-pub-XXXXXXXXXXXXXXXX/REWARDED_ID'  // TODO: Replace with production rewarded ID
-        : 'ca-app-pub-3940256099942544/5224354917', // Test rewarded ID
+      banner: bannerId,
+      interstitial: interstitialId,
+      rewarded: rewardedId,
     }
   };
 };
@@ -82,6 +116,7 @@ let gamesPlayedSinceInterstitial = 0;
 let dailyRewardedCount = 0;
 let dailyRewardedDate = '';
 let isInitialized = false;
+let isShowing = false; // Prevent duplicate banner displays
 
 // ============================================================================
 // localStorage Persistence Helpers
@@ -158,6 +193,34 @@ const isNative = (): boolean => {
 };
 
 /**
+ * GDPR Consent Handling Placeholder
+ * 
+ * TODO: Implement User Messaging Platform (UMP) SDK for GDPR compliance
+ * 
+ * Required steps:
+ * 1. Add UMP SDK dependency to android/app/build.gradle:
+ *    implementation 'com.google.android.ump:user-messaging-platform:2.1.0'
+ * 
+ * 2. Request consent information update on app launch
+ * 3. Load and show consent form if required
+ * 4. Check consent status before showing ads
+ * 
+ * Documentation: https://developers.google.com/admob/ump/android/quick-start
+ */
+async function checkGDPRConsent(): Promise<boolean> {
+  // In development mode, always return true
+  if (!import.meta.env.PROD) {
+    console.log('[AdManager] GDPR consent check bypassed (development mode)');
+    return true;
+  }
+  
+  // TODO: Implement actual UMP consent check
+  // For now, return true to allow ads
+  console.warn('[AdManager] GDPR consent check not implemented - using placeholder');
+  return true;
+}
+
+/**
  * Initialize the Ad Manager
  * Loads state from localStorage and initializes AdMob SDK on native platform
  */
@@ -168,6 +231,13 @@ export async function initialize(): Promise<void> {
   // Initialize AdMob on native platform
   if (isNative() && !isInitialized) {
     try {
+      // Check GDPR consent before initializing ads
+      const hasConsent = await checkGDPRConsent();
+      if (!hasConsent) {
+        console.log('[AdManager] GDPR consent not granted, skipping AdMob initialization');
+        return;
+      }
+      
       const config = getAdConfig();
       await AdMob.initialize({
         testingDevices: config.testMode ? ['YOUR_TEST_DEVICE_ID'] : [],
@@ -199,7 +269,16 @@ export async function showBanner(): Promise<void> {
     return;
   }
   
+  // Prevent duplicate banner display
+  if (isShowing) {
+    console.log('[AdManager] Banner already showing, skipping');
+    return;
+  }
+  
   try {
+    // Note: Safe area margin is handled by CSS env(safe-area-inset-bottom)
+    // in the UI layer. AdMob banner will be positioned at BOTTOM_CENTER
+    // and the UI will add padding to avoid overlap.
     const options: BannerAdOptions = {
       adId: AD_IDS.banner,
       adSize: BannerAdSize.BANNER,
@@ -208,9 +287,11 @@ export async function showBanner(): Promise<void> {
     };
     
     await AdMob.showBanner(options);
+    isShowing = true;
     console.log('[AdManager] Banner ad shown successfully');
   } catch (error) {
     console.error('[AdManager] Failed to show banner:', error);
+    isShowing = false;
   }
 }
 
@@ -226,15 +307,17 @@ export async function hideBanner(): Promise<void> {
   
   try {
     await AdMob.hideBanner();
+    isShowing = false;
     console.log('[AdManager] Banner ad hidden successfully');
   } catch (error) {
     console.error('[AdManager] Failed to hide banner:', error);
+    isShowing = false; // Reset even on error
   }
 }
 
 /**
  * Record game end and show interstitial if needed
- * Shows interstitial every 4 games
+ * Shows interstitial after first game, then every 3 games (games 1, 4, 7, 10...)
  */
 export function recordGameEnd(): void {
   gamesPlayedSinceInterstitial++;
@@ -242,9 +325,10 @@ export function recordGameEnd(): void {
   
   saveGameCount();
   
-  // Show interstitial every 4 games
-  if (gamesPlayedSinceInterstitial % 4 === 0) {
-    console.log('[AdManager] Triggering interstitial (every 4 games)');
+  // Show interstitial after first game, then every 3 games
+  if (gamesPlayedSinceInterstitial === 1 || 
+      (gamesPlayedSinceInterstitial > 1 && (gamesPlayedSinceInterstitial - 1) % 3 === 0)) {
+    console.log('[AdManager] Triggering interstitial (game:', gamesPlayedSinceInterstitial, ')');
     gamesPlayedSinceInterstitial = 0;
     saveGameCount();
     showInterstitial();

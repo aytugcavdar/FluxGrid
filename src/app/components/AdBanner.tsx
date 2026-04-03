@@ -1,5 +1,4 @@
-import React from 'react';
-import { useThemeStore } from '@shared/store/themeStore';
+import React, { useEffect } from 'react';
 import { useTutorialStore } from '@shared/store/tutorialStore';
 import { AdManager } from '@utils/adManager';
 
@@ -8,16 +7,28 @@ export interface AdBannerProps {
 }
 
 export const AdBanner: React.FC<AdBannerProps> = () => {
-  const { getColors } = useThemeStore();
-  const colors = getColors();
   const isTutorialActive = useTutorialStore(state => state.isActive);
+
+  // Detect native platform
+  const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.();
+
+  // Manage banner lifecycle on native platform
+  useEffect(() => {
+    if (isNative) {
+      AdManager.showBanner();
+      
+      return () => {
+        AdManager.hideBanner();
+      };
+    }
+  }, [isNative]);
 
   // Don't show during tutorial
   if (isTutorialActive) {
     return null;
   }
 
-  // Don't show on small screens (mobile)
+  // Don't show on small screens
   if (typeof window !== 'undefined' && window.innerWidth < 390) {
     return null;
   }
@@ -27,25 +38,20 @@ export const AdBanner: React.FC<AdBannerProps> = () => {
     return null;
   }
 
+  // Only show on native platform
+  if (!isNative) {
+    return null;
+  }
+
+  // Render native banner container
   return (
     <div
-      className="w-full flex items-center justify-center"
+      className="w-full"
       style={{
         height: '50px',
         minHeight: '50px',
         maxHeight: '50px',
-        backgroundColor: colors.cardBackground,
-        borderTop: `1px solid ${colors.cardBorder}`,
       }}
-    >
-      <span
-        className="text-xs font-medium"
-        style={{ color: colors.textTertiary }}
-      >
-        REKLAM
-      </span>
-      {/* TODO: Replace with Admob banner integration */}
-      {/* <AdMobBanner adUnitId={AdManager.AD_IDS.banner} /> */}
-    </div>
+    />
   );
 };

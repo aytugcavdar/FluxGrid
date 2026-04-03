@@ -341,13 +341,18 @@ const HAPTIC_PATTERNS: Record<HapticPattern, number | number[]> = {
   skill: [80, 50, 80]
 };
 
-/** Map haptic patterns to Capacitor ImpactStyle */
-const mapPatternToImpactStyle = (pattern: HapticPattern): ImpactStyle => {
+/** Map haptic patterns to Capacitor ImpactStyle with Android API level adaptation */
+const mapPatternToImpactStyle = async (pattern: HapticPattern): Promise<ImpactStyle> => {
+  // For Android, use Medium instead of Heavy for better compatibility
+  // Heavy impact requires API 29+ and may not work on all devices
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  
   switch (pattern) {
     case 'surge':
     case 'game_over':
     case 'skill':
-      return ImpactStyle.Heavy;
+      // Use Medium on Android for better compatibility, Heavy on iOS
+      return isAndroid ? ImpactStyle.Medium : ImpactStyle.Heavy;
     case 'clear_multi':
     case 'combo_milestone':
     case 'clear':
@@ -365,7 +370,7 @@ export const playHaptic = async (pattern: HapticPattern): Promise<void> => {
   try {
     if (isNative) {
       // Use Capacitor Haptics on native platform
-      const style = mapPatternToImpactStyle(pattern);
+      const style = await mapPatternToImpactStyle(pattern);
       await Haptics.impact({ style });
     } else {
       // Fallback to web vibration API
