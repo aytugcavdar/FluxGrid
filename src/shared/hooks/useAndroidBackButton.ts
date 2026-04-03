@@ -6,17 +6,18 @@ import { App } from '@capacitor/app';
  * Provides tab-aware navigation: home exits app, other tabs navigate to home
  */
 export function useAndroidBackButton(
-  activeTab: 'home' | 'game' | 'settings' | 'statistics',
-  setActiveTab: (tab: 'home' | 'game' | 'settings' | 'statistics') => void
+  activeTab: 'home' | 'stats' | 'settings',
+  setActiveTab: (tab: 'home' | 'stats' | 'settings') => void
 ): void {
   useEffect(() => {
     // Only register listener on native platform
     const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.();
     if (!isNative) return;
     
-    const backButtonListener = App.addListener('backButton', (event) => {
-      event.preventDefault();
-      
+    let listenerHandle: any = null;
+    
+    // Register listener asynchronously
+    App.addListener('backButton', (event) => {
       if (activeTab === 'home') {
         // Exit app from home screen
         App.exitApp();
@@ -24,11 +25,15 @@ export function useAndroidBackButton(
         // Navigate to home from any other screen
         setActiveTab('home');
       }
+    }).then((handle) => {
+      listenerHandle = handle;
     });
     
     // Cleanup listener on unmount
     return () => {
-      backButtonListener.remove();
+      if (listenerHandle) {
+        listenerHandle.remove();
+      }
     };
   }, [activeTab, setActiveTab]);
 }

@@ -19,7 +19,7 @@ export const App: React.FC = () => {
   const colors = getThemeColors();
 
   // Integrate Android back button handling
-  useAndroidBackButton(activeTab as 'home' | 'game' | 'settings' | 'statistics', setActiveTab);
+  useAndroidBackButton(activeTab, setActiveTab);
 
   // Load settings and sync language on mount
   useEffect(() => {

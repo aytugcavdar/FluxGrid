@@ -29,7 +29,7 @@ export function updateLineClearAnimation(
       anim.progress = elapsed / 150;
       
       // Convert cleared cells to array and sort left-to-right
-      const cellsArray = Array.from(anim.clearedCells).map((key) => {
+      const cellsArray = Array.from(anim.clearedCells as Set<string>).map((key: string) => {
         const [x, y] = key.split(',').map(Number);
         return { key, x, y };
       }).sort((a, b) => a.x - b.x);

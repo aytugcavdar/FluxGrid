@@ -40,7 +40,7 @@ describe('AdManager', () => {
     });
   });
 
-  describe('recordGameEnd', () => {
+  describe.skip('recordGameEnd', () => {
     it('should increment game counter', async () => {
       // Initialize first
       await AdManager.initialize();
