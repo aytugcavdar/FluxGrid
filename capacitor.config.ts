@@ -14,7 +14,8 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       style: 'dark',
-      navigationBarColor: '#0d1117'
+      backgroundColor: '#0d1117',
+      overlaysWebView: true
     }
   },
   android: {

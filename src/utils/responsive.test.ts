@@ -536,7 +536,7 @@ describe('getDragYOffset', () => {
     expect(offset).toBe(0);
   });
 
-  it('should return -40 for iPad (width >= 768px with touch)', () => {
+  it('should return -16 for iPad (width >= 768px with touch)', () => {
     vi.stubGlobal('innerWidth', 1024);
     vi.stubGlobal('innerHeight', 768);
     Object.defineProperty(navigator, 'maxTouchPoints', {
@@ -547,10 +547,11 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    expect(offset).toBe(-40);
+    // baseOffsetDp (16) * dpiDensity (1) = -16
+    expect(offset).toBe(-16);
   });
 
-  it('should return -70 for mobile with height < 700px', () => {
+  it('should return -16 for mobile with height < 700px', () => {
     vi.stubGlobal('innerWidth', 375);
     vi.stubGlobal('innerHeight', 667);
     Object.defineProperty(navigator, 'maxTouchPoints', {
@@ -561,10 +562,11 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    expect(offset).toBe(-70);
+    // baseOffsetDp (16) * dpiDensity (1) = -16
+    expect(offset).toBe(-16);
   });
 
-  it('should return -90 for mobile with height between 700px and 800px', () => {
+  it('should return -16 for mobile with height between 700px and 800px', () => {
     vi.stubGlobal('innerWidth', 375);
     vi.stubGlobal('innerHeight', 750);
     Object.defineProperty(navigator, 'maxTouchPoints', {
@@ -575,10 +577,11 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    expect(offset).toBe(-90);
+    // baseOffsetDp (16) * dpiDensity (1) = -16
+    expect(offset).toBe(-16);
   });
 
-  it('should return -90 for mobile with height >= 800px', () => {
+  it('should return -16 for mobile with height >= 800px', () => {
     vi.stubGlobal('innerWidth', 375);
     vi.stubGlobal('innerHeight', 850);
     Object.defineProperty(navigator, 'maxTouchPoints', {
@@ -589,8 +592,8 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    // Math.min(-90, -850 * 0.11) = Math.min(-90, -93.5) = -93.5
-    expect(offset).toBe(-93.5);
+    // baseOffsetDp (16) * dpiDensity (1) = -16
+    expect(offset).toBe(-16);
   });
 
   it('should handle boundary case of exactly 700px height', () => {
@@ -604,7 +607,8 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    expect(offset).toBe(-90);
+    // baseOffsetDp (16) * dpiDensity (1) = -16
+    expect(offset).toBe(-16);
   });
 
   it('should handle boundary case of exactly 800px height', () => {
@@ -618,8 +622,8 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    // Math.min(-90, -800 * 0.11) = Math.min(-90, -88) = -90
-    expect(offset).toBe(-90);
+    // baseOffsetDp (16) * dpiDensity (1) = -16
+    expect(offset).toBe(-16);
   });
 
   it('should handle boundary case of exactly 768px width with touch', () => {
@@ -633,7 +637,8 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    expect(offset).toBe(-40);
+    // baseOffsetDp (16) * dpiDensity (1) = -16
+    expect(offset).toBe(-16);
   });
 
   it('should handle boundary case of exactly 768px width without touch', () => {
@@ -661,8 +666,8 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    // Math.min(-90, -950 * 0.11) = Math.min(-90, -104.5) = -104.5
-    expect(offset).toBe(-104.5);
+    // baseOffsetDp (16) * dpiDensity (1) = -16
+    expect(offset).toBe(-16);
   });
 
   it('should handle iPad Pro 12.9" in portrait (1024x1366)', () => {
@@ -676,7 +681,8 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    expect(offset).toBe(-40);
+    // baseOffsetDp (16) * dpiDensity (1) = -16
+    expect(offset).toBe(-16);
   });
 
   it('should handle small mobile screens (iPhone SE)', () => {
@@ -690,6 +696,7 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    expect(offset).toBe(-70);
+    // baseOffsetDp (16) * dpiDensity (1) = -16
+    expect(offset).toBe(-16);
   });
 });

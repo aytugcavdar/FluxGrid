@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { useNavigationStore } from '../shared/store/navigationStore';
+import { useUnifiedNavigationStore, type AppScreen } from '../shared/store/unifiedNavigationStore';
 import { useSettingsStore } from '../shared/store/settingsStore';
 import { useThemeStore } from '../shared/store/themeStore';
 import { HomeScreen } from './HomeScreen';
@@ -9,17 +9,14 @@ import { StatisticsScreen } from './StatisticsScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ScreenErrorBoundary } from './ScreenErrorBoundary';
-import { useAndroidBackButton } from '../shared/hooks/useAndroidBackButton';
+import { NavigationTab } from '../shared/store/navigationStore';
 
 export const App: React.FC = () => {
   const { i18n } = useTranslation();
-  const { activeTab, setActiveTab } = useNavigationStore();
+  const { currentScreen, navigateTo } = useUnifiedNavigationStore();
   const { loadSettings, language } = useSettingsStore();
   const { getThemeColors } = useThemeStore();
   const colors = getThemeColors();
-
-  // Integrate Android back button handling
-  useAndroidBackButton(activeTab, setActiveTab);
 
   // Load settings and sync language on mount
   useEffect(() => {
@@ -36,22 +33,22 @@ export const App: React.FC = () => {
   // Listen for tutorial return home event as fallback
   useEffect(() => {
     const handleTutorialReturnHome = () => {
-      setActiveTab('home');
+      navigateTo('home');
     };
     
     window.addEventListener('tutorial-return-home', handleTutorialReturnHome);
     return () => window.removeEventListener('tutorial-return-home', handleTutorialReturnHome);
-  }, [setActiveTab]);
+  }, [navigateTo]);
 
   const renderScreen = () => {
-    switch (activeTab) {
+    switch (currentScreen) {
       case 'home':
         return (
           <ScreenErrorBoundary screenName="Ana Sayfa">
             <HomeScreen key="home" />
           </ScreenErrorBoundary>
         );
-      case 'stats':
+      case 'statistics':
         return (
           <ScreenErrorBoundary screenName="İstatistikler">
             <StatisticsScreen key="stats" />
@@ -79,7 +76,7 @@ export const App: React.FC = () => {
     <div className="relative w-full h-screen overflow-hidden" style={{ background: colors.background }}>
       <AnimatePresence mode="wait">
         <motion.div
-          key={activeTab}
+          key={currentScreen}
           initial={prefersReducedMotion ? {} : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={prefersReducedMotion ? {} : { opacity: 0, y: -20 }}
@@ -91,8 +88,11 @@ export const App: React.FC = () => {
       </AnimatePresence>
 
       <BottomNavigation
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
+        activeTab={currentScreen === 'statistics' ? 'stats' : (currentScreen === 'game' ? 'home' : currentScreen as NavigationTab)}
+        onTabChange={(tab) => {
+          const screen = tab === 'stats' ? 'statistics' : tab;
+          navigateTo(screen as AppScreen);
+        }}
       />
     </div>
   );

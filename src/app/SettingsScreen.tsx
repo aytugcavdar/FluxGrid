@@ -174,10 +174,12 @@ export const SettingsScreen: React.FC = () => {
   return (
     <div
       className="fixed inset-0 flex flex-col overflow-hidden"
-      style={{ background: colors.background }}
+      style={{ 
+        background: colors.background
+      }}
     >
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 pb-24">
+      <div className="flex-1 overflow-y-auto px-4 pb-24" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)' }}>
         <div className="w-full max-w-[448px] mx-auto">
           {/* GÖRÜNÜM Section */}
           <div className="mb-8">

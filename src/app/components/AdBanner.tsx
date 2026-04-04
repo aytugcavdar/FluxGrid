@@ -15,9 +15,14 @@ export const AdBanner: React.FC<AdBannerProps> = () => {
   // Manage banner lifecycle on native platform
   useEffect(() => {
     if (isNative) {
-      AdManager.showBanner();
+      // Delay banner display to ensure Activity is fully loaded
+      // This prevents NullPointerException when ViewGroup is not ready
+      const timer = setTimeout(() => {
+        AdManager.showBanner();
+      }, 1000); // 1 second delay
       
       return () => {
+        clearTimeout(timer);
         AdManager.hideBanner();
       };
     }

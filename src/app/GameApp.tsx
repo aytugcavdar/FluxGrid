@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useThemeStore } from '../shared/store/themeStore';
 import { useGameStore } from '../features/game/store/gameStore';
+import { useTutorialStore } from '../shared/store/tutorialStore';
 import { GameMode, AppState } from '@shared/types';
 import { useCountUp } from '@shared/hooks/useCountUp';
 import { useBrowserHistory } from './hooks/useBrowserHistory';
@@ -107,6 +108,22 @@ const App: React.FC = () => {
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [gridSize, setGridSize] = useState(0);
   
+  // Grid sizing with ResizeObserver for safe area
+  useEffect(() => {
+    if (!gridContainerRef.current) return;
+    
+    const obs = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (entry) {
+        const { width, height } = entry.contentRect;
+        setGridSize(Math.min(width, height));
+      }
+    });
+    
+    obs.observe(gridContainerRef.current);
+    return () => obs.disconnect();
+  }, []);
+  
   // Continue feature state
   const [showContinueModal, setShowContinueModal] = useState(false);
   const [continueUsesRemaining, setContinueUsesRemaining] = useState(3);
@@ -123,12 +140,8 @@ const App: React.FC = () => {
     useAbilityStore.getState().initializeAbilities();
     usePassiveAbilityStore.getState().initializePassives();
     
-    // Babylon.js tamamen hazır olunca splash kapat
-    // (initGame çağrılmadan önce)
-    if (typeof (window as any).splashComplete === 'function') {
-      (window as any).splashComplete();
-      delete (window as any).splashComplete;
-    }
+    // Note: Splash is already dismissed by index.tsx for menu
+    // No need to dismiss again here
     
     // Listen for tutorial completion to return to home
     const handleTutorialReturnHome = () => {
@@ -439,22 +452,6 @@ const App: React.FC = () => {
       setShowButtons(false);
     }
   }, [isGameOver]);
-
-  // Grid sizing with ResizeObserver for safe area
-  useEffect(() => {
-    if (!gridContainerRef.current) return;
-    
-    const obs = new ResizeObserver(entries => {
-      const entry = entries[0];
-      if (entry) {
-        const { width, height } = entry.contentRect;
-        setGridSize(Math.min(width, height));
-      }
-    });
-    
-    obs.observe(gridContainerRef.current);
-    return () => obs.disconnect();
-  }, []);
 
   // Language change handler
   const changeLanguage = (lang: 'tr' | 'en') => {

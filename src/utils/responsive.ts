@@ -1,3 +1,5 @@
+import { createTransformConfigSync, calculateDragOffset } from './touchTransform';
+
 // Canvas rect caching for performance
 let cachedCanvasRect: DOMRect | null = null;
 let cacheTime = 0;
@@ -44,15 +46,12 @@ export const getDragYOffset = (): number => {
     return 0;
   }
   
-  // iPad detection (768px+ width with touch)
-  if (width >= 768 && navigator.maxTouchPoints > 0) {
-    return -40;
-  }
+  // Use DPI-aware calculation for mobile/tablet
+  const config = createTransformConfigSync();
+  const offset = calculateDragOffset(config);
   
-  // Mobile - height-based offset
-  if (height < 700) return -70;
-  if (height < 800) return -90;
-  return Math.min(-90, -height * 0.11);
+  // Return negative offset (drag point is above finger)
+  return -offset;
 };
 
 /**

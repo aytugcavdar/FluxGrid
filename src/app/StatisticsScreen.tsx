@@ -75,7 +75,9 @@ export const StatisticsScreen: React.FC = () => {
   return (
     <div
       className="fixed inset-0 flex flex-col overflow-hidden"
-      style={{ background: colors.background }}
+      style={{ 
+        background: colors.background
+      }}
     >
       {/* Visually hidden h1 for accessibility */}
       <h1 style={{ 
@@ -94,8 +96,9 @@ export const StatisticsScreen: React.FC = () => {
       
       {/* Fixed Tab Header */}
       <div 
-        className="flex-shrink-0 px-4 pt-4 pb-3"
+        className="flex-shrink-0 px-4 pb-3"
         style={{ 
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)',
           borderBottom: `1px solid ${colors.cardBorderTransparent}`,
         }}
       >
@@ -128,7 +131,7 @@ export const StatisticsScreen: React.FC = () => {
       </div>
       
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)' }}>
         <div className="w-full max-w-[448px] mx-auto">
           {activeTab === 'stats' && (
             <>
@@ -204,7 +207,7 @@ export const StatisticsScreen: React.FC = () => {
           </div>
 
           {/* GENEL Section */}
-          <div className="mb-6 pb-24">
+          <div className="mb-6">
             <SectionHeader title="GENEL" />
             
             <div className="grid grid-cols-2 gap-3">
@@ -292,7 +295,7 @@ export const StatisticsScreen: React.FC = () => {
             </div>
           ))}
 
-          <div className="pb-24" />
+          <div className="pb-6" />
             </>
           )}
         </div>

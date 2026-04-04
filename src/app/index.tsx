@@ -10,6 +10,9 @@ import { AppState } from '@shared/types';
 import { AdManager } from '@utils/adManager';
 import { useStreakStore } from '@shared/store/streakStore';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { useUnifiedNavigationStore } from '@shared/store/unifiedNavigationStore';
+import { applySafeAreaCSS } from '@utils/safeAreaManager';
+import { getSplashCoordinator } from '@utils/splashCoordinator';
 
 /**
  * Configure StatusBar for native Android app
@@ -30,11 +33,22 @@ const configureStatusBar = async () => {
 const RootApp: React.FC = () => {
   const appState = useGameStore(state => state.appState);
   
-  // Initialize monetization systems and StatusBar on mount
+  // Initialize monetization systems, StatusBar, safe area, splash coordinator, and back button listener on mount
   useEffect(() => {
     AdManager.initialize();
     useStreakStore.getState().initialize();
     configureStatusBar();
+    applySafeAreaCSS(); // Apply safe area insets as CSS variables
+    
+    // Initialize splash coordinator
+    const splashCoordinator = getSplashCoordinator();
+    splashCoordinator.initialize();
+    
+    // Register unified back button listener
+    const cleanup = useUnifiedNavigationStore.getState().registerBackButtonListener();
+    
+    // Cleanup on unmount
+    return cleanup;
   }, []);
   
   // Show game screen when in GAME state, otherwise show menu
@@ -57,9 +71,12 @@ root.render(
   </React.StrictMode>
 );
 
-// React mount olduktan sonra splash kapat
-// onMount değil, ilk render sonrası
+// Report ready state after React mount
+// Dismiss splash immediately for menu screen
 setTimeout(() => {
+  console.log('[index.tsx] Dismissing splash screen');
+  
+  // Call the splash complete function from index.html
   if (typeof (window as any).splashComplete === 'function') {
     (window as any).splashComplete();
   }

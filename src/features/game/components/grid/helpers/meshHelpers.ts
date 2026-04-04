@@ -10,7 +10,8 @@ import {
   GHOST_POOL_SIZE, 
   SKILL_OVERLAY_POOL_SIZE, 
   GUIDED_HIGHLIGHT_POOL_SIZE,
-  FRAGMENT_POOL_SIZE 
+  FRAGMENT_POOL_SIZE,
+  getFragmentPoolSize
 } from '../constants';
 
 /**
@@ -231,8 +232,9 @@ export function initGuidedHighlightPool(scene: BABYLON.Scene): BABYLON.Mesh[] {
  * Initialize fragment pool for break apart animations
  */
 export function initFragmentPool(scene: BABYLON.Scene): BABYLON.Mesh[] {
+  const poolSize = getFragmentPoolSize(); // Dynamic pool size based on device tier
   const pool: BABYLON.Mesh[] = [];
-  for (let i = 0; i < FRAGMENT_POOL_SIZE; i++) {
+  for (let i = 0; i < poolSize; i++) {
     // Small random sized fragment
     const size = 0.15 + Math.random() * 0.1; // 0.15-0.25
     const fragment = BABYLON.MeshBuilder.CreateBox(

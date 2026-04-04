@@ -3,6 +3,8 @@
  * 3D layout and pool size configurations
  */
 
+import { detectDeviceCapabilities, getPerformanceConfig } from '../../../../utils/deviceCapability';
+
 // Grid size (imported from parent types, but re-exported for convenience)
 export const GRID_SIZE = 10;
 
@@ -17,7 +19,14 @@ export const GHOST_POOL_SIZE = 25;
 export const SKILL_OVERLAY_POOL_SIZE = 10;
 export const GUIDED_HIGHLIGHT_POOL_SIZE = 25;
 
-// Platform detection for fragment pool sizing
+// Fragment pool sizing based on device tier
+export function getFragmentPoolSize(): number {
+  const deviceCapabilities = detectDeviceCapabilities();
+  const perfConfig = getPerformanceConfig(deviceCapabilities.tier);
+  return perfConfig.fragmentPoolSize;
+}
+
+// Legacy constant for backward compatibility (will be replaced by getFragmentPoolSize())
 const isNativeApp = !!(window as any).Capacitor?.isNativePlatform?.();
 export const FRAGMENT_POOL_SIZE = isNativeApp ? 25 : 50;
 export const FRAGMENT_LIFETIME = 400; // ms
@@ -31,4 +40,4 @@ export const CAMERA_FOV = 0.8;
 export const PLACEMENT_ANIMATION_DURATION = 300; // ms
 export const LINE_CLEAR_ANIMATION_DURATION = 600; // ms
 export const GAME_OVER_ANIMATION_DURATION = 1000; // ms
-export const COMBO_FLASH_DURATION = 200; // ms
+export const COMBO_FLASH_DURATION = 200; // ms;

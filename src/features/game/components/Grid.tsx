@@ -7,6 +7,7 @@ import { GRID_SIZE, SkillType, CellType, GridState } from '../types';
 import { GameMode } from '@shared/types';
 import { getDragYOffset, setCanvasRect } from '../../../utils/responsive';
 import { playHaptic } from '../../../utils/audio';
+import { detectDeviceCapabilities, getPerformanceConfig } from '../../../utils/deviceCapability';
 import clsx from 'clsx';
 
 // Import constants and helpers
@@ -137,16 +138,21 @@ export const Grid: React.FC = () => {
     useEffect(() => {
         if (!canvasRef.current) return;
 
-        // Device capability detection
-        const deviceMemory = (navigator as any).deviceMemory ?? 4; // GB
-        const isLowEndDevice = deviceMemory <= 2 || navigator.hardwareConcurrency <= 2;
-        const isMobile = window.innerWidth < 768;
+        // Device capability detection with performance config
+        const deviceCapabilities = detectDeviceCapabilities();
+        const perfConfig = getPerformanceConfig(deviceCapabilities.tier);
+        
+        console.log('[Grid] Performance config:', perfConfig);
         
         // Reduced motion preference
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         
+        // Low-end device flag for compatibility with existing code
+        const isLowEndDevice = deviceCapabilities.tier === 'low';
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || deviceCapabilities.isNative;
+        
         // Disable animations on low-end devices, native apps, or when reduced motion is preferred
-        const disableAnimations = prefersReducedMotion || isLowEndDevice || isNativeApp;
+        const disableAnimations = prefersReducedMotion || isLowEndDevice || deviceCapabilities.isNative;
 
         // Engine configuration based on device capability
         let engine: BABYLON.Engine;
@@ -154,9 +160,9 @@ export const Grid: React.FC = () => {
           engine = new BABYLON.Engine(canvasRef.current, true, {
               preserveDrawingBuffer: true,
               stencil: true,
-              antialias: !isMobile && !isLowEndDevice,
+              antialias: perfConfig.antialias,
               adaptToDeviceRatio: false, // Keep false for stability
-              limitDeviceRatio: isAndroid ? 1.0 : (isNativeApp ? 1.5 : Math.min(window.devicePixelRatio, 2)),
+              limitDeviceRatio: deviceCapabilities.isAndroid ? 1.5 : (deviceCapabilities.isNative ? 2.0 : Math.min(window.devicePixelRatio, 2)),
               doNotHandleContextLost: false,
           });
           
@@ -174,9 +180,8 @@ export const Grid: React.FC = () => {
           return;
         }
 
-        // Hardware scaling - balanced approach for native apps
-        const hardwareScale = isLowEndDevice ? 2.0 : (isNativeApp ? 1.2 : (isMobile ? Math.min(window.devicePixelRatio, 1.5) : window.devicePixelRatio));
-        engine.setHardwareScalingLevel(1 / hardwareScale);
+        // Hardware scaling based on device tier
+        engine.setHardwareScalingLevel(1 / perfConfig.hardwareScaling);
 
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0, 0, 0, 0);
@@ -193,8 +198,34 @@ export const Grid: React.FC = () => {
         const gridBaseRef = { current: null as BABYLON.Mesh | null };
         const gridSlotsRef: BABYLON.Mesh[] = [];
 
+        // Calculate initial camera radius based on screen
+        const screenW = window.innerWidth;
+        const screenH = window.innerHeight;
+        const isPortrait = screenH > screenW;
+        const aspectRatio = screenW / screenH;
+        
+        let initialRadius = 16; // Default
+        if (isPortrait) {
+            if (aspectRatio < 0.48) {
+                initialRadius = 12.0;
+            } else if (aspectRatio < 0.55) {
+                initialRadius = 12.0;
+            } else if (aspectRatio < 0.65) {
+                initialRadius = 12.5;
+            } else {
+                initialRadius = 13.0;
+            }
+            // Apply native app adjustment immediately - MUCH SMALLER grid
+            if (isNativeApp) {
+                initialRadius = initialRadius + 2.0; // Increased from +0.5 to +2.0 for MUCH SMALLER grid
+                console.log('[Grid] Initial radius adjusted for native app:', initialRadius);
+            }
+        }
+        
+        console.log('[Grid] Creating camera with initial radius:', initialRadius);
+
         // Camera — beta π/11 ≈ 16.4° daha tepeden/havadan bakış
-        const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 11, 18, BABYLON.Vector3.Zero(), scene);
+        const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 11, initialRadius, BABYLON.Vector3.Zero(), scene);
         camera.lowerRadiusLimit = 8;
         camera.upperRadiusLimit = 35;
         camera.lowerBetaLimit = 0.1;
@@ -977,6 +1008,19 @@ export const Grid: React.FC = () => {
             fragmentPoolRef.current.pool = [];
             fragmentPoolRef.current.activeFragments.clear();
             
+            // Dispose all grid meshes BEFORE scene disposal
+            meshMapRef.current.forEach(mesh => {
+                if (mesh) {
+                    mesh.dispose();
+                }
+            });
+            meshMapRef.current.clear();
+            
+            // Dispose ambient particles
+            ambientParticlesRef.current.forEach(m => m?.dispose());
+            ambientParticlesRef.current = [];
+            
+            // Finally dispose scene and engine
             scene.dispose();
             engine.dispose();
         };

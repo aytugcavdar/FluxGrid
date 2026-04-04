@@ -105,7 +105,11 @@ export const HomeScreen: React.FC = () => {
   return (
     <div
       className="fixed inset-0 flex flex-col"
-      style={{ background: colors.background }}
+      style={{ 
+        background: colors.background,
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+      }}
     >
       {/* Fixed Content - No Scroll */}
       <div className={`flex-1 flex flex-col ${isMobile ? 'px-3 pt-2 pb-16' : 'px-4 pt-3 pb-20'}`}>

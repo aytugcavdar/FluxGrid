@@ -6,7 +6,6 @@ import { SkillType } from '../../features/game/types';
 import { Grid } from '../../features/game/components/Grid';
 import { Piece } from '../../features/game/components/Piece';
 import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual, ComboMilestone, LineCountDisplay } from '@features/hud';
-import { useGameStore } from '../../features/game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
 import { useTutorialStore } from '@shared/store/tutorialStore';
 import { playClick } from '@utils/audio';
@@ -122,7 +121,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         className="flex-none w-full max-w-4xl mx-auto" 
         style={{ 
           padding: `calc(${statusBarHeight}px + env(safe-area-inset-top, 0px) + 2px) 4px 2px`,
-          height: `calc(var(--hud-height, 92px) + ${statusBarHeight}px + env(safe-area-inset-top, 0px))`
+          height: `calc(var(--hud-height, 85px) + ${statusBarHeight}px + env(safe-area-inset-top, 0px))`
         }}
       >
         <div style={{ height: '100%' }}>
@@ -131,7 +130,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       </header>
 
       {/* Grid Area */}
-      <main className="flex-1 relative flex items-center justify-center min-h-0 overflow-hidden">
+      <main 
+        className="flex-1 relative flex items-center justify-center min-h-0 overflow-hidden"
+        style={{ padding: '4px' }}
+      >
         {/* Active Skill Banner */}
         <AnimatePresence>
           {(activeSkill === SkillType.SHATTER || activeSkill === SkillType.BOMB) && (
@@ -227,10 +229,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
       {/* Piece Tray */}
       <div style={{ 
-        height: `calc(var(--tray-height, 90px) + env(safe-area-inset-bottom, 0px))`,
-        paddingBottom: showBanner ? `calc(env(safe-area-inset-bottom, 0px) + 4px + 50px)` : `calc(env(safe-area-inset-bottom, 0px) + 4px)`,
+        height: `calc(var(--tray-height, 68px) + env(safe-area-inset-bottom, 0px))`,
+        paddingBottom: showBanner ? '58px' : `calc(env(safe-area-inset-bottom, 0px) + 4px)`,
         backgroundColor: colors.trayBackground,
-        borderTop: `1px solid ${colors.hudBorder}`
+        borderTop: `1px solid ${colors.hudBorder}`,
+        flexShrink: 0
       }}>
         <div className="max-w-2xl mx-auto h-full flex flex-col" style={{ padding: '4px 6px' }}>
           <div className="grid grid-cols-3 flex-1 min-h-0" style={{ gap: '4px' }}>
@@ -324,8 +327,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
           />
         ))}
       </AnimatePresence>
-
-
 
       <div className="fixed top-20 left-0 right-0 flex flex-col items-center gap-2 pointer-events-none z-10">
         <AnimatePresence mode="wait">

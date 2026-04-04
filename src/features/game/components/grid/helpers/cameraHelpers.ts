@@ -14,43 +14,12 @@ export function updateCameraShake(
   deltaTime: number,
   prefersReducedMotion: boolean
 ): void {
-  if (prefersReducedMotion) {
-    // Ensure camera is at default position
-    const isPortrait = window.innerHeight > window.innerWidth;
-    camera.target.y = isPortrait ? -0.1 : -0.2;
-    return;
-  }
+  // Camera shake completely disabled
+  shakeIntensityRef.current = 0;
   
-  if (shakeIntensityRef.current > 0) {
-    const intensity = shakeIntensityRef.current;
-    
-    // Shake pattern: up → down → return (200ms cycle)
-    const shakeTime = Date.now() % 200;
-    let offset = 0;
-    
-    if (shakeTime < 50) {
-      // Up phase (0-50ms)
-      offset = (shakeTime / 50) * 0.1 * intensity;
-    } else if (shakeTime < 100) {
-      // Down phase (50-100ms)
-      offset = 0.1 * intensity - ((shakeTime - 50) / 50) * 0.15 * intensity;
-    } else {
-      // Return phase (100-200ms)
-      offset = -0.05 * intensity * (1 - (shakeTime - 100) / 100);
-    }
-    
-    // Apply to camera target Y
-    const isPortrait = window.innerHeight > window.innerWidth;
-    const baseTargetY = isPortrait ? -0.1 : -0.2;
-    camera.target.y = baseTargetY + offset;
-    
-    // Decay shake intensity (2 units/sec)
-    shakeIntensityRef.current = Math.max(0, intensity - deltaTime * 2);
-  } else {
-    // Ensure camera is at default position
-    const isPortrait = window.innerHeight > window.innerWidth;
-    camera.target.y = isPortrait ? -0.1 : -0.2;
-  }
+  // Ensure camera is at default position
+  const isPortrait = window.innerHeight > window.innerWidth;
+  camera.target.y = isPortrait ? -0.02 : -0.08;
 }
 
 /**
@@ -61,15 +30,8 @@ export function triggerCameraShake(
   shakeIntensityRef: { current: number },
   prefersReducedMotion: boolean
 ): void {
-  if (prefersReducedMotion) return;
-  
-  if (lineCount === 1) {
-    shakeIntensityRef.current = 0.3;
-  } else if (lineCount === 2) {
-    shakeIntensityRef.current = 0.6;
-  } else {
-    shakeIntensityRef.current = 1.0;
-  }
+  // Camera shake disabled - no shake effect
+  shakeIntensityRef.current = 0;
 }
 
 /**
@@ -83,6 +45,8 @@ export function updateCameraSettings(
   const screenH = window.innerHeight;
   const isPortrait = screenH > screenW;
   const aspectRatio = screenW / screenH;
+
+  console.log('[CameraSettings] Screen:', screenW, 'x', screenH, 'Portrait:', isPortrait, 'AspectRatio:', aspectRatio, 'Native:', isNativeApp);
 
   if (isPortrait) {
     // Mobile portrait
@@ -99,17 +63,20 @@ export function updateCameraSettings(
       fov = 0.82; radius = 13.0; // Small tablet
     }
     
-    // Native apps: make grid appear larger by moving camera closer
+    // Native apps: make grid MUCH SMALLER by moving camera MUCH FURTHER
+    // SAME for tutorial and normal gameplay - no special handling
     if (isNativeApp) {
-      radius = radius - 1.0;
+      radius = radius + 2.0; // Increased from +0.5 to +2.0 for MUCH SMALLER grid
     }
+
+    console.log('[CameraSettings] Portrait - FOV:', fov, 'Radius:', radius);
 
     camera.fovMode = BABYLON.Camera.FOVMODE_HORIZONTAL_FIXED;
     camera.fov = fov;
     camera.radius = radius;
     
-    // Adjust camera target for small screens
-    const targetY = screenW < 390 ? -0.05 : -0.1;
+    // Adjust camera target for small screens - move grid slightly UP
+    const targetY = screenW < 390 ? -0.02 : -0.08;
     camera.target = new BABYLON.Vector3(0, targetY, 0);
 
   } else {

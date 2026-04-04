@@ -20,8 +20,8 @@
 
   /* Layout — mobile-first (smallest screens) */
   --grid-cell: 42px;
-  --tray-height: clamp(90px, 12vh, 120px);
-  --hud-height: 100px;  /* 52px ROW1 + 48px ROW2, safe area added separately */
+  --tray-height: 68px;
+  --hud-height: 73px;
   --skill-btn-size: 44px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
@@ -33,8 +33,8 @@
 @media (min-width: 411px) {
   :root {
     --grid-cell: 46px;
-    --tray-height: clamp(95px, 13vh, 130px);
-    --hud-height: 100px;  /* content only */
+    --tray-height: 75px;
+    --hud-height: 80px;
   }
 }
 
@@ -58,16 +58,16 @@
 /* Short screens */
 @media (max-height: 700px) {
   :root {
-    --tray-height: 80px;
-    --hud-height: 100px;  /* content only */
+    --tray-height: 65px;
+    --hud-height: 70px;
   }
 }
 
 /* Tall screens (S20 Ultra, etc.) */
 @media (min-height: 850px) and (max-width: 767px) {
   :root {
-    --tray-height: clamp(85px, 11vh, 110px);
-    --hud-height: 100px;  /* content only */
+    --tray-height: 80px;
+    --hud-height: 85px;
   }
 }
 

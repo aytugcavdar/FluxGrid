@@ -49,9 +49,13 @@ describe('Responsive Layout Constraints - Task 16', () => {
       const mainContainer = container.querySelector('.px-4');
       expect(mainContainer).toBeTruthy();
       
-      // Check for bottom padding clearance (pb-24 for bottom nav)
-      const bottomPadding = container.querySelector('.pb-24');
-      expect(bottomPadding).toBeTruthy();
+      // Check for inline style paddingBottom (uses calc with safe-area-inset-bottom + 96px)
+      const scrollableContent = container.querySelector('.overflow-y-auto');
+      expect(scrollableContent).toBeTruthy();
+      
+      // Verify it has inline style with paddingBottom
+      const style = scrollableContent?.getAttribute('style');
+      expect(style).toContain('padding-bottom');
     });
   });
 
@@ -74,9 +78,13 @@ describe('Responsive Layout Constraints - Task 16', () => {
       const mainContainer = container.querySelector('.px-4');
       expect(mainContainer).toBeTruthy();
       
-      // Check for bottom padding clearance (pb-24 for bottom nav)
-      const bottomPadding = container.querySelector('.pb-24');
-      expect(bottomPadding).toBeTruthy();
+      // Check for inline style paddingBottom (uses calc with safe-area-inset-bottom + 96px)
+      const scrollableContent = container.querySelector('.overflow-y-auto');
+      expect(scrollableContent).toBeTruthy();
+      
+      // Verify it has inline style with paddingBottom
+      const style = scrollableContent?.getAttribute('style');
+      expect(style).toContain('padding-bottom');
     });
   });
 

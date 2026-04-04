@@ -64,6 +64,12 @@ export const useTutorialStore = create<TutorialStore>((set, get) => ({
     }
     
     console.log('[Tutorial] Starting tutorial - step 1');
+    
+    // Set global flag for camera settings (kept for potential future use)
+    if (typeof window !== 'undefined') {
+      (window as any).__tutorialActive = true;
+    }
+    
     set({
       isActive: true,
       currentStep: 1,
@@ -102,6 +108,12 @@ export const useTutorialStore = create<TutorialStore>((set, get) => ({
   
   skip: () => {
     console.log('[Tutorial] Skipping tutorial');
+    
+    // Clear global flag
+    if (typeof window !== 'undefined') {
+      (window as any).__tutorialActive = false;
+    }
+    
     set({
       isActive: false,
       isCompleted: true,
@@ -119,6 +131,12 @@ export const useTutorialStore = create<TutorialStore>((set, get) => ({
   
   complete: () => {
     console.log('[Tutorial] Completing tutorial');
+    
+    // Clear global flag
+    if (typeof window !== 'undefined') {
+      (window as any).__tutorialActive = false;
+    }
+    
     set({
       isActive: false,
       isCompleted: true,
