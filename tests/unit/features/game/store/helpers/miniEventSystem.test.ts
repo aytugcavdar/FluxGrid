@@ -32,7 +32,7 @@ describe('miniEventSystem', () => {
   describe('checkMiniEvents', () => {
     it('should activate Flux Surge at move 50', () => {
       const state = createMiniEventState();
-      const result = checkMiniEvents(50, state);
+      const result = checkMiniEvents(50, state, 0); // tier 0
       
       expect(result.activeEvents.has(MiniEventType.FLUX_SURGE)).toBe(true);
       expect(result.moveCounters[MiniEventType.FLUX_SURGE]).toBe(10);
@@ -41,7 +41,7 @@ describe('miniEventSystem', () => {
 
     it('should activate Score Rush at move 100', () => {
       const state = createMiniEventState();
-      const result = checkMiniEvents(100, state);
+      const result = checkMiniEvents(100, state, 0); // tier 0
       
       expect(result.activeEvents.has(MiniEventType.SCORE_RUSH)).toBe(true);
       expect(result.moveCounters[MiniEventType.SCORE_RUSH]).toBe(10);
@@ -50,7 +50,7 @@ describe('miniEventSystem', () => {
 
     it('should activate Clear Bonus at move 150', () => {
       const state = createMiniEventState();
-      const result = checkMiniEvents(150, state);
+      const result = checkMiniEvents(150, state, 0); // tier 0
       
       expect(result.activeEvents.has(MiniEventType.CLEAR_BONUS)).toBe(true);
       expect(result.moveCounters[MiniEventType.CLEAR_BONUS]).toBe(1);
@@ -59,7 +59,7 @@ describe('miniEventSystem', () => {
 
     it('should activate multiple events at move 300', () => {
       const state = createMiniEventState();
-      const result = checkMiniEvents(300, state);
+      const result = checkMiniEvents(300, state, 0); // tier 0
       
       expect(result.activeEvents.has(MiniEventType.FLUX_SURGE)).toBe(true);
       expect(result.activeEvents.has(MiniEventType.SCORE_RUSH)).toBe(true);
@@ -70,7 +70,7 @@ describe('miniEventSystem', () => {
       const state = createMiniEventState();
       state.lastActivation[MiniEventType.FLUX_SURGE] = 50;
       
-      const result = checkMiniEvents(99, state);
+      const result = checkMiniEvents(99, state, 0); // tier 0
       expect(result.activeEvents.has(MiniEventType.FLUX_SURGE)).toBe(false);
     });
 
@@ -78,7 +78,7 @@ describe('miniEventSystem', () => {
       const state = createMiniEventState();
       state.lastActivation[MiniEventType.FLUX_SURGE] = 50;
       
-      const result = checkMiniEvents(100, state);
+      const result = checkMiniEvents(100, state, 0); // tier 0
       expect(result.activeEvents.has(MiniEventType.FLUX_SURGE)).toBe(true);
       expect(result.lastActivation[MiniEventType.FLUX_SURGE]).toBe(100);
     });
@@ -90,7 +90,7 @@ describe('miniEventSystem', () => {
       state.activeEvents.add(MiniEventType.FLUX_SURGE);
       state.moveCounters[MiniEventType.FLUX_SURGE] = 5;
       
-      const result = tickMiniEvents(state, 0);
+      const result = tickMiniEvents(state, 0, false);
       expect(result.moveCounters[MiniEventType.FLUX_SURGE]).toBe(4);
       expect(result.activeEvents.has(MiniEventType.FLUX_SURGE)).toBe(true);
     });
@@ -100,7 +100,7 @@ describe('miniEventSystem', () => {
       state.activeEvents.add(MiniEventType.FLUX_SURGE);
       state.moveCounters[MiniEventType.FLUX_SURGE] = 1;
       
-      const result = tickMiniEvents(state, 0);
+      const result = tickMiniEvents(state, 0, false);
       expect(result.activeEvents.has(MiniEventType.FLUX_SURGE)).toBe(false);
     });
 
@@ -109,7 +109,7 @@ describe('miniEventSystem', () => {
       state.activeEvents.add(MiniEventType.SCORE_RUSH);
       state.moveCounters[MiniEventType.SCORE_RUSH] = 5;
       
-      const result = tickMiniEvents(state, 0);
+      const result = tickMiniEvents(state, 0, false);
       expect(result.moveCounters[MiniEventType.SCORE_RUSH]).toBe(4);
       expect(result.activeEvents.has(MiniEventType.SCORE_RUSH)).toBe(true);
     });
@@ -119,7 +119,7 @@ describe('miniEventSystem', () => {
       state.activeEvents.add(MiniEventType.CLEAR_BONUS);
       state.moveCounters[MiniEventType.CLEAR_BONUS] = 1;
       
-      const result = tickMiniEvents(state, 2);
+      const result = tickMiniEvents(state, 2, false);
       expect(result.activeEvents.has(MiniEventType.CLEAR_BONUS)).toBe(false);
       expect(result.moveCounters[MiniEventType.CLEAR_BONUS]).toBe(0);
     });
@@ -129,7 +129,7 @@ describe('miniEventSystem', () => {
       state.activeEvents.add(MiniEventType.CLEAR_BONUS);
       state.moveCounters[MiniEventType.CLEAR_BONUS] = 1;
       
-      const result = tickMiniEvents(state, 0);
+      const result = tickMiniEvents(state, 0, false);
       expect(result.activeEvents.has(MiniEventType.CLEAR_BONUS)).toBe(true);
       expect(result.moveCounters[MiniEventType.CLEAR_BONUS]).toBe(1);
     });
@@ -141,7 +141,7 @@ describe('miniEventSystem', () => {
       state.moveCounters[MiniEventType.FLUX_SURGE] = 3;
       state.moveCounters[MiniEventType.SCORE_RUSH] = 2;
       
-      const result = tickMiniEvents(state, 0);
+      const result = tickMiniEvents(state, 0, false);
       expect(result.moveCounters[MiniEventType.FLUX_SURGE]).toBe(2);
       expect(result.moveCounters[MiniEventType.SCORE_RUSH]).toBe(1);
       expect(result.activeEvents.has(MiniEventType.FLUX_SURGE)).toBe(true);

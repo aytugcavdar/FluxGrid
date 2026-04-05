@@ -87,7 +87,8 @@ export function calculateScore(
   activeEvent: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null,
   miniEventState: MiniEventState,
   linesCleared: number,
-  passiveScoreMultiplier: number
+  passiveScoreMultiplier: number,
+  streakMultiplier: number = 1.0  // YENİ parametre
 ): { score: number; breakdown: MultiplierBreakdown } {
   const colorMultiplier = colorBonus ? POINTS.COLOR_BONUS_MULTIPLIER : 1.0;
   const surgeMultiplier = surgeActive ? POINTS.SURGE_MULTIPLIER : 1.0;
@@ -95,7 +96,7 @@ export function calculateScore(
   const eventMultiplier = getEventScoreMultiplier(activeEvent);
   const miniEventMultiplier = getMiniEventMultiplier(miniEventState.activeEvents, false, linesCleared);
   
-  const totalMultiplier = colorMultiplier * surgeMultiplier * tierMultiplier * eventMultiplier * miniEventMultiplier * passiveScoreMultiplier;
+  const totalMultiplier = colorMultiplier * surgeMultiplier * tierMultiplier * eventMultiplier * miniEventMultiplier * passiveScoreMultiplier * streakMultiplier;
   const finalScore = Math.floor(basePoints * totalMultiplier);
   
   const breakdown: MultiplierBreakdown = {

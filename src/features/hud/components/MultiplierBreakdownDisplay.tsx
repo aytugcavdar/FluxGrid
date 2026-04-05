@@ -7,6 +7,8 @@ const MINI_EVENT_LABELS: Record<MiniEventType, string> = {
   [MiniEventType.FLUX_SURGE]: 'Flux Surge',
   [MiniEventType.SCORE_RUSH]: 'Score Rush',
   [MiniEventType.CLEAR_BONUS]: 'Clear Bonus',
+  [MiniEventType.COMBO_SHIELD]: 'Combo Shield',
+  [MiniEventType.PIECE_BLESSING]: 'Piece Blessing',
 };
 
 const EVENT_LABELS: Record<string, string> = {

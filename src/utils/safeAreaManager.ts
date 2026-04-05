@@ -1,5 +1,14 @@
-import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
+
+// Lazy import StatusBar to avoid web platform errors
+let StatusBar: any = null;
+if (Capacitor.isNativePlatform()) {
+  import('@capacitor/status-bar').then(module => {
+    StatusBar = module.StatusBar;
+  }).catch(err => {
+    console.warn('[SafeAreaManager] StatusBar plugin not available:', err);
+  });
+}
 
 export interface SafeAreaInsets {
   top: number;    // pixels
@@ -21,7 +30,7 @@ export async function getSafeAreaInsets(): Promise<SafeAreaInsets> {
   };
 
   // Only query StatusBar on native platforms
-  if (Capacitor.isNativePlatform()) {
+  if (Capacitor.isNativePlatform() && StatusBar) {
     try {
       const info = await StatusBar.getInfo();
       
@@ -71,19 +80,39 @@ export async function getSafeAreaInsets(): Promise<SafeAreaInsets> {
 /**
  * Apply safe area insets as CSS custom properties to :root
  * This makes them available globally as var(--safe-area-top), etc.
+ * 
+ * Strategy: Set conservative defaults synchronously first, then update with actual values asynchronously
+ * This prevents layout jumps on first render
  */
 export function applySafeAreaCSS(): void {
+  const root = document.documentElement;
+  
+  // 1. Set conservative defaults synchronously (prevents layout jump on first render)
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const defaultTop = isAndroid ? 48 : 44;
+  const defaultBottom = isAndroid ? 24 : 20;
+  
+  root.style.setProperty('--safe-area-top', `${defaultTop}px`);
+  root.style.setProperty('--safe-area-bottom', `${defaultBottom}px`);
+  root.style.setProperty('--safe-area-left', '0px');
+  root.style.setProperty('--safe-area-right', '0px');
+  
+  console.log('[SafeAreaManager] Set conservative defaults:', {
+    top: defaultTop,
+    bottom: defaultBottom
+  });
+  
+  // 2. Query actual values asynchronously and update
   getSafeAreaInsets().then(insets => {
-    const root = document.documentElement;
-    
     root.style.setProperty('--safe-area-top', `${insets.top}px`);
     root.style.setProperty('--safe-area-bottom', `${insets.bottom}px`);
     root.style.setProperty('--safe-area-left', `${insets.left}px`);
     root.style.setProperty('--safe-area-right', `${insets.right}px`);
     
-    console.log('[SafeAreaManager] Applied safe area insets:', insets);
+    console.log('[SafeAreaManager] Updated with actual insets:', insets);
   }).catch(error => {
-    console.error('[SafeAreaManager] Failed to apply safe area CSS:', error);
+    console.error('[SafeAreaManager] Failed to get actual insets:', error);
+    // Defaults already set, continue using them
   });
 }
 

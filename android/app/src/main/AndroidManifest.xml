@@ -40,6 +40,7 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
+
         <!-- AdMob App ID -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"

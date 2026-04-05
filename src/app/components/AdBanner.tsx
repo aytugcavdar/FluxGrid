@@ -19,7 +19,7 @@ export const AdBanner: React.FC<AdBannerProps> = () => {
       // This prevents NullPointerException when ViewGroup is not ready
       const timer = setTimeout(() => {
         AdManager.showBanner();
-      }, 1000); // 1 second delay
+      }, 1500); // 1500ms delay for Activity stabilization
       
       return () => {
         clearTimeout(timer);
@@ -53,9 +53,10 @@ export const AdBanner: React.FC<AdBannerProps> = () => {
     <div
       className="w-full"
       style={{
-        height: '50px',
-        minHeight: '50px',
-        maxHeight: '50px',
+        height: 'calc(50px + env(safe-area-inset-bottom, 0px) + 10px)',
+        minHeight: 'calc(50px + env(safe-area-inset-bottom, 0px) + 10px)',
+        maxHeight: 'calc(50px + env(safe-area-inset-bottom, 0px) + 10px)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)',
       }}
     />
   );

@@ -1,92 +1,73 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { MiniEventType } from '../../game/types';
 
 interface MiniEventIndicatorsProps {
   activeEvents: Set<MiniEventType>;
-  isMobile?: boolean;
+  moveCounters: Record<MiniEventType, number>;
 }
 
-const MINI_EVENT_CONFIG: Record<MiniEventType, { icon: string; label: string; color: string; bg: string }> = {
-  [MiniEventType.FLUX_SURGE]: {
-    icon: '⚡',
-    label: 'Flux Surge',
-    color: '#f59e0b',
-    bg: 'rgba(245,158,11,0.15)',
-  },
-  [MiniEventType.SCORE_RUSH]: {
-    icon: '🚀',
-    label: 'Score Rush',
-    color: '#3b82f6',
-    bg: 'rgba(59,130,246,0.15)',
-  },
-  [MiniEventType.CLEAR_BONUS]: {
-    icon: '🎯',
-    label: 'Clear Bonus',
-    color: '#10b981',
-    bg: 'rgba(16,185,129,0.15)',
-  },
-};
-
-export const MiniEventIndicators: React.FC<MiniEventIndicatorsProps> = ({ activeEvents, isMobile = false }) => {
-  const activeEventArray = Array.from(activeEvents);
-
-  if (activeEventArray.length === 0) return null;
-
+/**
+ * MiniEventIndicators Component
+ * 
+ * Displays all currently active mini-events with their icons, labels, and colors.
+ * Shows remaining move count for PIECE_BLESSING.
+ * 
+ * @param activeEvents - Set of currently active mini-event types
+ * @param moveCounters - Remaining duration for each mini-event
+ * 
+ * @remarks
+ * **Event Configuration:**
+ * - FLUX_SURGE: ⚡ FLUX SURGE (Amber)
+ * - SCORE_RUSH: 🎯 SCORE RUSH (Green)
+ * - CLEAR_BONUS: 💎 CLEAR BONUS (Purple)
+ * - COMBO_SHIELD: 🛡️ COMBO SHIELD (Blue)
+ * - PIECE_BLESSING: ✨ PIECE BLESSING (X) (Gold)
+ * 
+ * **Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7**
+ */
+export const MiniEventIndicators: React.FC<MiniEventIndicatorsProps> = ({
+  activeEvents,
+  moveCounters,
+}) => {
+  const eventConfig = {
+    [MiniEventType.FLUX_SURGE]: { icon: '⚡', label: 'FLUX SURGE', color: '#f59e0b' },
+    [MiniEventType.SCORE_RUSH]: { icon: '🎯', label: 'SCORE RUSH', color: '#10b981' },
+    [MiniEventType.CLEAR_BONUS]: { icon: '💎', label: 'CLEAR BONUS', color: '#a78bfa' },
+    [MiniEventType.COMBO_SHIELD]: { icon: '🛡️', label: 'COMBO SHIELD', color: '#3b82f6' },
+    [MiniEventType.PIECE_BLESSING]: { icon: '✨', label: 'PIECE BLESSING', color: '#f59e0b' },
+  };
+  
+  if (activeEvents.size === 0) {
+    return null;
+  }
+  
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: isMobile ? 4 : 6,
-        alignItems: 'center',
-      }}
-    >
-      <AnimatePresence>
-        {activeEventArray.map((eventType) => {
-          const config = MINI_EVENT_CONFIG[eventType];
-          return (
-            <motion.div
-              key={eventType}
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: isMobile ? 3 : 4,
-                padding: isMobile ? '3px 6px' : '4px 8px',
-                borderRadius: isMobile ? 6 : 8,
-                background: config.bg,
-                border: `1px solid ${config.color}40`,
-              }}
-            >
-              <motion.span
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ duration: 0.8, repeat: Infinity }}
-                style={{
-                  fontSize: isMobile ? 12 : 14,
-                  lineHeight: 1,
-                }}
-              >
-                {config.icon}
-              </motion.span>
-              {!isMobile && (
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: config.color,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {config.label}
-                </span>
-              )}
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+      {Array.from(activeEvents).map((eventType) => {
+        const config = eventConfig[eventType];
+        const counter = moveCounters[eventType];
+        
+        return (
+          <div
+            key={eventType}
+            style={{
+              padding: '4px 8px',
+              borderRadius: 6,
+              background: `${config.color}20`,
+              border: `1px solid ${config.color}40`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <span style={{ fontSize: 12 }}>{config.icon}</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: config.color }}>
+              {config.label}
+              {eventType === MiniEventType.PIECE_BLESSING && ` (${counter})`}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 };

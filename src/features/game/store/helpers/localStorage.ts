@@ -115,12 +115,17 @@ interface SerializableMiniEventState {
     [MiniEventType.FLUX_SURGE]: number;
     [MiniEventType.SCORE_RUSH]: number;
     [MiniEventType.CLEAR_BONUS]: number;
+    [MiniEventType.COMBO_SHIELD]: number;
+    [MiniEventType.PIECE_BLESSING]: number;
   };
   lastActivation: {
     [MiniEventType.FLUX_SURGE]: number;
     [MiniEventType.SCORE_RUSH]: number;
     [MiniEventType.CLEAR_BONUS]: number;
+    [MiniEventType.COMBO_SHIELD]: number;
+    [MiniEventType.PIECE_BLESSING]: number;
   };
+  comboShieldActive: boolean;
 }
 
 /**
@@ -135,6 +140,7 @@ export function serializeMiniEventState(miniEventState: MiniEventState): Seriali
     activeEvents: Array.from(miniEventState.activeEvents),
     moveCounters: { ...miniEventState.moveCounters },
     lastActivation: { ...miniEventState.lastActivation },
+    comboShieldActive: miniEventState.comboShieldActive,
   };
 }
 
@@ -154,6 +160,7 @@ export function deserializeMiniEventState(serialized?: SerializableMiniEventStat
     activeEvents: new Set(serialized.activeEvents),
     moveCounters: { ...serialized.moveCounters },
     lastActivation: { ...serialized.lastActivation },
+    comboShieldActive: serialized.comboShieldActive ?? false,
   };
 }
 

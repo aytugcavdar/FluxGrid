@@ -49,25 +49,26 @@ export function updateCameraSettings(
   console.log('[CameraSettings] Screen:', screenW, 'x', screenH, 'Portrait:', isPortrait, 'AspectRatio:', aspectRatio, 'Native:', isNativeApp);
 
   if (isPortrait) {
-    // Mobile portrait
+    // Mobile portrait - aspect ratio based radius selection
     let fov: number;
     let radius: number;
 
     if (aspectRatio < 0.48) {
-      fov = 1.05; radius = 12.0; // Very long screens
+      fov = 1.05; 
+      radius = 13.0; // Very long screens
     } else if (aspectRatio < 0.55) {
-      fov = 0.95; radius = 12.0; // Standard phone
+      fov = 0.95; 
+      radius = 13.5; // Standard phone
     } else if (aspectRatio < 0.65) {
-      fov = 0.88; radius = 12.5; // Wide phone
+      fov = 0.88; 
+      radius = 14.0; // Wide phone
     } else {
-      fov = 0.82; radius = 13.0; // Small tablet
+      fov = 0.82; 
+      radius = 14.5; // Small tablet
     }
     
-    // Native apps: make grid MUCH SMALLER by moving camera MUCH FURTHER
-    // SAME for tutorial and normal gameplay - no special handling
-    if (isNativeApp) {
-      radius = radius + 2.0; // Increased from +0.5 to +2.0 for MUCH SMALLER grid
-    }
+    // Native app +2.0 adjustment REMOVED - using aspect ratio based values only
+    // FOV is now adjusted based on canvas size instead of fixed offsets
 
     console.log('[CameraSettings] Portrait - FOV:', fov, 'Radius:', radius);
 

@@ -16,6 +16,12 @@
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android",
     "android:build": "npm run build:android && npm run cap:sync",
+    "android:build:release": "npm run build:android && npm run cap:sync && cd android && ./gradlew assembleRelease",
+    "android:build:debug": "npm run build:android && npm run cap:sync && cd android && ./gradlew assembleDebug",
+    "android:bundle": "npm run build:android && npm run cap:sync && cd android && ./gradlew bundleRelease",
+    "android:build:async": "node scripts/android-build-async.js debug",
+    "android:build:release:async": "node scripts/android-build-async.js release",
+    "android:bundle:async": "node scripts/android-build-async.js bundle",
     "android:open": "npm run android:build && npm run cap:open",
     "android:dev": "npm run build:android && npm run cap:sync && npm run cap:open"
   },

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { GridState, Piece, GRID_SIZE, GridCell, SkillType, CellType, Achievement, MiniEventState, MultiplierBreakdown } from '../types';
+import { GridState, Piece, GRID_SIZE, GridCell, SkillType, CellType, Achievement, MiniEventState, MultiplierBreakdown, ProgressionState } from '../types';
 import { AppState, GameStats, GameMode } from '@shared/types';
 import { POINTS, FLUX_COST, EXPANDED_ACHIEVEMENTS, ZEN_PALETTES, TIER_SCORE_MULTIPLIERS, TIMED_MODE } from '../constants';
 import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playHaptic } from '../../../utils/audio';
@@ -16,7 +16,8 @@ import { tickTimerImpl } from './helpers/timerLogic';
 import { checkTierEvent, tickActiveEvent } from './helpers/eventSystem';
 import { updateAchievements, syncNewAchievement } from './helpers/achievementSystem';
 import { usePassiveAbilityStore } from '../../abilities/store/passiveAbilityStore';
-import { createMiniEventState, checkMiniEvents, tickMiniEvents } from './helpers/miniEventSystem';
+import { createMiniEventState, checkMiniEvents, tickMiniEvents, shouldPreventComboBreak } from './helpers/miniEventSystem';
+import { createProgressionState, updateStreak, getStreakMultiplier, checkMilestones } from './helpers/progressionSystem';
 import { calculateScore, calculateFluxGain } from './helpers/scoreCalculator';
 import { migrateSaveData, SaveData } from './helpers/migration';
 import { LocalStorageService } from '@services/local/localStorageService';
@@ -83,6 +84,9 @@ export interface GameStore {
   miniEventState: MiniEventState;
   totalMovesPlayed: number;
   lastMultiplierBreakdown: MultiplierBreakdown | null;
+
+  // Progression System State
+  progressionState: ProgressionState;
 
   // Timed Mode State
   timedBoostMovesLeft: number;
@@ -194,6 +198,9 @@ export const useGameStore = create<GameStore>((set, get) => {
   totalMovesPlayed: 0,
   lastMultiplierBreakdown: null,
 
+  // Progression System Initial State
+  progressionState: createProgressionState(),
+
   // Timed Mode Initial State
   timedBoostMovesLeft: 0,
   maxCombo: 0,
@@ -235,7 +242,8 @@ export const useGameStore = create<GameStore>((set, get) => {
             isDaily, 
             isZen ? ZEN_PALETTES[0] : useThemeStore.getState().getPieceColors(), 
             loadedTier, 
-            mode
+            mode,
+            loadedMiniEventState
           ),
           score: loadedScore,
           flux: isZen ? 100 : 50,
@@ -337,7 +345,8 @@ export const useGameStore = create<GameStore>((set, get) => {
             get().gameMode === GameMode.DAILY_CHALLENGE, 
             useThemeStore.getState().getPieceColors(), 
             currentTier, 
-            get().gameMode
+            get().gameMode,
+            get().miniEventState
           ),
           activeSkill: null
         });
@@ -357,7 +366,8 @@ export const useGameStore = create<GameStore>((set, get) => {
             get().gameMode === GameMode.DAILY_CHALLENGE, 
             useThemeStore.getState().getPieceColors(), 
             currentTier, 
-            get().gameMode
+            get().gameMode,
+            get().miniEventState
           ),
           activeSkill: null
         });
@@ -571,6 +581,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     }
     
+    
     // Pulse effect disabled for performance
     // const performanceMode = useVisualEffectStore.getState().performanceMode;
     // if (performanceMode !== 'low') {
@@ -646,7 +657,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     // Check and activate mini-events (only for ENDLESS mode, before score calculation)
     let updatedMiniEventState = get().miniEventState;
     if (gameMode === GameMode.ENDLESS) {
-      updatedMiniEventState = checkMiniEvents(get().totalMovesPlayed, get().miniEventState);
+      updatedMiniEventState = checkMiniEvents(get().totalMovesPlayed, get().miniEventState, get().difficultyTier);
     } else {
       // For non-ENDLESS modes, use empty mini-event state to skip multipliers
       updatedMiniEventState = createMiniEventState();
@@ -654,9 +665,28 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     // 4. Puan hesaplama (ZEN modda skip edilir)
     // Combo: ZEN'de combo sıfırlanmaz, diğer modlarda satır temizlenmezse sıfırlanır
+    // COMBO_SHIELD: Endless modda combo kırılmasını engelleyebilir
+    const comboShieldPrevented = gameMode === GameMode.ENDLESS && shouldPreventComboBreak(updatedMiniEventState, linesCleared);
+    
     let newCombo = gameMode === GameMode.ZEN 
       ? combo + (linesCleared > 0 ? 1 : 0)
-      : (linesCleared > 0 ? combo + 1 : 0);
+      : (linesCleared > 0 ? combo + 1 : (comboShieldPrevented ? combo : 0));
+    
+    // Update streak (Endless mode only)
+    let updatedProgressionState = get().progressionState;
+    let streakMultiplier = 1.0;
+    if (gameMode === GameMode.ENDLESS) {
+      const newStreak = updateStreak(
+        updatedProgressionState.currentStreak,
+        linesCleared,
+        comboShieldPrevented
+      );
+      streakMultiplier = getStreakMultiplier(newStreak);
+      updatedProgressionState = {
+        ...updatedProgressionState,
+        currentStreak: newStreak,
+      };
+    }
     
     // COMBO_RUSH logic for Timed mode
     const isTimedMode = gameMode === GameMode.TIMED;
@@ -702,7 +732,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       gameMode === GameMode.ENDLESS ? get().activeEvent : null,
       updatedMiniEventState,
       linesCleared,
-      passiveScoreMultiplier
+      passiveScoreMultiplier,
+      streakMultiplier  // YENİ parametre
     );
     
     // Track final sprint bonus for Timed mode
@@ -714,6 +745,22 @@ export const useGameStore = create<GameStore>((set, get) => {
     
     // ZEN modda skor güncellenmez
     const newScore = gameMode === GameMode.ZEN ? 0 : (score + pointsGained);
+
+    // Check milestones (Endless mode only)
+    if (gameMode === GameMode.ENDLESS) {
+      const { milestones, newMilestone } = checkMilestones(newScore, updatedProgressionState.milestones);
+      updatedProgressionState = {
+        ...updatedProgressionState,
+        milestones,
+        lastMilestoneShown: newMilestone?.id ?? updatedProgressionState.lastMilestoneShown,
+      };
+      
+      // Trigger milestone popup in HUD (will be handled by HUD component)
+      if (newMilestone) {
+        // Store milestone for HUD to display
+        // HUD will read from progressionState.lastMilestoneShown
+      }
+    }
 
     // Update Achievements
     const previousAchievements = get().achievements;
@@ -807,7 +854,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         isDaily, 
         zenPalette ?? useThemeStore.getState().getPieceColors(), 
         currentTier, 
-        get().gameMode
+        get().gameMode,
+        updatedMiniEventState
       );
       
       set({ isPiecesLoading: false });
@@ -907,7 +955,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     
     // Tick mini-events after score calculation (only for ENDLESS mode)
     if (gameMode === GameMode.ENDLESS) {
-      updatedMiniEventState = tickMiniEvents(updatedMiniEventState, linesCleared);
+      // Calculate if combo would break (no lines cleared and no COMBO_SHIELD)
+      const comboWouldBreak = linesCleared === 0 && combo > 0;
+      updatedMiniEventState = tickMiniEvents(updatedMiniEventState, linesCleared, comboWouldBreak);
     }
 
     set({
@@ -928,6 +978,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       maxCombo: newMaxCombo,
       timedBoostMovesLeft: newTimedBoostMoves,
       miniEventState: updatedMiniEventState,
+      progressionState: updatedProgressionState,
       lastMultiplierBreakdown: breakdown,
     });
 

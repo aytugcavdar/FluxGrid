@@ -5,6 +5,10 @@ let cachedCanvasRect: DOMRect | null = null;
 let cacheTime = 0;
 const CACHE_VALIDITY_MS = 500;
 
+// Drag offset caching for performance
+let cachedDragOffset: number | null = null;
+let lastScreenHeight: number = 0;
+
 export const setCanvasRect = (rect: DOMRect): void => {
   cachedCanvasRect = rect;
   cacheTime = Date.now();
@@ -46,12 +50,23 @@ export const getDragYOffset = (): number => {
     return 0;
   }
   
-  // Use DPI-aware calculation for mobile/tablet
+  // Check cache - if screen height hasn't changed, return cached value
+  if (cachedDragOffset !== null && 
+      lastScreenHeight === height &&
+      !isNaN(cachedDragOffset) &&
+      isFinite(cachedDragOffset)) {
+    return cachedDragOffset;
+  }
+  
+  // Cache miss or invalidated - recalculate
   const config = createTransformConfigSync();
   const offset = calculateDragOffset(config);
   
-  // Return negative offset (drag point is above finger)
-  return -offset;
+  // Update cache
+  cachedDragOffset = -offset; // Return negative offset (drag point is above finger)
+  lastScreenHeight = height;
+  
+  return cachedDragOffset;
 };
 
 /**

@@ -1,5 +1,5 @@
 import { MiniEventType, MiniEventState } from '../../types';
-import { MINI_EVENT_INTERVALS, MINI_EVENT_MULTIPLIERS } from '../../constants';
+import { MINI_EVENT_INTERVALS, MINI_EVENT_MULTIPLIERS, MINI_EVENT_DURATIONS } from '../../constants';
 
 /**
  * Initialize mini-event state
@@ -39,17 +39,36 @@ export function createMiniEventState(): MiniEventState {
       [MiniEventType.FLUX_SURGE]: 0,
       [MiniEventType.SCORE_RUSH]: 0,
       [MiniEventType.CLEAR_BONUS]: 0,
+      [MiniEventType.COMBO_SHIELD]: 0,     // YENİ
+      [MiniEventType.PIECE_BLESSING]: 0,   // YENİ
     },
     lastActivation: {
       [MiniEventType.FLUX_SURGE]: 0,
       [MiniEventType.SCORE_RUSH]: 0,
       [MiniEventType.CLEAR_BONUS]: 0,
+      [MiniEventType.COMBO_SHIELD]: 0,     // YENİ
+      [MiniEventType.PIECE_BLESSING]: 0,   // YENİ
     },
+    comboShieldActive: false,  // YENİ
   };
 }
 
 /**
- * Check and activate mini-events based on move count
+ * Get tier-based interval for a mini-event type
+ * 
+ * @param type - Mini-event type
+ * @param tier - Current difficulty tier (0-6)
+ * @returns Interval in moves for the given event type and tier
+ */
+function getMiniEventInterval(type: MiniEventType, tier: number): number {
+  const tierGroup = tier <= 2 ? 'TIER_0_2' : tier <= 4 ? 'TIER_3_4' : 'TIER_5_6';
+  return MINI_EVENT_INTERVALS[tierGroup][type];
+}
+
+/**
+ * Check and activate mini-events based on move count and tier
+ * 
+ * GÜNCELLEME: tier parametresi eklendi
  * 
  * Evaluates whether any mini-events should activate based on the total
  * number of moves played and the time since each event's last activation.
@@ -57,76 +76,61 @@ export function createMiniEventState(): MiniEventState {
  * 
  * @param totalMoves - Total moves played since game start (incremented after each piece placement)
  * @param currentState - Current mini-event state
+ * @param tier - Current difficulty tier (0-6) for tier-based intervals
  * @returns Updated MiniEventState with newly activated events
  * 
  * @example
- * // At 50 moves, Flux Surge activates
- * const state = checkMiniEvents(50, currentState);
+ * // At tier 0, 50 moves, Flux Surge activates
+ * const state = checkMiniEvents(50, currentState, 0);
  * // state.activeEvents.has(MiniEventType.FLUX_SURGE) === true
- * // state.moveCounters[MiniEventType.FLUX_SURGE] === 10
  * 
- * // At 100 moves, Score Rush activates
- * const state2 = checkMiniEvents(100, currentState);
- * // state2.activeEvents.has(MiniEventType.SCORE_RUSH) === true
- * 
- * // At 150 moves, Clear Bonus activates
- * const state3 = checkMiniEvents(150, currentState);
- * // state3.activeEvents.has(MiniEventType.CLEAR_BONUS) === true
- * // state3.moveCounters[MiniEventType.CLEAR_BONUS] === 1 (single-use)
+ * // At tier 5, Flux Surge activates every 30 moves instead of 50
+ * const state2 = checkMiniEvents(30, currentState, 5);
+ * // state2.activeEvents.has(MiniEventType.FLUX_SURGE) === true
  * 
  * @remarks
- * **Activation Intervals:**
- * - Flux Surge: Every 50 moves (50, 100, 150, 200, ...)
- * - Score Rush: Every 100 moves (100, 200, 300, ...)
- * - Clear Bonus: Every 150 moves (150, 300, 450, ...)
+ * **Activation Intervals (Tier-Based):**
+ * - Tier 0-2: FLUX_SURGE: 50, SCORE_RUSH: 100, CLEAR_BONUS: 150, COMBO_SHIELD: 200, PIECE_BLESSING: 250
+ * - Tier 3-4: FLUX_SURGE: 40, SCORE_RUSH: 80, CLEAR_BONUS: 120, COMBO_SHIELD: 160, PIECE_BLESSING: 200
+ * - Tier 5-6: FLUX_SURGE: 30, SCORE_RUSH: 60, CLEAR_BONUS: 90, COMBO_SHIELD: 120, PIECE_BLESSING: 150
  * 
- * **Activation Logic:**
- * - Checks if (totalMoves - lastActivation) >= interval
- * - Multiple events can activate simultaneously (e.g., at move 300)
- * - Events can stack: Flux Surge + Score Rush both active = 2.0x flux, 1.5x score
- * 
- * **Duration:**
- * - Flux Surge: 10 moves
- * - Score Rush: 10 moves
- * - Clear Bonus: Single-use (consumed on next line clear)
- * 
- * **State Immutability:**
- * - Returns a new MiniEventState object
- * - Does not mutate currentState parameter
- * - Safe for use in React state updates
- * 
- * **Validates: Requirements 5.2, 5.3, 5.4, 5.9**
+ * **Validates: Requirements 1.1, 1.2, 1.3, 1.4, 2.1, 3.1**
  */
 export function checkMiniEvents(
   totalMoves: number,
-  currentState: MiniEventState
+  currentState: MiniEventState,
+  tier: number  // YENİ parametre
 ): MiniEventState {
   const newState = {
     activeEvents: new Set(currentState.activeEvents),
     moveCounters: { ...currentState.moveCounters },
     lastActivation: { ...currentState.lastActivation },
+    comboShieldActive: currentState.comboShieldActive,
   };
   
-  // Check Flux Surge (every 50 moves)
-  if (totalMoves - currentState.lastActivation[MiniEventType.FLUX_SURGE] >= MINI_EVENT_INTERVALS.FLUX_SURGE) {
-    newState.activeEvents.add(MiniEventType.FLUX_SURGE);
-    newState.moveCounters[MiniEventType.FLUX_SURGE] = 10;
-    newState.lastActivation[MiniEventType.FLUX_SURGE] = totalMoves;
-  }
-  
-  // Check Score Rush (every 100 moves)
-  if (totalMoves - currentState.lastActivation[MiniEventType.SCORE_RUSH] >= MINI_EVENT_INTERVALS.SCORE_RUSH) {
-    newState.activeEvents.add(MiniEventType.SCORE_RUSH);
-    newState.moveCounters[MiniEventType.SCORE_RUSH] = 10;
-    newState.lastActivation[MiniEventType.SCORE_RUSH] = totalMoves;
-  }
-  
-  // Check Clear Bonus (every 150 moves)
-  if (totalMoves - currentState.lastActivation[MiniEventType.CLEAR_BONUS] >= MINI_EVENT_INTERVALS.CLEAR_BONUS) {
-    newState.activeEvents.add(MiniEventType.CLEAR_BONUS);
-    newState.moveCounters[MiniEventType.CLEAR_BONUS] = 1; // Single use
-    newState.lastActivation[MiniEventType.CLEAR_BONUS] = totalMoves;
-  }
+  // Check each mini-event type
+  Object.values(MiniEventType).forEach((eventType) => {
+    const interval = getMiniEventInterval(eventType, tier);
+    const lastActivation = currentState.lastActivation[eventType];
+    
+    if (totalMoves - lastActivation >= interval) {
+      newState.activeEvents.add(eventType);
+      
+      // Set duration based on event type
+      if (eventType === MiniEventType.COMBO_SHIELD) {
+        newState.moveCounters[eventType] = MINI_EVENT_DURATIONS.COMBO_SHIELD; // Single-use
+        newState.comboShieldActive = true;
+      } else if (eventType === MiniEventType.PIECE_BLESSING) {
+        newState.moveCounters[eventType] = MINI_EVENT_DURATIONS.PIECE_BLESSING; // 5 moves
+      } else if (eventType === MiniEventType.CLEAR_BONUS) {
+        newState.moveCounters[eventType] = MINI_EVENT_DURATIONS.CLEAR_BONUS; // Single-use
+      } else {
+        newState.moveCounters[eventType] = MINI_EVENT_DURATIONS[eventType]; // Duration-based
+      }
+      
+      newState.lastActivation[eventType] = totalMoves;
+    }
+  });
   
   return newState;
 }
@@ -134,71 +138,59 @@ export function checkMiniEvents(
 /**
  * Tick mini-event durations after piece placement
  * 
+ * GÜNCELLEME: COMBO_SHIELD ve PIECE_BLESSING logic eklendi
+ * 
  * Decrements the duration counters for all active mini-events and
  * deactivates events that have expired. Clear Bonus is handled specially:
  * it's consumed immediately when a line is cleared.
  * 
  * @param currentState - Current mini-event state
  * @param linesCleared - Number of lines cleared in this move (0 if none)
+ * @param comboWouldBreak - YENİ parametre - combo kırılacak mıydı?
  * @returns Updated MiniEventState with decremented counters and expired events removed
  * 
  * @example
- * // Flux Surge with 3 moves remaining
- * const state = tickMiniEvents(currentState, 0);
- * // state.moveCounters[MiniEventType.FLUX_SURGE] === 2
+ * // COMBO_SHIELD consumed when combo would break
+ * const state = tickMiniEvents(currentState, 0, true);
+ * // state.activeEvents.has(MiniEventType.COMBO_SHIELD) === false
+ * // state.comboShieldActive === false
  * 
- * // Clear Bonus consumed when line is cleared
- * const state2 = tickMiniEvents(currentState, 1);
- * // state2.activeEvents.has(MiniEventType.CLEAR_BONUS) === false
- * 
- * // Event expires when counter reaches 0
- * const state3 = tickMiniEvents(currentState, 0);
- * // If counter was 1, event is now removed from activeEvents
+ * // PIECE_BLESSING decrements each move
+ * const state2 = tickMiniEvents(currentState, 0, false);
+ * // state2.moveCounters[MiniEventType.PIECE_BLESSING] === 4 (was 5)
  * 
  * @remarks
- * **Duration-Based Events (Flux Surge, Score Rush):**
- * - Counter decrements by 1 each move
- * - Event deactivates when counter reaches 0
- * - Duration is independent of line clears
- * 
- * **Consumption-Based Events (Clear Bonus):**
- * - Counter is 1 when activated
- * - Consumed immediately when linesCleared > 0
- * - Deactivates after consumption
- * - If no lines cleared, remains active for next move
- * 
- * **State Immutability:**
- * - Returns a new MiniEventState object
- * - Does not mutate currentState parameter
- * - Safe for use in React state updates
- * 
- * **Call Order:**
- * 1. checkMiniEvents() - Check for new activations
- * 2. Apply mini-event effects (multipliers)
- * 3. tickMiniEvents() - Decrement counters
- * 
- * **Validates: Requirements 5.7, 5.8**
+ * **Validates: Requirements 1.5, 2.2, 2.3, 2.5, 3.3**
  */
 export function tickMiniEvents(
   currentState: MiniEventState,
-  linesCleared: number
+  linesCleared: number,
+  comboWouldBreak: boolean  // YENİ parametre - combo kırılacak mıydı?
 ): MiniEventState {
   const newState = {
     activeEvents: new Set(currentState.activeEvents),
     moveCounters: { ...currentState.moveCounters },
     lastActivation: { ...currentState.lastActivation },
+    comboShieldActive: currentState.comboShieldActive,
   };
   
   // Decrement counters for active events
   for (const eventType of newState.activeEvents) {
     if (eventType === MiniEventType.CLEAR_BONUS) {
-      // Clear Bonus is consumed on line clear
+      // Clear Bonus consumed on line clear
       if (linesCleared > 0) {
         newState.moveCounters[eventType] = 0;
         newState.activeEvents.delete(eventType);
       }
+    } else if (eventType === MiniEventType.COMBO_SHIELD) {
+      // COMBO_SHIELD consumed when combo would break
+      if (comboWouldBreak && linesCleared === 0) {
+        newState.moveCounters[eventType] = 0;
+        newState.activeEvents.delete(eventType);
+        newState.comboShieldActive = false;
+      }
     } else {
-      // Duration-based events
+      // Duration-based events (FLUX_SURGE, SCORE_RUSH, PIECE_BLESSING)
       newState.moveCounters[eventType]--;
       if (newState.moveCounters[eventType] <= 0) {
         newState.activeEvents.delete(eventType);
@@ -294,4 +286,38 @@ export function getMiniEventMultiplier(
   }
   
   return multiplier;
+}
+
+/**
+ * Check if COMBO_SHIELD should prevent combo break
+ * 
+ * @param miniEventState - Current mini-event state
+ * @param linesCleared - Number of lines cleared in this move
+ * @returns True if COMBO_SHIELD is active and should prevent combo break
+ * 
+ * @remarks
+ * **Validates: Requirements 2.2, 2.3**
+ */
+export function shouldPreventComboBreak(
+  miniEventState: MiniEventState,
+  linesCleared: number
+): boolean {
+  return miniEventState.comboShieldActive && 
+         miniEventState.activeEvents.has(MiniEventType.COMBO_SHIELD) &&
+         linesCleared === 0;
+}
+
+/**
+ * Check if PIECE_BLESSING is active (for piece generation)
+ * 
+ * @param miniEventState - Current mini-event state
+ * @returns True if PIECE_BLESSING is currently active
+ * 
+ * @remarks
+ * **Validates: Requirements 3.2, 3.5**
+ */
+export function isPieceBlessingActive(
+  miniEventState: MiniEventState
+): boolean {
+  return miniEventState.activeEvents.has(MiniEventType.PIECE_BLESSING);
 }

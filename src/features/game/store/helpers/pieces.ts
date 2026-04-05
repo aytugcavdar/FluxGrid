@@ -2,10 +2,11 @@
  * Piece generation utilities with smart RNG
  */
 import { v4 as uuidv4 } from 'uuid';
-import { Piece, PieceShape, GridState, GRID_SIZE, CellType } from '../../types';
+import { Piece, PieceShape, GridState, GRID_SIZE, CellType, MiniEventState } from '../../types';
 import { SHAPES } from '../../constants';
 import { SeededRNG, getDailySeed } from '@utils/seededRng';
 import { GameMode } from '@shared/types';
+import { isPieceBlessingActive } from './miniEventSystem';
 
 function weightedPick(
   shapes: PieceShape[],
@@ -46,10 +47,17 @@ export const getRandomPiecesSync = (
   isDaily?: boolean,
   colors?: string[],
   difficultyTier?: number,
-  gameMode?: GameMode
+  gameMode?: GameMode,
+  miniEventState?: MiniEventState
 ): Piece[] => {
   const newPieces: Piece[] = [];
   const tier = difficultyTier ?? 0;
+  
+  // PIECE_BLESSING: Sadece küçük parçalar (dot, h2, v2)
+  const blessingActive = miniEventState ? isPieceBlessingActive(miniEventState) : false;
+  const blessedShapes = blessingActive 
+    ? SHAPES.filter(s => ['dot', 'h2', 'v2'].includes(s.id))
+    : null;
   
   // For daily mode, try to use cached RNG, otherwise fall back to Math.random
   let useSeededRNG = false;
@@ -87,11 +95,19 @@ export const getRandomPiecesSync = (
 
     const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
 
-    // RESCUE MECHANISM: Tüm tier'larda yoğunluk >75% olunca küçük parça zorla
-    const RESCUE_DENSITY_THRESHOLD = 0.75;
-    if (density > RESCUE_DENSITY_THRESHOLD && !isDaily && i === 0) {
-      // İlk parçayı küçük yap (1-2 blok)
-      const smallShapes = SHAPES.filter(s => s.shape.flat().filter(v => v === 1).length <= 2);
+    // PIECE_BLESSING: Override all logic and use only blessed shapes
+    if (blessingActive && blessedShapes) {
+      selectedShape = blessedShapes[Math.floor(randVal * blessedShapes.length)] || SHAPES[0];
+    }
+    // RESCUE MECHANISM: Tier-based density thresholds
+    // Higher tiers get rescue earlier to prevent unfair game overs
+    else if (density > (tier >= 5 ? 0.65 : tier >= 3 ? 0.70 : 0.75) && !isDaily && i === 0) {
+      // İlk parçayı küçük yap - tier'a göre max blok sayısı
+      const maxBlocks = tier >= 5 ? 3 : 2; // tier 5-6'da 3 bloğa kadar, tier 3-4'te 2 bloğa kadar
+      const smallShapes = SHAPES.filter(s => {
+        const count = s.shape.flat().filter(v => v === 1).length;
+        return count <= maxBlocks;
+      });
       selectedShape = smallShapes[Math.floor(randVal * smallShapes.length)] || SHAPES[0];
     }
     // Difficulty tier logic (only for Endless mode, tier > 0)

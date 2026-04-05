@@ -33,23 +33,28 @@ const configureStatusBar = async () => {
 const RootApp: React.FC = () => {
   const appState = useGameStore(state => state.appState);
   
-  // Initialize monetization systems, StatusBar, safe area, splash coordinator, and back button listener on mount
+  // Initialize monetization systems, StatusBar, and back button listener on mount
   useEffect(() => {
     AdManager.initialize();
     useStreakStore.getState().initialize();
     configureStatusBar();
-    applySafeAreaCSS(); // Apply safe area insets as CSS variables
-    
-    // Initialize splash coordinator
-    const splashCoordinator = getSplashCoordinator();
-    splashCoordinator.initialize();
+    // applySafeAreaCSS() and splashCoordinator moved before React render (see below)
     
     // Register unified back button listener
     const cleanup = useUnifiedNavigationStore.getState().registerBackButtonListener();
     
+    // For menu screen, dismiss splash after a short delay
+    // For game screen, Grid component will handle it
+    if (appState !== AppState.GAME) {
+      setTimeout(() => {
+        const coordinator = getSplashCoordinator();
+        coordinator.dismissWebSplash();
+      }, 100);
+    }
+    
     // Cleanup on unmount
     return cleanup;
-  }, []);
+  }, [appState]);
   
   // Show game screen when in GAME state, otherwise show menu
   if (appState === AppState.GAME) {
@@ -58,6 +63,13 @@ const RootApp: React.FC = () => {
   
   return <App />;
 };
+
+// Apply safe area CSS synchronously before React render (prevents layout jump)
+applySafeAreaCSS();
+
+// Initialize splash coordinator before React render
+const splashCoordinator = getSplashCoordinator();
+splashCoordinator.initialize();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -71,13 +83,5 @@ root.render(
   </React.StrictMode>
 );
 
-// Report ready state after React mount
-// Dismiss splash immediately for menu screen
-setTimeout(() => {
-  console.log('[index.tsx] Dismissing splash screen');
-  
-  // Call the splash complete function from index.html
-  if (typeof (window as any).splashComplete === 'function') {
-    (window as any).splashComplete();
-  }
-}, 100);
+// Splash coordinator will handle dismissal when ready
+// Do NOT call splashComplete() here - let the coordinator manage it

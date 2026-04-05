@@ -8,6 +8,11 @@ import { GameMode } from '@shared/types';
 import { getDragYOffset, setCanvasRect } from '../../../utils/responsive';
 import { playHaptic } from '../../../utils/audio';
 import { detectDeviceCapabilities, getPerformanceConfig } from '../../../utils/deviceCapability';
+import { isAndroid as isAndroidPlatform } from '../../../utils/platform';
+import { useFPSLimiter } from '../hooks/useFPSLimiter';
+import { useBackgroundPause } from '../hooks/useBackgroundPause';
+import { usePerformanceStore } from '../store/performanceStore';
+import { injectAndroidTouchCSS, addOptimizedTouchListener } from '../../../utils/touchOptimizer';
 import clsx from 'clsx';
 
 // Import constants and helpers
@@ -48,12 +53,74 @@ import {
 
 export const Grid: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier } = useGameStore();
+    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, totalMovesPlayed } = useGameStore();
     const { getThemeColors } = useThemeStore();
 
     // Platform detection - calculate once at initialization
     const isNativeApp = !!(window as any).Capacitor?.isNativePlatform?.();
     const isAndroid = isNativeApp && /Android/i.test(navigator.userAgent);
+
+    // Refs for Babylon.js engine and scene (needed for hooks)
+    const engineRef = useRef<BABYLON.Engine | null>(null);
+    const sceneRef = useRef<BABYLON.Scene | null>(null);
+
+    // Task 9.1: Integrate useFPSLimiter hook
+    const { state: fpsState } = useFPSLimiter(engineRef.current, true);
+
+    // Task 9.2: Integrate useBackgroundPause hook
+    const { state: bgPauseState } = useBackgroundPause(
+        engineRef.current,
+        sceneRef.current,
+        true
+    );
+
+    // Local FPS limiter for render loop (syncs with hook's target FPS)
+    const fpsLimiterRef = useRef<{
+        lastFrameTime: number;
+        targetFrameTime: number;
+        shouldRenderFrame: () => boolean;
+        updateFrameTime: () => void;
+        setTargetFPS: (fps: number) => void;
+    }>({
+        lastFrameTime: 0,
+        targetFrameTime: 1000 / 60,
+        shouldRenderFrame: function() {
+            const now = performance?.now?.() ?? Date.now();
+            const elapsed = now - this.lastFrameTime;
+            return elapsed >= this.targetFrameTime;
+        },
+        updateFrameTime: function() {
+            this.lastFrameTime = performance?.now?.() ?? Date.now();
+        },
+        setTargetFPS: function(fps: number) {
+            this.targetFrameTime = 1000 / fps;
+        }
+    });
+
+    // Sync FPS limiter with hook's target FPS
+    useEffect(() => {
+        fpsLimiterRef.current.setTargetFPS(fpsState.targetFPS);
+    }, [fpsState.targetFPS]);
+
+    // Task 9.3: Record FPS metrics every second
+    useEffect(() => {
+        if (!engineRef.current) return;
+
+        const recordFPSInterval = setInterval(() => {
+            const currentFPS = engineRef.current?.getFps() ?? 60;
+            usePerformanceStore.getState().recordFPS(currentFPS);
+        }, 1000);
+
+        return () => clearInterval(recordFPSInterval);
+    }, []);
+
+    // Task 9.5: Inject Android touch CSS on mount
+    useEffect(() => {
+        // Inject Android touch optimizer CSS
+        injectAndroidTouchCSS();
+        
+        console.log('[Grid] Android touch CSS injected');
+    }, []);
 
     const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier });
     useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier]);
@@ -144,6 +211,10 @@ export const Grid: React.FC = () => {
         
         console.log('[Grid] Performance config:', perfConfig);
         
+        // Platform detection for Android-specific optimizations
+        const androidPlatform = isAndroidPlatform();
+        console.log('[Grid] Android platform:', androidPlatform);
+        
         // Reduced motion preference
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         
@@ -162,7 +233,7 @@ export const Grid: React.FC = () => {
               stencil: true,
               antialias: perfConfig.antialias,
               adaptToDeviceRatio: false, // Keep false for stability
-              limitDeviceRatio: deviceCapabilities.isAndroid ? 1.5 : (deviceCapabilities.isNative ? 2.0 : Math.min(window.devicePixelRatio, 2)),
+              limitDeviceRatio: deviceCapabilities.isAndroid ? 1.0 : (deviceCapabilities.isNative ? 2.0 : Math.min(window.devicePixelRatio, 2)),
               doNotHandleContextLost: false,
           });
           
@@ -180,11 +251,22 @@ export const Grid: React.FC = () => {
           return;
         }
 
+        // Store engine ref for hooks
+        engineRef.current = engine;
+
         // Hardware scaling based on device tier
-        engine.setHardwareScalingLevel(1 / perfConfig.hardwareScaling);
+        // Android native: fixed at 1.0 for consistent rendering
+        if (deviceCapabilities.isAndroid) {
+          engine.setHardwareScalingLevel(1.0);
+        } else {
+          engine.setHardwareScalingLevel(1 / perfConfig.hardwareScaling);
+        }
 
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0, 0, 0, 0);
+
+        // Store scene ref for hooks
+        sceneRef.current = scene;
 
         // Low-end device scene optimizations
         if (isLowEndDevice) {
@@ -470,6 +552,11 @@ export const Grid: React.FC = () => {
         let frameCount = 0; // Frame counter for throttling animations
 
         scene.registerBeforeRender(() => {
+            // Task 9.3: FPS Limiter check - skip frame if too soon
+            if (!fpsLimiterRef.current.shouldRenderFrame()) {
+                return; // Skip this frame
+            }
+
             const deltaTime = engine.getDeltaTime() / 1000; // Convert to seconds
             time += deltaTime;
             frameCount++;
@@ -633,7 +720,7 @@ export const Grid: React.FC = () => {
                         if (!mesh) {
                             mesh = createBlockMeshLocal(cell.color, cell.id, cell.type, cell.health);
                             mesh.position = targetPos.clone();
-                            mesh.position.y = 12; // Drop from higher
+                            mesh.position.y = 4; // Drop from moderate height (reduced from 12 for faster placement)
                             meshMap.set(cell.id, mesh);
                             
                             // Track newly created block for placement animation
@@ -657,7 +744,7 @@ export const Grid: React.FC = () => {
                                                lineClearAnimationRef.current?.affectedBlocks.has(cellKey);
                         
                         if (!isBeingAnimated) {
-                            mesh.position = BABYLON.Vector3.Lerp(mesh.position, targetPos, 0.25);
+                            mesh.position = BABYLON.Vector3.Lerp(mesh.position, targetPos, 0.5); // Increased from 0.25 for faster landing
                         }
 
                         // Animasyonlar sadece yüksek performanslı cihazlarda ve throttled
@@ -848,6 +935,9 @@ export const Grid: React.FC = () => {
                     }
                 }
             }
+            
+            // Task 9.3: Update FPS limiter frame time after successful render
+            fpsLimiterRef.current.updateFrameTime();
         });
 
         const handleGlobalPointerMove = (e: PointerEvent) => {
@@ -902,6 +992,33 @@ export const Grid: React.FC = () => {
         window.addEventListener('pointermove', handleGlobalPointerMove);
         canvasRef.current.addEventListener('pointerup', handleCanvasPointerUp);
 
+        // Task 9.4: Add touch event optimization to canvas
+        // Task 9.5: Measure and record touch response times
+        let touchOptimizationCleanup: (() => void) | null = null;
+        
+        if (androidPlatform && canvasRef.current) {
+            const canvas = canvasRef.current;
+            let touchStartTime = 0;
+            
+            touchOptimizationCleanup = addOptimizedTouchListener(
+                canvas as unknown as HTMLElement,
+                'touchstart',
+                {
+                    handler: (event) => {
+                        touchStartTime = performance.now();
+                    },
+                    preventDefault: true,
+                    measureResponseTime: true,
+                    onResponseTime: (responseTime) => {
+                        // Record touch response time to performance store
+                        usePerformanceStore.getState().recordTouchResponse(responseTime);
+                    }
+                }
+            );
+            
+            console.log('[Grid] Touch event optimization enabled');
+        }
+
         // Start render loop with proper frame rate control
         if (isNativeApp) {
             // Native apps: Use requestAnimationFrame for proper vsync
@@ -924,7 +1041,12 @@ export const Grid: React.FC = () => {
             });
         }
 
-        // Pause rendering when page is hidden to save resources
+        // Background pause is now handled by useBackgroundPause hook
+        // No need for manual initialization
+
+        // Pause rendering when page is hidden to save resources (DEPRECATED - now handled by BackgroundPauseManager)
+        // Keeping old code commented for reference
+        /*
         let nativeAnimationFrameId: number | null = null;
         
         const handleVisibilityChange = () => {
@@ -958,6 +1080,7 @@ export const Grid: React.FC = () => {
             }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
+        */
 
         // WebGL context lost/restored handlers
         engine.onContextLostObservable.add(() => {
@@ -979,17 +1102,23 @@ export const Grid: React.FC = () => {
 
         return () => {
             unsubscribeTheme();
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
             
-            // Cancel native animation frame if active
-            if (nativeAnimationFrameId !== null) {
-                cancelAnimationFrame(nativeAnimationFrameId);
-            }
+            // Background pause cleanup is now handled by useBackgroundPause hook
+            
+            // Cancel native animation frame if active (DEPRECATED - now handled by BackgroundPauseManager)
+            // if (nativeAnimationFrameId !== null) {
+            //     cancelAnimationFrame(nativeAnimationFrameId);
+            // }
             
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('pointerup', handleWindowPointerUp);
             window.removeEventListener('pointermove', handleGlobalPointerMove);
             if (canvasRef.current) canvasRef.current.removeEventListener('pointerup', handleCanvasPointerUp);
+            
+            // Cleanup touch optimization
+            if (touchOptimizationCleanup) {
+                touchOptimizationCleanup();
+            }
             
             // Dispose skill overlays
             skillOverlayMeshesRef.current.forEach(m => m?.dispose());
@@ -1089,7 +1218,10 @@ export const Grid: React.FC = () => {
         )}>
             <canvas
                 ref={canvasRef}
-                className="w-full h-full touch-none outline-none block"
+                className={clsx(
+                    "w-full h-full touch-none outline-none block",
+                    "grid-container interactive-element" // Task 9.5: Android touch CSS classes
+                )}
             />
         </div>
     );

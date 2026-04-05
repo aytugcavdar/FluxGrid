@@ -11,7 +11,6 @@ import { useTutorialStore } from '@shared/store/tutorialStore';
 import { playClick } from '@utils/audio';
 import { AdBanner } from './AdBanner';
 import { AdManager } from '@utils/adManager';
-import { StatusBar } from '@capacitor/status-bar';
 
 interface ScorePopup {
   id: number;
@@ -83,23 +82,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const { getThemeColors } = useThemeStore();
   const colors = getThemeColors();
   const isTutorialActive = useTutorialStore(state => state.isActive);
-  const [statusBarHeight, setStatusBarHeight] = useState(0);
-
-  // Query StatusBar height on mount for native platform
-  useEffect(() => {
-    const getStatusBarHeight = async () => {
-      if (typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.()) {
-        try {
-          const info = await StatusBar.getInfo();
-          setStatusBarHeight(info.height || 0);
-        } catch (error) {
-          console.error('[GameScreen] Failed to get status bar height:', error);
-        }
-      }
-    };
-    
-    getStatusBarHeight();
-  }, []);
 
   // Check if banner should be shown (native platform only)
   const showBanner = typeof window !== 'undefined' && 
@@ -120,8 +102,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       <header 
         className="flex-none w-full max-w-4xl mx-auto" 
         style={{ 
-          padding: `calc(${statusBarHeight}px + env(safe-area-inset-top, 0px) + 2px) 4px 2px`,
-          height: `calc(var(--hud-height, 85px) + ${statusBarHeight}px + env(safe-area-inset-top, 0px))`
+          padding: 'calc(var(--safe-area-top, 0px) + 2px) 4px 2px',
+          height: 'calc(var(--hud-height, 85px) + var(--safe-area-top, 0px))'
         }}
       >
         <div style={{ height: '100%' }}>
@@ -230,7 +212,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       {/* Piece Tray */}
       <div style={{ 
         height: `calc(var(--tray-height, 68px) + env(safe-area-inset-bottom, 0px))`,
-        paddingBottom: showBanner ? '58px' : `calc(env(safe-area-inset-bottom, 0px) + 4px)`,
+        paddingBottom: showBanner 
+          ? 'calc(60px + env(safe-area-inset-bottom, 0px))' 
+          : 'calc(env(safe-area-inset-bottom, 0px) + 4px)',
         backgroundColor: colors.trayBackground,
         borderTop: `1px solid ${colors.hudBorder}`,
         flexShrink: 0

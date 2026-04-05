@@ -5,18 +5,18 @@ import { EVENT_DURATIONS } from '@features/game/constants';
 
 describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
   describe('migrateSaveData', () => {
-    it('should not migrate data that is already at version 2', () => {
+    it('should not migrate data that is already at version 3', () => {
       const saveData: SaveData = {
         score: 5000,
         difficultyTier: 2,
-        saveVersion: 2,
+        saveVersion: 3,
         miniEventState: createMiniEventState(),
         totalMovesPlayed: 100,
       };
 
       const result = migrateSaveData(saveData);
 
-      expect(result.saveVersion).toBe(2);
+      expect(result.saveVersion).toBe(3);
       expect(result.score).toBe(5000);
       expect(result.difficultyTier).toBe(2);
     });
@@ -30,7 +30,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
       const result = migrateSaveData(saveData);
 
-      expect(result.saveVersion).toBe(2);
+      expect(result.saveVersion).toBe(3);
       expect(result.difficultyTier).toBe(2); // Recalculated from score
       expect(result.score).toBe(5000); // Score preserved
     });
@@ -46,7 +46,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
       const result = migrateSaveData(saveData);
 
-      expect(result.saveVersion).toBe(2);
+      expect(result.saveVersion).toBe(3);
       expect(result.eventMovesRemaining).toBe(EVENT_DURATIONS.CHAOS); // Converted to 12
       expect(result.activeEvent).toBe('CHAOS');
     });
@@ -62,7 +62,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
       const result = migrateSaveData(saveData);
 
-      expect(result.saveVersion).toBe(2);
+      expect(result.saveVersion).toBe(3);
       expect(result.eventMovesRemaining).toBe(EVENT_DURATIONS.VOID); // Converted to 10
     });
 
@@ -76,7 +76,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
       const result = migrateSaveData(saveData);
 
-      expect(result.saveVersion).toBe(2);
+      expect(result.saveVersion).toBe(3);
       expect(result.miniEventState).toBeDefined();
       expect(result.miniEventState?.activeEvents).toBeInstanceOf(Set);
       expect(result.miniEventState?.activeEvents.size).toBe(0);
@@ -94,7 +94,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
       const result = migrateSaveData(saveData);
 
-      expect(result.saveVersion).toBe(2);
+      expect(result.saveVersion).toBe(3);
       expect(result.totalMovesPlayed).toBe(0);
     });
 
@@ -107,7 +107,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
       const result = migrateSaveData(saveData);
 
-      expect(result.saveVersion).toBe(2);
+      expect(result.saveVersion).toBe(3);
       expect(result.miniEventState).toBeDefined();
       expect(result.totalMovesPlayed).toBe(0);
     });
@@ -126,7 +126,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
       const result = migrateSaveData(saveData);
 
-      expect(result.saveVersion).toBe(2);
+      expect(result.saveVersion).toBe(3);
       expect(result.flux).toBe(75);
       expect(result.combo).toBe(5);
       expect(result.activeEvent).toBe('QUAKE');
@@ -143,7 +143,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
       const result = migrateSaveData(saveData);
 
-      expect(result.saveVersion).toBe(2);
+      expect(result.saveVersion).toBe(3);
       expect(result.difficultyTier).toBe(3); // Should be tier 3
     });
 
@@ -156,7 +156,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
       const result = migrateSaveData(saveData);
 
-      expect(result.saveVersion).toBe(2);
+      expect(result.saveVersion).toBe(3);
       expect(result.difficultyTier).toBe(0);
     });
 
@@ -169,7 +169,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
       const result = migrateSaveData(saveData);
 
-      expect(result.saveVersion).toBe(2);
+      expect(result.saveVersion).toBe(3);
       expect(result.difficultyTier).toBe(6); // Max tier
     });
 
@@ -184,7 +184,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
       const result = migrateSaveData(saveData);
 
-      expect(result.saveVersion).toBe(2);
+      expect(result.saveVersion).toBe(3);
       expect(result.eventMovesRemaining).toBe(5); // Unchanged
     });
 
@@ -197,7 +197,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
       const result = migrateSaveData(saveData);
 
-      expect(result.saveVersion).toBe(2);
+      expect(result.saveVersion).toBe(3);
       expect(result.difficultyTier).toBe(2); // Unchanged since no score to recalculate from
     });
   });

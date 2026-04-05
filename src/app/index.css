@@ -78,6 +78,9 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  /* Android Performance: Touch optimization */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,

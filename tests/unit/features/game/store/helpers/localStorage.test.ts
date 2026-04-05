@@ -17,12 +17,17 @@ describe('Feature: endless-mode-rebalance - localStorage Serialization', () => {
           [MiniEventType.FLUX_SURGE]: 5,
           [MiniEventType.SCORE_RUSH]: 8,
           [MiniEventType.CLEAR_BONUS]: 0,
+          [MiniEventType.COMBO_SHIELD]: 0,
+          [MiniEventType.PIECE_BLESSING]: 0,
         },
         lastActivation: {
           [MiniEventType.FLUX_SURGE]: 50,
           [MiniEventType.SCORE_RUSH]: 100,
           [MiniEventType.CLEAR_BONUS]: 0,
+          [MiniEventType.COMBO_SHIELD]: 0,
+          [MiniEventType.PIECE_BLESSING]: 0,
         },
+        comboShieldActive: false,
       };
 
       const serialized = serializeMiniEventState(miniEventState);
@@ -40,12 +45,17 @@ describe('Feature: endless-mode-rebalance - localStorage Serialization', () => {
           [MiniEventType.FLUX_SURGE]: 10,
           [MiniEventType.SCORE_RUSH]: 5,
           [MiniEventType.CLEAR_BONUS]: 1,
+          [MiniEventType.COMBO_SHIELD]: 0,
+          [MiniEventType.PIECE_BLESSING]: 0,
         },
         lastActivation: {
           [MiniEventType.FLUX_SURGE]: 0,
           [MiniEventType.SCORE_RUSH]: 0,
           [MiniEventType.CLEAR_BONUS]: 0,
+          [MiniEventType.COMBO_SHIELD]: 0,
+          [MiniEventType.PIECE_BLESSING]: 0,
         },
+        comboShieldActive: false,
       };
 
       const serialized = serializeMiniEventState(miniEventState);
@@ -62,12 +72,17 @@ describe('Feature: endless-mode-rebalance - localStorage Serialization', () => {
           [MiniEventType.FLUX_SURGE]: 0,
           [MiniEventType.SCORE_RUSH]: 0,
           [MiniEventType.CLEAR_BONUS]: 0,
+          [MiniEventType.COMBO_SHIELD]: 0,
+          [MiniEventType.PIECE_BLESSING]: 0,
         },
         lastActivation: {
           [MiniEventType.FLUX_SURGE]: 50,
           [MiniEventType.SCORE_RUSH]: 100,
           [MiniEventType.CLEAR_BONUS]: 150,
+          [MiniEventType.COMBO_SHIELD]: 0,
+          [MiniEventType.PIECE_BLESSING]: 0,
         },
+        comboShieldActive: false,
       };
 
       const serialized = serializeMiniEventState(miniEventState);
@@ -95,12 +110,17 @@ describe('Feature: endless-mode-rebalance - localStorage Serialization', () => {
           [MiniEventType.FLUX_SURGE]: 3,
           [MiniEventType.SCORE_RUSH]: 0,
           [MiniEventType.CLEAR_BONUS]: 1,
+          [MiniEventType.COMBO_SHIELD]: 0,
+          [MiniEventType.PIECE_BLESSING]: 0,
         },
         lastActivation: {
           [MiniEventType.FLUX_SURGE]: 50,
           [MiniEventType.SCORE_RUSH]: 0,
           [MiniEventType.CLEAR_BONUS]: 150,
+          [MiniEventType.COMBO_SHIELD]: 0,
+          [MiniEventType.PIECE_BLESSING]: 0,
         },
+        comboShieldActive: false,
       };
 
       const deserialized = deserializeMiniEventState(serialized);
@@ -119,12 +139,17 @@ describe('Feature: endless-mode-rebalance - localStorage Serialization', () => {
           [MiniEventType.FLUX_SURGE]: 7,
           [MiniEventType.SCORE_RUSH]: 9,
           [MiniEventType.CLEAR_BONUS]: 1,
+          [MiniEventType.COMBO_SHIELD]: 0,
+          [MiniEventType.PIECE_BLESSING]: 0,
         },
         lastActivation: {
           [MiniEventType.FLUX_SURGE]: 0,
           [MiniEventType.SCORE_RUSH]: 0,
           [MiniEventType.CLEAR_BONUS]: 0,
+          [MiniEventType.COMBO_SHIELD]: 0,
+          [MiniEventType.PIECE_BLESSING]: 0,
         },
+        comboShieldActive: false,
       };
 
       const deserialized = deserializeMiniEventState(serialized);
@@ -141,12 +166,17 @@ describe('Feature: endless-mode-rebalance - localStorage Serialization', () => {
           [MiniEventType.FLUX_SURGE]: 0,
           [MiniEventType.SCORE_RUSH]: 0,
           [MiniEventType.CLEAR_BONUS]: 0,
+          [MiniEventType.COMBO_SHIELD]: 0,
+          [MiniEventType.PIECE_BLESSING]: 0,
         },
         lastActivation: {
           [MiniEventType.FLUX_SURGE]: 100,
           [MiniEventType.SCORE_RUSH]: 200,
           [MiniEventType.CLEAR_BONUS]: 300,
+          [MiniEventType.COMBO_SHIELD]: 0,
+          [MiniEventType.PIECE_BLESSING]: 0,
         },
+        comboShieldActive: false,
       };
 
       const deserialized = deserializeMiniEventState(serialized);
@@ -179,12 +209,17 @@ describe('Feature: endless-mode-rebalance - localStorage Serialization', () => {
             [MiniEventType.FLUX_SURGE]: 5,
             [MiniEventType.SCORE_RUSH]: 0,
             [MiniEventType.CLEAR_BONUS]: 0,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
           lastActivation: {
             [MiniEventType.FLUX_SURGE]: 50,
             [MiniEventType.SCORE_RUSH]: 0,
             [MiniEventType.CLEAR_BONUS]: 0,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
+          comboShieldActive: false,
         },
         totalMovesPlayed: 75,
         score: 5000,
@@ -337,12 +372,17 @@ describe('Feature: endless-mode-rebalance - localStorage Serialization', () => {
             [MiniEventType.FLUX_SURGE]: 7,
             [MiniEventType.SCORE_RUSH]: 0,
             [MiniEventType.CLEAR_BONUS]: 1,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
           lastActivation: {
             [MiniEventType.FLUX_SURGE]: 50,
             [MiniEventType.SCORE_RUSH]: 0,
             [MiniEventType.CLEAR_BONUS]: 150,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
+          comboShieldActive: false,
         },
         totalMovesPlayed: 175,
         score: 15000,
@@ -372,12 +412,17 @@ describe('Feature: endless-mode-rebalance - localStorage Serialization', () => {
             [MiniEventType.FLUX_SURGE]: 0,
             [MiniEventType.SCORE_RUSH]: 10,
             [MiniEventType.CLEAR_BONUS]: 0,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
           lastActivation: {
             [MiniEventType.FLUX_SURGE]: 0,
             [MiniEventType.SCORE_RUSH]: 100,
             [MiniEventType.CLEAR_BONUS]: 0,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
+          comboShieldActive: false,
         },
         totalMovesPlayed: 125,
         score: 9000,

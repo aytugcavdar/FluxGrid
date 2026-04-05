@@ -11,6 +11,7 @@ export interface DeviceCapabilities {
   memory: number; // GB
   cores: number;
   dpi: number;
+  gpuRenderer: string | null;
   isNative: boolean;
   isAndroid: boolean;
 }
@@ -25,8 +26,74 @@ export interface PerformanceConfig {
 }
 
 /**
+ * Get GPU renderer information from WebGL context
+ * Returns null if WebGL is not available or GPU info cannot be detected
+ */
+function getGPURenderer(): string | null {
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    
+    if (!gl) {
+      return null;
+    }
+    
+    const debugInfo = (gl as WebGLRenderingContext).getExtension('WEBGL_debug_renderer_info');
+    if (!debugInfo) {
+      return null;
+    }
+    
+    const renderer = (gl as WebGLRenderingContext).getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+    return renderer || null;
+  } catch (error) {
+    console.warn('[DeviceCapability] GPU detection failed:', error);
+    return null;
+  }
+}
+
+/**
+ * Classify device tier based on GPU renderer string
+ * Low-end GPUs: Mali-4xx, Adreno 3xx, PowerVR SGX
+ * Mid-range GPUs: Mali-Gxx, Adreno 4xx-5xx
+ * High-end GPUs: Mali-Gxx (7xx+), Adreno 6xx+
+ */
+function classifyGPUTier(gpuRenderer: string | null): DeviceTier | null {
+  if (!gpuRenderer) {
+    return null;
+  }
+  
+  const gpu = gpuRenderer.toLowerCase();
+  
+  // Low-end GPU patterns
+  if (
+    gpu.includes('mali-4') ||
+    gpu.includes('adreno (tm) 3') ||
+    gpu.includes('powervr sgx') ||
+    gpu.includes('adreno 3')
+  ) {
+    return DeviceTier.LOW;
+  }
+  
+  // High-end GPU patterns
+  if (
+    gpu.includes('adreno (tm) 6') ||
+    gpu.includes('adreno 6') ||
+    gpu.includes('adreno (tm) 7') ||
+    gpu.includes('adreno 7') ||
+    gpu.includes('mali-g7') ||
+    gpu.includes('mali-g8') ||
+    gpu.includes('mali-g9')
+  ) {
+    return DeviceTier.HIGH;
+  }
+  
+  // Mid-range by default (Adreno 4xx-5xx, Mali-Gxx)
+  return DeviceTier.MID;
+}
+
+/**
  * Detect device hardware capabilities
- * Uses navigator.deviceMemory and navigator.hardwareConcurrency
+ * Uses GPU renderer, navigator.deviceMemory and navigator.hardwareConcurrency
  */
 export function detectDeviceCapabilities(): DeviceCapabilities {
   // Memory detection with fallback
@@ -38,18 +105,26 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
   // DPI density
   const dpi = window.devicePixelRatio || 1.0;
   
+  // GPU renderer detection
+  const gpuRenderer = getGPURenderer();
+  
   // Platform detection
   const isNative = Capacitor.isNativePlatform();
   const isAndroid = Capacitor.getPlatform() === 'android';
   
-  // Tier classification
+  // Tier classification based on GPU, memory, and cores
   let tier: DeviceTier;
-  if (memory < 4 || cores <= 4) {
+  
+  // Start with GPU-based classification if available
+  const gpuTier = classifyGPUTier(gpuRenderer);
+  
+  // Combine GPU, memory, and cores for final tier
+  if (gpuTier === DeviceTier.LOW || memory < 4 || cores <= 4) {
     tier = DeviceTier.LOW;
-  } else if (memory >= 4 && memory < 6) {
-    tier = DeviceTier.MID;
-  } else {
+  } else if (gpuTier === DeviceTier.HIGH && memory >= 6 && cores > 4) {
     tier = DeviceTier.HIGH;
+  } else {
+    tier = DeviceTier.MID;
   }
   
   console.log('[DeviceCapability] Detected:', {
@@ -57,6 +132,7 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
     memory: `${memory}GB`,
     cores,
     dpi,
+    gpuRenderer,
     isNative,
     isAndroid
   });
@@ -66,6 +142,7 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
     memory,
     cores,
     dpi,
+    gpuRenderer,
     isNative,
     isAndroid
   };

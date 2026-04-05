@@ -7,7 +7,7 @@
 
 import { GameMode } from '@shared/types';
 import type { GameStats } from '@shared/types';
-import type { GridState, Piece, MiniEventState } from '@features/game/types';
+import type { GridState, Piece, MiniEventState, ProgressionState } from '@features/game/types';
 import type { PassiveAbilityType } from '@features/abilities/types';
 
 // ============================================================================
@@ -101,6 +101,9 @@ export interface GameState {
   eventMovesRemaining: number;
   miniEventState: MiniEventState;
   totalMovesPlayed: number;
+  
+  // Progression system state
+  progressionState: ProgressionState;
   
   // Metadata
   lastSaved: number;

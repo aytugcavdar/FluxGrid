@@ -4,8 +4,10 @@ import { useSettingsStore } from '../shared/store/settingsStore';
 import { useThemeStore, ThemeType } from '../shared/store/themeStore';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useTutorialStore } from '../shared/store/tutorialStore';
+import { usePerformanceStore } from '../features/game/store/performanceStore';
 import { GameMode } from '@shared/types';
 import { ToggleSwitch, SectionHeader } from '../shared/components';
+import { isAndroid } from '../utils/platform';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -32,8 +34,11 @@ export const SettingsScreen: React.FC = () => {
   const { currentTheme, setTheme, getThemeColors } = useThemeStore();
   const { initGame } = useGameStore();
   const { reset: resetTutorial } = useTutorialStore();
+  const { debugMode, setDebugMode, exportMetrics, metrics } = usePerformanceStore();
   const colors = getThemeColors();
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'success' | 'error'>('idle');
+  const [fpsLimit, setFpsLimit] = useState<30 | 60 | 'auto'>('auto');
+  const androidPlatform = isAndroid();
   
   // PWA Install state
   const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
@@ -45,6 +50,51 @@ export const SettingsScreen: React.FC = () => {
   const handleLanguageChange = (lang: 'tr' | 'en') => {
     setLanguage(lang);
     i18n.changeLanguage(lang);
+  };
+
+  // Load FPS limit from localStorage on mount
+  useEffect(() => {
+    const savedFPS = localStorage.getItem('fps-limit');
+    if (savedFPS === '30' || savedFPS === '60') {
+      setFpsLimit(parseInt(savedFPS) as 30 | 60);
+    } else {
+      setFpsLimit('auto');
+    }
+  }, []);
+
+  // Handle FPS limit change
+  const handleFpsLimitChange = (fps: 30 | 60 | 'auto') => {
+    setFpsLimit(fps);
+    localStorage.setItem('fps-limit', fps.toString());
+    // Note: The actual FPS change will be handled by useFPSLimiter hook in Grid component
+  };
+
+  // Handle performance metrics export
+  const handleExportMetrics = async () => {
+    try {
+      const metricsData = exportMetrics();
+      
+      // Try native share API first
+      if (navigator.share) {
+        const blob = new Blob([metricsData], { type: 'application/json' });
+        const file = new File([blob], `fluxgrid-metrics-${Date.now()}.json`, { type: 'application/json' });
+        await navigator.share({
+          title: 'FluxGrid Performance Metrics',
+          files: [file],
+        });
+      } else {
+        // Fallback to download
+        const blob = new Blob([metricsData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `fluxgrid-metrics-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('Metrics export failed:', error);
+    }
   };
 
   // PWA Install setup
@@ -424,6 +474,178 @@ export const SettingsScreen: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* PERFORMANS (Android Only) */}
+          {androidPlatform && (
+            <div className="mb-8">
+              <SectionHeader title="PERFORMANS" />
+              <p className="text-xs mb-4" style={{ color: colors.textTertiary }}>
+                FPS limiti batarya ömrünü uzatır
+              </p>
+              
+              <div className="space-y-3">
+                {/* FPS Limit Selection */}
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => handleFpsLimitChange(30)}
+                    className="p-4 rounded-xl text-center transition-all"
+                    style={{
+                      background: fpsLimit === 30 
+                        ? 'rgba(59,130,246,0.1)' 
+                        : colors.cardBackgroundTransparent,
+                      border: fpsLimit === 30 
+                        ? '2px solid #3b82f6' 
+                        : `2px solid ${colors.cardBorderTransparent}`,
+                    }}
+                    aria-label="30 FPS seç"
+                    aria-pressed={fpsLimit === 30}
+                  >
+                    <p className="text-lg font-bold mb-1" style={{ color: colors.textPrimary }}>30</p>
+                    <p className="text-xs" style={{ color: colors.textTertiary }}>FPS</p>
+                  </button>
+                  
+                  <button
+                    onClick={() => handleFpsLimitChange(60)}
+                    className="p-4 rounded-xl text-center transition-all"
+                    style={{
+                      background: fpsLimit === 60 
+                        ? 'rgba(59,130,246,0.1)' 
+                        : colors.cardBackgroundTransparent,
+                      border: fpsLimit === 60 
+                        ? '2px solid #3b82f6' 
+                        : `2px solid ${colors.cardBorderTransparent}`,
+                    }}
+                    aria-label="60 FPS seç"
+                    aria-pressed={fpsLimit === 60}
+                  >
+                    <p className="text-lg font-bold mb-1" style={{ color: colors.textPrimary }}>60</p>
+                    <p className="text-xs" style={{ color: colors.textTertiary }}>FPS</p>
+                  </button>
+                  
+                  <button
+                    onClick={() => handleFpsLimitChange('auto')}
+                    className="p-4 rounded-xl text-center transition-all"
+                    style={{
+                      background: fpsLimit === 'auto' 
+                        ? 'rgba(59,130,246,0.1)' 
+                        : colors.cardBackgroundTransparent,
+                      border: fpsLimit === 'auto' 
+                        ? '2px solid #3b82f6' 
+                        : `2px solid ${colors.cardBorderTransparent}`,
+                    }}
+                    aria-label="Otomatik FPS seç"
+                    aria-pressed={fpsLimit === 'auto'}
+                  >
+                    <p className="text-lg font-bold mb-1" style={{ color: colors.textPrimary }}>Auto</p>
+                    <p className="text-xs" style={{ color: colors.textTertiary }}>Otomatik</p>
+                  </button>
+                </div>
+
+                {/* Current FPS Display */}
+                <div
+                  className="p-4 rounded-xl"
+                  style={{
+                    background: colors.cardBackgroundTransparent,
+                    border: `2px solid ${colors.cardBorderTransparent}`,
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
+                        Mevcut FPS
+                      </p>
+                      <p className="text-xs" style={{ color: colors.textTertiary }}>
+                        Gerçek zamanlı değer
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold" style={{ color: '#3b82f6' }}>
+                        {Math.round(metrics.currentFPS)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* DEBUG MODU (Android Only) */}
+          {androidPlatform && (
+            <div className="mb-8">
+              <SectionHeader title="DEBUG MODU" />
+              
+              <div className="space-y-3">
+                {/* Debug Mode Toggle */}
+                <ToggleSwitch
+                  label="Debug Modu"
+                  description="Performans metriklerini göster"
+                  value={debugMode}
+                  onChange={setDebugMode}
+                />
+
+                {/* FPS Counter Display (when debug mode active) */}
+                {debugMode && (
+                  <div
+                    className="p-4 rounded-xl"
+                    style={{
+                      background: 'rgba(168,85,247,0.1)',
+                      border: '2px solid rgba(168,85,247,0.3)',
+                    }}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>Ortalama FPS</p>
+                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                          {Math.round(metrics.averageFPS)}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>Min FPS</p>
+                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                          {Math.round(metrics.minFPS)}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>Max FPS</p>
+                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                          {Math.round(metrics.maxFPS)}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>Batarya Tasarrufu</p>
+                        <p className="text-sm font-bold" style={{ color: '#22c55e' }}>
+                          ~{Math.round(metrics.estimatedBatterySavings)}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Export Metrics Button */}
+                <button
+                  onClick={handleExportMetrics}
+                  className="w-full p-5 rounded-2xl transition-all"
+                  style={{
+                    background: 'rgba(168,85,247,0.1)',
+                    border: '2px solid rgba(168,85,247,0.3)',
+                  }}
+                  aria-label="Performans metriklerini dışa aktar"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">📊</span>
+                      <div className="text-left">
+                        <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
+                          Metrikleri Dışa Aktar
+                        </p>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>JSON formatında</p>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* TEHLİKE BÖLGESİ Section */}
           <div className="mb-8">

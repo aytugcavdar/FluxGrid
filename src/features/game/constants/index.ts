@@ -1,7 +1,7 @@
 /**
  * Game feature constants
  */
-import type { PieceShape } from '../types';
+import type { PieceShape, Milestone } from '../types';
 
 // Modern Soft Palette
 export const COLORS = [
@@ -43,10 +43,17 @@ export const FLUX_COST = {
   UNDO: 30,
 };
 
-// Tier progression constants (rebalanced)
-export const TIER_THRESHOLDS = [0, 1500, 4000, 9000, 18000, 35000, 60000] as const;
+// Tier progression constants (rebalanced for smoother curve)
+export const TIER_THRESHOLDS = [0, 1000, 3000, 7000, 14000, 25000, 45000] as const;
 export const TIER_SCORE_MULTIPLIERS = [1.0, 1.15, 1.35, 1.6, 2.0, 2.5, 3.0] as const;
 export const TIER_FLUX_MULTIPLIERS = [1.0, 1.1, 1.2, 1.3, 1.5, 1.7, 2.0] as const;
+
+// Rescue mechanism thresholds (tier-based)
+export const RESCUE_DENSITY_THRESHOLDS = {
+  TIER_0_2: 0.75,   // Tier 0-2: rescue at 75% density
+  TIER_3_4: 0.70,   // Tier 3-4: earlier rescue at 70%
+  TIER_5_6: 0.65,   // Tier 5-6: much earlier rescue at 65%
+} as const;
 
 // Event duration constants
 export const EVENT_DURATIONS = {
@@ -56,6 +63,16 @@ export const EVENT_DURATIONS = {
   MIRROR: 10,
   CHAOS: 12,
   VOID: 10,
+} as const;
+
+// Event cooldown (tier-based) - hamle sayısı event bitiminden sonra
+export const EVENT_COOLDOWNS: Record<number, number> = {
+  1: 5,  // tier 1'de 5 hamle cooldown
+  2: 4,
+  3: 3,
+  4: 2,
+  5: 1,
+  6: 0,  // tier 6'da anında yeni event
 } as const;
 
 // Event trigger intervals (for CHAOS and VOID)
@@ -70,21 +87,69 @@ export const EVENT_SCORE_MULTIPLIERS = {
   QUAKE: 1.3,
 } as const;
 
-// Mini-event constants
+// Tier bazlı mini-event intervalleri
 export const MINI_EVENT_INTERVALS = {
-  FLUX_SURGE: 50,
-  SCORE_RUSH: 100,
-  CLEAR_BONUS: 150,
+  // Tier 0-2
+  TIER_0_2: {
+    FLUX_SURGE: 50,
+    SCORE_RUSH: 100,
+    CLEAR_BONUS: 150,
+    COMBO_SHIELD: 200,
+    PIECE_BLESSING: 250,
+  },
+  // Tier 3-4
+  TIER_3_4: {
+    FLUX_SURGE: 40,
+    SCORE_RUSH: 80,
+    CLEAR_BONUS: 120,
+    COMBO_SHIELD: 160,
+    PIECE_BLESSING: 200,
+  },
+  // Tier 5-6
+  TIER_5_6: {
+    FLUX_SURGE: 30,
+    SCORE_RUSH: 60,
+    CLEAR_BONUS: 90,
+    COMBO_SHIELD: 120,
+    PIECE_BLESSING: 150,
+  },
 } as const;
 
+// Mini-event multiplier'lar (değişmedi)
 export const MINI_EVENT_MULTIPLIERS = {
   FLUX_SURGE: 2.0,
   SCORE_RUSH: 1.5,
   CLEAR_BONUS: 3.0,
 } as const;
 
+// Mini-event süreleri
+export const MINI_EVENT_DURATIONS = {
+  FLUX_SURGE: 10,
+  SCORE_RUSH: 10,
+  CLEAR_BONUS: 1,      // Single-use
+  COMBO_SHIELD: 1,     // Single-use
+  PIECE_BLESSING: 5,   // 5 hamle
+} as const;
+
 // ICE_STORM spawn count
 export const ICE_STORM_SPAWN_COUNT = 2;
+
+// Milestone tanımları
+export const MILESTONES: Milestone[] = [
+  { id: 'milestone_10k', threshold: 10000, label: 'İlk 10K!', reached: false },
+  { id: 'milestone_25k', threshold: 25000, label: 'Çeyrek Yol!', reached: false },
+  { id: 'milestone_50k', threshold: 50000, label: 'Yarı Yol!', reached: false },
+  { id: 'milestone_100k', threshold: 100000, label: '100K Efsane!', reached: false },
+];
+
+// Streak multiplier tablosu
+export const STREAK_MULTIPLIERS = {
+  0: 1.0,  // No streak
+  1: 1.0,  // First clear
+  2: 2.0,  // 2x
+  3: 3.0,  // 3x
+  4: 4.0,  // 4x (max)
+} as const;
 
 export const ZEN_PALETTES = [
   ['#f59e0b', '#3b82f6', '#a78bfa', '#10b981', '#f472b6', '#6366f1'],  // default warm

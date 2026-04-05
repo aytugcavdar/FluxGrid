@@ -12,6 +12,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { StreakBadge } from '@shared/components/StreakBadge';
 import { StreakShieldModal } from '../../../app/components/StreakShieldModal';
 import { AdManager } from '../../../utils/adManager';
+import { MiniEventIndicators } from './MiniEventIndicators';
+import { TierProgressBar } from './TierProgressBar';
+import { MilestonePopup } from './MilestonePopup';
 
 const EVENT_CONFIG: Record<'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID', { label: string; color: string; bg: string }> = {
     ICE_STORM: { label: 'Buz Fırtınası', color: '#185FA5', bg: 'rgba(56,138,221,0.12)' },
@@ -28,12 +31,14 @@ export const HUD: React.FC = () => {
         gameMode, timeLeft, setAppState,
         zenSessionTime, zenBlocksPlaced, zenPaletteIndex,
         activeEvent, eventMovesRemaining, timedBoostMovesLeft,
-        bonusRerolls, bonusShatter, bonusBomb
+        bonusRerolls, bonusShatter, bonusBomb,
+        miniEventState, progressionState, difficultyTier
     } = useGameStore();
     const { currentStreak, todayPlayed, streakShields, addStreakShield } = useStreakStore();
     const colors = useThemeStore(state => state.getThemeColors());
     const [muted, setMuted] = useState(getMuted);
     const [showShieldModal, setShowShieldModal] = useState(false);
+    const [currentMilestone, setCurrentMilestone] = useState<any>(null);
 
     const handleMute = () => {
         const newVal = toggleMute();
@@ -289,6 +294,23 @@ export const HUD: React.FC = () => {
                     </button>
                 </div>
 
+                {/* Mini-Event Indicators - Mobile */}
+                {gameMode === GameMode.ENDLESS && miniEventState && (
+                    <div style={{ padding: '0 6px' }}>
+                        <MiniEventIndicators
+                            activeEvents={miniEventState.activeEvents}
+                            moveCounters={miniEventState.moveCounters}
+                        />
+                    </div>
+                )}
+
+                {/* Tier Progress Bar - Mobile */}
+                {gameMode === GameMode.ENDLESS && progressionState && (
+                    <div style={{ padding: '0 6px' }}>
+                        <TierProgressBar tier={difficultyTier} score={score} />
+                    </div>
+                )}
+
                 {/* Event Banner - Between ROW 1 and ROW 2 - Compact */}
                 {activeEvent && (
                     <div style={{
@@ -511,6 +533,23 @@ export const HUD: React.FC = () => {
                     </div>
                 </div>
 
+                {/* Mini-Event Indicators - Desktop */}
+                {gameMode === GameMode.ENDLESS && miniEventState && (
+                    <div className="flex-shrink-0">
+                        <MiniEventIndicators
+                            activeEvents={miniEventState.activeEvents}
+                            moveCounters={miniEventState.moveCounters}
+                        />
+                    </div>
+                )}
+
+                {/* Tier Progress Bar - Desktop */}
+                {gameMode === GameMode.ENDLESS && progressionState && (
+                    <div className="flex-shrink-0">
+                        <TierProgressBar tier={difficultyTier} score={score} />
+                    </div>
+                )}
+
                 {/* Event Duration Display - Desktop */}
                 {activeEvent && (
                     <div className="flex-shrink-0 px-3 py-2 rounded-lg border flex flex-col justify-center gap-1"
@@ -597,6 +636,12 @@ export const HUD: React.FC = () => {
                 onWatchAd={handleWatchAd}
                 onClose={() => setShowShieldModal(false)}
                 shieldsAvailable={streakShields}
+            />
+
+            {/* Milestone Popup */}
+            <MilestonePopup
+                milestone={currentMilestone}
+                onClose={() => setCurrentMilestone(null)}
             />
         </>
     );

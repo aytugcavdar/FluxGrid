@@ -134,55 +134,9 @@ export function checkTierEvent(
       },
     };
     
-    // QUAKE için anında uygula - temiz gravity-left algoritması
-    if (eventName === 'QUAKE') {
-      const quakeGrid = get().grid.map(row => row.map(cell => ({ ...cell })));
-      
-      for (let r = 0; r < GRID_SIZE; r++) {
-        // 1. ICE blokları orijinal pozisyonlarıyla kaydet
-        const iceMap = new Map<number, any>();
-        for (let c = 0; c < GRID_SIZE; c++) {
-          const cell = quakeGrid[r][c];
-          if (cell.filled && (cell.type === 'ICE' || cell.type === 'STONE')) {
-            iceMap.set(c, { ...cell });
-          }
-        }
-        
-        // 2. Normal (hareketli) blokları topla
-        const normalBlocks: any[] = [];
-        for (let c = 0; c < GRID_SIZE; c++) {
-          const cell = quakeGrid[r][c];
-          if (cell.filled && cell.type !== 'ICE' && cell.type !== 'STONE') {
-            normalBlocks.push({ ...cell });
-          }
-        }
-        
-        // 3. Satırı temizle
-        for (let c = 0; c < GRID_SIZE; c++) {
-          quakeGrid[r][c] = { filled: false, color: '' };
-        }
-        
-        // 4. ICE blokları orijinal pozisyonlarına geri koy
-        iceMap.forEach((cell, col) => {
-          quakeGrid[r][col] = cell;
-        });
-        
-        // 5. Normal blokları soldan başlayarak, ICE pozisyonlarını atlayarak doldur
-        let writeCol = 0;
-        for (const block of normalBlocks) {
-          // ICE olan sütunları atla
-          while (writeCol < GRID_SIZE && quakeGrid[r][writeCol].filled) {
-            writeCol++;
-          }
-          if (writeCol >= GRID_SIZE) break;
-          
-          quakeGrid[r][writeCol] = block;
-          writeCol++;
-        }
-      }
-      
-      result.grid = quakeGrid;
-    }
+    // BUG FIX: QUAKE artık checkTierEvent'te grid döndürmüyor
+    // tickActiveEvent ilk hamleden itibaren uygulayacak
+    // Bu double-shift bug'ını düzeltiyor
     
     return result;
   }
@@ -348,31 +302,49 @@ export function tickActiveEvent(
   let updates: Partial<GameStore> = {};
   
   if (activeEvent === 'GRAVITY_RUSH') {
-    // Her 5 hamlede bir gravity yönünü değiştir
-    const movesUsed = 10 - eventMovesRemaining; // 10 = GRAVITY_RUSH süresi
+    // BUG FIX: GRAVITY_RUSH her hamlede hafif etki + her 5 hamlede tam etki
+    const movesUsed = EVENT_DURATIONS.GRAVITY_RUSH - eventMovesRemaining;
+    
+    // Her hamlede: rastgele 1 sütunda gravity flip (tek sütun)
+    const flippedGrid = grid.map(row => row.map(c => ({ ...c })));
+    const randomCol = Math.floor(Math.random() * GRID_SIZE);
+    
+    // Tek sütunu flip et
+    const stack: any[] = [];
+    for (let y = 0; y < GRID_SIZE; y++) {
+      if (flippedGrid[y][randomCol].filled) stack.push({ ...flippedGrid[y][randomCol] });
+    }
+    
+    for (let y = 0; y < GRID_SIZE; y++) {
+      flippedGrid[y][randomCol] = { filled: false, color: '' };
+    }
+    
+    // Blocks collect at TOP (reverse gravity)
+    stack.forEach((cell, i) => {
+      flippedGrid[i][randomCol] = cell;
+    });
+    
+    // Her 5 hamlede: tüm grid flip (mevcut davranış)
     if (movesUsed % 5 === 0 && movesUsed > 0) {
-      // Use the passed grid parameter (with placed piece) instead of get().grid (old state)
-      const flippedGrid = grid.map(row => row.map(c => ({ ...c })));
-      
-      // Sütun bazlı ters gravity (blocks fall from bottom upward)
       for (let x = 0; x < GRID_SIZE; x++) {
-        const stack: any[] = [];
+        if (x === randomCol) continue; // Zaten flip ettik
+        
+        const colStack: any[] = [];
         for (let y = 0; y < GRID_SIZE; y++) {
-          if (flippedGrid[y][x].filled) stack.push({ ...flippedGrid[y][x] });
+          if (flippedGrid[y][x].filled) colStack.push({ ...flippedGrid[y][x] });
         }
         
         for (let y = 0; y < GRID_SIZE; y++) {
           flippedGrid[y][x] = { filled: false, color: '' };
         }
         
-        // Blocks collect at TOP instead of bottom (reverse gravity effect)
-        stack.forEach((cell, i) => {
+        colStack.forEach((cell, i) => {
           flippedGrid[i][x] = cell;
         });
       }
-      
-      updates.grid = flippedGrid;
     }
+    
+    updates.grid = flippedGrid;
   }
   
   if (activeEvent === 'QUAKE') {
@@ -501,6 +473,28 @@ export function tickActiveEvent(
       // processGrid çalıştır — satır temizleme olabilir
       const { grid: processedMirrorGrid } = processGrid(mirrorGrid);
       updates.grid = processedMirrorGrid;
+    } else {
+      // BUG FIX: Mirror yerleşim bulamazsa ICE_STORM fallback
+      // En azından 1 ICE bloğu spawn et
+      const emptyPositions: {x: number; y: number}[] = [];
+      for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+          if (!grid[y][x].filled) emptyPositions.push({ x, y });
+        }
+      }
+      if (emptyPositions.length > 0) {
+        const mirrorGrid = grid.map((row: any[]) => row.map((c: any) => ({ ...c })));
+        const randomIndex = Math.floor(Math.random() * emptyPositions.length);
+        const pos = emptyPositions[randomIndex];
+        mirrorGrid[pos.y][pos.x] = {
+          filled: true,
+          color: '#7dd3fc',
+          id: uuidv4(),
+          type: 'ICE' as any,
+          health: 2,
+        };
+        updates.grid = mirrorGrid;
+      }
     }
   }
   
@@ -608,6 +602,27 @@ export function tickActiveEvent(
           
           const { grid: processedMirrorGrid } = processGrid(mirrorGrid);
           updates.grid = processedMirrorGrid;
+        } else {
+          // BUG FIX: Mirror yerleşim bulamazsa ICE_STORM fallback (CHAOS içinde)
+          const emptyPositions: {x: number; y: number}[] = [];
+          for (let y = 0; y < GRID_SIZE; y++) {
+            for (let x = 0; x < GRID_SIZE; x++) {
+              if (!grid[y][x].filled) emptyPositions.push({ x, y });
+            }
+          }
+          if (emptyPositions.length > 0) {
+            const mirrorGrid = grid.map((row: any[]) => row.map((c: any) => ({ ...c })));
+            const randomIndex = Math.floor(Math.random() * emptyPositions.length);
+            const pos = emptyPositions[randomIndex];
+            mirrorGrid[pos.y][pos.x] = {
+              filled: true,
+              color: '#7dd3fc',
+              id: uuidv4(),
+              type: 'ICE' as any,
+              health: 2,
+            };
+            updates.grid = mirrorGrid;
+          }
         }
       }
     }

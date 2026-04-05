@@ -70,6 +70,8 @@ export enum MiniEventType {
   FLUX_SURGE = 'FLUX_SURGE',
   SCORE_RUSH = 'SCORE_RUSH',
   CLEAR_BONUS = 'CLEAR_BONUS',
+  COMBO_SHIELD = 'COMBO_SHIELD',     // YENİ
+  PIECE_BLESSING = 'PIECE_BLESSING', // YENİ
 }
 
 // Mini-event state
@@ -79,12 +81,17 @@ export interface MiniEventState {
     [MiniEventType.FLUX_SURGE]: number;
     [MiniEventType.SCORE_RUSH]: number;
     [MiniEventType.CLEAR_BONUS]: number;
+    [MiniEventType.COMBO_SHIELD]: number;     // YENİ
+    [MiniEventType.PIECE_BLESSING]: number;   // YENİ
   };
   lastActivation: {
     [MiniEventType.FLUX_SURGE]: number;
     [MiniEventType.SCORE_RUSH]: number;
     [MiniEventType.CLEAR_BONUS]: number;
+    [MiniEventType.COMBO_SHIELD]: number;     // YENİ
+    [MiniEventType.PIECE_BLESSING]: number;   // YENİ
   };
+  comboShieldActive: boolean;  // YENİ - COMBO_SHIELD kullanılabilir mi?
 }
 
 // Tier configuration
@@ -107,4 +114,19 @@ export interface MultiplierBreakdown {
   event: number;
   miniEvents: { type: MiniEventType; multiplier: number }[];
   total: number;
+}
+
+// Milestone tanımı
+export interface Milestone {
+  id: string;
+  threshold: number;
+  label: string;
+  reached: boolean;
+}
+
+// Progression state
+export interface ProgressionState {
+  currentStreak: number;        // Ardışık satır temizleme sayısı
+  milestones: Milestone[];      // Milestone listesi
+  lastMilestoneShown: string | null;  // Son gösterilen milestone
 }

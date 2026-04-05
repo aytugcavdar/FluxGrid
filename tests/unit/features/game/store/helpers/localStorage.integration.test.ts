@@ -21,12 +21,17 @@ describe('Feature: endless-mode-rebalance - localStorage Integration', () => {
             [MiniEventType.FLUX_SURGE]: 5,
             [MiniEventType.SCORE_RUSH]: 0,
             [MiniEventType.CLEAR_BONUS]: 0,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
           lastActivation: {
             [MiniEventType.FLUX_SURGE]: 50,
             [MiniEventType.SCORE_RUSH]: 0,
             [MiniEventType.CLEAR_BONUS]: 0,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
+          comboShieldActive: false,
         },
         totalMovesPlayed: 75,
         saveVersion: 2,
@@ -72,7 +77,7 @@ describe('Feature: endless-mode-rebalance - localStorage Integration', () => {
 
       // Verify migration worked
       expect(deserialized.score).toBe(8000);
-      expect(deserialized.difficultyTier).toBe(2); // Recalculated based on score (8000 is in tier 2: 4000-9000)
+      expect(deserialized.difficultyTier).toBe(3); // Recalculated based on score (8000 is in tier 3: 4000-9000)
       expect(deserialized.eventMovesRemaining).toBe(10); // Converted from 999 to standardized duration
       expect(deserialized.totalMovesPlayed).toBe(0); // Initialized with default
       expect(deserialized.miniEventState).toBeDefined();
@@ -93,12 +98,17 @@ describe('Feature: endless-mode-rebalance - localStorage Integration', () => {
             [MiniEventType.FLUX_SURGE]: 0,
             [MiniEventType.SCORE_RUSH]: 8,
             [MiniEventType.CLEAR_BONUS]: 1,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
           lastActivation: {
             [MiniEventType.FLUX_SURGE]: 0,
             [MiniEventType.SCORE_RUSH]: 100,
             [MiniEventType.CLEAR_BONUS]: 150,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
+          comboShieldActive: false,
         },
         totalMovesPlayed: 175,
         saveVersion: 2,
@@ -144,12 +154,17 @@ describe('Feature: endless-mode-rebalance - localStorage Integration', () => {
             [MiniEventType.FLUX_SURGE]: 0,
             [MiniEventType.SCORE_RUSH]: 0,
             [MiniEventType.CLEAR_BONUS]: 0,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
           lastActivation: {
             [MiniEventType.FLUX_SURGE]: 0,
             [MiniEventType.SCORE_RUSH]: 0,
             [MiniEventType.CLEAR_BONUS]: 0,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
+          comboShieldActive: false,
         },
         totalMovesPlayed: 0,
         saveVersion: 2,
@@ -179,12 +194,17 @@ describe('Feature: endless-mode-rebalance - localStorage Integration', () => {
             [MiniEventType.FLUX_SURGE]: 10,
             [MiniEventType.SCORE_RUSH]: 10,
             [MiniEventType.CLEAR_BONUS]: 1,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
           lastActivation: {
             [MiniEventType.FLUX_SURGE]: 150,
             [MiniEventType.SCORE_RUSH]: 200,
             [MiniEventType.CLEAR_BONUS]: 300,
+            [MiniEventType.COMBO_SHIELD]: 0,
+            [MiniEventType.PIECE_BLESSING]: 0,
           },
+          comboShieldActive: false,
         },
         totalMovesPlayed: 310,
         saveVersion: 2,

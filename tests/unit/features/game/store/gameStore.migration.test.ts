@@ -93,7 +93,7 @@ describe('Feature: endless-mode-rebalance - GameStore Migration Integration', ()
 
       const state = useGameStore.getState();
       expect(state.score).toBe(8500); // Score preserved
-      expect(state.difficultyTier).toBe(2); // Tier recalculated
+      expect(state.difficultyTier).toBe(3); // Tier recalculated
     });
 
     it('should handle save data already at version 2', () => {

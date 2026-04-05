@@ -4,9 +4,10 @@
  */
 
 import { createMiniEventState } from './miniEventSystem';
+import { createProgressionState } from './progressionSystem';
 import { migrateTierData } from './tierSystem';
 import { EVENT_DURATIONS } from '../../constants';
-import { MiniEventState } from '../../types';
+import { MiniEventState, ProgressionState } from '../../types';
 
 /**
  * Save data interface for migration
@@ -21,6 +22,7 @@ export interface SaveData {
   bonusRerolls?: number;
   bonusShatter?: number;
   bonusBomb?: number;
+  progressionState?: ProgressionState;
   saveVersion?: number;
   [key: string]: any; // Allow other fields to pass through
 }
@@ -35,21 +37,25 @@ export interface SaveData {
  * - Initialize totalMovesPlayed if missing
  * - Initialize bonus skill counters if missing (bonusRerolls, bonusShatter, bonusBomb)
  * 
+ * Version 2 -> 3 changes:
+ * - Initialize progressionState if missing
+ * - Ensure COMBO_SHIELD and PIECE_BLESSING are in miniEventState
+ * 
  * @param saveData - The save data to migrate
- * @returns Migrated save data with saveVersion = 2
+ * @returns Migrated save data with saveVersion = 3
  */
 export function migrateSaveData(saveData: SaveData): SaveData {
   const currentVersion = saveData.saveVersion ?? 1;
   
   // No migration needed if already at current version
-  if (currentVersion >= 2) {
+  if (currentVersion >= 3) {
     return saveData;
   }
   
+  let migratedData = { ...saveData };
+  
   // Version 1 -> 2 migration
   if (currentVersion < 2) {
-    const migratedData = { ...saveData };
-    
     // Recalculate tier based on current score and new thresholds
     if (migratedData.score !== undefined) {
       const oldTier = migratedData.difficultyTier ?? 0;
@@ -85,11 +91,28 @@ export function migrateSaveData(saveData: SaveData): SaveData {
       migratedData.bonusBomb = 0;
     }
     
-    // Set saveVersion to 2
     migratedData.saveVersion = 2;
-    
-    return migratedData;
   }
   
-  return saveData;
+  // Version 2 -> 3 migration
+  if (currentVersion < 3) {
+    // Initialize progressionState if missing
+    if (!migratedData.progressionState) {
+      migratedData.progressionState = createProgressionState();
+    }
+    
+    // Ensure COMBO_SHIELD and PIECE_BLESSING are in miniEventState
+    if (migratedData.miniEventState) {
+      const state = migratedData.miniEventState;
+      
+      // Add comboShieldActive if missing
+      if (state.comboShieldActive === undefined) {
+        state.comboShieldActive = false;
+      }
+    }
+    
+    migratedData.saveVersion = 3;
+  }
+  
+  return migratedData;
 }
