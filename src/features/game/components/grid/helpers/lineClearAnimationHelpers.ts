@@ -74,6 +74,8 @@ export function updateLineClearAnimation(
       anim.progress = elapsed / 150;
       
       // Trigger particle explosions at the start
+      // Note: Enhanced particle emission is now handled by AnimationCoordinator
+      // during the 'particles' phase in Grid.tsx render loop
       if (anim.progress < 0.1 && !isLowEndDevice) {
         const particleCount = isLowEndDevice ? 3 : 6;
         
@@ -83,7 +85,7 @@ export function updateLineClearAnimation(
           if (cell) {
             const worldPos = getVectorPos(x, y);
             
-            // Trigger visual effect explosion
+            // Trigger visual effect explosion (legacy system)
             useVisualEffectStore.getState().addEffect({
               type: 'explosion',
               duration: 180,

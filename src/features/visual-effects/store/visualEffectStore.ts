@@ -10,6 +10,13 @@ export interface VisualEffect {
   props: Record<string, any>;
 }
 
+export interface ScorePopup {
+  id: number;
+  value: number;
+  combo: number;
+  timestamp: number;
+}
+
 export interface VisualEffectStore {
   // State
   activeEffects: VisualEffect[];
@@ -18,12 +25,24 @@ export interface VisualEffectStore {
   performanceMode: 'high' | 'medium' | 'low';
   currentFPS: number;
   
+  // New state for game juice improvements
+  activeScorePopups: ScorePopup[];
+  maxScorePopups: number;
+  comboMilestoneActive: boolean;
+  perfectClearActive: boolean;
+  
   // Actions
   addEffect: (effect: Omit<VisualEffect, 'id' | 'timestamp'>) => void;
   removeEffect: (id: string) => void;
   clearCompletedEffects: () => void;
   updatePerformanceMode: (fps: number) => void;
   setReducedMotion: (enabled: boolean) => void;
+  
+  // New actions for game juice improvements
+  addScorePopup: (value: number, combo: number) => void;
+  removeScorePopup: (id: number) => void;
+  setComboMilestoneActive: (active: boolean) => void;
+  setPerfectClearActive: (active: boolean) => void;
 }
 
 // Create performance monitor instance
@@ -59,6 +78,12 @@ export const useVisualEffectStore = create<VisualEffectStore>((set, get) => {
     prefersReducedMotion: initialReducedMotion,
     performanceMode: 'high',
     currentFPS: 60,
+    
+    // New state for game juice improvements
+    activeScorePopups: [],
+    maxScorePopups: 8, // Requirements: 2.8
+    comboMilestoneActive: false,
+    perfectClearActive: false,
     
     // Actions
     addEffect: (effect) => {
@@ -114,6 +139,54 @@ export const useVisualEffectStore = create<VisualEffectStore>((set, get) => {
     
     setReducedMotion: (enabled) => {
       set({ prefersReducedMotion: enabled });
+      
+      // Persist to localStorage
+      // Requirements: 15.7
+      try {
+        localStorage.setItem('flux_reduced_motion', String(enabled));
+      } catch {
+        // Ignore localStorage errors
+      }
+    },
+    
+    // New actions for game juice improvements
+    addScorePopup: (value, combo) => {
+      const { activeScorePopups, maxScorePopups } = get();
+      
+      const newPopup: ScorePopup = {
+        id: Date.now() + Math.random(),
+        value,
+        combo,
+        timestamp: Date.now()
+      };
+      
+      // If at max capacity, remove oldest popup
+      // Requirements: 2.8
+      let updatedPopups = [...activeScorePopups, newPopup];
+      if (updatedPopups.length > maxScorePopups) {
+        updatedPopups = updatedPopups.slice(1);
+      }
+      
+      set({ activeScorePopups: updatedPopups });
+      
+      // Auto-remove after 1000ms
+      setTimeout(() => {
+        get().removeScorePopup(newPopup.id);
+      }, 1000);
+    },
+    
+    removeScorePopup: (id) => {
+      set((state) => ({
+        activeScorePopups: state.activeScorePopups.filter((popup) => popup.id !== id),
+      }));
+    },
+    
+    setComboMilestoneActive: (active) => {
+      set({ comboMilestoneActive: active });
+    },
+    
+    setPerfectClearActive: (active) => {
+      set({ perfectClearActive: active });
     },
   };
 });

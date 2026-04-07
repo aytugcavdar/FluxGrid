@@ -46,7 +46,14 @@ export const checkAndUpdateStreak = (): number => {
 
     // Return current streak from Firebase cache
     // The actual streak calculation happens in Firestore via syncDailyChallenge
-    return getStreak();
+    const currentStreak = getStreak();
+    
+    // Sync streak to widget
+    import('./widgetHelper').then(({ syncStreakToWidget }) => {
+      syncStreakToWidget(currentStreak);
+    });
+    
+    return currentStreak;
   } catch {
     return 0;
   }

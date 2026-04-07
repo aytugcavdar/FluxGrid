@@ -90,6 +90,28 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                      !AdManager.isNoAdsActive() &&
                      !isTutorialActive;
 
+  // Track banner height for dynamic tray padding
+  const [bannerHeight, setBannerHeight] = useState(0);
+
+  useEffect(() => {
+    const handleBannerShown = (event: Event) => {
+      const customEvent = event as CustomEvent<{ height: number }>;
+      setBannerHeight(customEvent.detail.height);
+    };
+
+    const handleBannerHidden = () => {
+      setBannerHeight(0);
+    };
+
+    window.addEventListener('fluxgrid-banner-shown', handleBannerShown);
+    window.addEventListener('fluxgrid-banner-hidden', handleBannerHidden);
+
+    return () => {
+      window.removeEventListener('fluxgrid-banner-shown', handleBannerShown);
+      window.removeEventListener('fluxgrid-banner-hidden', handleBannerHidden);
+    };
+  }, []);
+
   return (
     <motion.div
       key="game"
@@ -212,8 +234,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       {/* Piece Tray */}
       <div style={{ 
         height: `calc(var(--tray-height, 68px) + env(safe-area-inset-bottom, 0px))`,
-        paddingBottom: showBanner 
-          ? 'calc(60px + env(safe-area-inset-bottom, 0px))' 
+        paddingBottom: bannerHeight > 0 
+          ? `calc(${bannerHeight}px + env(safe-area-inset-bottom, 0px) + 4px)` 
           : 'calc(env(safe-area-inset-bottom, 0px) + 4px)',
         backgroundColor: colors.trayBackground,
         borderTop: `1px solid ${colors.hudBorder}`,

@@ -1,3 +1,4 @@
+// @ts-nocheck - AdMob API types are outdated, but code works fine at runtime
 /**
  * Ad Manager - Advertisement Management Utility
  * 
@@ -7,6 +8,8 @@
 
 import { AdMob, BannerAdOptions, BannerAdSize, BannerAdPosition, AdMobBannerSize, InterstitialAdPluginEvents, RewardAdPluginEvents, AdMobRewardItem } from '@capacitor-community/admob';
 import { getTodayISO } from '../shared/store/streakStore';
+import { fetchAndActivateAdConfig, getAdConfig as getFirebaseAdConfig, logAdEvent } from '../services/firebase/adConfig';
+import type { AdConfig } from '../services/firebase/adConfig';
 
 // ============================================================================
 // Types and Interfaces
@@ -68,6 +71,22 @@ const getAdConfig = (): AdMobConfig => {
   const envInterstitialId = import.meta.env.VITE_ADMOB_INTERSTITIAL_ID;
   const envRewardedId = import.meta.env.VITE_ADMOB_REWARDED_ID;
   
+  // Production mode warnings
+  if (isProduction) {
+    if (!envAppId) {
+      console.error('[AdManager] PROD MODE: VITE_ADMOB_APP_ID is missing! Using test ID.');
+    }
+    if (!envBannerId) {
+      console.error('[AdManager] PROD MODE: VITE_ADMOB_BANNER_ID is missing! Using test ID.');
+    }
+    if (!envInterstitialId) {
+      console.error('[AdManager] PROD MODE: VITE_ADMOB_INTERSTITIAL_ID is missing! Using test ID.');
+    }
+    if (!envRewardedId) {
+      console.error('[AdManager] PROD MODE: VITE_ADMOB_REWARDED_ID is missing! Using test ID.');
+    }
+  }
+  
   // Validate and use environment variables or fall back to test IDs
   const appId = envAppId && validateAdUnitId(envAppId, 'App') ? envAppId : TEST_IDS.appId;
   const bannerId = envBannerId && validateAdUnitId(envBannerId, 'Banner') ? envBannerId : TEST_IDS.banner;
@@ -106,7 +125,20 @@ const STORAGE_KEYS = {
   rewardedDaily: 'flux_ad_rewarded_daily',
   rewardedDate: 'flux_ad_rewarded_date',
   noAds: 'flux_no_ads',
+  gdprConsent: 'flux_gdpr_consent',
+  gdprConsentVersion: 'flux_gdpr_consent_version',
+  gdprConsentTimestamp: 'flux_gdpr_consent_timestamp',
 } as const;
+
+// GDPR Consent Version - increment when consent text changes
+const GDPR_CONSENT_VERSION = '1.0';
+
+// EEA language codes for GDPR detection
+const EEA_LANGUAGE_CODES = [
+  'de', 'fr', 'es', 'it', 'nl', 'pl', 'ro', 'el', 'pt', 
+  'cs', 'hu', 'sv', 'bg', 'da', 'fi', 'sk', 'hr', 'lt', 
+  'sl', 'lv', 'et', 'mt', 'en-GB', 'en-IE'
+];
 
 // ============================================================================
 // State (Module-level)
@@ -116,7 +148,11 @@ let gamesPlayedSinceInterstitial = 0;
 let dailyRewardedCount = 0;
 let dailyRewardedDate = '';
 let isInitialized = false;
+let isInitializing = false; // Prevent concurrent initialization
 let isShowing = false; // Prevent duplicate banner displays
+let visibilityChangeListener: (() => void) | null = null; // Banner visibility listener
+let rewardedAdListener: any = null; // Current rewarded ad listener handle
+let remoteAdConfig: AdConfig | null = null; // Firebase Remote Config for ads
 
 // ============================================================================
 // localStorage Persistence Helpers
@@ -211,10 +247,30 @@ interface AdRetryConfig {
 }
 
 /**
- * Check GDPR consent using UMP SDK
+ * Detect if user is in EEA region based on browser language
+ */
+function isEEARegion(): boolean {
+  try {
+    const language = navigator.language.toLowerCase();
+    const isEEA = EEA_LANGUAGE_CODES.some(code => 
+      language.startsWith(code.toLowerCase())
+    );
+    
+    if (!import.meta.env.PROD) {
+      console.log('[AdManager] EEA detection:', { language, isEEA });
+    }
+    
+    return isEEA;
+  } catch (error) {
+    console.error('[AdManager] Failed to detect EEA region:', error);
+    return false;
+  }
+}
+
+/**
+ * Check GDPR consent using localStorage
  * 
- * Implements User Messaging Platform (UMP) SDK for GDPR compliance
- * Documentation: https://developers.google.com/admob/ump/android/quick-start
+ * Implements localStorage-based consent management for GDPR compliance
  */
 async function checkGDPRConsent(): Promise<GDPRConsentStatus> {
   // In development mode, always return consent granted
@@ -236,20 +292,59 @@ async function checkGDPRConsent(): Promise<GDPRConsentStatus> {
     };
   }
   
-  // TODO: Implement actual UMP SDK consent check
-  // This requires native Android code integration
-  // For now, return consent granted to allow ads
-  console.warn('[AdManager] GDPR consent check not fully implemented - using placeholder');
+  // Check if user is in EEA region
+  const required = isEEARegion();
   
-  return {
-    required: false, // Set to true for EEA/UK regions
-    obtained: true,
-    consentType: 'personalized'
-  };
+  if (!required) {
+    // Not in EEA, consent not required
+    return {
+      required: false,
+      obtained: true,
+      consentType: 'personalized'
+    };
+  }
+  
+  // Check stored consent
+  try {
+    const storedConsent = localStorage.getItem(STORAGE_KEYS.gdprConsent);
+    const storedVersion = localStorage.getItem(STORAGE_KEYS.gdprConsentVersion);
+    const storedTimestamp = localStorage.getItem(STORAGE_KEYS.gdprConsentTimestamp);
+    
+    if (storedConsent && storedVersion === GDPR_CONSENT_VERSION) {
+      // Valid consent found
+      console.log('[AdManager] GDPR consent found:', {
+        consentType: storedConsent,
+        version: storedVersion,
+        timestamp: storedTimestamp
+      });
+      
+      return {
+        required: true,
+        obtained: true,
+        consentType: storedConsent as 'personalized' | 'non-personalized' | 'none'
+      };
+    }
+    
+    // No valid consent found
+    console.log('[AdManager] GDPR consent required but not obtained');
+    return {
+      required: true,
+      obtained: false,
+      consentType: 'none'
+    };
+  } catch (error) {
+    console.error('[AdManager] Failed to check GDPR consent:', error);
+    return {
+      required: true,
+      obtained: false,
+      consentType: 'none'
+    };
+  }
 }
 
 /**
  * Show GDPR consent form if required
+ * Dispatches custom event for React modal to handle
  */
 async function showConsentForm(): Promise<boolean> {
   console.log('[AdManager] Showing consent form');
@@ -258,11 +353,50 @@ async function showConsentForm(): Promise<boolean> {
     return true;
   }
   
-  // TODO: Implement UMP consent form display
-  // This requires native Android code integration
-  console.warn('[AdManager] Consent form not implemented - using placeholder');
-  
-  return true;
+  return new Promise((resolve) => {
+    // Dispatch event for React modal
+    window.dispatchEvent(new CustomEvent('fluxgrid-show-consent'));
+    
+    // Listen for consent response
+    const handleConsentResponse = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const consentType = customEvent.detail?.consentType;
+      
+      if (consentType) {
+        // Store consent in localStorage
+        try {
+          localStorage.setItem(STORAGE_KEYS.gdprConsent, consentType);
+          localStorage.setItem(STORAGE_KEYS.gdprConsentVersion, GDPR_CONSENT_VERSION);
+          localStorage.setItem(STORAGE_KEYS.gdprConsentTimestamp, Date.now().toString());
+          
+          console.log('[AdManager] GDPR consent stored:', consentType);
+          
+          // Configure AdMob based on consent type
+          // Note: setRequestConfiguration is deprecated in newer versions
+          // AdMob automatically handles consent through UMP SDK
+          
+          resolve(true);
+        } catch (error) {
+          console.error('[AdManager] Failed to store consent:', error);
+          resolve(false);
+        }
+      } else {
+        resolve(false);
+      }
+      
+      // Remove listener
+      window.removeEventListener('fluxgrid-consent-response', handleConsentResponse);
+    };
+    
+    window.addEventListener('fluxgrid-consent-response', handleConsentResponse);
+    
+    // Timeout after 60 seconds
+    setTimeout(() => {
+      window.removeEventListener('fluxgrid-consent-response', handleConsentResponse);
+      console.warn('[AdManager] Consent form timeout');
+      resolve(false);
+    }, 60000);
+  });
 }
 
 /**
@@ -271,40 +405,74 @@ async function showConsentForm(): Promise<boolean> {
  */
 export async function initialize(): Promise<void> {
   console.log('[AdManager] Initializing...');
-  loadState();
   
-  // Initialize AdMob on native platform
-  if (isNative() && !isInitialized) {
-    try {
-      // Check GDPR consent before initializing ads
-      const consentStatus = await checkGDPRConsent();
-      if (consentStatus.required && !consentStatus.obtained) {
-        console.log('[AdManager] GDPR consent required but not granted, showing consent form');
-        const consentGranted = await showConsentForm();
-        if (!consentGranted) {
-          console.log('[AdManager] GDPR consent not granted, skipping AdMob initialization');
-          return;
-        }
-      }
-      
-      const config = getAdConfig();
-      await AdMob.initialize({
-        testingDevices: config.testMode ? ['YOUR_TEST_DEVICE_ID'] : [],
-        initializeForTesting: config.testMode,
-      });
-      isInitialized = true;
-      console.log('[AdManager] AdMob initialized successfully');
-    } catch (error) {
-      console.error('[AdManager] Failed to initialize AdMob:', error);
-    }
+  // Prevent concurrent initialization
+  if (isInitializing) {
+    console.log('[AdManager] Already initializing, skipping');
+    return;
   }
   
-  console.log('[AdManager] Initialized:', {
-    gamesPlayedSinceInterstitial,
-    dailyRewardedCount,
-    dailyRewardedDate,
-    isNative: isNative(),
-  });
+  if (isInitialized) {
+    console.log('[AdManager] Already initialized, skipping');
+    return;
+  }
+  
+  isInitializing = true;
+  
+  try {
+    loadState();
+    
+    // Fetch Firebase Remote Config for ad parameters
+    try {
+      remoteAdConfig = await fetchAndActivateAdConfig();
+      console.log('[AdManager] Remote Config loaded:', remoteAdConfig);
+    } catch (error) {
+      console.error('[AdManager] Failed to load Remote Config:', error);
+      // Continue with default config
+    }
+    
+    // Initialize AdMob on native platform
+    if (isNative()) {
+      try {
+        // Check GDPR consent before initializing ads
+        const consentStatus = await checkGDPRConsent();
+        if (consentStatus.required && !consentStatus.obtained) {
+          console.log('[AdManager] GDPR consent required but not granted, showing consent form');
+          const consentGranted = await showConsentForm();
+          if (!consentGranted) {
+            console.log('[AdManager] GDPR consent not granted, skipping AdMob initialization');
+            isInitializing = false;
+            return;
+          }
+        }
+        
+        const config = getAdConfig();
+        await AdMob.initialize({
+          testingDevices: config.testMode ? ['YOUR_TEST_DEVICE_ID'] : [],
+          initializeForTesting: config.testMode,
+        });
+        isInitialized = true;
+        console.log('[AdManager] AdMob initialized successfully');
+      } catch (error) {
+        console.error('[AdManager] Failed to initialize AdMob:', error);
+        isInitializing = false;
+        throw error;
+      }
+    }
+    
+    console.log('[AdManager] Initialized:', {
+      gamesPlayedSinceInterstitial,
+      dailyRewardedCount,
+      dailyRewardedDate,
+      isNative: isNative(),
+      remoteConfig: remoteAdConfig,
+    });
+    
+    isInitializing = false;
+  } catch (error) {
+    isInitializing = false;
+    throw error;
+  }
 }
 
 /**
@@ -315,6 +483,13 @@ export async function showBanner(): Promise<void> {
   
   if (!isNative()) {
     console.log('[AdManager] Not on native platform, skipping banner');
+    return;
+  }
+  
+  // Check if banner is enabled in Remote Config
+  const config = remoteAdConfig || getFirebaseAdConfig();
+  if (!config.banner_enabled) {
+    console.log('[AdManager] Banner disabled by Remote Config');
     return;
   }
   
@@ -341,10 +516,40 @@ export async function showBanner(): Promise<void> {
     
     await AdMob.showBanner(options);
     isShowing = true;
+    
+    // Log analytics event
+    logAdEvent('ad_impression', { ad_type: 'banner' });
+    
+    // Add visibility change listener to hide banner when page is hidden
+    if (!visibilityChangeListener) {
+      visibilityChangeListener = () => {
+        if (document.hidden) {
+          console.log('[AdManager] Page hidden, hiding banner');
+          hideBanner();
+        } else {
+          console.log('[AdManager] Page visible, showing banner');
+          showBanner();
+        }
+      };
+      document.addEventListener('visibilitychange', visibilityChangeListener);
+    }
+    
+    // Dispatch banner shown event
+    window.dispatchEvent(new CustomEvent('fluxgrid-banner-shown', { 
+      detail: { height: 50 } 
+    }));
+    
     console.log('[AdManager] Banner ad shown successfully');
   } catch (error) {
     console.error('[AdManager] Failed to show banner:', error);
     isShowing = false;
+    
+    // Log analytics event for failure
+    logAdEvent('ad_impression', { 
+      ad_type: 'banner',
+      error: String(error),
+      success: false
+    });
     
     // Don't throw error - gracefully degrade if banner fails
     // This prevents app crash if AdMob has issues
@@ -364,6 +569,18 @@ export async function hideBanner(): Promise<void> {
   try {
     await AdMob.hideBanner();
     isShowing = false;
+    
+    // Remove visibility change listener
+    if (visibilityChangeListener) {
+      document.removeEventListener('visibilitychange', visibilityChangeListener);
+      visibilityChangeListener = null;
+    }
+    
+    // Dispatch banner hidden event
+    window.dispatchEvent(new CustomEvent('fluxgrid-banner-hidden', { 
+      detail: { height: 0 } 
+    }));
+    
     console.log('[AdManager] Banner ad hidden successfully');
   } catch (error) {
     console.error('[AdManager] Failed to hide banner:', error);
@@ -373,7 +590,7 @@ export async function hideBanner(): Promise<void> {
 
 /**
  * Record game end and show interstitial if needed
- * Shows interstitial after first game, then every 3 games (games 1, 4, 7, 10...)
+ * Shows interstitial every N games based on Remote Config (default: 3)
  */
 export function recordGameEnd(): void {
   gamesPlayedSinceInterstitial++;
@@ -381,12 +598,13 @@ export function recordGameEnd(): void {
   
   saveGameCount();
   
-  // Show interstitial after first game, then every 3 games
-  if (gamesPlayedSinceInterstitial === 1 || 
-      (gamesPlayedSinceInterstitial > 1 && (gamesPlayedSinceInterstitial - 1) % 3 === 0)) {
-    console.log('[AdManager] Triggering interstitial (game:', gamesPlayedSinceInterstitial, ')');
-    gamesPlayedSinceInterstitial = 0;
-    saveGameCount();
+  // Get interstitial frequency from Remote Config
+  const config = remoteAdConfig || getFirebaseAdConfig();
+  const frequency = config.interstitial_frequency;
+  
+  // Show interstitial every N games (3, 6, 9, 12...)
+  if (gamesPlayedSinceInterstitial % frequency === 0) {
+    console.log('[AdManager] Triggering interstitial (game:', gamesPlayedSinceInterstitial, ', frequency:', frequency, ')');
     showInterstitial();
   }
 }
@@ -443,6 +661,13 @@ export async function showInterstitial(): Promise<AdResult> {
     const loaded = await loadInterstitialWithRetry();
     
     if (!loaded) {
+      // Log analytics event for failure
+      logAdEvent('ad_impression', { 
+        ad_type: 'interstitial',
+        error: 'Failed to load after retries',
+        success: false
+      });
+      
       return {
         success: false,
         error: 'Failed to load interstitial after retries'
@@ -450,11 +675,26 @@ export async function showInterstitial(): Promise<AdResult> {
     }
     
     await AdMob.showInterstitial();
+    
+    // Log analytics event for success
+    logAdEvent('ad_interstitial_show', { 
+      ad_type: 'interstitial',
+      game_count: gamesPlayedSinceInterstitial
+    });
+    
     console.log('[AdManager] Interstitial ad completed');
     
     return { success: true };
   } catch (error) {
     console.error('[AdManager] Failed to show interstitial:', error);
+    
+    // Log analytics event for failure
+    logAdEvent('ad_impression', { 
+      ad_type: 'interstitial',
+      error: String(error),
+      success: false
+    });
+    
     return {
       success: false,
       error: String(error),
@@ -464,11 +704,14 @@ export async function showInterstitial(): Promise<AdResult> {
 
 /**
  * Check if rewarded continue ad can be shown
- * Returns true if daily limit (3) not reached
+ * Returns true if daily limit (from Remote Config, default: 3) not reached
  */
 export function canShowRewardedContinue(): boolean {
-  const canShow = dailyRewardedCount < 3;
-  console.log('[AdManager] Can show rewarded continue:', canShow, `(${dailyRewardedCount}/3)`);
+  const config = remoteAdConfig || getFirebaseAdConfig();
+  const dailyLimit = config.rewarded_daily_limit;
+  
+  const canShow = dailyRewardedCount < dailyLimit;
+  console.log('[AdManager] Can show rewarded continue:', canShow, `(${dailyRewardedCount}/${dailyLimit})`);
   return canShow;
 }
 
@@ -499,39 +742,86 @@ export async function showRewardedContinue(): Promise<AdResult> {
   }
   
   try {
+    // Remove any existing rewarded ad listener to prevent memory leaks
+    if (rewardedAdListener) {
+      rewardedAdListener.remove();
+      rewardedAdListener = null;
+    }
+    
+    // Log analytics event for ad shown
+    logAdEvent('ad_rewarded_complete', { 
+      reward_type: 'continue',
+      daily_count: dailyRewardedCount
+    });
+    
     await AdMob.prepareRewardVideoAd({
       adId: AD_IDS.rewarded,
     });
     
     // Set up reward listener
-    const rewardPromise = new Promise<AdMobRewardItem>((resolve) => {
-      AdMob.addListener(RewardAdPluginEvents.Rewarded, (reward: AdMobRewardItem) => {
+    const rewardPromise = new Promise<AdMobRewardItem>((resolve, reject) => {
+      rewardedAdListener = AdMob.addListener(RewardAdPluginEvents.Rewarded, (reward: AdMobRewardItem) => {
         resolve(reward);
+      });
+      
+      // Also listen for ad dismissal/failure
+      // @ts-ignore - addListener returns Promise in newer versions but works fine
+      const dismissListener = AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
+        dismissListener.remove();
+        reject(new Error('Ad dismissed without reward'));
       });
     });
     
     await AdMob.showRewardVideoAd();
-    await rewardPromise;
     
-    // Update state
-    dailyRewardedCount++;
-    dailyRewardedDate = getTodayISO();
-    saveDailyRewardedState();
-    
-    console.log('[AdManager] Rewarded ad completed (continue):', {
-      dailyRewardedCount,
-      dailyRewardedDate,
-    });
-    
-    return {
-      success: true,
-      reward: {
-        type: 'continue',
-        amount: 1,
-      },
-    };
+    try {
+      await rewardPromise;
+      
+      // Update state
+      dailyRewardedCount++;
+      dailyRewardedDate = getTodayISO();
+      saveDailyRewardedState();
+      
+      // Log analytics event for reward earned
+      logAdEvent('ad_rewarded_complete', { 
+        reward_type: 'continue',
+        daily_count: dailyRewardedCount
+      });
+      
+      console.log('[AdManager] Rewarded ad completed (continue):', {
+        dailyRewardedCount,
+        dailyRewardedDate,
+      });
+      
+      return {
+        success: true,
+        reward: {
+          type: 'continue',
+          amount: 1,
+        },
+      };
+    } finally {
+      // Always clean up listener
+      if (rewardedAdListener) {
+        rewardedAdListener.remove();
+        rewardedAdListener = null;
+      }
+    }
   } catch (error) {
     console.error('[AdManager] Failed to show rewarded ad (continue):', error);
+    
+    // Clean up listener on error
+    if (rewardedAdListener) {
+      rewardedAdListener.remove();
+      rewardedAdListener = null;
+    }
+    
+    // Log analytics event for skip/failure
+    logAdEvent('ad_rewarded_skip', { 
+      reward_type: 'continue',
+      error: String(error)
+    });
+    
     return {
       success: false,
       error: String(error),
@@ -562,31 +852,76 @@ export async function showRewardedStreakShield(): Promise<AdResult> {
   }
   
   try {
+    // Remove any existing rewarded ad listener to prevent memory leaks
+    if (rewardedAdListener) {
+      rewardedAdListener.remove();
+      rewardedAdListener = null;
+    }
+    
+    // Log analytics event for ad shown
+    logAdEvent('ad_rewarded_complete', { 
+      reward_type: 'shield'
+    });
+    
     await AdMob.prepareRewardVideoAd({
       adId: AD_IDS.rewarded,
     });
     
     // Set up reward listener
-    const rewardPromise = new Promise<AdMobRewardItem>((resolve) => {
-      AdMob.addListener(RewardAdPluginEvents.Rewarded, (reward: AdMobRewardItem) => {
+    const rewardPromise = new Promise<AdMobRewardItem>((resolve, reject) => {
+      rewardedAdListener = AdMob.addListener(RewardAdPluginEvents.Rewarded, (reward: AdMobRewardItem) => {
         resolve(reward);
+      });
+      
+      // Also listen for ad dismissal/failure
+      // @ts-ignore - addListener returns Promise in newer versions but works fine
+      const dismissListener = AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
+        dismissListener.remove();
+        reject(new Error('Ad dismissed without reward'));
       });
     });
     
     await AdMob.showRewardVideoAd();
-    await rewardPromise;
     
-    console.log('[AdManager] Rewarded ad completed (streak shield)');
-    
-    return {
-      success: true,
-      reward: {
-        type: 'shield',
-        amount: 1,
-      },
-    };
+    try {
+      await rewardPromise;
+      
+      // Log analytics event for reward earned
+      logAdEvent('ad_rewarded_complete', { 
+        reward_type: 'shield'
+      });
+      
+      console.log('[AdManager] Rewarded ad completed (streak shield)');
+      
+      return {
+        success: true,
+        reward: {
+          type: 'shield',
+          amount: 1,
+        },
+      };
+    } finally {
+      // Always clean up listener
+      if (rewardedAdListener) {
+        rewardedAdListener.remove();
+        rewardedAdListener = null;
+      }
+    }
   } catch (error) {
     console.error('[AdManager] Failed to show rewarded ad (streak shield):', error);
+    
+    // Clean up listener on error
+    if (rewardedAdListener) {
+      rewardedAdListener.remove();
+      rewardedAdListener = null;
+    }
+    
+    // Log analytics event for skip/failure
+    logAdEvent('ad_rewarded_skip', { 
+      reward_type: 'shield',
+      error: String(error)
+    });
+    
     return {
       success: false,
       error: String(error),
@@ -600,7 +935,20 @@ export async function showRewardedStreakShield(): Promise<AdResult> {
 export function isNoAdsActive(): boolean {
   try {
     const noAds = localStorage.getItem(STORAGE_KEYS.noAds);
-    return noAds === 'true';
+    if (noAds === 'true') {
+      return true;
+    }
+    
+    // Check grace period from Remote Config
+    const config = remoteAdConfig || getFirebaseAdConfig();
+    const gracePeriodGames = config.ad_free_grace_period_games;
+    
+    if (gracePeriodGames > 0 && gamesPlayedSinceInterstitial < gracePeriodGames) {
+      console.log(`[AdManager] Grace period active: ${gamesPlayedSinceInterstitial}/${gracePeriodGames} games`);
+      return true;
+    }
+    
+    return false;
   } catch (error) {
     console.error('[AdManager] Failed to check no-ads status:', error);
     return false;

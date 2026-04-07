@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useTutorialStore } from '@shared/store/tutorialStore';
+import { useGameStore } from '@features/game/store/gameStore';
 import { AdManager } from '@utils/adManager';
 
 export interface AdBannerProps {
@@ -8,6 +9,7 @@ export interface AdBannerProps {
 
 export const AdBanner: React.FC<AdBannerProps> = () => {
   const isTutorialActive = useTutorialStore(state => state.isActive);
+  const isGameOver = useGameStore(state => state.isGameOver);
 
   // Detect native platform
   const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.();
@@ -21,8 +23,27 @@ export const AdBanner: React.FC<AdBannerProps> = () => {
         AdManager.showBanner();
       }, 1500); // 1500ms delay for Activity stabilization
       
+      // Listen for pause/resume events
+      const handlePause = () => {
+        console.log('[AdBanner] Pause event received, hiding banner');
+        AdManager.hideBanner();
+      };
+      
+      const handleResume = () => {
+        console.log('[AdBanner] Resume event received, showing banner');
+        // Delay banner show to ensure smooth transition
+        setTimeout(() => {
+          AdManager.showBanner();
+        }, 500);
+      };
+      
+      window.addEventListener('fluxgrid-pause', handlePause);
+      window.addEventListener('fluxgrid-resume', handleResume);
+      
       return () => {
         clearTimeout(timer);
+        window.removeEventListener('fluxgrid-pause', handlePause);
+        window.removeEventListener('fluxgrid-resume', handleResume);
         AdManager.hideBanner();
       };
     }
@@ -30,6 +51,11 @@ export const AdBanner: React.FC<AdBannerProps> = () => {
 
   // Don't show during tutorial
   if (isTutorialActive) {
+    return null;
+  }
+  
+  // Don't show during game over
+  if (isGameOver) {
     return null;
   }
 

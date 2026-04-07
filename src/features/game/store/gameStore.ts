@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { GridState, Piece, GRID_SIZE, GridCell, SkillType, CellType, Achievement, MiniEventState, MultiplierBreakdown, ProgressionState } from '../types';
 import { AppState, GameStats, GameMode } from '@shared/types';
-import { POINTS, FLUX_COST, EXPANDED_ACHIEVEMENTS, ZEN_PALETTES, TIER_SCORE_MULTIPLIERS, TIMED_MODE } from '../constants';
+import { POINTS, FLUX_COST, EXPANDED_ACHIEVEMENTS, ZEN_PALETTES, TIER_SCORE_MULTIPLIERS, TIMED_MODE, COMBO_TIMER } from '../constants';
 import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playHaptic } from '../../../utils/audio';
 import { safeExecute, ErrorCategory } from '../../../utils/errorHandler';
 import { safeLocalStorageGet, safeParseInt, safeJSONParse } from './helpers/localStorage';
@@ -44,6 +44,8 @@ export interface GameStore {
     tier?: number;
     tierName?: string;
     chronoBonus?: number; // CHRONO bonus seconds
+    cellIds?: string[]; // Placed cell IDs for placement animations
+    dropHeight?: number; // Drop height for placement impact
   } | null;
   
   // Bonus Skills (Daily Reward System)
@@ -87,6 +89,7 @@ export interface GameStore {
 
   // Progression System State
   progressionState: ProgressionState;
+  progression: ProgressionState; // Alias for progressionState
 
   // Timed Mode State
   timedBoostMovesLeft: number;
@@ -96,6 +99,14 @@ export interface GameStore {
 
   // Piece Loading State
   isPiecesLoading: boolean;
+  
+  // Perfect Clear State
+  perfectClearDetected: boolean;
+  
+  // Combo Timer State
+  comboTimerStartTime: number | null;
+  comboTimerDuration: number; // milliseconds (default 5000 = 5 seconds)
+  comboTimeLeft: number; // remaining time in seconds for UI
 
   // Actions
   initGame: (mode?: GameMode, savedData?: SaveData) => void;
@@ -200,6 +211,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   // Progression System Initial State
   progressionState: createProgressionState(),
+  get progression() { return this.progressionState; }, // Alias getter
 
   // Timed Mode Initial State
   timedBoostMovesLeft: 0,
@@ -209,6 +221,14 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   // Piece Loading Initial State
   isPiecesLoading: false,
+  
+  // Perfect Clear Initial State
+  perfectClearDetected: false,
+  
+  // Combo Timer Initial State
+  comboTimerStartTime: null,
+  comboTimerDuration: COMBO_TIMER.DURATION, // 5 seconds
+  comboTimeLeft: 0,
 
   initGame: (mode = GameMode.ENDLESS, savedData?: SaveData) => {
     const success = safeExecute(
@@ -278,7 +298,10 @@ export const useGameStore = create<GameStore>((set, get) => {
           chronoBonus: 0,
           finalSprintBonus: 0,
           // Piece Loading initialization
-          isPiecesLoading: false
+          isPiecesLoading: false,
+          // Combo Timer initialization
+          comboTimerStartTime: null,
+          comboTimeLeft: 0
         });
         
         // Increment games played (global and mode-specific)
@@ -559,6 +582,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     const tempGrid = grid.map(row => row.map(cell => ({ ...cell })));
     let blocksPlaced = 0;
     const placedBlockCoords: Array<{x: number, y: number, color: string}> = [];
+    const placedCellIds: string[] = []; // Track cell IDs for animation
 
     for (let row = 0; row < piece.shape.length; row++) {
       for (let col = 0; col < piece.shape[row].length; col++) {
@@ -566,20 +590,25 @@ export const useGameStore = create<GameStore>((set, get) => {
           const gridX = startX + col;
           const gridY = startY + row;
           
+          const cellId = uuidv4();
           tempGrid[gridY][gridX] = {
             filled: true,
             color: piece.color,
-            id: uuidv4(),
+            id: cellId,
             type: piece.type || CellType.NORMAL,
             health: piece.type === CellType.ICE ? 2 : undefined
           };
           blocksPlaced++;
+          placedCellIds.push(cellId); // Track for animation
           
           // Track placed block coordinates for pulse effect
           placedBlockCoords.push({ x: gridX, y: gridY, color: piece.color });
         }
       }
     }
+    
+    // Calculate drop height (distance from top of grid to placement position)
+    const dropHeight = startY;
     
     
     // Pulse effect disabled for performance
@@ -601,6 +630,12 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     // 3. Process Grid
     const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken, actions } = processGrid(tempGrid);
+
+    // Check for perfect clear (all cells empty after processing)
+    const isPerfectClear = newGrid.every(row => row.every(cell => !cell.filled));
+    if (isPerfectClear) {
+      set({ perfectClearDetected: true });
+    }
 
     // Handle CELL_CLEAR actions - trigger explosion effects
     actions.forEach(action => {
@@ -664,13 +699,51 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
 
     // 4. Puan hesaplama (ZEN modda skip edilir)
-    // Combo: ZEN'de combo sıfırlanmaz, diğer modlarda satır temizlenmezse sıfırlanır
-    // COMBO_SHIELD: Endless modda combo kırılmasını engelleyebilir
+    // Combo Timer System: SADECE satır temizlendiğinde timer başlar/sıfırlanır
+    // Timer bitmeden yeni satır temizlenirse combo devam eder
+    // Timer biterse combo 0'a düşer
     const comboShieldPrevented = gameMode === GameMode.ENDLESS && shouldPreventComboBreak(updatedMiniEventState, linesCleared);
     
-    let newCombo = gameMode === GameMode.ZEN 
-      ? combo + (linesCleared > 0 ? 1 : 0)
-      : (linesCleared > 0 ? combo + 1 : (comboShieldPrevented ? combo : 0));
+    const now = Date.now();
+    const currentComboTimer = get().comboTimerStartTime;
+    const comboTimerDuration = get().comboTimerDuration;
+    
+    let newCombo: number;
+    let newComboTimerStart: number | null = null;
+    
+    if (gameMode === GameMode.ZEN) {
+      // ZEN mode: combo never breaks, only increases
+      newCombo = combo + (linesCleared > 0 ? 1 : 0);
+      newComboTimerStart = linesCleared > 0 ? now : currentComboTimer;
+    } else if (linesCleared > 0) {
+      // Lines cleared: increase combo and reset/start timer
+      newCombo = combo + 1;
+      newComboTimerStart = now; // Reset timer ONLY when lines are cleared
+    } else if (comboShieldPrevented) {
+      // COMBO_SHIELD active: preserve combo and timer
+      newCombo = combo;
+      newComboTimerStart = currentComboTimer;
+    } else {
+      // No lines cleared: check if timer expired (timer only runs if it was started)
+      if (currentComboTimer !== null && now - currentComboTimer >= comboTimerDuration) {
+        // Timer expired: reset combo
+        newCombo = 0;
+        newComboTimerStart = null;
+      } else {
+        // Timer still active OR no timer (no lines cleared yet): preserve combo
+        newCombo = combo;
+        newComboTimerStart = currentComboTimer; // Keep existing timer, don't reset
+      }
+    }
+    
+    // Calculate remaining time for UI ONLY when timer changes (lines cleared or expired)
+    // Don't recalculate on every block placement to avoid UI jitter
+    const shouldUpdateTimeLeft = linesCleared > 0 || newComboTimerStart === null || newComboTimerStart !== currentComboTimer;
+    const newComboTimeLeft = shouldUpdateTimeLeft
+      ? (newComboTimerStart !== null 
+          ? Math.max(0, (comboTimerDuration - (now - newComboTimerStart)) / 1000)
+          : 0)
+      : get().comboTimeLeft; // Keep existing value if timer didn't change
     
     // Update streak (Endless mode only)
     let updatedProgressionState = get().progressionState;
@@ -764,11 +837,12 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     // Update Achievements
     const previousAchievements = get().achievements;
+    const statsForAchievements = get().stats;
     const updatedAchievements = updateAchievements(previousAchievements, {
       newScore,
       newCombo,
-      bombsExploded,
-      iceBroken,
+      totalBombsExploded: (statsForAchievements.bombsExploded || 0) + bombsExploded,
+      totalIceBroken: (statsForAchievements.iceBroken || 0) + iceBroken,
       currentLevelIndex: 0,
     });
 
@@ -800,7 +874,11 @@ export const useGameStore = create<GameStore>((set, get) => {
         set({ dailyClearHistory: [...get().dailyClearHistory, ...snapshot].slice(-6) });
       }
     } else {
-      set({ lastAction: { type: 'PLACE' } });
+      set({ lastAction: { 
+        type: 'PLACE',
+        cellIds: placedCellIds,
+        dropHeight: dropHeight
+      }});
     }
 
     // Flux hesaplama
@@ -979,6 +1057,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       timedBoostMovesLeft: newTimedBoostMoves,
       miniEventState: updatedMiniEventState,
       progressionState: updatedProgressionState,
+      comboTimerStartTime: newComboTimerStart,
+      comboTimeLeft: newComboTimeLeft,
       lastMultiplierBreakdown: breakdown,
     });
 
@@ -1100,6 +1180,23 @@ export const useGameStore = create<GameStore>((set, get) => {
       
       playGameOver();
       set({ isGameOver: true });
+      
+      // Update dynamic shortcuts with recent mode
+      try {
+        import('../../../utils/dynamicShortcutHelper').then(({ saveRecentMode }) => {
+          saveRecentMode(gameMode, finalScore);
+        }).catch((error) => {
+          console.error('[GameStore] Failed to update dynamic shortcuts:', error);
+        });
+      } catch (error) {
+        console.error('[GameStore] Failed to update dynamic shortcuts:', error);
+      }
+      
+      // Sync data to widgets and update
+      const state = get();
+      import('@utils/widgetHelper').then(({ syncAllWidgetData }) => {
+        syncAllWidgetData(state.highScores, state.progression.streak);
+      });
     }
   },
 

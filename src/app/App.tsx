@@ -1,26 +1,48 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useUnifiedNavigationStore, type AppScreen } from '../shared/store/unifiedNavigationStore';
 import { useSettingsStore } from '../shared/store/settingsStore';
 import { useThemeStore } from '../shared/store/themeStore';
+import { useGameStore } from '../features/game/store/gameStore';
 import { HomeScreen } from './HomeScreen';
 import { StatisticsScreen } from './StatisticsScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ScreenErrorBoundary } from './ScreenErrorBoundary';
 import { NavigationTab } from '../shared/store/navigationStore';
+import { ConsentModal } from './components/ConsentModal';
+import { initializeDeepLinkHandler, removeDeepLinkHandler } from '../utils/deepLinkHandler';
+import { showAchievementNotification } from '../utils/notificationHelper';
+import '../utils/testWidgetSync'; // Load test helper
 
 export const App: React.FC = () => {
   const { i18n } = useTranslation();
   const { currentScreen, navigateTo } = useUnifiedNavigationStore();
   const { loadSettings, language } = useSettingsStore();
   const { getThemeColors } = useThemeStore();
+  const { setGameMode, achievements, unlockedAchievementId } = useGameStore();
   const colors = getThemeColors();
+  
+  // GDPR consent modal state
+  const [showConsentModal, setShowConsentModal] = useState(false);
 
   // Load settings and sync language on mount
   useEffect(() => {
     loadSettings();
+    
+    // Request notification permission on first launch (native only)
+    import('../utils/notificationHelper').then(({ requestNotificationPermission }) => {
+      requestNotificationPermission().then(granted => {
+        console.log('[App] Notification permission:', granted ? 'granted' : 'denied');
+      });
+    });
+    
+    // Sync existing data to widgets on app start
+    import('../utils/widgetHelper').then(({ syncAllWidgetData }) => {
+      const gameState = useGameStore.getState();
+      syncAllWidgetData(gameState.highScores, gameState.progression.streak);
+    });
   }, [loadSettings]);
   
   // Sync language with i18n
@@ -29,6 +51,33 @@ export const App: React.FC = () => {
       i18n.changeLanguage(language);
     }
   }, [language, i18n]);
+  
+  // Initialize deep link handler for app shortcuts
+  useEffect(() => {
+    initializeDeepLinkHandler((data) => {
+      console.log('[App] Deep link received:', data);
+      
+      if (data.mode) {
+        // Set game mode and navigate to home
+        setGameMode(data.mode);
+        navigateTo('home');
+      }
+    });
+    
+    return () => {
+      removeDeepLinkHandler();
+    };
+  }, [setGameMode, navigateTo]);
+  
+  // Show notification when achievement is unlocked
+  useEffect(() => {
+    if (unlockedAchievementId) {
+      const achievement = achievements.find(a => a.id === unlockedAchievementId);
+      if (achievement) {
+        showAchievementNotification(achievement);
+      }
+    }
+  }, [unlockedAchievementId, achievements]);
   
   // Listen for tutorial return home event as fallback
   useEffect(() => {
@@ -39,6 +88,28 @@ export const App: React.FC = () => {
     window.addEventListener('tutorial-return-home', handleTutorialReturnHome);
     return () => window.removeEventListener('tutorial-return-home', handleTutorialReturnHome);
   }, [navigateTo]);
+  
+  // Listen for GDPR consent request
+  useEffect(() => {
+    const handleShowConsent = () => {
+      console.log('[App] Showing GDPR consent modal');
+      setShowConsentModal(true);
+    };
+    
+    window.addEventListener('fluxgrid-show-consent', handleShowConsent);
+    return () => window.removeEventListener('fluxgrid-show-consent', handleShowConsent);
+  }, []);
+  
+  // Handle consent selection
+  const handleConsent = (consentType: 'personalized' | 'non-personalized') => {
+    console.log('[App] Consent selected:', consentType);
+    setShowConsentModal(false);
+    
+    // Dispatch consent response event
+    window.dispatchEvent(new CustomEvent('fluxgrid-consent-response', {
+      detail: { consentType }
+    }));
+  };
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -94,6 +165,9 @@ export const App: React.FC = () => {
           navigateTo(screen as AppScreen);
         }}
       />
+      
+      {/* GDPR Consent Modal */}
+      {showConsentModal && <ConsentModal onConsent={handleConsent} />}
     </div>
   );
 };

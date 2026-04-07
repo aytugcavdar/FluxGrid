@@ -40,6 +40,31 @@ const RootApp: React.FC = () => {
     configureStatusBar();
     // applySafeAreaCSS() and splashCoordinator moved before React render (see below)
     
+    // Initialize notification action listeners
+    import('@utils/notificationHelper').then(({ registerNotificationActions, addNotificationActionListener }) => {
+      registerNotificationActions();
+      addNotificationActionListener((action) => {
+        console.log('[Notification] Action performed:', action);
+        
+        // Handle notification actions
+        if (action.actionId === 'play_again') {
+          // Navigate to game screen
+          useGameStore.getState().setState({ appState: AppState.GAME });
+        } else if (action.actionId === 'share') {
+          // Open share dialog
+          import('@utils/shareHelper').then(({ shareScore }) => {
+            const { score, gameMode } = useGameStore.getState();
+            shareScore(score, gameMode);
+          });
+        } else if (action.actionId === 'view_stats') {
+          // Navigate to statistics screen
+          useGameStore.getState().setState({ appState: AppState.STATISTICS });
+        }
+      });
+    }).catch((error) => {
+      console.error('[App] Failed to initialize notification actions:', error);
+    });
+    
     // Register unified back button listener
     const cleanup = useUnifiedNavigationStore.getState().registerBackButtonListener();
     

@@ -5,18 +5,37 @@ import { TIMED_MODE } from '../../constants';
 
 /**
  * Timer tick logic for ZEN and TIMED game modes
+ * Also updates combo timer for all modes
  */
 export const tickTimerImpl = (
   get: () => any,
   set: (partial: any) => void
 ): void => {
-  const { timeLeft, isGameOver, gameMode, appState, timerExpectedEnd } = get();
+  const { timeLeft, isGameOver, gameMode, appState, timerExpectedEnd, comboTimerStartTime, comboTimerDuration, combo } = get();
   
   // Guard: Oyun bittiyse veya oyun ekranında değilse işlem yapma
   if (isGameOver || appState !== AppState.GAME) return;
   
   safeExecute(
     () => {
+      // Update combo timer for all modes (except when combo is 0)
+      if (comboTimerStartTime !== null && combo > 0) {
+        const now = Date.now();
+        const elapsed = now - comboTimerStartTime;
+        const remaining = Math.max(0, (comboTimerDuration - elapsed) / 1000);
+        
+        // If timer expired, reset combo
+        if (remaining <= 0) {
+          set({ 
+            combo: 0, 
+            comboTimerStartTime: null, 
+            comboTimeLeft: 0 
+          });
+        } else {
+          set({ comboTimeLeft: remaining });
+        }
+      }
+      
       // ZEN modda session time'ı artır
       if (gameMode === GameMode.ZEN) {
         const newTime = get().zenSessionTime + 1;

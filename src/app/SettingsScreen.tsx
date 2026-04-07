@@ -5,6 +5,7 @@ import { useThemeStore, ThemeType } from '../shared/store/themeStore';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useTutorialStore } from '../shared/store/tutorialStore';
 import { usePerformanceStore } from '../features/game/store/performanceStore';
+import { useVisualEffectStore } from '../features/visual-effects/store/visualEffectStore';
 import { GameMode } from '@shared/types';
 import { ToggleSwitch, SectionHeader } from '../shared/components';
 import { isAndroid } from '../utils/platform';
@@ -35,6 +36,7 @@ export const SettingsScreen: React.FC = () => {
   const { initGame } = useGameStore();
   const { reset: resetTutorial } = useTutorialStore();
   const { debugMode, setDebugMode, exportMetrics, metrics } = usePerformanceStore();
+  const { prefersReducedMotion, setReducedMotion } = useVisualEffectStore();
   const colors = getThemeColors();
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'success' | 'error'>('idle');
   const [fpsLimit, setFpsLimit] = useState<30 | 60 | 'auto'>('auto');
@@ -363,6 +365,13 @@ export const SettingsScreen: React.FC = () => {
                 description="Animasyonları azalt"
                 value={performanceModeEnabled}
                 onChange={setPerformanceModeEnabled}
+              />
+              
+              <ToggleSwitch
+                label="Azaltılmış Hareket"
+                description="Animasyonları ve efektleri azalt"
+                value={prefersReducedMotion}
+                onChange={setReducedMotion}
               />
               
               {/* Export Button - Styled as Action Button */}

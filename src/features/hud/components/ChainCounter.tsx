@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useGameStore } from '../../game/store/gameStore';
 
 interface ChainCounterProps {
   chain: number;
@@ -21,6 +22,8 @@ const getChainCounterPosition = (viewportHeight: number, isMobile: boolean): num
 export const ChainCounter: React.FC<ChainCounterProps> = ({ chain }) => {
   const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const comboTimeLeft = useGameStore(state => state.comboTimeLeft);
+  const comboTimerDuration = useGameStore(state => state.comboTimerDuration);
   
   // Update viewport dimensions on resize
   useEffect(() => {
@@ -38,8 +41,25 @@ export const ChainCounter: React.FC<ChainCounterProps> = ({ chain }) => {
   // Calculate position
   const topPosition = getChainCounterPosition(viewportHeight, isMobile);
   
-  // Determine color based on chain value
-  const chainColor = chain >= 4 ? '#f59e0b' : chain === 3 ? '#a78bfa' : '#60a5fa';
+  // Determine color based on chain value and time left
+  let chainColor = chain >= 4 ? '#f59e0b' : chain === 3 ? '#a78bfa' : '#60a5fa';
+  
+  // Change color based on remaining time (warning colors)
+  if (comboTimeLeft > 0) {
+    const timePercentage = comboTimeLeft / (comboTimerDuration / 1000);
+    if (timePercentage <= 0.2) {
+      chainColor = '#ef4444'; // Red - critical
+    } else if (timePercentage <= 0.4) {
+      chainColor = '#f59e0b'; // Orange - warning
+    } else {
+      chainColor = '#10b981'; // Green - safe
+    }
+  }
+  
+  // Calculate timer bar width percentage
+  const timerPercentage = comboTimeLeft > 0 
+    ? (comboTimeLeft / (comboTimerDuration / 1000)) * 100 
+    : 0;
   
   // Detect prefers-reduced-motion
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -122,6 +142,25 @@ export const ChainCounter: React.FC<ChainCounterProps> = ({ chain }) => {
       >
         x{chain}
       </motion.span>
+      
+      {/* Combo Timer Bar */}
+      {comboTimeLeft > 0 && (
+        <div 
+          className="w-full mt-2 h-1 bg-gray-700 rounded-full overflow-hidden"
+          style={{ minWidth: '80px' }}
+        >
+          <motion.div
+            className="h-full rounded-full"
+            style={{
+              backgroundColor: chainColor,
+              boxShadow: `0 0 8px ${chainColor}80`
+            }}
+            initial={{ width: '100%' }}
+            animate={{ width: `${timerPercentage}%` }}
+            transition={{ duration: 0.1, ease: 'linear' }}
+          />
+        </div>
+      )}
     </motion.div>
   );
 };

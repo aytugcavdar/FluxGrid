@@ -51,9 +51,19 @@ import {
   syncGridMeshes
 } from './grid/helpers';
 
+// Import AnimationCoordinator and animation systems
+import { AnimationCoordinator } from '../../visual-effects/core/AnimationCoordinator';
+import { PlacementImpactSystem } from '../../visual-effects/placement/PlacementImpactSystem';
+import { ComboMilestoneSystem } from '../../visual-effects/combo/ComboMilestoneSystem';
+import { PerfectClearCelebration } from '../../visual-effects/celebration/PerfectClearCelebration';
+import { ParticlePoolManager } from '../../visual-effects/particles/ParticlePoolManager';
+import { ParticleEmitter } from '../../visual-effects/particles/ParticleEmitter';
+import { HapticManager } from '../../../utils/haptics';
+import { getBatterySaverManager } from '../../visual-effects/performance/BatterySaverManager';
+
 export const Grid: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, totalMovesPlayed } = useGameStore();
+    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, totalMovesPlayed, perfectClearDetected } = useGameStore();
     const { getThemeColors } = useThemeStore();
 
     // Platform detection - calculate once at initialization
@@ -63,6 +73,9 @@ export const Grid: React.FC = () => {
     // Refs for Babylon.js engine and scene (needed for hooks)
     const engineRef = useRef<BABYLON.Engine | null>(null);
     const sceneRef = useRef<BABYLON.Scene | null>(null);
+    
+    // Animation coordinator ref
+    const animationCoordinatorRef = useRef<AnimationCoordinator | null>(null);
 
     // Task 9.1: Integrate useFPSLimiter hook
     const { state: fpsState } = useFPSLimiter(engineRef.current, true);
@@ -122,8 +135,8 @@ export const Grid: React.FC = () => {
         console.log('[Grid] Android touch CSS injected');
     }, []);
 
-    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier });
-    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier]);
+    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected });
+    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected]);
 
     const [hoverCoord, setHoverCoord] = useState<{ x: number, y: number } | null>(null);
     const hoverCoordRef = useRef<{ x: number, y: number } | null>(null);
@@ -157,6 +170,7 @@ export const Grid: React.FC = () => {
     const lastHandledActionRef = useRef<any>(null);
     const shakeIntensityRef = useRef(0);
     const prevSurgeActiveRef = useRef(false);
+    const perfectClearHandledRef = useRef(false);
     
     // Line clear animation state
     const lineClearAnimationRef = useRef<{
@@ -446,6 +460,131 @@ export const Grid: React.FC = () => {
         skillOverlayMeshesRef.current = initSkillOverlayPool(scene);
         guidedHighlightMeshesRef.current = initGuidedHighlightPool(scene);
         fragmentPoolRef.current.pool = initFragmentPool(scene);
+        
+        // Initialize AnimationCoordinator and animation systems
+        const animationCoordinator = new AnimationCoordinator({
+            scene,
+            qualityPreset: perfConfig.tier === 'high' ? 'high' : perfConfig.tier === 'medium' ? 'medium' : 'low',
+            prefersReducedMotion
+        });
+        
+        // Track current quality preset for adaptive reduction
+        let currentQualityPreset: 'high' | 'medium' | 'low' = perfConfig.tier === 'high' ? 'high' : perfConfig.tier === 'medium' ? 'medium' : 'low';
+        
+        // Setup performance drop callback for automatic quality reduction
+        // Requirements: 13.4, 14.1
+        // TODO: Re-enable performance monitoring after fixing async import issue
+        /*
+        const performanceMonitor = new (await import('../../../features/visual-effects/utils/performanceMonitor')).PerformanceMonitor();
+        performanceMonitor.onPerformanceDrop(() => {
+            console.log('[Grid] Performance drop detected, reducing quality');
+            
+            // Downgrade quality preset: high → medium → low
+            if (currentQualityPreset === 'high') {
+                currentQualityPreset = 'medium';
+                animationCoordinator.setQualityPreset('medium');
+                particlePoolManager.setQualityPreset('medium');
+            } else if (currentQualityPreset === 'medium') {
+                currentQualityPreset = 'low';
+                animationCoordinator.setQualityPreset('low');
+                particlePoolManager.setQualityPreset('low');
+                
+                // Disable glow layer on low preset
+                if (glowLayerRef.current) {
+                    glowLayerRef.current.intensity = 0;
+                }
+            }
+        });
+        performanceMonitor.startMonitoring();
+        */
+        
+        // Initialize particle pool manager
+        const qualityMultiplier = perfConfig.tier === 'high' ? 1.0 : perfConfig.tier === 'medium' ? 0.6 : 0.4;
+        const particlePoolManager = new ParticlePoolManager({
+            scene,
+            qualityMultiplier
+        });
+        
+        // Task 20: Initialize particle emitter for line clear particles
+        const particleEmitter = new ParticleEmitter(particlePoolManager);
+        
+        // Initialize haptic manager
+        const hapticManager = new HapticManager();
+        
+        // Task 24.7: Initialize battery saver manager
+        // Requirements: 14.6
+        const batterySaverManager = getBatterySaverManager({
+            onQualityChange: (preset) => {
+                console.log('[Grid] Battery saver quality change:', preset);
+                currentQualityPreset = preset;
+                animationCoordinator.setQualityPreset(preset);
+                particlePoolManager.setQualityPreset(preset);
+                
+                // Disable glow layer on low preset
+                if (preset === 'low' && glowLayerRef.current) {
+                    glowLayerRef.current.intensity = 0;
+                }
+            },
+            onFPSChange: (targetFPS) => {
+                console.log('[Grid] Battery saver FPS change:', targetFPS);
+                fpsLimiterRef.current.setTargetFPS(targetFPS);
+            },
+            onHapticsChange: (enabled) => {
+                console.log('[Grid] Battery saver haptics change:', enabled);
+                hapticManager.setEnabled(enabled);
+            }
+        });
+        
+        // Initialize battery monitoring (async)
+        batterySaverManager.initialize().catch((error) => {
+            console.debug('[Grid] Battery saver initialization failed:', error);
+        });
+        
+        // Initialize placement impact system
+        const placementImpactSystem = new PlacementImpactSystem(
+            scene,
+            particlePoolManager,
+            hapticManager
+        );
+        
+        // Set reduced motion preference
+        if (prefersReducedMotion) {
+            placementImpactSystem.setReducedMotion(true);
+        }
+        
+        // Initialize combo milestone system
+        const comboMilestoneSystem = new ComboMilestoneSystem(
+            scene,
+            hapticManager
+        );
+        
+        // Set reduced motion preference
+        if (prefersReducedMotion) {
+            comboMilestoneSystem.setReducedMotion(true);
+        }
+        
+        // Initialize perfect clear celebration
+        const perfectClearCelebration = new PerfectClearCelebration(
+            scene,
+            hapticManager
+        );
+        
+        // Set reduced motion preference
+        if (prefersReducedMotion) {
+            perfectClearCelebration.setReducedMotion(true);
+        }
+        
+        // Inject animation systems into coordinator
+        animationCoordinator.setPlacementImpactSystem(placementImpactSystem);
+        animationCoordinator.setComboMilestoneSystem(comboMilestoneSystem);
+        animationCoordinator.setPerfectClearCelebration(perfectClearCelebration);
+        
+        // Task 20: Inject particle systems into coordinator
+        animationCoordinator.setParticlePoolManager(particlePoolManager);
+        animationCoordinator.setParticleEmitter(particleEmitter);
+        
+        // Store coordinator ref
+        animationCoordinatorRef.current = animationCoordinator;
 
 
         // --- Logic Helpers ---
@@ -561,7 +700,26 @@ export const Grid: React.FC = () => {
             time += deltaTime;
             frameCount++;
             const currentTime = Date.now(); // Current timestamp for animations
-            const { grid, draggedPiece, activeSkill, score, combo, lastAction, isGameOver, gameMode: currentGameMode, timeLeft: currentTimeLeft, difficultyTier: currentTier } = stateRef.current;
+            const { grid, draggedPiece, activeSkill, score, combo, lastAction, isGameOver, gameMode: currentGameMode, timeLeft: currentTimeLeft, difficultyTier: currentTier, perfectClearDetected: currentPerfectClear } = stateRef.current;
+
+            // ─── Animation Coordinator: Update all animation systems ───
+            if (animationCoordinatorRef.current) {
+                animationCoordinatorRef.current.update(currentTime);
+            }
+            
+            // ─── Perfect Clear Detection ───
+            if (currentPerfectClear && !perfectClearHandledRef.current) {
+                if (animationCoordinatorRef.current) {
+                    animationCoordinatorRef.current.triggerPerfectClear();
+                }
+                perfectClearHandledRef.current = true;
+                
+                // Reset flag after celebration
+                setTimeout(() => {
+                    useGameStore.setState({ perfectClearDetected: false });
+                    perfectClearHandledRef.current = false;
+                }, 2000);
+            }
 
             // ─── Juice System: Update Placement Animations ───
             updatePlacementAnimations(currentTime, placementAnimationRef, meshMapRef.current, prefersReducedMotion);
@@ -619,16 +777,22 @@ export const Grid: React.FC = () => {
                 useVisualEffectStore
             );
             
-            // Create break apart fragments during particle phase
+            // Create break apart fragments and emit particles during particle phase
+            // Task 20: Enhanced line clear particle system
             if (lineClearAnimationRef.current?.active && lineClearAnimationRef.current.phase === 'particles') {
                 const anim = lineClearAnimationRef.current;
                 const elapsed = Date.now() - anim.startTime;
                 
                 if (elapsed < 150 && anim.progress < 0.1 && !isLowEndDevice) {
+                    // Track if this is a 4-line clear (Tetris) for trail effects
+                    const clearedLines = lastAction?.lines || 0;
+                    const is4LineClear = clearedLines === 4;
+                    
                     anim.clearedCells.forEach((key: string) => {
                         const [x, y] = key.split(',').map(Number);
                         const cell = grid[y]?.[x];
                         if (cell?.type) {
+                            // Create break apart fragments (existing system)
                             createBreakApartFragments(
                                 x, 
                                 y, 
@@ -640,12 +804,22 @@ export const Grid: React.FC = () => {
                                 isLowEndDevice,
                                 prefersReducedMotion
                             );
+                            
+                            // Task 20.3: Emit enhanced line clear particles
+                            if (animationCoordinatorRef.current) {
+                                animationCoordinatorRef.current.emitLineClearParticles({
+                                    position: getVectorPos(x, y),
+                                    color: cell.color,
+                                    clearedLines,
+                                    is4LineClear
+                                });
+                            }
                         }
                     });
                 }
             }
 
-            // Check for new shake events
+            // Check for new shake events and trigger animations
             if (lastAction && lastAction !== lastHandledActionRef.current) {
                 if (lastAction.type === 'CLEAR') {
                     // Shake intensity based on lines cleared and combo
@@ -669,8 +843,22 @@ export const Grid: React.FC = () => {
                             (lineCount: number) => triggerCameraShake(lineCount, shakeIntensityRef, prefersReducedMotion)
                         );
                     }
+                    
+                    // Trigger combo milestone if applicable
+                    if (animationCoordinatorRef.current && cmb >= 5) {
+                        animationCoordinatorRef.current.triggerComboMilestone({ level: cmb });
+                    }
                 } else if (lastAction.type === 'PLACE') {
                     shakeIntensityRef.current = prefersReducedMotion ? 0 : 0.05; // Tiny thud on placement
+                    
+                    // Trigger placement impact animation using data from gameStore
+                    if (animationCoordinatorRef.current && lastAction.cellIds && lastAction.cellIds.length > 0) {
+                        animationCoordinatorRef.current.triggerPlacementImpact({
+                            cellIds: lastAction.cellIds,
+                            meshMap: meshMapRef.current,
+                            dropHeight: lastAction.dropHeight || 0
+                        });
+                    }
                 }
                 lastHandledActionRef.current = lastAction;
             }
@@ -1034,6 +1222,36 @@ export const Grid: React.FC = () => {
             
             // Store the animation frame ID for cleanup
             (engine as any)._nativeAnimationFrameId = animationFrameId;
+            
+            // Listen for pause/resume events from useBackgroundPause hook
+            const handlePause = () => {
+                console.log('[Grid] Pause event received, canceling animation frame');
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    (engine as any)._nativeAnimationFrameId = null;
+                }
+            };
+            
+            const handleResume = () => {
+                console.log('[Grid] Resume event received, restarting animation frame');
+                // Only restart if not already running
+                if (!(engine as any)._nativeAnimationFrameId) {
+                    const renderFrame = () => {
+                        scene.render();
+                        animationFrameId = requestAnimationFrame(renderFrame);
+                    };
+                    
+                    animationFrameId = requestAnimationFrame(renderFrame);
+                    (engine as any)._nativeAnimationFrameId = animationFrameId;
+                }
+            };
+            
+            window.addEventListener('fluxgrid-pause', handlePause);
+            window.addEventListener('fluxgrid-resume', handleResume);
+            
+            // Store cleanup functions
+            (engine as any)._pauseListener = handlePause;
+            (engine as any)._resumeListener = handleResume;
         } else {
             // Web: Use default render loop
             engine.runRenderLoop(() => {
@@ -1105,10 +1323,21 @@ export const Grid: React.FC = () => {
             
             // Background pause cleanup is now handled by useBackgroundPause hook
             
-            // Cancel native animation frame if active (DEPRECATED - now handled by BackgroundPauseManager)
-            // if (nativeAnimationFrameId !== null) {
-            //     cancelAnimationFrame(nativeAnimationFrameId);
-            // }
+            // Cancel native animation frame if active
+            const nativeAnimationFrameId = (engine as any)._nativeAnimationFrameId;
+            if (nativeAnimationFrameId) {
+                cancelAnimationFrame(nativeAnimationFrameId);
+            }
+            
+            // Remove pause/resume event listeners
+            const pauseListener = (engine as any)._pauseListener;
+            const resumeListener = (engine as any)._resumeListener;
+            if (pauseListener) {
+                window.removeEventListener('fluxgrid-pause', pauseListener);
+            }
+            if (resumeListener) {
+                window.removeEventListener('fluxgrid-resume', resumeListener);
+            }
             
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('pointerup', handleWindowPointerUp);
@@ -1136,6 +1365,15 @@ export const Grid: React.FC = () => {
             fragmentPoolRef.current.pool.forEach(m => m?.dispose());
             fragmentPoolRef.current.pool = [];
             fragmentPoolRef.current.activeFragments.clear();
+            
+            // Dispose animation coordinator
+            if (animationCoordinatorRef.current) {
+                animationCoordinatorRef.current.dispose();
+                animationCoordinatorRef.current = null;
+            }
+            
+            // Task 24.7: Dispose battery saver manager
+            batterySaverManager.dispose();
             
             // Dispose all grid meshes BEFORE scene disposal
             meshMapRef.current.forEach(mesh => {

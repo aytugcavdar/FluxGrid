@@ -189,7 +189,6 @@ const App: React.FC = () => {
         'endless': GameMode.ENDLESS,
         'daily': GameMode.DAILY_CHALLENGE,
         'timed': GameMode.TIMED,
-        'zen': GameMode.ZEN,
         // 'blitz': removed - integrated into TIMED mode
         // 'survival': hidden from UI but kept for future
       };
@@ -206,7 +205,7 @@ const App: React.FC = () => {
 
   // Global Timer Loop
   useEffect(() => {
-    if ((gameMode !== GameMode.TIMED && gameMode !== GameMode.ZEN) || appState !== AppState.GAME || isGameOver) return;
+    if (gameMode !== GameMode.TIMED || appState !== AppState.GAME || isGameOver) return;
     const interval = setInterval(() => {
       tickTimer();
     }, 250); // 250ms for more accurate timer updates
@@ -413,12 +412,24 @@ const App: React.FC = () => {
   const { clearAchievementNotification } = useGameStore();
   useEffect(() => {
     if (unlockedAchievementId) {
+      // Play achievement sound
+      // @ts-ignore - 'success' pattern exists but TypeScript cache issue
+      playHaptic('success');
+      
+      // Show native notification
+      const achievement = achievements.find(a => a.id === unlockedAchievementId);
+      if (achievement) {
+        import('@utils/notificationHelper').then(({ showAchievementNotification }) => {
+          showAchievementNotification(achievement);
+        });
+      }
+      
       const timer = setTimeout(() => {
         clearAchievementNotification();
-      }, 4000);
+      }, 5000); // 5 saniye göster (4 saniye yerine)
       return () => clearTimeout(timer);
     }
-  }, [unlockedAchievementId, clearAchievementNotification]);
+  }, [unlockedAchievementId, clearAchievementNotification, achievements]);
 
   // Track surge usage for sharing
   useEffect(() => {
@@ -502,16 +513,52 @@ const App: React.FC = () => {
       <AnimatePresence>
         {unlockedAchievementId && (
           <motion.div
-            initial={{ y: -100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -100, opacity: 0 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-amber-500 text-gray-900 px-4 py-2 rounded-xl shadow-2xl flex items-center gap-3 max-w-[90vw] sm:min-w-[280px]"
+            initial={{ y: -100, opacity: 0, scale: 0.8 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: -100, opacity: 0, scale: 0.8 }}
+            transition={{ 
+              type: "spring", 
+              stiffness: 300, 
+              damping: 20 
+            }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-3 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 w-[calc(100vw-2rem)] max-w-[340px]"
+            style={{
+              background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+              boxShadow: '0 10px 40px rgba(251, 191, 36, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+            }}
           >
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/30 rounded-full flex items-center justify-center text-lg sm:text-xl flex-shrink-0">🏅</div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest opacity-60">Başarım Açıldı!</span>
-              <span className="font-bold text-sm sm:text-base truncate">{achievements.find(a => a.id === unlockedAchievementId)?.name}</span>
+            <motion.div 
+              className="w-9 h-9 sm:w-11 sm:h-11 bg-white/30 rounded-full flex items-center justify-center text-xl sm:text-2xl flex-shrink-0"
+              animate={{ 
+                rotate: [0, -10, 10, -10, 10, 0],
+                scale: [1, 1.1, 1, 1.1, 1]
+              }}
+              transition={{ 
+                duration: 0.6,
+                repeat: Infinity,
+                repeatDelay: 2
+              }}
+            >
+              🏅
+            </motion.div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-amber-900/70">
+                Başarım Açıldı!
+              </span>
+              <span className="font-bold text-sm sm:text-base text-gray-900 truncate leading-tight">
+                {achievements.find(a => a.id === unlockedAchievementId)?.name}
+              </span>
+              <span className="text-[11px] sm:text-xs text-amber-900/60 truncate leading-tight">
+                {achievements.find(a => a.id === unlockedAchievementId)?.description}
+              </span>
             </div>
+            <motion.div
+              className="text-xl sm:text-2xl flex-shrink-0"
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 1, repeat: Infinity }}
+            >
+              ✨
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

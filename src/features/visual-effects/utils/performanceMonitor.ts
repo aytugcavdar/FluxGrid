@@ -4,6 +4,8 @@ export interface PerformanceMetrics {
   droppedFrames: number;
   averageFrameTime: number; // ms
   lastMeasurement: number; // timestamp
+  consecutiveLowFPSSeconds: number; // NEW: Track sustained low FPS
+  frameDropCount: number; // NEW: Total frame drops
 }
 
 export class PerformanceMonitor {
@@ -12,6 +14,9 @@ export class PerformanceMonitor {
   private maxFrameHistory = 60; // Track last 60 frames
   private lastFrameTime: number = 0;
   private animationFrameId: number | null = null;
+  private targetFPS: number = 60;
+  private lowFPSStartTime: number = 0;
+  private performanceDropCallbacks: Array<() => void> = [];
 
   constructor() {
     this.metrics = {
@@ -20,6 +25,8 @@ export class PerformanceMonitor {
       droppedFrames: 0,
       averageFrameTime: 16.67, // 60 FPS = ~16.67ms per frame
       lastMeasurement: Date.now(),
+      consecutiveLowFPSSeconds: 0,
+      frameDropCount: 0
     };
   }
 
@@ -37,6 +44,10 @@ export class PerformanceMonitor {
       
       // Calculate metrics
       this.updateMetrics();
+      
+      // Check for sustained low FPS
+      // Requirements: 13.4
+      this.checkSustainedLowFPS();
     }
     
     this.lastFrameTime = now;
@@ -60,8 +71,44 @@ export class PerformanceMonitor {
       fps: Math.round(fps),
       averageFrameTime: Math.round(avgFrameTime * 100) / 100,
       droppedFrames,
+      frameDropCount: this.metrics.frameDropCount + droppedFrames,
       lastMeasurement: Date.now(),
     };
+  }
+  
+  /**
+   * Check for sustained low FPS (3 consecutive seconds)
+   * Requirements: 13.4
+   */
+  private checkSustainedLowFPS(): void {
+    const now = Date.now();
+    
+    if (this.metrics.fps < 45) {
+      if (this.lowFPSStartTime === 0) {
+        this.lowFPSStartTime = now;
+      }
+      
+      const lowFPSDuration = (now - this.lowFPSStartTime) / 1000;
+      this.metrics.consecutiveLowFPSSeconds = lowFPSDuration;
+      
+      // Trigger callbacks if sustained for 3 seconds
+      if (lowFPSDuration >= 3) {
+        this.performanceDropCallbacks.forEach(cb => cb());
+        this.lowFPSStartTime = now; // Reset to prevent repeated triggers
+      }
+    } else {
+      // Reset if FPS recovers
+      this.lowFPSStartTime = 0;
+      this.metrics.consecutiveLowFPSSeconds = 0;
+    }
+  }
+  
+  /**
+   * Register callback for performance drop
+   * Requirements: 13.4
+   */
+  onPerformanceDrop(callback: () => void): void {
+    this.performanceDropCallbacks.push(callback);
   }
 
   getMetrics(): PerformanceMetrics {
@@ -93,6 +140,17 @@ export class PerformanceMonitor {
     const measure = () => {
       this.measureFrame();
       
+      // Log performance metrics every 60 frames
+      // Requirements: 13.5
+      if (this.frameTimestamps.length === 60) {
+        console.debug('[PerformanceMonitor]', {
+          fps: this.metrics.fps,
+          avgFrameTime: this.metrics.averageFrameTime,
+          droppedFrames: this.metrics.droppedFrames,
+          totalFrameDrops: this.metrics.frameDropCount
+        });
+      }
+      
       if (callback) {
         callback(this.getMetrics());
       }
@@ -113,12 +171,15 @@ export class PerformanceMonitor {
   reset(): void {
     this.frameTimestamps = [];
     this.lastFrameTime = 0;
+    this.lowFPSStartTime = 0;
     this.metrics = {
       fps: 60,
       activeEffectCount: 0,
       droppedFrames: 0,
       averageFrameTime: 16.67,
       lastMeasurement: Date.now(),
+      consecutiveLowFPSSeconds: 0,
+      frameDropCount: 0
     };
   }
 }

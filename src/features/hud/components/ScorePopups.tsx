@@ -5,6 +5,8 @@ interface ScorePopup {
   id: number;
   value: number;
   combo: number;
+  offsetX?: number;  // NEW: Random horizontal offset (-20 to +20)
+  stackIndex?: number; // NEW: For vertical positioning
 }
 
 interface ScorePopupsProps {
@@ -65,83 +67,74 @@ const getScoreSize = (score: number): ScoreSize => {
 export const ScorePopups: React.FC<ScorePopupsProps> = ({ popups }) => {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   
+  // Calculate stack positions with random horizontal offsets
+  // Requirements: 2.1, 2.2
+  const stackedPopups = popups.map((p, index) => ({
+    ...p,
+    stackIndex: index,
+    offsetX: p.offsetX ?? (Math.random() - 0.5) * 40 // -20 to +20
+  }));
+  
   return (
     <div className="fixed top-16 left-0 right-0 flex flex-col items-center pointer-events-none z-50">
       <AnimatePresence mode="popLayout">
-        {popups.map((p, index) => {
+        {stackedPopups.map((p) => {
           const sizeConfig = getScoreSize(p.value);
           
-          // Vertical stacking offset
-          const stackOffset = index * 60; // 60px per popup
+          // Vertical stacking offset (40px spacing per spec)
+          // Requirements: 2.2
+          const stackOffset = p.stackIndex! * 40;
+          
+          // Size scaling for values > 1000
+          // Requirements: 2.4
+          const isLarge = p.value > 1000;
+          const scale = isLarge ? 1.3 : 1.0;
           
           return (
             <motion.div
               key={p.id}
-              initial={{ opacity: 0, y: 40 + stackOffset, scale: 0.5 }}
+              initial={{ 
+                opacity: 0, 
+                y: 40 + stackOffset, 
+                x: p.offsetX,
+                scale: 0.5 
+              }}
               animate={
                 prefersReducedMotion
-                  ? { opacity: [0, 1, 1, 0], y: [40 + stackOffset, -20 + stackOffset] }
-                  : sizeConfig.animation === 'scale-rotate-float'
-                  ? {
-                      opacity: [0, 1, 1, 0],
-                      y: [40 + stackOffset, -10 + stackOffset, -20 + stackOffset, -60 + stackOffset],
-                      scale: [0.5, 1.3, 1.1, 0.8],
-                      rotate: [0, 5, -5, 0]
-                    }
-                  : sizeConfig.animation === 'scale-glow'
-                  ? {
-                      opacity: [0, 1, 1, 0],
-                      y: [40 + stackOffset, -10 + stackOffset, -20 + stackOffset, -60 + stackOffset],
-                      scale: [0.5, 1.2, 1, 0.8]
-                    }
-                  : sizeConfig.animation === 'scale'
-                  ? {
-                      opacity: [0, 1, 1, 0],
-                      y: [40 + stackOffset, -10 + stackOffset, -20 + stackOffset, -60 + stackOffset],
-                      scale: [0.5, 1.1, 1, 0.9]
+                  ? { 
+                      opacity: [0, 1, 1, 0], 
+                      y: [40 + stackOffset, -20 + stackOffset],
+                      x: p.offsetX
                     }
                   : {
                       opacity: [0, 1, 1, 0],
-                      y: [40 + stackOffset, -20 + stackOffset, -40 + stackOffset, -60 + stackOffset]
+                      y: [40 + stackOffset, -20 + stackOffset, -60 + stackOffset, -100 + stackOffset],
+                      x: p.offsetX,
+                      scale: [0.5, scale, scale, 0.8]
                     }
               }
               exit={{ opacity: 0, scale: 0.3 }}
               transition={{
-                duration: prefersReducedMotion ? 1.0 : 1.2,
+                duration: prefersReducedMotion ? 0.4 : 0.8,
                 times: [0, 0.2, 0.7, 1],
-                ease: [0.34, 1.56, 0.64, 1]
+                ease: 'easeOut'
               }}
               className="flex items-center gap-2 mb-1"
+              style={{
+                // Combo glow effect
+                // Requirements: 2.5
+                filter: p.combo > 1 && !prefersReducedMotion
+                  ? 'drop-shadow(0 0 2px rgba(245, 158, 11, 0.6))'
+                  : 'none'
+              }}
             >
               <motion.span
                 style={{
-                  fontSize: sizeConfig.fontSize,
+                  fontSize: isLarge ? '44px' : '32px',
                   fontWeight: 'bold',
-                  ...(sizeConfig.hasGradient
-                    ? {
-                        background: sizeConfig.color,
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent'
-                      }
-                    : { color: sizeConfig.color }),
-                  ...(sizeConfig.hasGlow && !prefersReducedMotion
-                    ? {
-                        filter: 'drop-shadow(0 0 8px rgba(245, 158, 11, 0.6))'
-                      }
-                    : {})
+                  color: 'white',
+                  textShadow: '0 2px 4px rgba(0, 0, 0, 0.8)'
                 }}
-                animate={
-                  sizeConfig.hasGlow && !prefersReducedMotion
-                    ? {
-                        filter: [
-                          'drop-shadow(0 0 8px rgba(245, 158, 11, 0.6))',
-                          'drop-shadow(0 0 16px rgba(245, 158, 11, 0.8))',
-                          'drop-shadow(0 0 8px rgba(245, 158, 11, 0.6))'
-                        ]
-                      }
-                    : {}
-                }
-                transition={{ duration: 0.6, repeat: Infinity }}
               >
                 +{p.value.toLocaleString()}
               </motion.span>
@@ -149,8 +142,8 @@ export const ScorePopups: React.FC<ScorePopupsProps> = ({ popups }) => {
               {p.combo > 1 && (
                 <motion.span
                   className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                  initial={{ scale: 0, rotate: prefersReducedMotion ? 0 : -180 }}
-                  animate={{ scale: 1, rotate: 0 }}
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
                   transition={{
                     type: 'spring',
                     stiffness: 300,
@@ -158,7 +151,7 @@ export const ScorePopups: React.FC<ScorePopupsProps> = ({ popups }) => {
                     delay: 0.1
                   }}
                 >
-                  x{p.combo} Kombo
+                  x{p.combo}
                 </motion.span>
               )}
             </motion.div>

@@ -20,6 +20,16 @@
 -dontwarn com.google.android.gms.ads.**
 -dontwarn com.google.android.ump.**
 
+# AdMob UMP (User Messaging Platform)
+-keep class com.google.android.ump.** { *; }
+-keepclassmembers class * implements com.google.android.gms.ads.initialization.OnInitializationCompleteListener { *; }
+
+# Rewarded Video
+-keep class com.google.android.gms.ads.rewarded.** { *; }
+
+# Interstitial
+-keep class com.google.android.gms.ads.interstitial.** { *; }
+
 # WebView JavaScript Interface
 -keepclassmembers class * {
     @android.webkit.JavascriptInterface <methods>;

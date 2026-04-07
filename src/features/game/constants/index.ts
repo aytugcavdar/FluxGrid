@@ -173,6 +173,13 @@ export const TIMED_MODE = {
   WARNING_THRESHOLD: 30,          // Seconds remaining for warning state
 };
 
+// COMBO Timer Constants
+export const COMBO_TIMER = {
+  DURATION: 10000, // 10 seconds in milliseconds
+  WARNING_THRESHOLD: 4, // Show warning color when < 4 seconds
+  CRITICAL_THRESHOLD: 2, // Show critical color when < 2 seconds
+};
+
 // CHRONO Block (Timed Mode)
 export const CHRONO_BLOCK = {
   color: '#fde68a',  // Golden yellow

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="endless_mode"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_endless"
+        android:shortcutShortLabel="@string/shortcut_endless_short"
+        android:shortcutLongLabel="@string/shortcut_endless_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.fluxgrid.app"
+            android:targetClass="com.fluxgrid.app.MainActivity"
+            android:data="fluxgrid://mode/endless" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+    
+    <shortcut
+        android:shortcutId="timed_mode"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_timed"
+        android:shortcutShortLabel="@string/shortcut_timed_short"
+        android:shortcutLongLabel="@string/shortcut_timed_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.fluxgrid.app"
+            android:targetClass="com.fluxgrid.app.MainActivity"
+            android:data="fluxgrid://mode/timed" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+    
+    <shortcut
+        android:shortcutId="statistics"
+        android:enabled="true"
+        android:icon="@drawable/ic_stat_notification"
+        android:shortcutShortLabel="@string/shortcut_stats_short"
+        android:shortcutLongLabel="@string/shortcut_stats_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.fluxgrid.app"
+            android:targetClass="com.fluxgrid.app.MainActivity"
+            android:data="fluxgrid://screen/statistics" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+</shortcuts>

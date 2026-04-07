@@ -11,6 +11,7 @@ export enum AppState {
   TUTORIAL = 'TUTORIAL',
   PUZZLE_MAP = 'PUZZLE_MAP',
   LEADERBOARD = 'LEADERBOARD',
+  STATISTICS = 'STATISTICS',
 }
 
 // Game Modes

@@ -129,4 +129,5 @@ export interface ProgressionState {
   currentStreak: number;        // Ardışık satır temizleme sayısı
   milestones: Milestone[];      // Milestone listesi
   lastMilestoneShown: string | null;  // Son gösterilen milestone
+  streak: number;               // Alias for currentStreak (for widget compatibility)
 }

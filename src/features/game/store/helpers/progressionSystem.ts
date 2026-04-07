@@ -14,6 +14,7 @@ export function createProgressionState(): ProgressionState {
     currentStreak: 0,
     milestones: MILESTONES.map(m => ({ ...m })),
     lastMilestoneShown: null,
+    get streak() { return this.currentStreak; }, // Alias getter for widget compatibility
   };
 }
 

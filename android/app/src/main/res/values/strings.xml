@@ -4,4 +4,31 @@
     <string name="title_activity_main">FluxGrid</string>
     <string name="package_name">com.fluxgrid.app</string>
     <string name="custom_url_scheme">com.fluxgrid.app</string>
+    
+    <!-- App Shortcuts -->
+    <string name="shortcut_endless_short">Sonsuz</string>
+    <string name="shortcut_endless_long">Sonsuz Mod</string>
+    <string name="shortcut_timed_short">Zamanlı</string>
+    <string name="shortcut_timed_long">Zamanlı Mod</string>
+    <string name="shortcut_stats_short">İstatistikler</string>
+    <string name="shortcut_stats_long">İstatistiklerim</string>
+    
+    <!-- Notification Channels -->
+    <string name="notification_channel_achievements">Başarımlar</string>
+    <string name="notification_channel_achievements_desc">Başarım bildirimleri</string>
+    <string name="notification_channel_daily">Günlük Hatırlatıcılar</string>
+    <string name="notification_channel_daily_desc">Günlük görev hatırlatıcıları</string>
+    <string name="notification_channel_events">Eventler</string>
+    <string name="notification_channel_events_desc">Oyun içi event bildirimleri</string>
+    <string name="notification_channel_combo">Combo Başarıları</string>
+    <string name="notification_channel_combo_desc">Combo milestone bildirimleri</string>
+    <string name="notification_channel_highscore">Yüksek Skorlar</string>
+    <string name="notification_channel_highscore_desc">Yeni rekor bildirimleri</string>
+    
+    <!-- Widgets -->
+    <string name="widget_stats_description">En yüksek skorunuzu ve günlük serinizi gösterir</string>
+    <string name="widget_quick_play_description">Oyun modlarına hızlı erişim</string>
+    
+    <!-- Quick Settings Tile -->
+    <string name="tile_quick_play">Hızlı Oyun</string>
 </resources>
