@@ -70,3 +70,54 @@
     public static ** valueOf(java.lang.String);
 }
 
+# ===== Security and Obfuscation Rules =====
+# Requirement 12.4: ProGuard obfuscation for security
+
+# Enable aggressive obfuscation
+-optimizationpasses 5
+-dontusemixedcaseclassnames
+-verbose
+
+# Obfuscate class names, method names, and field names
+-repackageclasses ''
+-allowaccessmodification
+
+# Remove logging in production (security)
+-assumenosideeffects class android.util.Log {
+    public static *** d(...);
+    public static *** v(...);
+    public static *** i(...);
+}
+
+# Remove debug code
+-assumenosideeffects class * {
+    public void setDebug(boolean);
+    public boolean isDebug();
+}
+
+# Optimize and shrink code
+-optimizations !code/simplification/arithmetic,!code/simplification/cast,!field/*,!class/merging/*
+
+# Keep source file names and line numbers for crash reports
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# Keep custom exceptions for crash reporting
+-keep public class * extends java.lang.Exception
+
+# Firebase Crashlytics - Keep crash reporting classes
+-keepattributes *Annotation*
+-keepattributes Signature
+-keep class com.google.firebase.crashlytics.** { *; }
+-dontwarn com.google.firebase.crashlytics.**
+
+# Security: Remove sensitive information from stack traces
+-keepattributes Exceptions
+
+# Obfuscate string constants (additional security)
+-adaptclassstrings
+
+# Remove unused code
+-dontwarn **
+-ignorewarnings
+

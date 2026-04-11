@@ -2,6 +2,9 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import tr from './locales/tr.json';
 import en from './locales/en.json';
+import de from './locales/de.json';
+import fr from './locales/fr.json';
+import es from './locales/es.json';
 
 const savedLang = localStorage.getItem('flux_language') ?? 'tr';
 
@@ -12,9 +15,12 @@ i18n
     resources: {
       tr: { translation: tr },
       en: { translation: en },
+      de: { translation: de },
+      fr: { translation: fr },
+      es: { translation: es },
     },
     lng: savedLang,
-    fallbackLng: 'tr',
+    fallbackLng: 'en', // Changed to EN as per requirements
     interpolation: { 
       escapeValue: false 
     },

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "463126356614",
+    "project_id": "fluxgrid-d0ad3",
+    "storage_bucket": "fluxgrid-d0ad3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:463126356614:android:3f70a811b70487fb142707",
+        "android_client_info": {
+          "package_name": "com.fluxgrid.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "463126356614-3m35sgbfarh8c2g5k4ma2t8s88ds4e39.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4nCcHB_rprGlcc1oYqgFDv3oti-gIJQQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "463126356614-3m35sgbfarh8c2g5k4ma2t8s88ds4e39.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

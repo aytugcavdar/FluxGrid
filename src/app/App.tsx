@@ -12,17 +12,22 @@ import { BottomNavigation } from './components/BottomNavigation';
 import { ScreenErrorBoundary } from './ScreenErrorBoundary';
 import { NavigationTab } from '../shared/store/navigationStore';
 import { ConsentModal } from './components/ConsentModal';
+import { OfflineIndicator } from '../components/OfflineIndicator';
 import { initializeDeepLinkHandler, removeDeepLinkHandler } from '../utils/deepLinkHandler';
 import { showAchievementNotification } from '../utils/notificationHelper';
 import '../utils/testWidgetSync'; // Load test helper
+import { AchievementNotification } from '../features/achievements';
 
 export const App: React.FC = () => {
   const { i18n } = useTranslation();
   const { currentScreen, navigateTo } = useUnifiedNavigationStore();
   const { loadSettings, language } = useSettingsStore();
   const { getThemeColors } = useThemeStore();
-  const { setGameMode, achievements, unlockedAchievementId } = useGameStore();
+  const { setGameMode, achievements: rawAchievements, unlockedAchievementId } = useGameStore();
   const colors = getThemeColors();
+  
+  // Ensure achievements is always an array
+  const achievements = Array.isArray(rawAchievements) ? rawAchievements : [];
   
   // GDPR consent modal state
   const [showConsentModal, setShowConsentModal] = useState(false);
@@ -145,6 +150,12 @@ export const App: React.FC = () => {
 
   return (
     <div className="relative w-full h-screen overflow-hidden" style={{ background: colors.background }}>
+      {/* Offline Indicator */}
+      <OfflineIndicator position="top" showSlowConnection={true} />
+      
+      {/* Achievement Notification */}
+      <AchievementNotification />
+      
       <AnimatePresence mode="wait">
         <motion.div
           key={currentScreen}

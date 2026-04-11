@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../shared/store/themeStore';
 import { NavigationTab } from '../../shared/store/navigationStore';
 
@@ -12,13 +13,14 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   activeTab,
   onTabChange,
 }) => {
+  const { t } = useTranslation();
   const { getThemeColors, currentTheme } = useThemeStore();
   const colors = getThemeColors();
   
   const tabs: Array<{ id: NavigationTab; label: string; icon: string }> = [
-    { id: 'home', label: 'Ana Sayfa', icon: '🏠' },
-    { id: 'stats', label: 'İstatistik', icon: '📊' },
-    { id: 'settings', label: 'Ayarlar', icon: '⚙️' },
+    { id: 'home', label: t('navigation.home'), icon: '🏠' },
+    { id: 'stats', label: t('navigation.stats'), icon: '📊' },
+    { id: 'settings', label: t('navigation.settings'), icon: '⚙️' },
   ];
 
   return (

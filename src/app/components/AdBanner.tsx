@@ -25,12 +25,10 @@ export const AdBanner: React.FC<AdBannerProps> = () => {
       
       // Listen for pause/resume events
       const handlePause = () => {
-        console.log('[AdBanner] Pause event received, hiding banner');
         AdManager.hideBanner();
       };
       
       const handleResume = () => {
-        console.log('[AdBanner] Resume event received, showing banner');
         // Delay banner show to ensure smooth transition
         setTimeout(() => {
           AdManager.showBanner();

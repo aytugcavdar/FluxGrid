@@ -8,6 +8,7 @@ export interface ContinueModalProps {
   onDecline: () => void;
   canContinue: boolean;
   usesRemaining: number;
+  isLoading?: boolean; // Yeni prop
 }
 
 export const ContinueModal: React.FC<ContinueModalProps> = ({
@@ -16,6 +17,7 @@ export const ContinueModal: React.FC<ContinueModalProps> = ({
   onDecline,
   canContinue,
   usesRemaining,
+  isLoading = false,
 }) => {
   const { getColors } = useThemeStore();
   const colors = getColors();
@@ -104,16 +106,17 @@ export const ContinueModal: React.FC<ContinueModalProps> = ({
               {/* Watch Ad Button */}
               <button
                 onClick={onContinue}
-                disabled={!canContinue}
-                className="w-full font-bold py-3 rounded-lg transition-all mb-4"
+                disabled={!canContinue || isLoading}
+                className="w-full font-bold py-3 rounded-lg transition-all mb-4 disabled:cursor-not-allowed"
                 style={{
-                  backgroundColor: canContinue ? colors.accentPrimary : colors.gridSlot,
-                  color: canContinue ? '#ffffff' : colors.textTertiary,
-                  opacity: canContinue ? 1 : 0.5,
-                  cursor: canContinue ? 'pointer' : 'not-allowed',
+                  backgroundColor: (canContinue && !isLoading) ? colors.accentPrimary : colors.gridSlot,
+                  color: (canContinue && !isLoading) ? '#ffffff' : colors.textTertiary,
+                  opacity: (canContinue && !isLoading) ? 1 : 0.5,
+                  cursor: (canContinue && !isLoading) ? 'pointer' : 'not-allowed',
+                  pointerEvents: (canContinue && !isLoading) ? 'auto' : 'none',
                 }}
               >
-                {canContinue ? '📺 Watch Ad' : 'Daily limit reached'}
+                {isLoading ? '⏳ Loading ad...' : canContinue ? '📺 Watch Ad' : 'Daily limit reached'}
               </button>
 
               {/* Uses Remaining */}

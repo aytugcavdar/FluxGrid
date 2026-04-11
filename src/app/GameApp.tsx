@@ -127,6 +127,7 @@ const App: React.FC = () => {
   // Continue feature state
   const [showContinueModal, setShowContinueModal] = useState(false);
   const [continueUsesRemaining, setContinueUsesRemaining] = useState(3);
+  const [isLoadingAd, setIsLoadingAd] = useState(false);
   
   // Custom hooks
   useBrowserHistory();
@@ -234,10 +235,29 @@ const App: React.FC = () => {
 
   // Handle continue feature
   const handleContinue = async () => {
+    console.log('[GameApp] handleContinue called');
+    
+    // CRITICAL: Prevent multiple clicks
+    if (isLoadingAd) {
+      console.log('[GameApp] Already loading ad, ignoring click');
+      return;
+    }
+    
+    // Set loading state immediately to prevent rapid clicks
+    setIsLoadingAd(true);
+    
+    // Small delay to ensure state update propagates
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     try {
+      console.log('[GameApp] Calling AdManager.showRewardedContinue()...');
       const result = await AdManager.showRewardedContinue();
       
+      console.log('[GameApp] Rewarded ad result:', result);
+      
       if (result.success) {
+        console.log('[GameApp] Ad successful, continuing game...');
+        
         // Create completely empty grid for fresh start
         const emptyGrid = createContinueGrid();
         
@@ -261,13 +281,18 @@ const App: React.FC = () => {
         });
         
         setShowContinueModal(false);
+        setIsLoadingAd(false);
+        console.log('[GameApp] Game continued successfully!');
       } else {
         // Ad failed, show game over modal
+        console.log('[GameApp] Ad failed:', result.error);
         setShowContinueModal(false);
+        setIsLoadingAd(false);
       }
     } catch (error) {
       console.error('[GameApp] Continue failed:', error);
       setShowContinueModal(false);
+      setIsLoadingAd(false);
     }
   };
 
@@ -588,6 +613,7 @@ const App: React.FC = () => {
           onDecline={handleDecline}
           canContinue={AdManager.canShowRewardedContinue()}
           usesRemaining={continueUsesRemaining}
+          isLoading={isLoadingAd}
         />
       </AnimatePresence>
 

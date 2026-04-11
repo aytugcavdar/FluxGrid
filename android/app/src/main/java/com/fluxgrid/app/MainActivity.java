@@ -13,6 +13,7 @@ import android.util.Rational;
 import android.content.res.Configuration;
 import com.getcapacitor.BridgeActivity;
 import com.fluxgrid.app.widget.StatsWidgetProvider;
+import com.google.firebase.crashlytics.FirebaseCrashlytics;
 
 public class MainActivity extends BridgeActivity {
     
@@ -22,6 +23,10 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Initialize Firebase Crashlytics
+        FirebaseCrashlytics crashlytics = FirebaseCrashlytics.getInstance();
+        crashlytics.setCrashlyticsCollectionEnabled(true);
         
         // Initialize dynamic shortcut manager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {

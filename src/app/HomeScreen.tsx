@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useSettingsStore } from '../shared/store/settingsStore';
 import { useThemeStore } from '../shared/store/themeStore';
@@ -7,70 +8,19 @@ import { useDailyRewardStore } from '../shared/store/dailyRewardStore';
 import { useTutorialStore } from '../shared/store/tutorialStore';
 import { GameMode } from '@shared/types';
 import { playClick } from '@utils/audio';
-import { ModeCard } from '../shared/components/ModeCard';
-import { SectionHeader } from '../shared/components/SectionHeader';
 import { DailyRewardModal } from './components/DailyRewardModal';
-
-// Streak Indicator Component
-const StreakIndicator: React.FC = () => {
-  const { currentStreak } = useDailyRewardStore();
-  
-  if (currentStreak === 0) return null;
-  
-  return (
-    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/20 border border-orange-500">
-      <span className="text-xl">🔥</span>
-      <span className="text-sm font-bold text-orange-400">{currentStreak} Gün Serisi</span>
-    </div>
-  );
-};
-
-// Reward Badge Component
-interface RewardBadgeProps {
-  onClick: () => void;
-}
-
-const RewardBadge: React.FC<RewardBadgeProps> = ({ onClick }) => {
-  const { canClaimToday } = useDailyRewardStore();
-  
-  // Detect reduced motion preference
-  const prefersReducedMotion = typeof window !== 'undefined' 
-    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches 
-    : false;
-  
-  if (!canClaimToday) return null;
-  
-  return (
-    <motion.button
-      onClick={onClick}
-      animate={prefersReducedMotion ? {} : {
-        scale: [1, 1.05, 1],
-        boxShadow: [
-          '0 0 0 0 rgba(168, 85, 247, 0)',
-          '0 0 0 8px rgba(168, 85, 247, 0.3)',
-          '0 0 0 0 rgba(168, 85, 247, 0)',
-        ],
-      }}
-      transition={{ duration: 2, repeat: Infinity }}
-      className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500"
-    >
-      <span className="text-xl">🎁</span>
-      <span className="text-sm font-bold text-purple-400">Ödül Hazır!</span>
-    </motion.button>
-  );
-};
+import { Gift } from 'lucide-react';
 
 export const HomeScreen: React.FC = () => {
-  const { initGame, highScores, stats } = useGameStore();
+  const { t } = useTranslation();
+  const { initGame, highScores } = useGameStore();
   const { soundEnabled } = useSettingsStore();
+  const { initializeRewards, canClaimToday } = useDailyRewardStore();
   const { getThemeColors } = useThemeStore();
-  const { initializeRewards } = useDailyRewardStore();
   const colors = getThemeColors();
   
   const [showRewardModal, setShowRewardModal] = useState(false);
-  
-  // Mobile detection for responsive layout
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 390;
+  const hasReward = canClaimToday;
 
   // Initialize rewards on mount
   useEffect(() => {
@@ -93,151 +43,369 @@ export const HomeScreen: React.FC = () => {
 
   // Daily streak from localStorage
   const dailyStreak = parseInt(localStorage.getItem('flux_daily_streak') || '0');
-  
-  // Handle undefined stats
-  const gamesPlayed = stats?.gamesPlayed || 0;
-  const linesCleared = stats?.linesCleared || 0;
-
-  const handleSoundToggle = () => {
-    useSettingsStore.getState().setSoundEnabled(!soundEnabled);
-  };
 
   return (
     <div
-      className="fixed inset-0 flex flex-col"
+      className="fixed inset-0 flex flex-col overflow-hidden"
       style={{ 
-        background: colors.background,
+        background: colors.screenBackground,
         paddingTop: 'env(safe-area-inset-top, 0px)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)'
       }}
     >
-      {/* Fixed Content - No Scroll */}
-      <div className={`flex-1 flex flex-col ${isMobile ? 'px-3 pt-2 pb-16' : 'px-4 pt-3 pb-20'}`}>
-        <div className="w-full max-w-[448px] mx-auto flex flex-col h-full">
-          {/* Header - Compact */}
-          <div className={`flex items-center justify-between ${isMobile ? 'mb-3' : 'mb-4'}`}>
-            <StreakIndicator />
-            
-            <h1 className={`${isMobile ? 'text-base' : 'text-lg'} font-bold tracking-wider`}>
-              <span style={{ color: colors.textPrimary }}>FLUX</span>
-              <span style={{ color: colors.accentPrimary }}>GRID</span>
-            </h1>
-            
-            <button
-              onClick={handleSoundToggle}
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
+      {/* Animated Background Orbs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <motion.div
+          animate={{
+            x: [0, 100, 0],
+            y: [0, -50, 0],
+            scale: [1, 1.2, 1],
+          }}
+          transition={{
+            duration: 20,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute top-0 left-0 w-96 h-96 rounded-full blur-3xl opacity-20"
+          style={{
+            background: `radial-gradient(circle, ${colors.accentSonsuz} 0%, transparent 70%)`,
+          }}
+        />
+        <motion.div
+          animate={{
+            x: [0, -80, 0],
+            y: [0, 100, 0],
+            scale: [1, 1.3, 1],
+          }}
+          transition={{
+            duration: 25,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full blur-3xl opacity-15"
+          style={{
+            background: `radial-gradient(circle, ${colors.accentTimed} 0%, transparent 70%)`,
+          }}
+        />
+        <motion.div
+          animate={{
+            x: [0, -60, 0],
+            y: [0, 80, 0],
+            scale: [1, 1.1, 1],
+          }}
+          transition={{
+            duration: 18,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute top-1/3 right-1/4 w-80 h-80 rounded-full blur-3xl opacity-10"
+          style={{
+            background: `radial-gradient(circle, ${colors.accentPrimary} 0%, transparent 70%)`,
+          }}
+        />
+      </div>
+
+      {/* Floating Particles */}
+      {[...Array(8)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute w-1 h-1 bg-white/20 rounded-full"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+          }}
+          animate={{
+            y: [0, -30, 0],
+            opacity: [0.2, 0.5, 0.2],
+          }}
+          transition={{
+            duration: 3 + Math.random() * 2,
+            repeat: Infinity,
+            delay: Math.random() * 2,
+          }}
+        />
+      ))}
+
+      <div className="relative flex-1 flex flex-col px-6 pt-10 pb-20">
+        <div className="w-full max-w-[400px] mx-auto flex flex-col h-full">
+          {/* Premium Header with Logo */}
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="flex items-center justify-between mb-12"
+          >
+            <motion.div 
+              className="flex items-center gap-3"
+              whileHover={{ scale: 1.02 }}
+              transition={{ duration: 0.2 }}
+            >
+              <motion.div 
+                className="w-10 h-10 rounded-xl"
+                style={{ 
+                  background: `linear-gradient(135deg, ${colors.accentSonsuz} 0%, ${colors.accentPrimary} 100%)`,
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 1fr', 
+                  gap: '2px', 
+                  padding: '4px',
+                  boxShadow: `0 8px 32px ${colors.accentSonsuz}50`,
+                }}
+                whileHover={{ rotate: 180 }}
+                transition={{ duration: 0.6 }}
+              >
+                <div className="bg-white/90 rounded-sm"></div>
+                <div className="bg-white/90 rounded-sm"></div>
+                <div className="bg-white/90 rounded-sm"></div>
+                <div className="bg-white/90 rounded-sm"></div>
+              </motion.div>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight">
+                  <span style={{ 
+                    background: `linear-gradient(to right, ${colors.accentSonsuz}, ${colors.accentPrimary})`,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }}>
+                    FLUX
+                  </span>
+                  <span style={{ 
+                    background: `linear-gradient(to right, ${colors.accentTimed}, ${colors.accentSonsuz})`,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }}>
+                    GRID
+                  </span>
+                </h1>
+              </div>
+            </motion.div>
+
+            {/* Daily Reward Badge */}
+            {hasReward && (
+              <motion.button
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowRewardModal(true)}
+                className="relative"
+              >
+                <motion.div
+                  animate={{ rotate: [0, 10, -10, 0] }}
+                  transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 2 }}
+                  className="w-12 h-12 rounded-xl flex items-center justify-center"
+                  style={{
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)',
+                    boxShadow: '0 8px 24px rgba(249, 115, 22, 0.4)',
+                  }}
+                >
+                  <Gift className="w-6 h-6 text-white" />
+                </motion.div>
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                  className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"
+                />
+              </motion.button>
+            )}
+          </motion.div>
+
+          {/* Glassmorphism Stats Cards */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="grid grid-cols-2 gap-4 mb-12"
+          >
+            <motion.div 
+              whileHover={{ y: -4, scale: 1.02 }}
+              className="rounded-2xl p-5 backdrop-blur-xl"
               style={{
                 background: colors.cardBackgroundTransparent,
                 border: `1px solid ${colors.cardBorderTransparent}`,
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
               }}
-              aria-label="Ses ayarları"
             >
-              <span className="text-base">{soundEnabled ? '🔊' : '🔇'}</span>
-            </button>
-          </div>
-          
-          {/* Reward Badge */}
-          <div className="flex justify-center mb-3">
-            <RewardBadge onClick={() => setShowRewardModal(true)} />
-          </div>
-
-          {/* Game Mode Cards - Compact */}
-          <div className="flex-1 flex flex-col justify-center">
-            <SectionHeader title="OYUN MODU SEÇ" />
-            
-            {/* Endless Mode Card */}
-            <div className={isMobile ? 'mb-2' : 'mb-3'}>
-              <ModeCard
-                mode={GameMode.ENDLESS}
-                bestScore={sonsuzBestScore}
-                icon="∞"
-                accentColor={{
-                  border: 'rgba(168,85,247,0.3)',
-                  background: 'rgba(168,85,247,0.07)',
-                  gradient: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
-                }}
-                tags={['Limit yok', 'Yarışmalı', 'Yetenekler']}
-                onPlay={() => {
-                  if (soundEnabled) playClick();
-                  initGame(GameMode.ENDLESS);
-                }}
-              />
-            </div>
-            
-            {/* Timed Mode Card */}
-            <div className={isMobile ? 'mb-2' : 'mb-4'}>
-              <ModeCard
-                mode={GameMode.TIMED}
-                bestScore={timedBestScore}
-                icon="⏱"
-                accentColor={{
-                  border: 'rgba(245,158,11,0.3)',
-                  background: 'rgba(245,158,11,0.07)',
-                  gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                }}
-                tags={['60 saniye', 'Sprint', 'Combo rush']}
-                onPlay={() => {
-                  if (soundEnabled) playClick();
-                  initGame(GameMode.TIMED);
-                }}
-              />
-            </div>
-
-            {/* HIZLI BAKIŞ - Compact */}
-            <div className={`grid grid-cols-3 ${isMobile ? 'gap-1.5' : 'gap-2'}`}>
-              <div
-                className="rounded-xl p-3"
-                style={{
-                  background: colors.cardBackgroundTransparent,
-                  border: `1px solid ${colors.cardBorderTransparent}`,
-                }}
-              >
-                <div className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mb-0.5`} style={{ color: colors.textPrimary }}>
-                  {gamesPlayed}
-                </div>
-                <div className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
-                  <span>🎮</span>
-                  <span>OYUN</span>
-                </div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: colors.textSecondary }}>
+                {t('home.dailyStreak')}
               </div>
-              
-              <div
-                className="rounded-xl p-3"
-                style={{
-                  background: colors.cardBackgroundTransparent,
-                  border: `1px solid ${colors.cardBorderTransparent}`,
-                }}
-              >
-                <div className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mb-0.5`} style={{ color: colors.textPrimary }}>
-                  {linesCleared}
-                </div>
-                <div className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
-                  <span>⚡</span>
-                  <span>SATIR</span>
-                </div>
-              </div>
-              
-              <div
-                className="rounded-xl p-3"
-                style={{
-                  background: colors.cardBackgroundTransparent,
-                  border: `1px solid ${colors.cardBorderTransparent}`,
-                }}
-              >
-                <div className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mb-0.5`} style={{ color: colors.textPrimary }}>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold" style={{ 
+                  background: `linear-gradient(to bottom right, ${colors.accentSonsuz}, ${colors.accentPrimary})`,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}>
                   {dailyStreak}
-                </div>
-                <div className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
-                  <span>🔥</span>
-                  <span>SERİ</span>
-                </div>
+                </span>
+                <span className="text-sm" style={{ color: colors.textSecondary }}>{t('home.days')}</span>
               </div>
-            </div>
+            </motion.div>
+
+            <motion.div 
+              whileHover={{ y: -4, scale: 1.02 }}
+              className="rounded-2xl p-5 backdrop-blur-xl"
+              style={{
+                background: colors.cardBackgroundTransparent,
+                border: `1px solid ${colors.cardBorderTransparent}`,
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+              }}
+            >
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: colors.textSecondary }}>
+                {t('home.highScore')}
+              </div>
+              <div className="text-3xl font-bold" style={{ 
+                background: `linear-gradient(to bottom right, ${colors.accentTimed}, ${colors.accentSonsuz})`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}>
+                {Math.max(sonsuzBestScore, timedBestScore).toLocaleString('en-US')}
+              </div>
+            </motion.div>
+          </motion.div>
+
+          {/* Choose Your Mode Title */}
+          <motion.h2
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-6 text-center"
+          >
+            {t('home.chooseYourMode')}
+          </motion.h2>
+
+          {/* Premium Mode Cards */}
+          <div className="flex-1 flex flex-col gap-4">
+            {/* Infinite Mode */}
+            <motion.button
+              initial={{ opacity: 0, x: -50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              onClick={() => {
+                if (soundEnabled) playClick();
+                initGame(GameMode.ENDLESS);
+              }}
+              whileHover={{ scale: 1.03, y: -8 }}
+              whileTap={{ scale: 0.98 }}
+              className="relative rounded-3xl p-5 overflow-hidden group flex-1"
+              style={{
+                background: `linear-gradient(135deg, ${colors.accentSonsuz}dd 0%, ${colors.accentSonsuz} 50%, ${colors.accentPrimary} 100%)`,
+                boxShadow: `0 20px 60px ${colors.accentSonsuz}60, 0 0 0 1px rgba(255, 255, 255, 0.1) inset`,
+                minHeight: '140px',
+                maxHeight: '140px',
+              }}
+            >
+              {/* Shine Effect */}
+              <motion.div
+                className="absolute inset-0 opacity-0 group-hover:opacity-100"
+                style={{
+                  background: 'linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%)',
+                  backgroundSize: '200% 200%',
+                }}
+                animate={{
+                  backgroundPosition: ['0% 0%', '100% 100%'],
+                }}
+                transition={{
+                  duration: 1.5,
+                  repeat: Infinity,
+                }}
+              />
+              
+              {/* Noise Texture */}
+              <div className="absolute inset-0 opacity-[0.03]" style={{
+                backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")',
+              }} />
+              
+              <div className="relative flex items-center justify-between h-full">
+                <div className="flex-1">
+                  <h3 className="text-2xl font-bold text-white mb-1.5 tracking-tight">{t('home.infinite')}</h3>
+                  <p className="text-xs text-white/75 leading-relaxed max-w-[180px]">
+                    {t('home.infiniteDesc')}
+                  </p>
+                </div>
+                
+                <motion.div 
+                  className="w-14 h-14 rounded-full flex items-center justify-center ml-3"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.15)',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+                  }}
+                  whileHover={{ rotate: 180, scale: 1.1 }}
+                  transition={{ duration: 0.6 }}
+                >
+                  <span className="text-2xl text-white font-bold">∞</span>
+                </motion.div>
+              </div>
+            </motion.button>
+
+            {/* Timed Mode */}
+            <motion.button
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              onClick={() => {
+                if (soundEnabled) playClick();
+                initGame(GameMode.TIMED);
+              }}
+              whileHover={{ scale: 1.03, y: -8 }}
+              whileTap={{ scale: 0.98 }}
+              className="relative rounded-3xl p-5 overflow-hidden group flex-1"
+              style={{
+                background: `linear-gradient(135deg, ${colors.accentTimed}dd 0%, ${colors.accentTimed} 50%, ${colors.accentSonsuz} 100%)`,
+                boxShadow: `0 20px 60px ${colors.accentTimed}60, 0 0 0 1px rgba(255, 255, 255, 0.1) inset`,
+                minHeight: '140px',
+                maxHeight: '140px',
+              }}
+            >
+              {/* Shine Effect */}
+              <motion.div
+                className="absolute inset-0 opacity-0 group-hover:opacity-100"
+                style={{
+                  background: 'linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%)',
+                  backgroundSize: '200% 200%',
+                }}
+                animate={{
+                  backgroundPosition: ['0% 0%', '100% 100%'],
+                }}
+                transition={{
+                  duration: 1.5,
+                  repeat: Infinity,
+                }}
+              />
+              
+              {/* Noise Texture */}
+              <div className="absolute inset-0 opacity-[0.03]" style={{
+                backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")',
+              }} />
+              
+              <div className="relative flex items-center justify-between h-full">
+                <div className="flex-1">
+                  <h3 className="text-2xl font-bold text-white mb-1.5 tracking-tight">{t('home.timed')}</h3>
+                  <p className="text-xs text-white/75 leading-relaxed max-w-[180px]">
+                    {t('home.timedDesc')}
+                  </p>
+                </div>
+                
+                <motion.div 
+                  className="w-14 h-14 rounded-full flex items-center justify-center ml-3"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.15)',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+                  }}
+                  whileHover={{ rotate: 360, scale: 1.1 }}
+                  transition={{ duration: 0.6 }}
+                >
+                  <span className="text-2xl text-white">⏱</span>
+                </motion.div>
+              </div>
+            </motion.button>
           </div>
         </div>
       </div>
       
-      {/* Daily Reward Modal */}
       <DailyRewardModal
         isOpen={showRewardModal}
         onClose={() => setShowRewardModal(false)}

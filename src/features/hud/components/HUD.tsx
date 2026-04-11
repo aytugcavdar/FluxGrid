@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useGameStore } from '../../game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
 import { useStreakStore } from '@shared/store/streakStore';
-import { Zap, RefreshCw, Hammer, Volume2, VolumeX, Home, RotateCw } from 'lucide-react';
+import { Zap, Volume2, VolumeX, Home, RefreshCw, Hammer } from 'lucide-react';
 import { FLUX_COST, ZEN_PALETTES, TIMED_MODE } from '../../game/constants';
 import { SkillType } from '../../game/types';
 import { GameMode, AppState } from '@shared/types';
@@ -69,7 +69,7 @@ export const HUD: React.FC = () => {
     };
     
     // Calculate HUD height dynamically based on active event
-    const hudHeight = activeEvent ? 122 : 100; // 100 (base) + 22 (compact event banner)
+    const hudHeight = activeEvent ? 82 : 60; // Sadece ROW 1 (60px) + event banner (22px)
 
     return (
         <>
@@ -94,16 +94,16 @@ export const HUD: React.FC = () => {
                 } as React.CSSProperties}
             >
                 {/* ROW 1: Home + Score/Flux + Timer/Moves + Streak + Mute */}
-                <div style={{ height: 52, display: 'flex', alignItems: 'center', gap: 6, padding: '0 6px' }}>
-                    {/* Home button - 36×36px */}
+                <div style={{ height: 60, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px' }}>
+                    {/* Home button - 44×44px (daha büyük, daha kolay dokunma) */}
                     <button
                         onClick={() => { playClick(); setAppState(AppState.HOME); }}
                         style={{
-                            width: 36,
-                            height: 36,
-                            minWidth: 36,
-                            minHeight: 36,
-                            borderRadius: 9,
+                            width: 44,
+                            height: 44,
+                            minWidth: 44,
+                            minHeight: 44,
+                            borderRadius: 12,
                             border: `1px solid ${colors.hudBorder}`,
                             background: colors.hudBackground,
                             display: 'flex',
@@ -111,18 +111,29 @@ export const HUD: React.FC = () => {
                             justifyContent: 'center',
                             color: colors.textTertiary,
                             flexShrink: 0,
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
                         }}
                     >
-                        <Home size={16} />
+                        <Home size={20} />
                     </button>
 
-                    {/* Center content - Score + Flux bar */}
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, padding: '0 4px' }}>
+                    {/* Center content - Score + Flux bar - Daha iyi görsel hiyerarşi */}
+                    <div style={{ 
+                        flex: 1, 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: 6, 
+                        padding: '6px 12px',
+                        background: 'rgba(255,255,255,0.03)',
+                        borderRadius: 12,
+                        border: `1px solid ${colors.hudBorder}`,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                    }}>
                         {/* Score row */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <span style={{ fontSize: 18, fontWeight: 700, color: colors.textPrimary }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontSize: 22, fontWeight: 800, color: colors.textPrimary, letterSpacing: '-0.5px' }}>
                                     {gameMode === GameMode.ZEN ? zenBlocksPlaced : score.toLocaleString()}
                                 </span>
                                 {isSurgeActive && (
@@ -180,22 +191,23 @@ export const HUD: React.FC = () => {
                             </span>
                         </div>
                         
-                        {/* Flux bar row */}
+                        {/* Flux bar row - Daha kalın ve belirgin */}
                         {gameMode !== GameMode.ZEN ? (
-                            <div data-testid="flux-meter" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                <Zap size={10} color={flux >= 100 || isSurgeActive ? '#f59e0b' : (flux >= 80 ? '#f59e0b' : '#3b82f6')} fill={flux >= 100 || isSurgeActive ? '#f59e0b' : 'none'} />
-                                <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 3 }}>
+                            <div data-testid="flux-meter" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Zap size={12} color={flux >= 100 || isSurgeActive ? '#f59e0b' : (flux >= 80 ? '#f59e0b' : '#3b82f6')} fill={flux >= 100 || isSurgeActive ? '#f59e0b' : 'none'} />
+                                <div style={{ flex: 1, height: 8, background: 'rgba(0,0,0,0.3)', borderRadius: 4, overflow: 'hidden', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)' }}>
                                     <motion.div
                                         style={{
                                             height: '100%',
-                                            background: flux >= 100 || isSurgeActive ? '#f59e0b' : (flux >= 80 ? '#f59e0b' : '#3b82f6'),
-                                            borderRadius: 3,
-                                            transition: 'width .25s, background .3s'
+                                            background: flux >= 100 || isSurgeActive ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : (flux >= 80 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : 'linear-gradient(90deg, #3b82f6, #60a5fa)'),
+                                            borderRadius: 4,
+                                            transition: 'width .25s, background .3s',
+                                            boxShadow: flux >= 100 || isSurgeActive ? '0 0 8px rgba(245,158,11,0.5)' : '0 0 4px rgba(59,130,246,0.3)'
                                         }}
                                         animate={{ width: `${Math.min(flux, 100)}%` }}
                                     />
                                 </div>
-                                <span style={{ fontSize: 9, color: colors.textTertiary }}>{Math.floor(flux)}%</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: colors.textSecondary, minWidth: 36, textAlign: 'right' }}>{Math.floor(flux)}%</span>
                             </div>
                         ) : (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -272,25 +284,26 @@ export const HUD: React.FC = () => {
                         />
                     </div>
 
-                    {/* Mute button - 36×36px */}
+                    {/* Mute button - 44×44px (daha büyük) */}
                     <button
                         onClick={handleMute}
                         style={{
-                            width: 36,
-                            height: 36,
-                            minWidth: 36,
-                            minHeight: 36,
-                            borderRadius: 9,
+                            width: 44,
+                            height: 44,
+                            minWidth: 44,
+                            minHeight: 44,
+                            borderRadius: 12,
                             border: `1px solid ${colors.hudBorder}`,
                             background: colors.hudBackground,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             flexShrink: 0,
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
                         }}
                     >
-                        {muted ? <VolumeX size={16} style={{ color: colors.textTertiary, opacity: 0.4 }} /> : <Volume2 size={16} style={{ color: colors.textTertiary }} />}
+                        {muted ? <VolumeX size={20} style={{ color: colors.textTertiary, opacity: 0.4 }} /> : <Volume2 size={20} style={{ color: colors.textTertiary }} />}
                     </button>
                 </div>
 
@@ -333,91 +346,29 @@ export const HUD: React.FC = () => {
                     </div>
                 )}
 
-                {/* ROW 2: Skill buttons */}
-                <div style={{ height: 48, display: 'flex', alignItems: 'center', gap: 4, padding: '0 6px' }}>
-                    <MobileSkillButton
-                        icon={<RotateCw size={17} />}
-                        cost={FLUX_COST.REROLL}
-                        currentFlux={flux}
-                        isActive={false}
-                        onClick={() => handleSkill(SkillType.REROLL)}
-                        accentColor="#10b981"
-                        accentBg={gameMode === GameMode.ZEN ? 'rgba(255,255,255,0.06)' : 'rgba(16,185,129,0.1)'}
-                        accentBorder="rgba(16,185,129,0.2)"
-                        label="Yenile"
-                        desc="Tüm parçaları değiştir"
-                        dataTestId="mobile-skill-button-reroll"
-                    />
-
-                    <MobileSkillButton
-                        icon={<Hammer size={17} />}
-                        cost={FLUX_COST.SHATTER}
-                        currentFlux={flux}
-                        isActive={activeSkill === SkillType.SHATTER}
-                        onClick={() => handleSkill(SkillType.SHATTER)}
-                        accentColor="#ef4444"
-                        accentBg={gameMode === GameMode.ZEN ? 'rgba(255,255,255,0.06)' : 'rgba(239,68,68,0.1)'}
-                        accentBorder="rgba(239,68,68,0.2)"
-                        label="Kır"
-                        desc="Bir bloğa dokun → kır"
-                        dataTestId="mobile-skill-button-shatter"
-                    />
-
-                    <MobileSkillButton
-                        icon={
-                            <svg width="17" height="17" viewBox="0 0 14 14" fill="none">
-                                <circle cx="7" cy="8" r="5" stroke="currentColor" strokeWidth="1.2"/>
-                                <path d="M7 3L9 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                                <circle cx="9.5" cy="0.5" r="1" fill="currentColor"/>
-                            </svg>
-                        }
-                        cost={FLUX_COST.BOMB}
-                        currentFlux={flux}
-                        isActive={activeSkill === SkillType.BOMB}
-                        onClick={() => handleSkill(SkillType.BOMB)}
-                        accentColor="#f97316"
-                        accentBg={gameMode === GameMode.ZEN ? 'rgba(255,255,255,0.06)' : 'rgba(249,115,22,0.1)'}
-                        accentBorder="rgba(249,115,22,0.2)"
-                        label="Bomba"
-                        desc="3×3 alanı temizle"
-                        dataTestId="mobile-skill-button-bomb"
-                    />
-                </div>
-
-                {/* FLUX EKSIKLIK HINT */}
-                {flux < 75 && flux >= 40 && (
-                    <div style={{ textAlign: 'center', fontSize: 9, color: 'rgba(249,115,22,0.5)', marginTop: 2, padding: '0 6px' }}>
-                        Bomba için +{75 - flux}⚡ daha
-                    </div>
-                )}
-                {flux < 40 && flux >= 20 && (
-                    <div style={{ textAlign: 'center', fontSize: 9, color: 'rgba(239,68,68,0.5)', marginTop: 2, padding: '0 6px' }}>
-                        Kır için +{40 - flux}⚡ daha
-                    </div>
-                )}
-                {flux < 20 && (
-                    <div style={{ textAlign: 'center', fontSize: 9, color: 'rgba(16,185,129,0.5)', marginTop: 2, padding: '0 6px' }}>
-                        Yenile için +{20 - flux}⚡ daha
-                    </div>
-                )}
-
-                {/* SURGE INLINE BANNER */}
+                {/* SURGE INLINE BANNER - Daha kompakt ve az dikkat çekici */}
                 {isSurgeActive && (
                     <div style={{
-                        margin: '0 0 4px',
-                        padding: '4px 0',
-                        borderRadius: 7,
+                        margin: '0 12px 4px',
+                        padding: '6px 12px',
+                        borderRadius: 10,
                         textAlign: 'center',
-                        background: 'rgba(245,158,11,0.1)',
-                        border: '0.5px solid rgba(245,158,11,0.25)'
+                        background: 'linear-gradient(90deg, rgba(245,158,11,0.08), rgba(251,191,36,0.08))',
+                        border: '1px solid rgba(245,158,11,0.2)',
+                        boxShadow: '0 2px 6px rgba(245,158,11,0.1), inset 0 1px 0 rgba(255,255,255,0.05)'
                     }}>
                         <span style={{
                             fontSize: 10,
                             fontWeight: 700,
                             color: '#f59e0b',
-                            letterSpacing: '.06em'
+                            letterSpacing: '.04em',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6
                         }}>
-                            ⚡ SURGE AKTİF — satır temizlemede 2× puan
+                            <span style={{ fontSize: 12 }}>⚡</span>
+                            <span>SURGE AKTİF — satır temizlemede 2× puan</span>
                         </span>
                     </div>
                 )}
@@ -644,97 +595,6 @@ export const HUD: React.FC = () => {
                 onClose={() => setCurrentMilestone(null)}
             />
         </>
-    );
-};
-
-const MobileSkillButton = ({ icon, cost, currentFlux, isActive, onClick, accentColor, accentBg, accentBorder, label, desc, dataTestId }: any) => {
-    const canUse = currentFlux >= cost || isActive;
-    const disabled = !canUse && !isActive;
-    
-    return (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <button
-                onClick={() => { playClick(); onClick(); }}
-                disabled={disabled}
-                data-testid={dataTestId}
-                style={{
-                    width: '100%',
-                    minHeight: 44,
-                    borderRadius: 8,
-                    border: isActive ? `1px solid ${accentColor}` : (disabled ? '0.5px solid rgba(255,255,255,0.06)' : `0.5px solid ${accentBorder}`),
-                    background: isActive ? `${accentColor}20` : (disabled ? 'rgba(255,255,255,0.02)' : accentBg),
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    position: 'relative',
-                    opacity: disabled ? 0.35 : 1,
-                    cursor: disabled ? 'not-allowed' : 'pointer',
-                    transform: isActive ? 'scale(1.02)' : 'scale(1)',
-                    transition: 'all .15s',
-                    padding: '6px 4px 4px',
-                    gap: 2
-                }}
-            >
-                {/* Icon */}
-                <div 
-                    data-testid="icon-container"
-                    style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center',
-                        fontSize: 17,
-                        color: canUse ? accentColor : 'rgba(255,255,255,0.2)'
-                    }}
-                >
-                    {icon}
-                </div>
-                
-                {/* Label */}
-                <span style={{
-                    fontSize: 9,
-                    fontWeight: 600,
-                    color: isActive ? 'white' : (canUse ? accentColor : 'rgba(255,255,255,0.2)'),
-                    lineHeight: 1
-                }}>
-                    {label}
-                </span>
-                
-                {/* Cost + ⚡ */}
-                <div style={{
-                    fontSize: 8,
-                    color: `${accentColor}70`,
-                    lineHeight: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1
-                }}>
-                    <span>{cost}</span>
-                    <span>⚡</span>
-                </div>
-            </button>
-            
-            {/* Active Description Strip */}
-            {isActive && (
-                <div style={{
-                    width: '100%',
-                    padding: '3px 5px',
-                    background: `${accentColor}12`,
-                    borderTop: `0.5px solid ${accentColor}20`,
-                    borderRadius: '0 0 8px 8px',
-                    textAlign: 'center',
-                    marginTop: -8
-                }}>
-                    <span style={{
-                        fontSize: 8,
-                        color: accentColor,
-                        lineHeight: 1.4
-                    }}>
-                        {desc}
-                    </span>
-                </div>
-            )}
-        </div>
     );
 };
 

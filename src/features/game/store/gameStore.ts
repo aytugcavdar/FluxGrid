@@ -22,6 +22,7 @@ import { calculateScore, calculateFluxGain } from './helpers/scoreCalculator';
 import { migrateSaveData, SaveData } from './helpers/migration';
 import { LocalStorageService } from '@services/local/localStorageService';
 import { useVisualEffectStore } from '../../visual-effects/store/visualEffectStore';
+import { useAchievementStore } from '../../achievements/achievementStore';
 
 export interface GameStore {
   grid: GridState;
@@ -107,6 +108,23 @@ export interface GameStore {
   comboTimerStartTime: number | null;
   comboTimerDuration: number; // milliseconds (default 5000 = 5 seconds)
   comboTimeLeft: number; // remaining time in seconds for UI
+  
+  // Game Logs State (for analytics)
+  gameLogs: Array<{
+    id: string;
+    mode: GameMode;
+    score: number;
+    timestamp: number;
+    duration: number;
+    linesCleared: number;
+    maxCombo: number;
+    badge?: 'new-record' | 'perfect' | 'comeback' | 'speedrun';
+    metadata?: {
+      tier?: number;
+      chronoBonus?: number;
+      skillsUsed?: string[];
+    };
+  }>;
 
   // Actions
   initGame: (mode?: GameMode, savedData?: SaveData) => void;
@@ -177,8 +195,11 @@ export const useGameStore = create<GameStore>((set, get) => {
   bonusShatter: 0,
   bonusBomb: 0,
   
-  // Achievements Initial State
-  achievements: safeJSONParse(safeLocalStorageGet('flux_achievements', JSON.stringify(EXPANDED_ACHIEVEMENTS)), EXPANDED_ACHIEVEMENTS),
+  // Achievements Initial State - ensure it's always an array
+  achievements: (() => {
+    const parsed = safeJSONParse(safeLocalStorageGet('flux_achievements', JSON.stringify(EXPANDED_ACHIEVEMENTS)), EXPANDED_ACHIEVEMENTS);
+    return Array.isArray(parsed) ? parsed : EXPANDED_ACHIEVEMENTS;
+  })(),
   unlockedAchievementId: null,
 
   // Navigation & Persistence
@@ -229,6 +250,20 @@ export const useGameStore = create<GameStore>((set, get) => {
   comboTimerStartTime: null,
   comboTimerDuration: COMBO_TIMER.DURATION, // 5 seconds
   comboTimeLeft: 0,
+  
+  // Game Logs Initial State
+  gameLogs: (() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const stored = localStorage.getItem('flux_game_logs');
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.error('[GameStore] Failed to load game logs:', error);
+      return [];
+    }
+  })(),
 
   initGame: (mode = GameMode.ENDLESS, savedData?: SaveData) => {
     const success = safeExecute(
@@ -377,6 +412,11 @@ export const useGameStore = create<GameStore>((set, get) => {
         // Sync to profileStore
         useProfileStore.getState().incrementSkillUse('REROLL' as any);
         
+        // Track ability usage for achievements
+        const abilityCount = parseInt(localStorage.getItem('flux_ability_count') || '0') + 1;
+        localStorage.setItem('flux_ability_count', abilityCount.toString());
+        useAchievementStore.getState().checkAchievement('ability_master', abilityCount);
+        
         get().checkGameOver();
       } else if (flux >= FLUX_COST.REROLL) {
         const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
@@ -397,6 +437,11 @@ export const useGameStore = create<GameStore>((set, get) => {
         
         // Sync to profileStore
         useProfileStore.getState().incrementSkillUse('REROLL' as any);
+        
+        // Track ability usage for achievements
+        const abilityCount = parseInt(localStorage.getItem('flux_ability_count') || '0') + 1;
+        localStorage.setItem('flux_ability_count', abilityCount.toString());
+        useAchievementStore.getState().checkAchievement('ability_master', abilityCount);
         
         get().checkGameOver();
       }
@@ -464,6 +509,11 @@ export const useGameStore = create<GameStore>((set, get) => {
     
     // Sync to profileStore
     useProfileStore.getState().incrementSkillUse('SHATTER' as any);
+    
+    // Track ability usage for achievements
+    const abilityCount = parseInt(localStorage.getItem('flux_ability_count') || '0') + 1;
+    localStorage.setItem('flux_ability_count', abilityCount.toString());
+    useAchievementStore.getState().checkAchievement('ability_master', abilityCount);
   },
 
   useBomb: (x, y) => {
@@ -535,6 +585,11 @@ export const useGameStore = create<GameStore>((set, get) => {
     
     // Sync to profileStore
     useProfileStore.getState().incrementSkillUse('BOMB' as any);
+    
+    // Track ability usage for achievements
+    const abilityCount = parseInt(localStorage.getItem('flux_ability_count') || '0') + 1;
+    localStorage.setItem('flux_ability_count', abilityCount.toString());
+    useAchievementStore.getState().checkAchievement('ability_master', abilityCount);
   },
 
   canPlacePiece: (grid, piece, startX, startY) => {
@@ -1099,6 +1154,45 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     get().checkGameOver();
     
+    // Check achievements (new achievement system)
+    const achievementStore = useAchievementStore.getState();
+    
+    // Check score achievements
+    achievementStore.checkAchievement('score_1000', newScore);
+    achievementStore.checkAchievement('score_5000', newScore);
+    achievementStore.checkAchievement('score_10000', newScore);
+    
+    // Check line clear achievements
+    achievementStore.checkAchievement('lines_10', nextStats.linesCleared);
+    achievementStore.checkAchievement('lines_50', nextStats.linesCleared);
+    achievementStore.checkAchievement('lines_100', nextStats.linesCleared);
+    
+    // Check first game achievement
+    if (nextStats.gamesPlayed >= 1) {
+      achievementStore.checkAchievement('first_game', 1);
+    }
+    
+    // Check combo achievements
+    if (newCombo >= 5) {
+      achievementStore.checkAchievement('combo_master', newCombo);
+    }
+    
+    // Check streak achievements (from progression system)
+    if (gameMode === GameMode.ENDLESS) {
+      const currentStreak = updatedProgressionState.currentStreak;
+      achievementStore.checkAchievement('streak_3', currentStreak);
+      achievementStore.checkAchievement('streak_7', currentStreak);
+      achievementStore.checkAchievement('streak_30', currentStreak);
+    }
+    
+    // Check flux master achievement (surge activations)
+    if (surgeJustFilled && gameMode !== GameMode.ZEN) {
+      // Track surge activations - we'll use a counter in localStorage
+      const surgeCount = parseInt(localStorage.getItem('flux_surge_count') || '0') + 1;
+      localStorage.setItem('flux_surge_count', surgeCount.toString());
+      achievementStore.checkAchievement('flux_master', surgeCount);
+    }
+    
     return true;
   },
 
@@ -1154,6 +1248,53 @@ export const useGameStore = create<GameStore>((set, get) => {
       
       set({ stats: updatedStats });
       LocalStorageService.saveStats(updatedStats);
+      
+      // Save game log for analytics
+      const gameStartTime = get().timerStartTime || Date.now() - 60000; // Fallback to 1 min ago
+      const gameDuration = Math.floor((Date.now() - gameStartTime) / 1000); // seconds
+      const finalMaxCombo = get().maxCombo;
+      const finalLinesCleared = currentStats.linesCleared || 0;
+      
+      // Detect badges
+      let badge: 'new-record' | 'perfect' | 'comeback' | 'speedrun' | undefined;
+      const previousHighScore = gameMode === GameMode.ENDLESS 
+        ? (currentStats.endlessHighScore || 0)
+        : (currentStats.timedHighScore || 0);
+      
+      if (finalScore > previousHighScore && previousHighScore > 0) {
+        badge = 'new-record';
+      } else if (get().perfectClearDetected) {
+        badge = 'perfect';
+      } else if (gameMode === GameMode.TIMED && gameDuration < 30) {
+        badge = 'speedrun';
+      }
+      
+      const newLog = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        mode: gameMode,
+        score: finalScore,
+        timestamp: Date.now(),
+        duration: gameDuration,
+        linesCleared: finalLinesCleared,
+        maxCombo: finalMaxCombo,
+        badge,
+        metadata: {
+          tier: gameMode === GameMode.ENDLESS ? get().difficultyTier : undefined,
+          chronoBonus: gameMode === GameMode.TIMED ? get().chronoBonus : undefined,
+        },
+      };
+      
+      // Add to logs (keep last 100)
+      const currentLogs = get().gameLogs || [];
+      const updatedLogs = [newLog, ...currentLogs].slice(0, 100);
+      set({ gameLogs: updatedLogs });
+      
+      // Save to localStorage
+      try {
+        localStorage.setItem('flux_game_logs', JSON.stringify(updatedLogs));
+      } catch (error) {
+        console.error('[GameStore] Failed to save game logs:', error);
+      }
       
       // Monetization integration: Record game end and streak
       try {

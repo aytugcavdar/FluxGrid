@@ -44,27 +44,45 @@ class ErrorHandler {
 
   /**
    * Setup global error handlers
+   * Requirements: 2.6, 2.9, 10.4
    */
   private setupGlobalHandlers() {
     // Catch unhandled errors
     window.addEventListener('error', (event) => {
+      // Prevent default browser error handling
+      event.preventDefault();
+      
       this.handleError(
         event.error || new Error(event.message),
         ErrorCategory.UNKNOWN,
         ErrorSeverity.HIGH,
-        { filename: event.filename, lineno: event.lineno, colno: event.colno }
+        { 
+          filename: event.filename, 
+          lineno: event.lineno, 
+          colno: event.colno,
+          type: 'window.onerror'
+        }
       );
     });
 
     // Catch unhandled promise rejections
     window.addEventListener('unhandledrejection', (event) => {
+      // Prevent default browser error handling
+      event.preventDefault();
+      
       this.handleError(
         event.reason,
         ErrorCategory.UNKNOWN,
         ErrorSeverity.MEDIUM,
-        { promise: 'unhandled rejection' }
+        { 
+          promise: 'unhandled rejection',
+          type: 'unhandledrejection'
+        }
       );
     });
+
+    // Log that global handlers are set up
+    console.log('[ErrorHandler] Global error handlers initialized');
   }
 
   /**

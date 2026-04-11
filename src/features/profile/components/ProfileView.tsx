@@ -14,8 +14,11 @@ interface ProfileViewProps {
 type TabType = 'stats' | 'modes' | 'skills' | 'achievements';
 
 export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderboard }) => {
-  const { stats, achievements, highScore, maxLevelReached } = useGameStore();
+  const { stats, achievements: rawAchievements, highScore, maxLevelReached } = useGameStore();
   const [activeTab, setActiveTab] = useState<TabType>('stats');
+
+  // Ensure achievements is always an array
+  const achievements = Array.isArray(rawAchievements) ? rawAchievements : [];
 
   // Use real data from gameStore
   const derivedStats = {

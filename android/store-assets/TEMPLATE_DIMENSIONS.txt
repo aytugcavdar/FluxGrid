@@ -1,0 +1,93 @@
+Google Play Store Asset Dimensions - Boyut Referansı
+
+═══════════════════════════════════════════════════════════════
+
+ZORUNLU VARLIKLAR (REQUIRED ASSETS)
+═══════════════════════════════════════════════════════════════
+
+1. Feature Graphic (Öne Çıkan Grafik)
+   Boyut: 1024 x 500 piksel
+   Format: PNG veya JPEG (24-bit, alpha kanalı yok)
+   Maks Boyut: 1 MB
+   Dosya Adı: feature-graphic.png
+
+2. High-Resolution Icon (Yüksek Çözünürlüklü İkon)
+   Boyut: 512 x 512 piksel
+   Format: PNG (32-bit, alpha kanalı ile)
+   Maks Boyut: 1 MB
+   Dosya Adı: icon-512.png
+
+3. Screenshots (Ekran Görüntüleri) - Minimum 2, Maksimum 8
+   Boyut: 1080 x 1920 piksel (portrait) veya 1920 x 1080 piksel (landscape)
+   Format: PNG veya JPEG (24-bit)
+   Maks Boyut: 8 MB per screenshot
+   Dosya Adları:
+   - screenshot-1-gameplay.png
+   - screenshot-2-abilities.png
+   - screenshot-3-statistics.png
+   - screenshot-4-settings.png
+
+═══════════════════════════════════════════════════════════════
+
+OPSİYONEL VARLIKLAR (OPTIONAL ASSETS)
+═══════════════════════════════════════════════════════════════
+
+4. Promo Graphic (Tanıtım Grafiği)
+   Boyut: 180 x 120 piksel
+   Format: PNG veya JPEG (24-bit)
+   Maks Boyut: 1 MB
+   Dosya Adı: promo-graphic.png
+
+═══════════════════════════════════════════════════════════════
+
+LAUNCHER ICONS (Zaten Mevcut)
+═══════════════════════════════════════════════════════════════
+
+✓ mdpi: 48 x 48 piksel
+✓ hdpi: 72 x 72 piksel
+✓ xhdpi: 96 x 96 piksel
+✓ xxhdpi: 144 x 144 piksel
+✓ xxxhdpi: 192 x 192 piksel
+
+Konum: android/app/src/main/res/mipmap-*/ic_launcher.png
+
+═══════════════════════════════════════════════════════════════
+
+TASARIM İPUÇLARI (DESIGN TIPS)
+═══════════════════════════════════════════════════════════════
+
+Feature Graphic:
+- Oyun logosunu merkeze yerleştirin
+- Canlı renkler ve yüksek kontrast kullanın
+- Metin kullanıyorsanız minimum 40pt font boyutu
+- Güvenli alan: Kenarlardan 40px içeride kalın
+
+Screenshots:
+- Gerçek oyun ekranlarını kullanın
+- Her ekrana kısa açıklayıcı metin ekleyin
+- Tutarlı stil kullanın (aynı font, renk)
+- İlk 2 ekran en önemlidir
+
+═══════════════════════════════════════════════════════════════
+
+HIZLI REFERANS (QUICK REFERENCE)
+═══════════════════════════════════════════════════════════════
+
+Aspect Ratios:
+- Feature Graphic: 2.048:1 (1024:500)
+- Icon: 1:1 (512:512)
+- Screenshots: 9:16 (1080:1920) portrait
+- Screenshots: 16:9 (1920:1080) landscape
+- Promo Graphic: 1.5:1 (180:120)
+
+File Size Limits:
+- Feature Graphic: 1 MB
+- Icon: 1 MB
+- Screenshots: 8 MB each
+- Promo Graphic: 1 MB
+
+Supported Formats:
+- PNG (recommended for transparency)
+- JPEG (for photos/screenshots)
+
+═══════════════════════════════════════════════════════════════

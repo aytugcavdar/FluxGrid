@@ -18,3 +18,15 @@ export type { SectionHeaderProps } from './SectionHeader';
 
 // Monetization Components
 export { StreakBadge } from './StreakBadge';
+
+// Modern UI Components
+export { GradientCardBase } from './GradientCardBase';
+export type { GradientCardBaseProps } from './GradientCardBase';
+export { EnhancedGameModeCard } from './EnhancedGameModeCard';
+export type { EnhancedGameModeCardProps } from './EnhancedGameModeCard';
+export { PerformanceDNACard } from './PerformanceDNACard';
+export type { PerformanceDNACardProps } from './PerformanceDNACard';
+export { RecentLogsTimeline } from './RecentLogsTimeline';
+export type { RecentLogsTimelineProps } from './RecentLogsTimeline';
+export { TrendAnalysisChart } from './TrendAnalysisChart';
+export type { TrendAnalysisChartProps } from './TrendAnalysisChart';

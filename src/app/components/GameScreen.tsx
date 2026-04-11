@@ -84,11 +84,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const isTutorialActive = useTutorialStore(state => state.isActive);
 
   // Check if banner should be shown (native platform only)
+  // Note: AdBanner component handles all visibility logic internally
   const showBanner = typeof window !== 'undefined' && 
-                     !!(window as any).Capacitor?.isNativePlatform?.() &&
-                     window.innerWidth >= 390 && 
-                     !AdManager.isNoAdsActive() &&
-                     !isTutorialActive;
+                     !!(window as any).Capacitor?.isNativePlatform?.();
 
   // Track banner height for dynamic tray padding
   const [bannerHeight, setBannerHeight] = useState(0);
@@ -136,7 +134,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       {/* Grid Area */}
       <main 
         className="flex-1 relative flex items-center justify-center min-h-0 overflow-hidden"
-        style={{ padding: '4px' }}
+        style={{ padding: '0px 4px 4px' }}
       >
         {/* Active Skill Banner */}
         <AnimatePresence>
@@ -234,9 +232,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       {/* Piece Tray */}
       <div style={{ 
         height: `calc(var(--tray-height, 68px) + env(safe-area-inset-bottom, 0px))`,
-        paddingBottom: bannerHeight > 0 
-          ? `calc(${bannerHeight}px + env(safe-area-inset-bottom, 0px) + 4px)` 
-          : 'calc(env(safe-area-inset-bottom, 0px) + 4px)',
+        marginBottom: showBanner ? '60px' : '0px', // Banner için boşluk bırak
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 4px)',
         backgroundColor: colors.trayBackground,
         borderTop: `1px solid ${colors.hudBorder}`,
         flexShrink: 0

@@ -63,6 +63,16 @@
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="${admobAppId}"/>
         
+        <!-- Privacy Policy URL (Required for Google Play Store) -->
+        <meta-data
+            android:name="com.google.android.gms.ads.PRIVACY_POLICY_URL"
+            android:value="https://fluxgrid.app/privacy-policy.html"/>
+        
+        <!-- Terms of Service URL -->
+        <meta-data
+            android:name="com.fluxgrid.app.TERMS_OF_SERVICE_URL"
+            android:value="https://fluxgrid.app/terms-of-service.html"/>
+        
         <!-- App Widgets -->
         <receiver
             android:name=".widget.StatsWidgetProvider"

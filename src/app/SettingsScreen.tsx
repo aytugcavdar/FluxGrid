@@ -19,14 +19,18 @@ export const SettingsScreen: React.FC = () => {
   const { i18n, t } = useTranslation();
   const {
     soundEnabled,
+    musicEnabled,
     hapticEnabled,
     ghostBlockEnabled,
     performanceModeEnabled,
+    colorBlindMode,
     language,
     setSoundEnabled,
+    setMusicEnabled,
     setHapticEnabled,
     setGhostBlockEnabled,
     setPerformanceModeEnabled,
+    setColorBlindMode,
     setLanguage,
     exportData,
     resetAllData,
@@ -49,9 +53,19 @@ export const SettingsScreen: React.FC = () => {
   const [isPWAInstalled, setIsPWAInstalled] = useState(false);
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
   
-  const handleLanguageChange = (lang: 'tr' | 'en') => {
+  const handleLanguageChange = (lang: 'tr' | 'en' | 'de' | 'fr' | 'es') => {
+    console.log('[Language] Changing language to:', lang);
+    console.log('[Language] Current i18n language:', i18n.language);
+    
     setLanguage(lang);
-    i18n.changeLanguage(lang);
+    localStorage.setItem('flux_language', lang);
+    
+    i18n.changeLanguage(lang).then(() => {
+      console.log('[Language] Language changed successfully to:', i18n.language);
+      // No page reload needed - React will re-render automatically
+    }).catch((error) => {
+      console.error('[Language] Failed to change language:', error);
+    });
   };
 
   // Load FPS limit from localStorage on mount
@@ -163,10 +177,9 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const themes: Array<{ theme: ThemeType; label: string; colors: string[] }> = [
-    { theme: 'dark', label: 'Koyu', colors: ['#3b82f6', '#a855f7', '#f59e0b'] },
-    { theme: 'light', label: 'Açık', colors: ['#60a5fa', '#c084fc', '#fbbf24'] },
-    { theme: 'neon', label: 'Neon', colors: ['#e879f9', '#06b6d4', '#a78bfa'] },
-    { theme: 'ocean', label: 'Okyanus', colors: ['#38bdf8', '#22d3ee', '#7dd3fc'] },
+    { theme: 'dark', label: t('settingsScreen.themeDark'), colors: ['#a855f7', '#9333ea', '#f59e0b'] },
+    { theme: 'light', label: t('settingsScreen.themeLight'), colors: ['#f59e0b', '#fbbf24', '#fb923c'] },
+    { theme: 'neon', label: t('settingsScreen.themeNeon'), colors: ['#e879f9', '#c084fc', '#a78bfa'] },
   ];
 
   const handleExport = async () => {
@@ -204,12 +217,12 @@ export const SettingsScreen: React.FC = () => {
 
   const handleReset = () => {
     const confirmed = window.confirm(
-      'Tüm verileriniz silinecek. Bu işlem geri alınamaz. Devam etmek istiyor musunuz?'
+      t('settingsScreen.resetConfirm')
     );
     
     if (confirmed) {
       resetAllData();
-      alert('Tüm veriler başarıyla sıfırlandı.');
+      alert(t('settingsScreen.resetSuccess'));
     }
   };
   
@@ -235,9 +248,9 @@ export const SettingsScreen: React.FC = () => {
         <div className="w-full max-w-[448px] mx-auto">
           {/* GÖRÜNÜM Section */}
           <div className="mb-8">
-            <SectionHeader title="GÖRÜNÜM" />
+            <SectionHeader title={t('settingsScreen.appearance')} />
             
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               {themes.map(({ theme, label, colors: themeColors }) => (
                 <button
                   key={theme}
@@ -271,10 +284,9 @@ export const SettingsScreen: React.FC = () => {
                     {label}
                   </p>
                   <p className="text-xs" style={{ color: colors.textTertiary }}>
-                    {theme === 'dark' && 'Varsayılan tema'}
-                    {theme === 'light' && 'Aydınlık mod'}
-                    {theme === 'neon' && 'Canlı renkler'}
-                    {theme === 'ocean' && 'Sakin tonlar'}
+                    {theme === 'dark' && t('settingsScreen.themeDarkDesc')}
+                    {theme === 'light' && t('settingsScreen.themeLightDesc')}
+                    {theme === 'neon' && t('settingsScreen.themeNeonDesc')}
                   </p>
                 </button>
               ))}
@@ -283,19 +295,26 @@ export const SettingsScreen: React.FC = () => {
 
           {/* SES VE TİTREŞİM Section */}
           <div className="mb-8">
-            <SectionHeader title="SES VE TİTREŞİM" />
+            <SectionHeader title={t('settingsScreen.soundAndVibration')} />
             
             <div className="space-y-3">
               <ToggleSwitch
-                label="Ses Efektleri"
-                description="Oyun içi sesler"
+                label={t('settingsScreen.soundEffects')}
+                description={t('settingsScreen.soundEffectsDesc')}
                 value={soundEnabled}
                 onChange={setSoundEnabled}
               />
               
               <ToggleSwitch
-                label="Titreşim"
-                description="Haptik geri bildirim"
+                label={t('settingsScreen.music')}
+                description={t('settingsScreen.musicDesc')}
+                value={musicEnabled}
+                onChange={setMusicEnabled}
+              />
+              
+              <ToggleSwitch
+                label={t('settingsScreen.vibration')}
+                description={t('settingsScreen.vibrationDesc')}
                 value={hapticEnabled}
                 onChange={setHapticEnabled}
               />
@@ -304,9 +323,9 @@ export const SettingsScreen: React.FC = () => {
 
           {/* DİL Section */}
           <div className="mb-8">
-            <SectionHeader title="DİL" />
+            <SectionHeader title={t('settingsScreen.language')} />
             <p className="text-xs mb-4" style={{ color: colors.textTertiary }}>
-              Dil ayarı sadece oyun içinde geçerlidir
+              {t('settingsScreen.languageNote')}
             </p>
             
             <div className="grid grid-cols-2 gap-3">
@@ -325,7 +344,7 @@ export const SettingsScreen: React.FC = () => {
                 aria-pressed={language === 'tr'}
               >
                 <div style={{ fontSize: '20px' }} className="mb-3">🇹🇷</div>
-                <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>Türkçe</p>
+                <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{t('settingsScreen.turkish')}</p>
               </button>
               
               <button
@@ -343,153 +362,185 @@ export const SettingsScreen: React.FC = () => {
                 aria-pressed={language === 'en'}
               >
                 <div style={{ fontSize: '20px' }} className="mb-3">🇬🇧</div>
-                <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>English</p>
+                <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{t('settingsScreen.english')}</p>
+              </button>
+
+              <button
+                onClick={() => handleLanguageChange('de')}
+                className="p-5 rounded-2xl text-left transition-all"
+                style={{
+                  background: language === 'de' 
+                    ? 'rgba(59,130,246,0.1)' 
+                    : colors.cardBackgroundTransparent,
+                  border: language === 'de' 
+                    ? '2px solid #3b82f6' 
+                    : `2px solid ${colors.cardBorderTransparent}`,
+                }}
+                aria-label="Almanca dilini seç"
+                aria-pressed={language === 'de'}
+              >
+                <div style={{ fontSize: '20px' }} className="mb-3">🇩🇪</div>
+                <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{t('settingsScreen.german')}</p>
+              </button>
+
+              <button
+                onClick={() => handleLanguageChange('fr')}
+                className="p-5 rounded-2xl text-left transition-all"
+                style={{
+                  background: language === 'fr' 
+                    ? 'rgba(59,130,246,0.1)' 
+                    : colors.cardBackgroundTransparent,
+                  border: language === 'fr' 
+                    ? '2px solid #3b82f6' 
+                    : `2px solid ${colors.cardBorderTransparent}`,
+                }}
+                aria-label="Fransızca dilini seç"
+                aria-pressed={language === 'fr'}
+              >
+                <div style={{ fontSize: '20px' }} className="mb-3">🇫🇷</div>
+                <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{t('settingsScreen.french')}</p>
+              </button>
+
+              <button
+                onClick={() => handleLanguageChange('es')}
+                className="p-5 rounded-2xl text-left transition-all"
+                style={{
+                  background: language === 'es' 
+                    ? 'rgba(59,130,246,0.1)' 
+                    : colors.cardBackgroundTransparent,
+                  border: language === 'es' 
+                    ? '2px solid #3b82f6' 
+                    : `2px solid ${colors.cardBorderTransparent}`,
+                }}
+                aria-label="İspanyolca dilini seç"
+                aria-pressed={language === 'es'}
+              >
+                <div style={{ fontSize: '20px' }} className="mb-3">🇪🇸</div>
+                <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{t('settingsScreen.spanish')}</p>
               </button>
             </div>
           </div>
 
           {/* OYUN Section */}
           <div className="mb-8">
-            <SectionHeader title="OYUN" />
+            <SectionHeader title={t('settingsScreen.game')} />
             
             <div className="space-y-3">
               <ToggleSwitch
-                label="Hayalet Blok"
-                description="Yerleşim önizlemesi"
+                label={t('settingsScreen.ghostBlock')}
+                description={t('settingsScreen.ghostBlockDesc')}
                 value={ghostBlockEnabled}
                 onChange={setGhostBlockEnabled}
               />
               
               <ToggleSwitch
-                label="Performans Modu"
-                description="Animasyonları azalt"
+                label={t('settingsScreen.performanceMode')}
+                description={t('settingsScreen.performanceModeDesc')}
                 value={performanceModeEnabled}
                 onChange={setPerformanceModeEnabled}
               />
               
               <ToggleSwitch
-                label="Azaltılmış Hareket"
-                description="Animasyonları ve efektleri azalt"
+                label={t('settingsScreen.reducedMotion')}
+                description={t('settingsScreen.reducedMotionDesc')}
                 value={prefersReducedMotion}
                 onChange={setReducedMotion}
               />
-              
-              {/* Export Button - Styled as Action Button */}
+            </div>
+          </div>
+
+          {/* ERİŞİLEBİLİRLİK Section */}
+          <div className="mb-8">
+            <SectionHeader title={t('settingsScreen.accessibility')} />
+            <p className="text-xs mb-4" style={{ color: colors.textTertiary }}>
+              {t('settingsScreen.accessibilityNote')}
+            </p>
+            
+            <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={handleExport}
-                disabled={exportStatus === 'exporting'}
-                className="w-full p-5 rounded-2xl transition-all"
+                onClick={() => setColorBlindMode('none')}
+                className="p-5 rounded-2xl text-left transition-all"
                 style={{
-                  background: 'rgba(59,130,246,0.1)',
-                  border: '2px solid rgba(59,130,246,0.3)',
-                  opacity: exportStatus === 'exporting' ? 0.5 : 1,
+                  background: colorBlindMode === 'none' 
+                    ? 'rgba(59,130,246,0.1)' 
+                    : colors.cardBackgroundTransparent,
+                  border: colorBlindMode === 'none' 
+                    ? '2px solid #3b82f6' 
+                    : `2px solid ${colors.cardBorderTransparent}`,
                 }}
-                aria-label="Veriyi dışa aktar"
+                aria-label="Normal görüş"
+                aria-pressed={colorBlindMode === 'none'}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">
-                      {exportStatus === 'exporting' && '⏳'}
-                      {exportStatus === 'success' && '✅'}
-                      {exportStatus === 'error' && '❌'}
-                      {exportStatus === 'idle' && '📤'}
-                    </span>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
-                        Veriyi Dışa Aktar
-                      </p>
-                      <p className="text-xs" style={{ color: colors.textSecondary }}>JSON formatında</p>
-                    </div>
-                  </div>
-                </div>
+                <div style={{ fontSize: '20px' }} className="mb-3">👁️</div>
+                <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>{t('settingsScreen.normal')}</p>
+                <p className="text-xs" style={{ color: colors.textTertiary }}>{t('settingsScreen.normalDesc')}</p>
               </button>
               
-              {/* Tutorial Replay Button */}
               <button
-                onClick={handleReplayTutorial}
-                className="w-full p-5 rounded-2xl transition-all"
+                onClick={() => setColorBlindMode('protanopia')}
+                className="p-5 rounded-2xl text-left transition-all"
                 style={{
-                  background: 'rgba(168,85,247,0.1)',
-                  border: '2px solid rgba(168,85,247,0.3)',
+                  background: colorBlindMode === 'protanopia' 
+                    ? 'rgba(59,130,246,0.1)' 
+                    : colors.cardBackgroundTransparent,
+                  border: colorBlindMode === 'protanopia' 
+                    ? '2px solid #3b82f6' 
+                    : `2px solid ${colors.cardBorderTransparent}`,
                 }}
-                aria-label={t('settings.replayTutorial')}
+                aria-label="Kırmızı renk körlüğü"
+                aria-pressed={colorBlindMode === 'protanopia'}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">🎓</span>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
-                        {t('settings.replayTutorial')}
-                      </p>
-                      <p className="text-xs" style={{ color: colors.textSecondary }}>İlk oyun deneyimini tekrarla</p>
-                    </div>
-                  </div>
-                </div>
+                <div style={{ fontSize: '20px' }} className="mb-3">🔴</div>
+                <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>{t('settingsScreen.protanopia')}</p>
+                <p className="text-xs" style={{ color: colors.textTertiary }}>{t('settingsScreen.protanopiaDesc')}</p>
               </button>
 
-              {/* PWA Install Button - Always visible */}
-              {!isPWAInstalled && (
-                <div
-                  onClick={handleInstallPWA}
-                  className="w-full p-5 rounded-2xl transition-all cursor-pointer"
-                  style={{
-                    background: 'rgba(34,197,94,0.1)',
-                    border: '2px solid rgba(34,197,94,0.3)',
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      handleInstallPWA();
-                    }
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">📱</span>
-                      <div className="text-left">
-                        <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
-                          Uygulamayı Yükle
-                        </p>
-                        <p className="text-xs" style={{ color: colors.textSecondary }}>
-                          {isIOS ? 'Ana ekrana ekle' : 'Cihazına indir'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <button
+                onClick={() => setColorBlindMode('deuteranopia')}
+                className="p-5 rounded-2xl text-left transition-all"
+                style={{
+                  background: colorBlindMode === 'deuteranopia' 
+                    ? 'rgba(59,130,246,0.1)' 
+                    : colors.cardBackgroundTransparent,
+                  border: colorBlindMode === 'deuteranopia' 
+                    ? '2px solid #3b82f6' 
+                    : `2px solid ${colors.cardBorderTransparent}`,
+                }}
+                aria-label="Yeşil renk körlüğü"
+                aria-pressed={colorBlindMode === 'deuteranopia'}
+              >
+                <div style={{ fontSize: '20px' }} className="mb-3">🟢</div>
+                <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>{t('settingsScreen.deuteranopia')}</p>
+                <p className="text-xs" style={{ color: colors.textTertiary }}>{t('settingsScreen.deuteranopiaDesc')}</p>
+              </button>
 
-              {isPWAInstalled && (
-                <div
-                  className="w-full p-5 rounded-2xl"
-                  style={{
-                    background: 'rgba(34,197,94,0.1)',
-                    border: '2px solid rgba(34,197,94,0.3)',
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">✅</span>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
-                        Uygulama Yüklü
-                      </p>
-                      <p className="text-xs" style={{ color: colors.textSecondary }}>
-                        Ana ekrandan erişebilirsin
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <button
+                onClick={() => setColorBlindMode('tritanopia')}
+                className="p-5 rounded-2xl text-left transition-all"
+                style={{
+                  background: colorBlindMode === 'tritanopia' 
+                    ? 'rgba(59,130,246,0.1)' 
+                    : colors.cardBackgroundTransparent,
+                  border: colorBlindMode === 'tritanopia' 
+                    ? '2px solid #3b82f6' 
+                    : `2px solid ${colors.cardBorderTransparent}`,
+                }}
+                aria-label="Mavi renk körlüğü"
+                aria-pressed={colorBlindMode === 'tritanopia'}
+              >
+                <div style={{ fontSize: '20px' }} className="mb-3">🔵</div>
+                <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>{t('settingsScreen.tritanopia')}</p>
+                <p className="text-xs" style={{ color: colors.textTertiary }}>{t('settingsScreen.tritanopiaDesc')}</p>
+              </button>
             </div>
           </div>
 
           {/* PERFORMANS (Android Only) */}
           {androidPlatform && (
             <div className="mb-8">
-              <SectionHeader title="PERFORMANS" />
+              <SectionHeader title={t('settingsScreen.performance')} />
               <p className="text-xs mb-4" style={{ color: colors.textTertiary }}>
-                FPS limiti batarya ömrünü uzatır
+                {t('settingsScreen.performanceNote')}
               </p>
               
               <div className="space-y-3">
@@ -561,10 +612,10 @@ export const SettingsScreen: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
-                        Mevcut FPS
+                        {t('settingsScreen.currentFPS')}
                       </p>
                       <p className="text-xs" style={{ color: colors.textTertiary }}>
-                        Gerçek zamanlı değer
+                        {t('settingsScreen.currentFPSDesc')}
                       </p>
                     </div>
                     <div className="text-right">
@@ -581,13 +632,13 @@ export const SettingsScreen: React.FC = () => {
           {/* DEBUG MODU (Android Only) */}
           {androidPlatform && (
             <div className="mb-8">
-              <SectionHeader title="DEBUG MODU" />
+              <SectionHeader title={t('settingsScreen.debugMode')} />
               
               <div className="space-y-3">
                 {/* Debug Mode Toggle */}
                 <ToggleSwitch
-                  label="Debug Modu"
-                  description="Performans metriklerini göster"
+                  label={t('settingsScreen.debugModeToggle')}
+                  description={t('settingsScreen.debugModeDesc')}
                   value={debugMode}
                   onChange={setDebugMode}
                 />
@@ -603,25 +654,25 @@ export const SettingsScreen: React.FC = () => {
                   >
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="text-xs" style={{ color: colors.textSecondary }}>Ortalama FPS</p>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsScreen.averageFPS')}</p>
                         <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
                           {Math.round(metrics.averageFPS)}
                         </p>
                       </div>
                       <div className="flex items-center justify-between">
-                        <p className="text-xs" style={{ color: colors.textSecondary }}>Min FPS</p>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsScreen.minFPS')}</p>
                         <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
                           {Math.round(metrics.minFPS)}
                         </p>
                       </div>
                       <div className="flex items-center justify-between">
-                        <p className="text-xs" style={{ color: colors.textSecondary }}>Max FPS</p>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsScreen.maxFPS')}</p>
                         <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
                           {Math.round(metrics.maxFPS)}
                         </p>
                       </div>
                       <div className="flex items-center justify-between">
-                        <p className="text-xs" style={{ color: colors.textSecondary }}>Batarya Tasarrufu</p>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsScreen.batterySavings')}</p>
                         <p className="text-sm font-bold" style={{ color: '#22c55e' }}>
                           ~{Math.round(metrics.estimatedBatterySavings)}%
                         </p>
@@ -645,9 +696,9 @@ export const SettingsScreen: React.FC = () => {
                       <span className="text-2xl">📊</span>
                       <div className="text-left">
                         <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
-                          Metrikleri Dışa Aktar
+                          {t('settingsScreen.exportMetrics')}
                         </p>
-                        <p className="text-xs" style={{ color: colors.textSecondary }}>JSON formatında</p>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsScreen.exportMetricsDesc')}</p>
                       </div>
                     </div>
                   </div>
@@ -658,7 +709,7 @@ export const SettingsScreen: React.FC = () => {
 
           {/* TEHLİKE BÖLGESİ Section */}
           <div className="mb-8">
-            <SectionHeader title="TEHLİKE BÖLGESİ" dividerColor="rgba(239,68,68,0.15)" />
+            <SectionHeader title={t('settingsScreen.dangerZone')} dividerColor="rgba(239,68,68,0.15)" />
             
             <button
               onClick={handleReset}
@@ -671,14 +722,14 @@ export const SettingsScreen: React.FC = () => {
             >
               <div className="flex items-center justify-center gap-2">
                 <span className="text-xl">⚠️</span>
-                <p className="text-sm font-bold text-red-500">Tüm Verileri Sıfırla</p>
+                <p className="text-sm font-bold text-red-500">{t('settingsScreen.resetAllData')}</p>
               </div>
             </button>
           </div>
 
           {/* Version Footer */}
           <div className="text-center py-6">
-            <p className="text-xs" style={{ color: colors.textTertiary }}>FluxGrid v18.0</p>
+            <p className="text-xs" style={{ color: colors.textTertiary }}>{t('settingsScreen.version')}</p>
           </div>
         </div>
       </div>
@@ -699,7 +750,7 @@ export const SettingsScreen: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold mb-4" style={{ color: colors.textPrimary }}>
-              {isIOS ? 'Ana Ekrana Ekle' : 'Uygulamayı Yükle'}
+              {isIOS ? t('settingsScreen.installPWA') : t('settingsScreen.installPWAInstructions')}
             </h3>
             <div className="space-y-3 mb-6">
               {isIOS ? (
@@ -707,19 +758,19 @@ export const SettingsScreen: React.FC = () => {
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">1️⃣</span>
                     <p className="text-sm" style={{ color: colors.textSecondary }}>
-                      Safari'de <strong>Paylaş</strong> butonuna dokun (⬆️)
+                      {t('settingsScreen.iosStep1')}
                     </p>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">2️⃣</span>
                     <p className="text-sm" style={{ color: colors.textSecondary }}>
-                      <strong>"Ana Ekrana Ekle"</strong> seçeneğini bul
+                      {t('settingsScreen.iosStep2')}
                     </p>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">3️⃣</span>
                     <p className="text-sm" style={{ color: colors.textSecondary }}>
-                      <strong>"Ekle"</strong> butonuna dokun
+                      {t('settingsScreen.iosStep3')}
                     </p>
                   </div>
                 </>
@@ -728,19 +779,19 @@ export const SettingsScreen: React.FC = () => {
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">1️⃣</span>
                     <p className="text-sm" style={{ color: colors.textSecondary }}>
-                      Tarayıcı menüsünü aç (⋮ veya ⋯)
+                      {t('settingsScreen.androidStep1')}
                     </p>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">2️⃣</span>
                     <p className="text-sm" style={{ color: colors.textSecondary }}>
-                      <strong>"Ana ekrana ekle"</strong> veya <strong>"Yükle"</strong> seçeneğini bul
+                      {t('settingsScreen.androidStep2')}
                     </p>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">3️⃣</span>
                     <p className="text-sm" style={{ color: colors.textSecondary }}>
-                      Talimatları takip ederek uygulamayı yükle
+                      {t('settingsScreen.androidStep3')}
                     </p>
                   </div>
                 </>
@@ -759,7 +810,7 @@ export const SettingsScreen: React.FC = () => {
                 color: 'white',
               }}
             >
-              Anladım
+              {t('settingsScreen.understood')}
             </button>
           </div>
         </div>
