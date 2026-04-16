@@ -1,0 +1,142 @@
+/**
+ * Performance Optimizations
+ * Improves rendering performance and reduces jank
+ */
+
+/* Enable GPU acceleration for animations */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Optimize transforms and animations */
+.motion-div,
+[class*="motion-"],
+[class*="animate-"] {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Optimize canvas rendering */
+canvas {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  transform: translateZ(0);
+  will-change: contents;
+}
+
+/* Reduce paint areas */
+.overflow-hidden {
+  contain: layout style paint;
+}
+
+/* Optimize scrolling */
+.overflow-auto,
+.overflow-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Optimize text rendering */
+body {
+  text-rendering: optimizeSpeed;
+}
+
+/* Reduce repaints for fixed elements */
+.fixed,
+.sticky {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Optimize images */
+img {
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* Disable animations on low-end devices */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Hardware acceleration for common animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateZ(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateZ(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Optimize for 60fps */
+.smooth-transition {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Prevent layout shifts */
+.aspect-ratio-box {
+  contain: layout;
+}
+
+/* Touch optimization for mobile */
+.touch-none {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Optimize dragging performance */
+.dragging {
+  cursor: grabbing !important;
+  overflow: hidden; /* Prevent scroll during drag */
+}
+
+/* Smooth pointer interactions */
+[data-piece-slot] {
+  transform: translateZ(0);
+  will-change: transform;
+  -webkit-touch-callout: none;
+}
+
+/* Optimize active states */
+.cursor-grab:active,
+.active\:cursor-grabbing:active {
+  cursor: grabbing;
+  transform: translateZ(0) scale(0.98);
+}
+
+/* Reduce input latency */
+button,
+[role="button"],
+.cursor-pointer {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Optimize grid rendering */
+.grid {
+  contain: layout style;
+  transform: translateZ(0);
+}

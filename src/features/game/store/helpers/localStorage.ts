@@ -1,7 +1,7 @@
 /**
  * Safe localStorage operations with error handling
  */
-import { safeExecute, ErrorCategory } from '../../../../utils/errorHandler';
+import { safeExecute, ErrorCategory } from '../../../../utils/managers/errorHandler';
 import { MiniEventState, MiniEventType } from '../../types';
 import { createMiniEventState } from './miniEventSystem';
 

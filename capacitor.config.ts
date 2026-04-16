@@ -20,7 +20,6 @@ const config: CapacitorConfig = {
   },
   android: {
     backgroundColor: '#0d1117',
-    scrollEnabled: false,
     // Optimize WebView rendering for better performance
     webContentsDebuggingEnabled: false,
     allowMixedContent: false

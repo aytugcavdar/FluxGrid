@@ -10,7 +10,7 @@ import { useThemeStore } from '@shared/store/themeStore';
 import { useTutorialStore } from '@shared/store/tutorialStore';
 import { playClick } from '@utils/audio';
 import { AdBanner } from './AdBanner';
-import { AdManager } from '@utils/adManager';
+import { AdManager } from '@/src/utils/managers/adManager';
 
 interface ScorePopup {
   id: number;

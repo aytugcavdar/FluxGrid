@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState } from '@shared/types';
 import { useGameStore } from '@features/game/store/gameStore';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,8 @@ export function useBrowserHistory() {
   const { t } = useTranslation();
   const isHandlingPopState = useRef(false);
   const historyDepth = useRef(0);
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  const pendingNavigationRef = useRef<(() => void) | null>(null);
 
   // Initialize history state with depth tracking
   useEffect(() => {
@@ -41,13 +43,16 @@ export function useBrowserHistory() {
       try {
         // If in GAME state, show confirmation dialog
         if (appState === AppState.GAME && !isGameOver) {
-          const confirmed = window.confirm(t('game.confirmExit'));
-          if (confirmed) {
+          // Store the navigation action
+          pendingNavigationRef.current = () => {
             setAppState(AppState.HOME);
-          } else {
-            // User cancelled, push state back
-            window.history.pushState({ depth: historyDepth.current, appState: AppState.GAME }, '');
-          }
+          };
+          
+          // Show custom dialog instead of window.confirm
+          setShowExitDialog(true);
+          
+          // Push state back immediately (will be handled by dialog)
+          window.history.pushState({ depth: historyDepth.current, appState: AppState.GAME }, '');
         } else {
           // Navigate back to previous state or HOME
           const targetState = event.state?.appState || AppState.HOME;
@@ -66,4 +71,27 @@ export function useBrowserHistory() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [appState, isGameOver, setAppState, t]);
+  
+  // Handle dialog confirmation
+  const handleConfirm = () => {
+    setShowExitDialog(false);
+    
+    // Save game state before exiting
+    if (appState === AppState.GAME && !isGameOver) {
+      useGameStore.getState().saveCurrentGame();
+    }
+    
+    if (pendingNavigationRef.current) {
+      pendingNavigationRef.current();
+      pendingNavigationRef.current = null;
+    }
+  };
+  
+  // Handle dialog cancellation
+  const handleCancel = () => {
+    setShowExitDialog(false);
+    pendingNavigationRef.current = null;
+  };
+  
+  return { showExitDialog, handleConfirm, handleCancel };
 }

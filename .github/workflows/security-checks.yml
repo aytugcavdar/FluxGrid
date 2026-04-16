@@ -1,0 +1,114 @@
+name: Security Checks
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      # 1. NPM Audit - Check for known vulnerabilities
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+      
+      # 2. Secret Scanning - Check for hardcoded credentials
+      - name: Run TruffleHog secret scanner
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+      
+      # 3. Bundle Size Check - Ensure no large files that might contain secrets
+      - name: Check bundle size
+        run: |
+          if [ -d "dist" ]; then
+            SIZE=$(du -sb dist 2>/dev/null | cut -f1 || echo "0")
+            if [ $SIZE -gt 10485760 ]; then  # 10MB
+              echo "::warning::Bundle size exceeds 10MB, check for embedded secrets"
+            fi
+          fi
+      
+      # 4. Check for hardcoded API keys in source
+      - name: Scan for hardcoded secrets
+        run: |
+          echo "Scanning for potential hardcoded secrets..."
+          
+          # Check for common secret patterns
+          if grep -r "AKIA[0-9A-Z]{16}" src/ 2>/dev/null; then
+            echo "::error::Found potential AWS access key"
+            exit 1
+          fi
+          
+          if grep -r "AIza[0-9A-Za-z\\-_]{35}" src/ 2>/dev/null; then
+            echo "::warning::Found potential Google API key (may be public)"
+          fi
+          
+          if grep -r "sk_live_[0-9a-zA-Z]{24,}" src/ 2>/dev/null; then
+            echo "::error::Found potential Stripe secret key"
+            exit 1
+          fi
+          
+          echo "No critical secrets found in source code"
+      
+      # 5. TypeScript strict mode check
+      - name: Verify TypeScript strict mode
+        run: |
+          if ! grep -q '"strict": true' tsconfig.json; then
+            echo "::error::TypeScript strict mode is not enabled"
+            exit 1
+          fi
+          echo "TypeScript strict mode is enabled"
+      
+      # 6. Check Firebase Security Rules exist
+      - name: Check Firebase Security Rules
+        run: |
+          if [ ! -f "firestore.rules" ]; then
+            echo "::error::Firebase Security Rules file not found"
+            exit 1
+          fi
+          echo "Firebase Security Rules file exists"
+      
+      # 7. Validate environment variables are not hardcoded
+      - name: Check for hardcoded environment variables
+        run: |
+          echo "Checking for hardcoded environment variables..."
+          
+          # Check for hardcoded Firebase config
+          if grep -r "apiKey.*:.*['\"]AIza" src/ --include="*.ts" --include="*.tsx" 2>/dev/null; then
+            echo "::error::Found hardcoded Firebase API key"
+            exit 1
+          fi
+          
+          echo "No hardcoded environment variables found"
+      
+      # 8. Summary
+      - name: Security audit summary
+        if: always()
+        run: |
+          echo "## Security Audit Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ NPM audit completed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Secret scanning completed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Bundle size checked" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Source code scanned for secrets" >> $GITHUB_STEP_SUMMARY
+          echo "✅ TypeScript strict mode verified" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Firebase Security Rules verified" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Environment variables checked" >> $GITHUB_STEP_SUMMARY

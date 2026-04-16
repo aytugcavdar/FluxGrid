@@ -12,20 +12,22 @@ import { usePWAInstall } from './hooks/usePWAInstall';
 import { useGameSync } from '../features/game/hooks/useGameSync';
 import { TIER_SCORE_MULTIPLIERS } from '../features/game/constants';
 import { playSkill, playHaptic, unlockAudio, playGameOver, playChronoBonus, playClick } from '@utils/audio';
-import { AdManager } from '@utils/adManager';
-import { createContinueGrid } from '@utils/gameHelpers';
+import { AdManager } from '@/src/utils/managers/adManager';
+import { createContinueGrid } from '@/src/utils/game/gameHelpers';
 import { getRandomPiecesSync } from '../features/game/store/helpers/pieces';
 import { useAbilityStore } from '../features/abilities/store/abilityStore';
 import { usePassiveAbilityStore } from '../features/abilities/store/passiveAbilityStore';
 import { GameScreen } from './components/GameScreen';
 import { DragOverlay } from '../features/hud/components/DragOverlay';
 import { ParticleExplosionOverlay } from '../features/visual-effects/components/ParticleExplosionOverlay';
+import { ScreenShakeEffect, LineClearAnimations, ComboGlowEffect, PlacementFeedbackEffect, GridBreathingEffect, BackgroundEffects, PerfectClearEffect, PlacementImpactEffect } from '../features/visual-effects/components';
 import { TutorialManager } from '../shared/components/TutorialManager';
 import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
 import { TierCelebrationOverlay } from '../features/hud/components/TierCelebrationOverlay';
 import { ContinueModal } from './components/ContinueModal';
 import { GameOverModal } from './components/GameOverModal';
-import { generateShareText, shareResult } from '../utils/shareResult';
+import { ExitConfirmDialog } from '../shared/components/ExitConfirmDialog';
+import { generateShareText, shareResult } from '../utils/sharing/shareResult';
 import { ErrorBoundary } from './ErrorBoundary';
 
 interface ScorePopup {
@@ -133,6 +135,10 @@ const App: React.FC = () => {
   useBrowserHistory();
   const { showPWAPrompt, showIOSInstructions, setShowIOSInstructions, triggerInstall } = usePWAInstall(isGameOver, score);
   useGameSync();
+  
+  // Get exit dialog state from useBrowserHistory
+  const browserHistory = useBrowserHistory();
+  const { showExitDialog, handleConfirm: handleExitConfirm, handleCancel: handleExitCancel } = browserHistory;
 
 
 
@@ -160,6 +166,9 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (appState === AppState.GAME && !isGameOver) {
+        // Save game before closing
+        useGameStore.getState().saveCurrentGame();
+        
         e.preventDefault();
         // Modern browsers ignore custom messages, but setting returnValue triggers the dialog
         e.returnValue = '';
@@ -168,6 +177,33 @@ const App: React.FC = () => {
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [appState, isGameOver]);
+
+  // Auto-save when app goes to background (mobile)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && appState === AppState.GAME && !isGameOver) {
+        // App going to background, save game
+        console.log('[GameApp] App going to background, saving game...');
+        useGameStore.getState().saveCurrentGame();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [appState, isGameOver]);
+
+  // Auto-save on pause event (Capacitor/Cordova)
+  useEffect(() => {
+    const handlePause = () => {
+      if (appState === AppState.GAME && !isGameOver) {
+        console.log('[GameApp] App paused, saving game...');
+        useGameStore.getState().saveCurrentGame();
+      }
+    };
+
+    document.addEventListener('pause', handlePause);
+    return () => document.removeEventListener('pause', handlePause);
   }, [appState, isGameOver]);
 
   useEffect(() => {
@@ -444,14 +480,14 @@ const App: React.FC = () => {
       // Show native notification
       const achievement = achievements.find(a => a.id === unlockedAchievementId);
       if (achievement) {
-        import('@utils/notificationHelper').then(({ showAchievementNotification }) => {
+        import('@/src/utils/native/notificationHelper').then(({ showAchievementNotification }) => {
           showAchievementNotification(achievement);
         });
       }
       
       const timer = setTimeout(() => {
         clearAchievementNotification();
-      }, 5000); // 5 saniye göster (4 saniye yerine)
+      }, 3000); // 3 saniye göster
       return () => clearTimeout(timer);
     }
   }, [unlockedAchievementId, clearAchievementNotification, achievements]);
@@ -497,6 +533,9 @@ const App: React.FC = () => {
 
   return (
     <div className="game-container" onPointerDown={unlockAudio} style={{ background: colors.background }}>
+      {/* Background Effects Layer */}
+      <BackgroundEffects />
+      
       <AnimatePresence mode="wait">
         {appState === AppState.GAME && (
           <GameScreen
@@ -528,7 +567,15 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       {/* Persistence and Global Overlays */}
-      <DragOverlay />
+      <ScreenShakeEffect>
+        <DragOverlay />
+      </ScreenShakeEffect>
+      <GridBreathingEffect />
+      <LineClearAnimations />
+      <ComboGlowEffect />
+      <PlacementFeedbackEffect />
+      <PlacementImpactEffect />
+      <PerfectClearEffect />
       <ParticleExplosionOverlay />
       <TutorialManager />
       <AnimatePresence>
@@ -546,7 +593,8 @@ const App: React.FC = () => {
               stiffness: 300, 
               damping: 20 
             }}
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-3 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 w-[calc(100vw-2rem)] max-w-[340px]"
+            onClick={() => clearAchievementNotification()}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-3 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 w-[calc(100vw-2rem)] max-w-[340px] cursor-pointer active:scale-95 transition-transform"
             style={{
               background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
               boxShadow: '0 10px 40px rgba(251, 191, 36, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)',
@@ -769,6 +817,13 @@ const App: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* Exit Confirmation Dialog */}
+      <ExitConfirmDialog
+        isVisible={showExitDialog}
+        onConfirm={handleExitConfirm}
+        onCancel={handleExitCancel}
+      />
     </div>
   );
 };

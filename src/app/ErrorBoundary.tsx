@@ -1,5 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
-import { handleError, ErrorCategory, ErrorSeverity } from '@utils/errorHandler';
+import { handleError, ErrorCategory, ErrorSeverity } from '@/src/utils/managers/errorHandler';
 
 interface Props {
   children: ReactNode;

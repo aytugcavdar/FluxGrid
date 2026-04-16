@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import * as BABYLON from 'babylonjs';
-import { isAndroid } from '../../../utils/platform';
-import { detectDeviceCapabilities, DeviceTier } from '../../../utils/deviceCapability';
+import { isAndroid } from '../../../utils/platform/platform';
+import { detectDeviceCapabilities, DeviceTier } from '../../../utils/platform/deviceCapability';
 import { usePerformanceStore } from '../store/performanceStore';
-import { getPlatformItem, setPlatformItem } from '../../../utils/platformStorage';
+import { getPlatformItem, setPlatformItem } from '../../../utils/platform/platformStorage';
 
 interface FPSLimiterConfig {
   targetFPS: number;

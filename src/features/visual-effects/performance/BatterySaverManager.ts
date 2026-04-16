@@ -14,7 +14,7 @@
  */
 
 import { getAdaptiveQuality } from './AdaptiveQuality';
-import { getHapticManager } from '../../../utils/haptics';
+import { getHapticManager } from '../../../utils/audio/haptics';
 
 export interface BatterySaverState {
   isActive: boolean;

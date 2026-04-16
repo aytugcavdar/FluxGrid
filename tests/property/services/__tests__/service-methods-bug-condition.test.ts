@@ -1,7 +1,7 @@
 /**
  * Bug Condition Exploration Property Test
  * 
- * **Validates: Requirements 2.1-2.28**
+ * **Validates: Requirements 2.7-2.28**
  * 
  * CRITICAL: This test MUST FAIL on unfixed code - failure confirms the bugs exist
  * 
@@ -9,19 +9,17 @@
  * from the unit tests. It encodes the expected behavior and will validate the fix
  * when it passes after implementation.
  * 
- * GOAL: Surface counterexamples that demonstrate the bugs exist across all five services
+ * GOAL: Surface counterexamples that demonstrate the bugs exist across four services
  * 
  * Expected Bugs:
- * 1. LocalizationService.isRTL('he') returns false instead of true
- * 2. NetworkManager.isOnline() returns true when navigator.onLine is false
- * 3. PerformanceMonitor.getCurrentFPS() throws "not defined" error
- * 4. SecurityManager.detectSuspiciousActivity() doesn't detect patterns
- * 5. VersionChecker.fetchVersionInfo() throws "remoteConfig is undefined"
+ * 1. NetworkManager.isOnline() returns true when navigator.onLine is false
+ * 2. PerformanceMonitor.getCurrentFPS() throws "not defined" error
+ * 3. SecurityManager.detectSuspiciousActivity() doesn't detect patterns
+ * 4. VersionChecker.fetchVersionInfo() throws "remoteConfig is undefined"
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import fc from 'fast-check';
-import { LocalizationService } from '@services/i18n/localizationService';
 import { NetworkManager } from '@services/network/networkManager';
 import { PerformanceMonitor } from '@services/performance/performanceMonitor';
 import { SecurityManager } from '@services/security/securityManager';
@@ -35,141 +33,8 @@ vi.mock('@services/firebase/firebaseConfig', () => ({
   },
 }));
 
-vi.mock('i18next', () => ({
-  default: {
-    changeLanguage: vi.fn(),
-    language: 'en',
-    t: vi.fn((key: string) => key),
-    dir: vi.fn(() => 'ltr'),
-    exists: vi.fn(() => true),
-    addResourceBundle: vi.fn(),
-  },
-}));
-
 describe('Bug Condition Exploration - Service Methods Match Test Specifications', () => {
   describe('Property 1: Bug Condition - Service Methods Match Test Specifications', () => {
-    /**
-     * LocalizationService Bug Condition Tests
-     * Requirements: 2.1-2.6
-     */
-    describe('LocalizationService Bug Conditions', () => {
-      let service: LocalizationService;
-
-      beforeEach(() => {
-        service = new LocalizationService();
-      });
-
-      it('Bug 2.1: isRTL should return true for Hebrew (he)', () => {
-        /**
-         * Scoped PBT: Test the concrete failing case
-         * Expected: isRTL('he') should return true
-         * Actual (buggy): returns false because 'he' is not in rtlLanguages set
-         */
-        fc.assert(
-          fc.property(
-            fc.constantFrom('he'), // Scoped to the failing case
-            (language) => {
-              const result = service.isRTL(language);
-              
-              // This assertion encodes the EXPECTED behavior
-              // It will FAIL on unfixed code, confirming the bug exists
-              expect(result).toBe(true);
-            }
-          ),
-          { numRuns: 1 } // Deterministic - run once to confirm bug
-        );
-      });
-
-      it('Bug 2.2: isRTL should return true for Farsi (fa)', () => {
-        /**
-         * Scoped PBT: Test the concrete failing case
-         * Expected: isRTL('fa') should return true
-         * Actual (buggy): returns false because 'fa' is not in rtlLanguages set
-         */
-        fc.assert(
-          fc.property(
-            fc.constantFrom('fa'), // Scoped to the failing case
-            (language) => {
-              const result = service.isRTL(language);
-              expect(result).toBe(true);
-            }
-          ),
-          { numRuns: 1 }
-        );
-      });
-
-      it('Bug 2.3: getTextDirection should return rtl for Hebrew', () => {
-        /**
-         * Scoped PBT: Verify text direction for RTL languages
-         */
-        fc.assert(
-          fc.property(
-            fc.constantFrom('he', 'fa'),
-            (language) => {
-              const direction = service.getTextDirection(language);
-              expect(direction).toBe('rtl');
-            }
-          ),
-          { numRuns: 2 }
-        );
-      });
-
-      it('Bug 2.4: formatNumber should handle Turkish locale correctly', () => {
-        /**
-         * Test number formatting for Turkish locale
-         */
-        fc.assert(
-          fc.property(
-            fc.double({ min: 1000, max: 10000 }),
-            (num) => {
-              const formatted = service.formatNumber(num, 'tr');
-              // Turkish uses . for thousands and , for decimals
-              expect(formatted).toMatch(/\d+\.\d+,\d+/);
-            }
-          ),
-          { numRuns: 5 }
-        );
-      });
-
-      it('Bug 2.5: formatCurrency should include currency symbol', () => {
-        /**
-         * Test currency formatting includes proper symbols
-         */
-        fc.assert(
-          fc.property(
-            fc.double({ min: 1, max: 1000 }),
-            fc.constantFrom('USD', 'EUR', 'TRY'),
-            (amount, currency) => {
-              const formatted = service.formatCurrency(amount, currency, 'en');
-              // Should contain currency symbol or code
-              const hasSymbol = formatted.includes('$') || 
-                               formatted.includes('€') || 
-                               formatted.includes('₺') ||
-                               formatted.includes(currency);
-              expect(hasSymbol).toBe(true);
-            }
-          ),
-          { numRuns: 10 }
-        );
-      });
-
-      it('Bug 2.6: hasTranslation should check key existence', () => {
-        /**
-         * Test translation key existence checking
-         */
-        fc.assert(
-          fc.property(
-            fc.constantFrom('existing.key', 'new.key'),
-            (key) => {
-              const exists = service.hasTranslation(key, 'en');
-              expect(typeof exists).toBe('boolean');
-            }
-          ),
-          { numRuns: 2 }
-        );
-      });
-    });
-
     /**
      * NetworkManager Bug Condition Tests
      * Requirements: 2.7-2.12

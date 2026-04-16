@@ -8,7 +8,7 @@
  * Requirements: 5.5, 3.10
  */
 
-import { detectDevice, DeviceInfo, DeviceTier } from '../../utils/deviceDetector';
+import { detectDevice, DeviceInfo, DeviceTier } from '../../utils/platform/deviceDetector';
 import { performanceMonitor } from './performanceMonitor';
 import { analyticsService } from '../analytics/analyticsService';
 

@@ -277,6 +277,6 @@ export interface UpdateDialogConfig {
   message: string;
   updateButtonText: string;
   cancelButtonText?: string;
-  onUpdate: () => void;
-  onCancel?: () => void;
+  updateUrl: string;
+  canDismiss: boolean;
 }

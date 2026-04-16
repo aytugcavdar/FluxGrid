@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useThemeStore } from '../shared/store/themeStore';
 import { GameMode } from '@shared/types';
 import { PerformanceCard, ProgressBar, StatCard, AchievementCard, SectionHeader, PerformanceDNACard, RecentLogsTimeline, TrendAnalysisChart } from '../shared/components';
+import { ScoreDistributionChart } from '../shared/components/ScoreDistributionChart';
 import { Achievement } from '../shared/types/ui';
 import { usePerformanceMetrics } from '../shared/hooks/usePerformanceMetrics';
 import { useTrendData } from '../shared/hooks/useTrendData';
@@ -29,6 +30,33 @@ export const StatisticsScreen: React.FC = () => {
   const recentLogs = Array.isArray(gameLogs) 
     ? gameLogs.sort((a, b) => b.timestamp - a.timestamp).slice(0, 5)
     : [];
+
+  // Calculate score distribution
+  const scoreDistribution = useMemo(() => {
+    if (!Array.isArray(gameLogs) || gameLogs.length === 0) {
+      return [
+        { range: '0-500', count: 0, color: '#6366f1' },
+        { range: '500-1K', count: 0, color: '#8b5cf6' },
+        { range: '1K-2K', count: 0, color: '#a855f7' },
+        { range: '2K-5K', count: 0, color: '#d946ef' },
+        { range: '5K+', count: 0, color: '#f97316' },
+      ];
+    }
+    
+    const ranges = [
+      { min: 0, max: 500, range: '0-500', color: '#6366f1' },
+      { min: 500, max: 1000, range: '500-1K', color: '#8b5cf6' },
+      { min: 1000, max: 2000, range: '1K-2K', color: '#a855f7' },
+      { min: 2000, max: 5000, range: '2K-5K', color: '#d946ef' },
+      { min: 5000, max: Infinity, range: '5K+', color: '#f97316' },
+    ];
+    
+    return ranges.map(r => ({
+      range: r.range,
+      count: gameLogs.filter(log => log.score >= r.min && log.score < r.max).length,
+      color: r.color,
+    }));
+  }, [gameLogs]);
 
   // Get mode-specific data - handle undefined highScores
   const sonsuzBestScore = highScores?.[GameMode.ENDLESS] || 0;
@@ -87,6 +115,8 @@ export const StatisticsScreen: React.FC = () => {
     SPECIAL_BLOCKS: t('stats.specialBlockAchievements'),
     ABILITIES: t('stats.abilityAchievements'),
     PROGRESSION: t('stats.progressionAchievements'),
+    SPEED: t('stats.speedAchievements', 'Hız Başarımları'),
+    MASTERY: t('stats.masteryAchievements', 'Ustalık Başarımları'),
   };
 
   return (
@@ -175,21 +205,10 @@ export const StatisticsScreen: React.FC = () => {
       </div>
       
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)' }}>
+      <div className="flex-1 overflow-y-auto px-4 py-3" style={{ paddingBottom: '76px' }}>
         <div className="w-full max-w-[448px] mx-auto">
           {activeTab === 'stats' && (
             <>
-          {/* Performance DNA Section */}
-          <div className="mb-6">
-            <PerformanceDNACard
-              spectralIndex={performanceMetrics.spectralIndex}
-              winRate={performanceMetrics.winRate}
-              totalSessions={performanceMetrics.totalSessions}
-              activeDays={performanceMetrics.activeDays}
-              gradient="linear-gradient(135deg, #1e293b 0%, #0f172a 100%)"
-            />
-          </div>
-          
           {/* TREND ANALİZİ Section */}
           <div className="mb-6">
             <SectionHeader title={t('stats.trendAnalysis')} />
@@ -227,6 +246,11 @@ export const StatisticsScreen: React.FC = () => {
               showGrid={true}
               showLegend={true}
             />
+          </div>
+          
+          {/* SKOR DAĞILIMI Section */}
+          <div className="mb-6">
+            <ScoreDistributionChart data={scoreDistribution} height={180} />
           </div>
           
           {/* MOD PERFORMANSI Section */}

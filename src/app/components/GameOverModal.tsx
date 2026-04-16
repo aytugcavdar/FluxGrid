@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 import clsx from 'clsx';
 import { GameMode } from '@shared/types';
 import { playClick } from '@utils/audio';
-import { generateShareText, shareResult } from '@utils/shareResult';
+import { generateShareText, shareResult } from '@/src/utils/sharing/shareResult';
 
 interface GameOverModalProps {
   isGameOver: boolean;

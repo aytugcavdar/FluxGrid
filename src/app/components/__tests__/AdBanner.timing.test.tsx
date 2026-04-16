@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { AdBanner } from '../AdBanner';
-import { AdManager } from '@utils/adManager';
+import { AdManager } from '@/src/utils/managers/adManager';
 
 // Mock AdManager
 vi.mock('@utils/adManager', () => ({

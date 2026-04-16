@@ -5,14 +5,14 @@ import { useThemeStore } from '../../../shared/store/themeStore';
 import { useVisualEffectStore } from '../../visual-effects/store/visualEffectStore';
 import { GRID_SIZE, SkillType, CellType, GridState } from '../types';
 import { GameMode } from '@shared/types';
-import { getDragYOffset, setCanvasRect } from '../../../utils/responsive';
+import { getDragYOffset, setCanvasRect } from '../../../utils/responsive/responsive';
 import { playHaptic } from '../../../utils/audio';
-import { detectDeviceCapabilities, getPerformanceConfig } from '../../../utils/deviceCapability';
-import { isAndroid as isAndroidPlatform } from '../../../utils/platform';
+import { detectDeviceCapabilities, getPerformanceConfig } from '../../../utils/platform/deviceCapability';
+import { isAndroid as isAndroidPlatform } from '../../../utils/platform/platform';
 import { useFPSLimiter } from '../hooks/useFPSLimiter';
 import { useBackgroundPause } from '../hooks/useBackgroundPause';
 import { usePerformanceStore } from '../store/performanceStore';
-import { injectAndroidTouchCSS, addOptimizedTouchListener } from '../../../utils/touchOptimizer';
+import { injectAndroidTouchCSS, addOptimizedTouchListener } from '../../../utils/device/touchOptimizer';
 import clsx from 'clsx';
 
 // Import constants and helpers
@@ -58,7 +58,7 @@ import { ComboMilestoneSystem } from '../../visual-effects/combo/ComboMilestoneS
 import { PerfectClearCelebration } from '../../visual-effects/celebration/PerfectClearCelebration';
 import { ParticlePoolManager } from '../../visual-effects/particles/ParticlePoolManager';
 import { ParticleEmitter } from '../../visual-effects/particles/ParticleEmitter';
-import { HapticManager } from '../../../utils/haptics';
+import { HapticManager } from '../../../utils/audio/haptics';
 import { getBatterySaverManager } from '../../visual-effects/performance/BatterySaverManager';
 
 export const Grid: React.FC = () => {
@@ -246,9 +246,10 @@ export const Grid: React.FC = () => {
               preserveDrawingBuffer: true,
               stencil: true,
               antialias: perfConfig.antialias,
-              adaptToDeviceRatio: false, // Keep false for stability
-              limitDeviceRatio: deviceCapabilities.isAndroid ? 1.0 : (deviceCapabilities.isNative ? 2.0 : Math.min(window.devicePixelRatio, 2)),
+              adaptToDeviceRatio: true, // Enable for better resolution
+              limitDeviceRatio: Math.min(window.devicePixelRatio, 2), // Cap at 2x for performance
               doNotHandleContextLost: false,
+              powerPreference: 'high-performance', // Request high-performance GPU
           });
           
           // Verify WebGL is available
@@ -268,13 +269,9 @@ export const Grid: React.FC = () => {
         // Store engine ref for hooks
         engineRef.current = engine;
 
-        // Hardware scaling based on device tier
-        // Android native: fixed at 1.0 for consistent rendering
-        if (deviceCapabilities.isAndroid) {
-          engine.setHardwareScalingLevel(1.0);
-        } else {
-          engine.setHardwareScalingLevel(1 / perfConfig.hardwareScaling);
-        }
+        // Hardware scaling for better resolution
+        // Use 1.0 for crisp rendering (no downscaling)
+        engine.setHardwareScalingLevel(1.0);
 
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0, 0, 0, 0);
@@ -908,7 +905,7 @@ export const Grid: React.FC = () => {
                         if (!mesh) {
                             mesh = createBlockMeshLocal(cell.color, cell.id, cell.type, cell.health);
                             mesh.position = targetPos.clone();
-                            mesh.position.y = 4; // Drop from moderate height (reduced from 12 for faster placement)
+                            mesh.position.y = 2; // Drop from low height for instant placement feel
                             meshMap.set(cell.id, mesh);
                             
                             // Track newly created block for placement animation
@@ -932,7 +929,7 @@ export const Grid: React.FC = () => {
                                                lineClearAnimationRef.current?.affectedBlocks.has(cellKey);
                         
                         if (!isBeingAnimated) {
-                            mesh.position = BABYLON.Vector3.Lerp(mesh.position, targetPos, 0.5); // Increased from 0.25 for faster landing
+                            mesh.position = BABYLON.Vector3.Lerp(mesh.position, targetPos, 0.8); // Increased from 0.5 for much faster landing
                         }
 
                         // Animasyonlar sadece yüksek performanslı cihazlarda ve throttled
@@ -1456,6 +1453,7 @@ export const Grid: React.FC = () => {
         )}>
             <canvas
                 ref={canvasRef}
+                data-grid-container
                 className={clsx(
                     "w-full h-full touch-none outline-none block",
                     "grid-container interactive-element" // Task 9.5: Android touch CSS classes

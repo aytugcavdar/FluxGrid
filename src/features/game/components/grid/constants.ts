@@ -3,7 +3,7 @@
  * 3D layout and pool size configurations
  */
 
-import { detectDeviceCapabilities, getPerformanceConfig } from '../../../../utils/deviceCapability';
+import { detectDeviceCapabilities, getPerformanceConfig } from '../../../../utils/platform/deviceCapability';
 
 // Grid size (imported from parent types, but re-exported for convenience)
 export const GRID_SIZE = 10;

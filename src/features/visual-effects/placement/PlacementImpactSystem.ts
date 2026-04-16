@@ -1,7 +1,7 @@
 import * as BABYLON from 'babylonjs';
 import { ParticlePoolManager } from '../particles/ParticlePoolManager';
 import { ParticleEmitter } from '../particles/ParticleEmitter';
-import { HapticManager } from '../../../utils/haptics';
+import { HapticManager } from '../../../utils/audio/haptics';
 
 /**
  * PlacementImpactSystem - Handles placement impact animations

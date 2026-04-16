@@ -1,6 +1,6 @@
 import * as BABYLON from 'babylonjs';
 import { ParticleEmitter } from '../particles/ParticleEmitter';
-import { HapticManager } from '../../../utils/haptics';
+import { HapticManager } from '../../../utils/audio/haptics';
 
 /**
  * PerfectClearCelebration - Handles perfect clear celebration

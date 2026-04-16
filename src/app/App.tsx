@@ -11,12 +11,13 @@ import { SettingsScreen } from './SettingsScreen';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ScreenErrorBoundary } from './ScreenErrorBoundary';
 import { NavigationTab } from '../shared/store/navigationStore';
-import { ConsentModal } from './components/ConsentModal';
-import { OfflineIndicator } from '../components/OfflineIndicator';
-import { initializeDeepLinkHandler, removeDeepLinkHandler } from '../utils/deepLinkHandler';
-import { showAchievementNotification } from '../utils/notificationHelper';
-import '../utils/testWidgetSync'; // Load test helper
+import { ConsentModal } from '../shared/components/ConsentModal';
+import { OfflineIndicator } from '../shared/components/OfflineIndicator';
+import { initializeDeepLinkHandler, removeDeepLinkHandler } from '../utils/native/deepLinkHandler';
+import { showAchievementNotification } from '../utils/native/notificationHelper';
+import '../utils/native/testWidgetSync'; // Load test helper
 import { AchievementNotification } from '../features/achievements';
+import type { ConsentType } from '@services/gdpr';
 
 export const App: React.FC = () => {
   const { i18n } = useTranslation();
@@ -37,16 +38,24 @@ export const App: React.FC = () => {
     loadSettings();
     
     // Request notification permission on first launch (native only)
-    import('../utils/notificationHelper').then(({ requestNotificationPermission }) => {
+    import('../utils/native/notificationHelper').then(({ requestNotificationPermission }) => {
       requestNotificationPermission().then(granted => {
         console.log('[App] Notification permission:', granted ? 'granted' : 'denied');
+      }).catch(error => {
+        console.error('[App] Notification permission error:', error);
       });
+    }).catch(error => {
+      console.error('[App] Failed to load notification helper:', error);
     });
     
     // Sync existing data to widgets on app start
-    import('../utils/widgetHelper').then(({ syncAllWidgetData }) => {
+    import('../utils/native/widgetHelper').then(({ syncAllWidgetData }) => {
       const gameState = useGameStore.getState();
-      syncAllWidgetData(gameState.highScores, gameState.progression.streak);
+      // Get daily challenge streak from localStorage (not in-game streak)
+      const dailyStreak = parseInt(localStorage.getItem('flux_daily_streak') || '0');
+      syncAllWidgetData(gameState.highScores, dailyStreak);
+    }).catch(error => {
+      console.error('[App] Failed to sync widget data:', error);
     });
   }, [loadSettings]);
   
@@ -106,7 +115,7 @@ export const App: React.FC = () => {
   }, []);
   
   // Handle consent selection
-  const handleConsent = (consentType: 'personalized' | 'non-personalized') => {
+  const handleConsent = async (consentType: ConsentType) => {
     console.log('[App] Consent selected:', consentType);
     setShowConsentModal(false);
     
@@ -145,11 +154,17 @@ export const App: React.FC = () => {
     }
   };
 
-  // Check for reduced motion preference
+  // Check for reduced motion preference or use faster animations
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const shouldAnimate = !prefersReducedMotion;
 
   return (
-    <div className="relative w-full h-screen overflow-hidden" style={{ background: colors.background }}>
+    <div 
+      className="relative w-full h-full overflow-hidden" 
+      style={{ 
+        background: colors.background,
+      }}
+    >
       {/* Offline Indicator */}
       <OfflineIndicator position="top" showSlowConnection={true} />
       
@@ -159,10 +174,10 @@ export const App: React.FC = () => {
       <AnimatePresence mode="wait">
         <motion.div
           key={currentScreen}
-          initial={prefersReducedMotion ? {} : { opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={prefersReducedMotion ? {} : { opacity: 0, y: -20 }}
-          transition={{ duration: 0.2 }}
+          initial={shouldAnimate ? { opacity: 0 } : {}}
+          animate={{ opacity: 1 }}
+          exit={shouldAnimate ? { opacity: 0 } : {}}
+          transition={{ duration: 0.15, ease: 'easeInOut' }}
           className="w-full h-full"
         >
           {renderScreen()}

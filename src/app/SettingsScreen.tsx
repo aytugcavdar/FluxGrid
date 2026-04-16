@@ -8,7 +8,7 @@ import { usePerformanceStore } from '../features/game/store/performanceStore';
 import { useVisualEffectStore } from '../features/visual-effects/store/visualEffectStore';
 import { GameMode } from '@shared/types';
 import { ToggleSwitch, SectionHeader } from '../shared/components';
-import { isAndroid } from '../utils/platform';
+import { isAndroid } from '../utils/platform/platform';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -244,7 +244,7 @@ export const SettingsScreen: React.FC = () => {
       }}
     >
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-4 pb-24" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)' }}>
+      <div className="flex-1 overflow-y-auto px-4 pb-20" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)', paddingBottom: '76px' }}>
         <div className="w-full max-w-[448px] mx-auto">
           {/* GÖRÜNÜM Section */}
           <div className="mb-8">
@@ -642,6 +642,45 @@ export const SettingsScreen: React.FC = () => {
                   value={debugMode}
                   onChange={setDebugMode}
                 />
+
+                {/* Test Notification Button */}
+                <button
+                  onClick={async () => {
+                    try {
+                      const { scheduleLocalNotification } = await import('../services/notifications/pushNotificationService');
+                      await scheduleLocalNotification({
+                        title: 'Test Bildirimi',
+                        body: 'Bu bir test bildirimidir. Bildirimler çalışıyor! 🎮',
+                        id: Date.now(),
+                        schedule: { at: new Date(Date.now() + 2000) } // 2 saniye sonra
+                      });
+                      alert('Test bildirimi 2 saniye içinde gösterilecek!');
+                    } catch (error) {
+                      console.error('Test notification failed:', error);
+                      alert('Bildirim gönderilemedi: ' + error);
+                    }
+                  }}
+                  className="w-full p-5 rounded-2xl transition-all"
+                  style={{
+                    background: 'rgba(34,197,94,0.1)',
+                    border: '2px solid rgba(34,197,94,0.3)',
+                  }}
+                  aria-label="Test bildirimi gönder"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🔔</span>
+                      <div className="text-left">
+                        <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
+                          Test Bildirimi
+                        </p>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>
+                          Bildirim sistemini test et
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </button>
 
                 {/* FPS Counter Display (when debug mode active) */}
                 {debugMode && (

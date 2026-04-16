@@ -37,7 +37,13 @@ export const Piece: React.FC<Props> = ({ piece, index = 0 }) => {
     // Add scroll prevention
     document.body.classList.add('dragging');
     
+    // Immediate visual feedback
     setDraggedPiece(piece);
+    
+    // Quick haptic feedback for better responsiveness
+    if ('vibrate' in navigator) {
+      navigator.vibrate(10); // Very short vibration for instant feedback
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -72,7 +78,7 @@ export const Piece: React.FC<Props> = ({ piece, index = 0 }) => {
           <div
             key={`${y}-${x}`}
             className={clsx(
-              "rounded-sm transition-all duration-300",
+              "rounded-sm transition-all duration-200",
               filled && p.type === CellType.ICE && !isNativeApp && "animate-pulse",
               filled && p.type === CellType.BOMB && !isNativeApp && "animate-pulse",
               filled && p.type === CellType.CHRONO && !isNativeApp && "animate-pulse"
@@ -114,13 +120,14 @@ export const Piece: React.FC<Props> = ({ piece, index = 0 }) => {
     <motion.div 
       data-piece-slot={index}
       style={{ position: 'relative', width: '100%', height: '100%' }}
-      initial={{ scale: 0, opacity: 0 }}
+      initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ 
         type: "spring", 
-        stiffness: 260, 
-        damping: 20,
-        mass: 0.8
+        stiffness: 450, // Daha hızlı spring
+        damping: 28, // Daha kontrollü
+        mass: 0.5, // Daha hafif
+        delay: index * 0.04 // Daha hızlı stagger
       }}
     >
       <motion.div
@@ -133,16 +140,21 @@ export const Piece: React.FC<Props> = ({ piece, index = 0 }) => {
           { "opacity-25": isDragging }
         )}
         animate={{ 
-          scale: isDragging ? 0.9 : 1,
-          rotate: isDragging ? 2 : 0
+          scale: isDragging ? 0.92 : 1, // Daha az scale değişimi
+          rotate: isDragging ? 0.5 : 0 // Daha az rotasyon
         }}
         transition={{ 
           type: "spring", 
-          stiffness: 300, 
-          damping: 25 
+          stiffness: 500, // Çok daha hızlı response
+          damping: 35, // Daha az bounce
+          mass: 0.4 // Daha hafif
         }}
         // Ensure minimum tap target
-        style={{ minWidth: 44, minHeight: 44 }}
+        style={{ 
+          minWidth: 44, 
+          minHeight: 44,
+          willChange: isDragging ? 'transform' : 'auto' // GPU acceleration hint
+        }}
       >
         {/* Special Icon Badge */}
         {piece.type === CellType.ICE && (

@@ -44,7 +44,7 @@ export const FLUX_COST = {
 };
 
 // Tier progression constants (rebalanced for smoother curve)
-export const TIER_THRESHOLDS = [0, 1000, 3000, 7000, 14000, 25000, 45000] as const;
+export const TIER_THRESHOLDS = [0, 5000, 12000, 25000, 45000, 75000, 120000] as const;
 export const TIER_SCORE_MULTIPLIERS = [1.0, 1.15, 1.35, 1.6, 2.0, 2.5, 3.0] as const;
 export const TIER_FLUX_MULTIPLIERS = [1.0, 1.1, 1.2, 1.3, 1.5, 1.7, 2.0] as const;
 
@@ -221,34 +221,77 @@ export const ACHIEVEMENTS: Achievement[] = [
 
 // Expanded Achievement Definitions
 export const EXPANDED_ACHIEVEMENTS: Achievement[] = [
-  // Score achievements
+  // Score achievements (10 total)
+  { id: 'score_1k', name: 'İlk Adım', description: 'Tek oyunda 1,000 puan', category: 'SCORE', targetValue: 1000, currentValue: 0, unlocked: false, hidden: false, fluxReward: 20 },
+  { id: 'score_5k', name: 'Yükselen Yıldız', description: 'Tek oyunda 5,000 puan', category: 'SCORE', targetValue: 5000, currentValue: 0, unlocked: false, hidden: false, fluxReward: 35 },
   { id: 'score_10k', name: 'Yüksek Skorcu', description: 'Tek oyunda 10,000 puan', category: 'SCORE', targetValue: 10000, currentValue: 0, unlocked: false, hidden: false, fluxReward: 50 },
+  { id: 'score_25k', name: 'Skor Avcısı', description: 'Tek oyunda 25,000 puan', category: 'SCORE', targetValue: 25000, currentValue: 0, unlocked: false, hidden: false, fluxReward: 75 },
   { id: 'score_50k', name: 'Skor Ustası', description: 'Tek oyunda 50,000 puan', category: 'SCORE', targetValue: 50000, currentValue: 0, unlocked: false, hidden: false, fluxReward: 100 },
+  { id: 'score_75k', name: 'Skor Kralı', description: 'Tek oyunda 75,000 puan', category: 'SCORE', targetValue: 75000, currentValue: 0, unlocked: false, hidden: false, fluxReward: 150 },
   { id: 'score_100k', name: 'Efsane Skor', description: 'Tek oyunda 100,000 puan', category: 'SCORE', targetValue: 100000, currentValue: 0, unlocked: false, hidden: true, fluxReward: 200 },
+  { id: 'score_250k', name: 'Skor Tanrısı', description: 'Tek oyunda 250,000 puan', category: 'SCORE', targetValue: 250000, currentValue: 0, unlocked: false, hidden: true, fluxReward: 300 },
+  { id: 'score_500k', name: 'Skor Efsanesi', description: 'Tek oyunda 500,000 puan', category: 'SCORE', targetValue: 500000, currentValue: 0, unlocked: false, hidden: true, fluxReward: 500 },
+  { id: 'score_1m', name: 'Milyon Kulübü', description: 'Tek oyunda 1,000,000 puan', category: 'SCORE', targetValue: 1000000, currentValue: 0, unlocked: false, hidden: true, fluxReward: 1000 },
   
-  // Combo achievements
+  // Combo achievements (8 total)
+  { id: 'combo_3', name: 'Kombo Başlangıcı', description: '3x kombo yap', category: 'COMBO', targetValue: 3, currentValue: 0, unlocked: false, hidden: false, fluxReward: 15 },
   { id: 'combo_5', name: 'Kombo Ustası', description: '5x kombo yap', category: 'COMBO', targetValue: 5, currentValue: 0, unlocked: false, hidden: false, fluxReward: 30 },
   { id: 'combo_10', name: 'Kombo Tanrısı', description: '10x kombo yap', category: 'COMBO', targetValue: 10, currentValue: 0, unlocked: false, hidden: false, fluxReward: 75 },
   { id: 'combo_15', name: 'Kombo Efsanesi', description: '15x kombo yap', category: 'COMBO', targetValue: 15, currentValue: 0, unlocked: false, hidden: true, fluxReward: 150 },
+  { id: 'combo_20', name: 'Kombo Kralı', description: '20x kombo yap', category: 'COMBO', targetValue: 20, currentValue: 0, unlocked: false, hidden: true, fluxReward: 250 },
+  { id: 'combo_25', name: 'Kombo İmparatoru', description: '25x kombo yap', category: 'COMBO', targetValue: 25, currentValue: 0, unlocked: false, hidden: true, fluxReward: 400 },
+  { id: 'combo_30', name: 'Kombo Efsanesi', description: '30x kombo yap', category: 'COMBO', targetValue: 30, currentValue: 0, unlocked: false, hidden: true, fluxReward: 600 },
+  { id: 'combo_streak', name: 'Kombo Zinciri', description: 'Bir oyunda 5 kez 5x kombo yap', category: 'COMBO', targetValue: 5, currentValue: 0, unlocked: false, hidden: false, fluxReward: 100 },
   
-  // Special block achievements
+  // Special block achievements (10 total)
+  { id: 'bomb_5', name: 'Bomba Başlangıcı', description: '5 bomba patlat', category: 'SPECIAL_BLOCKS', targetValue: 5, currentValue: 0, unlocked: false, hidden: false, fluxReward: 25 },
   { id: 'bomb_10', name: 'Bomba Uzmanı', description: '10 bomba patlat', category: 'SPECIAL_BLOCKS', targetValue: 10, currentValue: 0, unlocked: false, hidden: false, fluxReward: 40 },
+  { id: 'bomb_50', name: 'Bomba Ustası', description: '50 bomba patlat', category: 'SPECIAL_BLOCKS', targetValue: 50, currentValue: 0, unlocked: false, hidden: false, fluxReward: 100 },
+  { id: 'ice_25', name: 'Buz Başlangıcı', description: '25 buz bloğu kır', category: 'SPECIAL_BLOCKS', targetValue: 25, currentValue: 0, unlocked: false, hidden: false, fluxReward: 35 },
   { id: 'ice_50', name: 'Buz Kırıcı', description: '50 buz bloğu kır', category: 'SPECIAL_BLOCKS', targetValue: 50, currentValue: 0, unlocked: false, hidden: false, fluxReward: 60 },
+  { id: 'ice_100', name: 'Buz Ustası', description: '100 buz bloğu kır', category: 'SPECIAL_BLOCKS', targetValue: 100, currentValue: 0, unlocked: false, hidden: false, fluxReward: 120 },
   { id: 'rainbow_5', name: 'Gökkuşağı Avcısı', description: '5 gökkuşağı bloğu temizle', category: 'SPECIAL_BLOCKS', targetValue: 5, currentValue: 0, unlocked: false, hidden: false, fluxReward: 50 },
   { id: 'lock_10', name: 'Kilit Kırıcı', description: '10 kilit bloğu kır', category: 'SPECIAL_BLOCKS', targetValue: 10, currentValue: 0, unlocked: false, hidden: false, fluxReward: 70 },
   { id: 'portal_5', name: 'Portal Gezgini', description: '5 portal bloğu kullan', category: 'SPECIAL_BLOCKS', targetValue: 5, currentValue: 0, unlocked: false, hidden: false, fluxReward: 55 },
+  { id: 'special_master', name: 'Özel Blok Ustası', description: 'Her özel bloktan 10\'ar kullan', category: 'SPECIAL_BLOCKS', targetValue: 10, currentValue: 0, unlocked: false, hidden: true, fluxReward: 200 },
   
-  // Ability achievements
+  // Ability achievements (8 total)
+  { id: 'ability_first', name: 'İlk Yetenek', description: 'İlk yeteneğini kullan', category: 'ABILITIES', targetValue: 1, currentValue: 0, unlocked: false, hidden: false, fluxReward: 10 },
+  { id: 'ability_10', name: 'Yetenek Kullanıcısı', description: '10 yetenek kullan', category: 'ABILITIES', targetValue: 10, currentValue: 0, unlocked: false, hidden: false, fluxReward: 30 },
+  { id: 'ability_50', name: 'Yetenek Uzmanı', description: '50 yetenek kullan', category: 'ABILITIES', targetValue: 50, currentValue: 0, unlocked: false, hidden: false, fluxReward: 75 },
   { id: 'ability_master', name: 'Yetenek Ustası', description: 'Her yeteneği en az 10 kez kullan', category: 'ABILITIES', targetValue: 10, currentValue: 0, unlocked: false, hidden: false, fluxReward: 100 },
   { id: 'no_abilities', name: 'Saf Beceri', description: 'Yetenek kullanmadan 5000 puan', category: 'ABILITIES', targetValue: 5000, currentValue: 0, unlocked: false, hidden: true, fluxReward: 150 },
   { id: 'rotate_master', name: 'Döndürme Ustası', description: 'Rotate yeteneğini 50 kez kullan', category: 'ABILITIES', targetValue: 50, currentValue: 0, unlocked: false, hidden: false, fluxReward: 45 },
   { id: 'undo_saver', name: 'Zaman Yolcusu', description: 'Undo ile 20 hamle geri al', category: 'ABILITIES', targetValue: 20, currentValue: 0, unlocked: false, hidden: false, fluxReward: 60 },
+  { id: 'surge_master', name: 'Surge Ustası', description: 'Surge\'ü 25 kez aktifleştir', category: 'ABILITIES', targetValue: 25, currentValue: 0, unlocked: false, hidden: false, fluxReward: 80 },
   
-  // Progression achievements
-  { id: 'level_10', name: 'Yolculuk Başlıyor', description: 'Seviye 10\'a ulaş', category: 'PROGRESSION', targetValue: 10, currentValue: 0, unlocked: false, hidden: false, fluxReward: 50 },
-  { id: 'level_25', name: 'Deneyimli Oyuncu', description: 'Seviye 25\'e ulaş', category: 'PROGRESSION', targetValue: 25, currentValue: 0, unlocked: false, hidden: false, fluxReward: 100 },
-  { id: 'level_50', name: 'Usta Oyuncu', description: 'Seviye 50\'ye ulaş', category: 'PROGRESSION', targetValue: 50, currentValue: 0, unlocked: false, hidden: true, fluxReward: 200 },
-  { id: 'perfect_level', name: 'Mükemmel Seviye', description: 'Bir seviyeyi 3 yıldızla tamamla', category: 'PROGRESSION', targetValue: 1, currentValue: 0, unlocked: false, hidden: false, fluxReward: 75 },
-  { id: 'perfect_10', name: 'Mükemmellik Peşinde', description: '10 seviyeyi 3 yıldızla tamamla', category: 'PROGRESSION', targetValue: 10, currentValue: 0, unlocked: false, hidden: false, fluxReward: 150 },
-  { id: 'all_unlocked', name: 'Tam Donanımlı', description: 'Tüm yetenekleri kilitle', category: 'PROGRESSION', targetValue: 1, currentValue: 0, unlocked: false, hidden: true, fluxReward: 250 },
+  // Progression achievements (10 total)
+  { id: 'games_10', name: 'Yeni Başlayan', description: '10 oyun oyna', category: 'PROGRESSION', targetValue: 10, currentValue: 0, unlocked: false, hidden: false, fluxReward: 25 },
+  { id: 'games_50', name: 'Düzenli Oyuncu', description: '50 oyun oyna', category: 'PROGRESSION', targetValue: 50, currentValue: 0, unlocked: false, hidden: false, fluxReward: 50 },
+  { id: 'games_100', name: 'Bağımlı', description: '100 oyun oyna', category: 'PROGRESSION', targetValue: 100, currentValue: 0, unlocked: false, hidden: false, fluxReward: 100 },
+  { id: 'games_500', name: 'Efsane Oyuncu', description: '500 oyun oyna', category: 'PROGRESSION', targetValue: 500, currentValue: 0, unlocked: false, hidden: true, fluxReward: 250 },
+  { id: 'blocks_1000', name: 'Blok Yerleştirici', description: '1000 blok yerleştir', category: 'PROGRESSION', targetValue: 1000, currentValue: 0, unlocked: false, hidden: false, fluxReward: 50 },
+  { id: 'blocks_5000', name: 'Blok Ustası', description: '5000 blok yerleştir', category: 'PROGRESSION', targetValue: 5000, currentValue: 0, unlocked: false, hidden: false, fluxReward: 100 },
+  { id: 'lines_100', name: 'Satır Temizleyici', description: '100 satır temizle', category: 'PROGRESSION', targetValue: 100, currentValue: 0, unlocked: false, hidden: false, fluxReward: 40 },
+  { id: 'lines_500', name: 'Satır Ustası', description: '500 satır temizle', category: 'PROGRESSION', targetValue: 500, currentValue: 0, unlocked: false, hidden: false, fluxReward: 80 },
+  { id: 'perfect_clear', name: 'Mükemmel Temizlik', description: 'Tahtayı tamamen temizle', category: 'PROGRESSION', targetValue: 1, currentValue: 0, unlocked: false, hidden: false, fluxReward: 100 },
+  { id: 'perfect_clear_10', name: 'Temizlik Uzmanı', description: '10 kez tahtayı tamamen temizle', category: 'PROGRESSION', targetValue: 10, currentValue: 0, unlocked: false, hidden: true, fluxReward: 200 },
+  
+  // Time & Speed achievements (6 total)
+  { id: 'speed_demon', name: 'Hız Canavarı', description: '60 saniyede 5000 puan', category: 'SPEED', targetValue: 5000, currentValue: 0, unlocked: false, hidden: false, fluxReward: 100 },
+  { id: 'marathon', name: 'Maraton Koşucusu', description: '30 dakika boyunca oyna', category: 'SPEED', targetValue: 1800, currentValue: 0, unlocked: false, hidden: false, fluxReward: 75 },
+  { id: 'quick_combo', name: 'Hızlı Kombo', description: '10 saniyede 5x kombo', category: 'SPEED', targetValue: 5, currentValue: 0, unlocked: false, hidden: false, fluxReward: 60 },
+  { id: 'timed_master', name: 'Zaman Ustası', description: 'Timed modda 10,000 puan', category: 'SPEED', targetValue: 10000, currentValue: 0, unlocked: false, hidden: false, fluxReward: 80 },
+  { id: 'chrono_bonus', name: 'Zaman Bonusu', description: 'Toplam 60 saniye chrono bonus kazan', category: 'SPEED', targetValue: 60, currentValue: 0, unlocked: false, hidden: false, fluxReward: 90 },
+  { id: 'sprint_master', name: 'Sprint Ustası', description: 'Final sprint bonusu 5000+ puan', category: 'SPEED', targetValue: 5000, currentValue: 0, unlocked: false, hidden: true, fluxReward: 150 },
+  
+  // Perfect & Mastery achievements (8 total)
+  { id: 'no_mistakes', name: 'Hatasız', description: 'Bir oyunda hiç yanlış hamle yapma', category: 'MASTERY', targetValue: 1, currentValue: 0, unlocked: false, hidden: true, fluxReward: 200 },
+  { id: 'efficiency', name: 'Verimlilik', description: '50 hamle ile 10,000 puan', category: 'MASTERY', targetValue: 10000, currentValue: 0, unlocked: false, hidden: true, fluxReward: 150 },
+  { id: 'chain_master', name: 'Zincir Ustası', description: 'Bir oyunda 10 kez chain reaction', category: 'MASTERY', targetValue: 10, currentValue: 0, unlocked: false, hidden: false, fluxReward: 100 },
+  { id: 'color_master', name: 'Renk Ustası', description: '20 kez color bonus kazan', category: 'MASTERY', targetValue: 20, currentValue: 0, unlocked: false, hidden: false, fluxReward: 80 },
+  { id: 'tier_master', name: 'Tier Ustası', description: 'Tier 5\'e ulaş', category: 'MASTERY', targetValue: 5, currentValue: 0, unlocked: false, hidden: false, fluxReward: 120 },
+  { id: 'event_master', name: 'Event Ustası', description: '10 farklı event yaşa', category: 'MASTERY', targetValue: 10, currentValue: 0, unlocked: false, hidden: false, fluxReward: 100 },
+  { id: 'comeback', name: 'Geri Dönüş', description: '5 hücreden az kala 5000+ puan yap', category: 'MASTERY', targetValue: 5000, currentValue: 0, unlocked: false, hidden: true, fluxReward: 180 },
+  { id: 'zen_master', name: 'Zen Ustası', description: 'Zen modda 1 saat oyna', category: 'MASTERY', targetValue: 3600, currentValue: 0, unlocked: false, hidden: false, fluxReward: 150 },
 ];

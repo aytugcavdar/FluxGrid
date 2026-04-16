@@ -12,16 +12,6 @@ import * as admin from 'firebase-admin';
  * - Suspicious threshold: 1000% increase from previous high score
  */
 
-// Maximum possible multiplier in the game
-// tier6 (3.0x) × surge (2.0x) × scoreRush (1.5x) × quake (1.3x) = 11.7x
-const MAX_POSSIBLE_MULTIPLIER = 11.7;
-
-// Base score rate without multipliers (points per second)
-const BASE_SCORE_PER_SECOND = 300;
-
-// Maximum legitimate score rate with all multipliers active
-const MAX_SCORE_PER_SECOND = BASE_SCORE_PER_SECOND * MAX_POSSIBLE_MULTIPLIER; // 3510
-
 /**
  * Cloud Function to validate scores when they are written to leaderboard
  * Triggers on onCreate for leaderboards/{mode}/scores/{uid}

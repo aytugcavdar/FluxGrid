@@ -13,19 +13,25 @@ import { Gift } from 'lucide-react';
 
 export const HomeScreen: React.FC = () => {
   const { t } = useTranslation();
-  const { initGame, highScores } = useGameStore();
+  const { initGame, highScores, hasSavedGame, loadSavedGame } = useGameStore();
   const { soundEnabled } = useSettingsStore();
   const { initializeRewards, canClaimToday } = useDailyRewardStore();
   const { getThemeColors } = useThemeStore();
   const colors = getThemeColors();
   
   const [showRewardModal, setShowRewardModal] = useState(false);
+  const [hasSave, setHasSave] = useState(false);
   const hasReward = canClaimToday;
 
   // Initialize rewards on mount
   useEffect(() => {
     initializeRewards();
   }, [initializeRewards]);
+  
+  // Check for saved game
+  useEffect(() => {
+    setHasSave(hasSavedGame());
+  }, [hasSavedGame]);
   
   // Check if tutorial should be shown on mount (only once)
   useEffect(() => {
@@ -49,7 +55,7 @@ export const HomeScreen: React.FC = () => {
       className="fixed inset-0 flex flex-col overflow-hidden"
       style={{ 
         background: colors.screenBackground,
-        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)'
       }}
     >
@@ -126,14 +132,17 @@ export const HomeScreen: React.FC = () => {
         />
       ))}
 
-      <div className="relative flex-1 flex flex-col px-6 pt-10 pb-20">
-        <div className="w-full max-w-[400px] mx-auto flex flex-col h-full">
+      <div className="relative flex-1 flex flex-col px-4 pt-2 pb-4">
+        <div className="w-full max-w-[400px] mx-auto flex flex-col" style={{ 
+          height: '100%',
+          paddingBottom: '76px'
+        }}>
           {/* Premium Header with Logo */}
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="flex items-center justify-between mb-12"
+            className="flex items-center justify-between mb-6"
           >
             <motion.div 
               className="flex items-center gap-3"
@@ -215,7 +224,7 @@ export const HomeScreen: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="grid grid-cols-2 gap-4 mb-12"
+            className="grid grid-cols-2 gap-3 mb-6"
           >
             <motion.div 
               whileHover={{ y: -4, scale: 1.02 }}
@@ -265,18 +274,65 @@ export const HomeScreen: React.FC = () => {
             </motion.div>
           </motion.div>
 
+          {/* Continue Button (if saved game exists) */}
+          {hasSave && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+              onClick={() => {
+                if (soundEnabled) playClick();
+                loadSavedGame();
+              }}
+              whileHover={{ scale: 1.02, y: -4 }}
+              whileTap={{ scale: 0.98 }}
+              className="relative rounded-2xl p-4 overflow-hidden group mb-4"
+              style={{
+                background: `linear-gradient(135deg, ${colors.accentPrimary}dd 0%, ${colors.accentSonsuz} 100%)`,
+                boxShadow: `0 10px 30px ${colors.accentPrimary}40, 0 0 0 1px rgba(255, 255, 255, 0.1) inset`,
+              }}
+            >
+              {/* Animated background */}
+              <motion.div
+                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                style={{
+                  background: `linear-gradient(135deg, ${colors.accentPrimary} 0%, ${colors.accentSonsuz} 100%)`,
+                }}
+              />
+              
+              <div className="relative flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                    <span className="text-2xl">▶️</span>
+                  </div>
+                  <div className="text-left">
+                    <div className="text-white font-bold text-lg">
+                      {t('home.continue', 'Devam Et')}
+                    </div>
+                    <div className="text-white/70 text-xs">
+                      {t('home.continueDesc', 'Kaldığın yerden devam et')}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-white/50 text-2xl group-hover:translate-x-1 transition-transform">
+                  →
+                </div>
+              </div>
+            </motion.button>
+          )}
+
           {/* Choose Your Mode Title */}
           <motion.h2
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-6 text-center"
+            className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-4 text-center"
           >
             {t('home.chooseYourMode')}
           </motion.h2>
 
           {/* Premium Mode Cards */}
-          <div className="flex-1 flex flex-col gap-4">
+          <div className="flex-1 flex flex-col gap-3">
             {/* Infinite Mode */}
             <motion.button
               initial={{ opacity: 0, x: -50 }}
@@ -292,8 +348,8 @@ export const HomeScreen: React.FC = () => {
               style={{
                 background: `linear-gradient(135deg, ${colors.accentSonsuz}dd 0%, ${colors.accentSonsuz} 50%, ${colors.accentPrimary} 100%)`,
                 boxShadow: `0 20px 60px ${colors.accentSonsuz}60, 0 0 0 1px rgba(255, 255, 255, 0.1) inset`,
-                minHeight: '140px',
-                maxHeight: '140px',
+                minHeight: '120px',
+                maxHeight: '120px',
               }}
             >
               {/* Shine Effect */}
@@ -355,8 +411,8 @@ export const HomeScreen: React.FC = () => {
               style={{
                 background: `linear-gradient(135deg, ${colors.accentTimed}dd 0%, ${colors.accentTimed} 50%, ${colors.accentSonsuz} 100%)`,
                 boxShadow: `0 20px 60px ${colors.accentTimed}60, 0 0 0 1px rgba(255, 255, 255, 0.1) inset`,
-                minHeight: '140px',
-                maxHeight: '140px',
+                minHeight: '120px',
+                maxHeight: '120px',
               }}
             >
               {/* Shine Effect */}

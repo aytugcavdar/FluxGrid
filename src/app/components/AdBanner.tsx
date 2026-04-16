@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useTutorialStore } from '@shared/store/tutorialStore';
 import { useGameStore } from '@features/game/store/gameStore';
-import { AdManager } from '@utils/adManager';
+import { AdManager } from '@/src/utils/managers/adManager';
 
 export interface AdBannerProps {
   position: 'bottom';
@@ -77,10 +77,10 @@ export const AdBanner: React.FC<AdBannerProps> = () => {
     <div
       className="w-full"
       style={{
-        height: 'calc(50px + env(safe-area-inset-bottom, 0px) + 10px)',
-        minHeight: 'calc(50px + env(safe-area-inset-bottom, 0px) + 10px)',
-        maxHeight: 'calc(50px + env(safe-area-inset-bottom, 0px) + 10px)',
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)',
+        height: 'calc(50px + env(safe-area-inset-bottom, 0px) + 5px)',
+        minHeight: 'calc(50px + env(safe-area-inset-bottom, 0px) + 5px)',
+        maxHeight: 'calc(50px + env(safe-area-inset-bottom, 0px) + 5px)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 5px)',
       }}
     />
   );

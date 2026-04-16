@@ -1,6 +1,6 @@
 import { GameMode, AppState } from '@shared/types';
 import { playGameOver, playTick } from '../../../../utils/audio';
-import { safeExecute, ErrorCategory } from '../../../../utils/errorHandler';
+import { safeExecute, ErrorCategory } from '../../../../utils/managers/errorHandler';
 import { TIMED_MODE } from '../../constants';
 
 /**

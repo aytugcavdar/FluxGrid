@@ -4,25 +4,27 @@ import { GridState, Piece, GRID_SIZE, GridCell, SkillType, CellType, Achievement
 import { AppState, GameStats, GameMode } from '@shared/types';
 import { POINTS, FLUX_COST, EXPANDED_ACHIEVEMENTS, ZEN_PALETTES, TIER_SCORE_MULTIPLIERS, TIMED_MODE, COMBO_TIMER } from '../constants';
 import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playHaptic } from '../../../utils/audio';
-import { safeExecute, ErrorCategory } from '../../../utils/errorHandler';
+import { safeExecute, ErrorCategory } from '../../../utils/managers/errorHandler';
 import { safeLocalStorageGet, safeParseInt, safeJSONParse } from './helpers/localStorage';
 import { createEmptyGrid, processGrid } from './helpers/grid';
 import { getRandomPiecesSync } from './helpers/pieces';
 import { useThemeStore } from '@shared/store/themeStore';
 import { useProfileStore } from '../../profile/store/profileStore';
 import { useTutorialStore } from '@shared/store/tutorialStore';
-import { checkAndUpdateStreak } from '@utils/streakManager';
+import { checkAndUpdateStreak } from '@/src/utils/managers/streakManager';
 import { tickTimerImpl } from './helpers/timerLogic';
 import { checkTierEvent, tickActiveEvent } from './helpers/eventSystem';
 import { updateAchievements, syncNewAchievement } from './helpers/achievementSystem';
 import { usePassiveAbilityStore } from '../../abilities/store/passiveAbilityStore';
 import { createMiniEventState, checkMiniEvents, tickMiniEvents, shouldPreventComboBreak } from './helpers/miniEventSystem';
 import { createProgressionState, updateStreak, getStreakMultiplier, checkMilestones } from './helpers/progressionSystem';
+import { JuiceTriggers } from '../../visual-effects/utils/juiceTriggers';
 import { calculateScore, calculateFluxGain } from './helpers/scoreCalculator';
 import { migrateSaveData, SaveData } from './helpers/migration';
 import { LocalStorageService } from '@services/local/localStorageService';
 import { useVisualEffectStore } from '../../visual-effects/store/visualEffectStore';
 import { useAchievementStore } from '../../achievements/achievementStore';
+import { saveGameState, loadGameState, clearGameSave, hasSavedGame } from './helpers/gameSaveSystem';
 
 export interface GameStore {
   grid: GridState;
@@ -141,6 +143,11 @@ export interface GameStore {
   checkGameOver: () => void;
   resetGame: () => void;
   setState: (update: Partial<GameStore>) => void;
+  
+  // Save/Load system
+  saveCurrentGame: () => boolean;
+  loadSavedGame: () => boolean;
+  hasSavedGame: () => boolean;
 }
 
 const INITIAL_STATS: GameStats = {
@@ -623,7 +630,14 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
     
     // 1. Validate placement
-    if (!get().canPlacePiece(grid, piece, startX, startY)) return false;
+    if (!get().canPlacePiece(grid, piece, startX, startY)) {
+      // Trigger invalid placement feedback
+      JuiceTriggers.onInvalidPlacement();
+      return false;
+    }
+    
+    // Trigger valid placement feedback
+    JuiceTriggers.onValidPlacement();
     
     // Store the placed piece for boss mechanics (before it's removed from pieces array)
     const justPlacedPiece = piece;
@@ -685,6 +699,12 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     // 3. Process Grid
     const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken, actions } = processGrid(tempGrid);
+
+    // Trigger juice effects for line clears
+    if (linesCleared > 0) {
+      const newCombo = combo + 1;
+      JuiceTriggers.onLinesCleared(actions as any, newCombo);
+    }
 
     // Check for perfect clear (all cells empty after processing)
     const isPerfectClear = newGrid.every(row => row.every(cell => !cell.filled));
@@ -1299,7 +1319,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       // Monetization integration: Record game end and streak
       try {
         // Dynamic import to avoid circular dependency
-        import('../../../utils/adManager').then(({ AdManager }) => {
+        import('../../../utils/managers/adManager').then(({ AdManager }) => {
           AdManager.recordGameEnd();
         }).catch((error) => {
           console.error('[GameStore] Failed to record game end:', error);
@@ -1324,7 +1344,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       
       // Update dynamic shortcuts with recent mode
       try {
-        import('../../../utils/dynamicShortcutHelper').then(({ saveRecentMode }) => {
+        import('../../../utils/native/dynamicShortcutHelper').then(({ saveRecentMode }) => {
           saveRecentMode(gameMode, finalScore);
         }).catch((error) => {
           console.error('[GameStore] Failed to update dynamic shortcuts:', error);
@@ -1335,14 +1355,133 @@ export const useGameStore = create<GameStore>((set, get) => {
       
       // Sync data to widgets and update
       const state = get();
-      import('@utils/widgetHelper').then(({ syncAllWidgetData }) => {
-        syncAllWidgetData(state.highScores, state.progression.streak);
+      import('@/src/utils/native/widgetHelper').then(({ syncAllWidgetData }) => {
+        // Get daily challenge streak from localStorage (not in-game streak)
+        const dailyStreak = parseInt(localStorage.getItem('flux_daily_streak') || '0');
+        syncAllWidgetData(state.highScores, dailyStreak);
       });
     }
   },
 
   resetGame: () => {
     get().initGame();
+  },
+
+  // Save current game state
+  saveCurrentGame: () => {
+    const state = get();
+    
+    // Don't save if game is over or not in game state
+    if (state.isGameOver || state.appState !== AppState.GAME) {
+      return false;
+    }
+    
+    return saveGameState({
+      grid: state.grid,
+      pieces: state.pieces,
+      score: state.score,
+      combo: state.combo,
+      flux: state.flux,
+      gameMode: state.gameMode,
+      difficultyTier: state.difficultyTier,
+      timeLeft: state.timeLeft,
+      timedBoostMovesLeft: state.timedBoostMovesLeft,
+      maxCombo: state.maxCombo,
+      chronoBonus: state.chronoBonus,
+      activeEvent: state.activeEvent,
+      eventMovesRemaining: state.eventMovesRemaining,
+      miniEventState: state.miniEventState,
+      progressionState: state.progressionState,
+      totalMovesPlayed: state.totalMovesPlayed,
+      activeSkill: state.activeSkill,
+      isSurgeActive: state.isSurgeActive,
+      savedAt: Date.now(),
+    });
+  },
+
+  // Load saved game state
+  loadSavedGame: () => {
+    const savedState = loadGameState();
+    
+    if (!savedState) {
+      return false;
+    }
+    
+    console.log('[GameStore] Starting game load...');
+    
+    // First, initialize a fresh game with the saved mode
+    // This ensures all components mount properly and pieces are fresh
+    get().initGame(savedState.gameMode);
+    
+    // Wait longer for components to fully mount
+    setTimeout(() => {
+      const now = Date.now();
+      const isTimed = savedState.gameMode === GameMode.TIMED;
+      
+      console.log('[GameStore] Components mounted, restoring state...');
+      
+      // Properly restore grid with all cell properties
+      const restoredGrid = savedState.grid.map(row => 
+        row.map(cell => ({
+          filled: Boolean(cell.filled),
+          color: cell.color || '',
+          id: cell.filled ? uuidv4() : '',
+          isClearing: false,
+          type: cell.type,
+          health: cell.health,
+        }))
+      );
+      
+      console.log('[GameStore] Grid cells restored:', restoredGrid.length, 'x', restoredGrid[0].length);
+      console.log('[GameStore] Filled cells:', restoredGrid.flat().filter(c => c.filled).length);
+      
+      set({
+        grid: restoredGrid,
+        score: savedState.score,
+        combo: savedState.combo,
+        flux: savedState.flux,
+        difficultyTier: savedState.difficultyTier,
+        timeLeft: savedState.timeLeft,
+        timedBoostMovesLeft: savedState.timedBoostMovesLeft,
+        maxCombo: savedState.maxCombo,
+        chronoBonus: savedState.chronoBonus,
+        activeEvent: savedState.activeEvent,
+        eventMovesRemaining: savedState.eventMovesRemaining,
+        // IMPORTANT: Recreate mini event state instead of restoring
+        // This prevents "not iterable" errors with Sets
+        miniEventState: createMiniEventState(),
+        // IMPORTANT: Recreate progression state instead of restoring
+        progressionState: createProgressionState(),
+        totalMovesPlayed: savedState.totalMovesPlayed,
+        activeSkill: savedState.activeSkill,
+        isSurgeActive: savedState.isSurgeActive,
+        timerStartTime: isTimed ? now : null,
+        timerExpectedEnd: isTimed ? now + (savedState.timeLeft * 1000) : null,
+        isGameOver: false,
+        draggedPiece: null,
+      });
+      
+      console.log('[GameStore] State set complete');
+      console.log('[GameStore] Current pieces count:', get().pieces.length);
+      console.log('[GameStore] Is game over?', get().isGameOver);
+      
+      // Check game over after grid is restored
+      setTimeout(() => {
+        console.log('[GameStore] Running game over check...');
+        get().checkGameOver();
+        console.log('[GameStore] Game over check complete. Is game over?', get().isGameOver);
+      }, 300);
+    }, 250); // Increased delay
+    
+    // Clear the save after loading
+    clearGameSave();
+    
+    return true;
+  },
+
+  // Check if saved game exists
+  hasSavedGame: () => {
+    return hasSavedGame();
   },
 
   setState: (update) => {

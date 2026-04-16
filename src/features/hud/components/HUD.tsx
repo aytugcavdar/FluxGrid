@@ -11,7 +11,7 @@ import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { StreakBadge } from '@shared/components/StreakBadge';
 import { StreakShieldModal } from '../../../app/components/StreakShieldModal';
-import { AdManager } from '../../../utils/adManager';
+import { AdManager } from '../../../utils/managers/adManager';
 import { MiniEventIndicators } from './MiniEventIndicators';
 import { TierProgressBar } from './TierProgressBar';
 import { MilestonePopup } from './MilestonePopup';
@@ -97,7 +97,14 @@ export const HUD: React.FC = () => {
                 <div style={{ height: 60, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px' }}>
                     {/* Home button - 44×44px (daha büyük, daha kolay dokunma) */}
                     <button
-                        onClick={() => { playClick(); setAppState(AppState.HOME); }}
+                        onClick={() => { 
+                            playClick(); 
+                            // Save game before going to home
+                            if (!isGameOver) {
+                                useGameStore.getState().saveCurrentGame();
+                            }
+                            setAppState(AppState.HOME); 
+                        }}
                         style={{
                             width: 44,
                             height: 44,
@@ -377,7 +384,14 @@ export const HUD: React.FC = () => {
             {/* DESKTOP LAYOUT */}
             <div className="hidden md:flex w-full items-center gap-3 justify-between h-full">
                 <button
-                    onClick={() => { playClick(); setAppState(AppState.HOME); }}
+                    onClick={() => { 
+                        playClick(); 
+                        // Save game before going to home
+                        if (!isGameOver) {
+                            useGameStore.getState().saveCurrentGame();
+                        }
+                        setAppState(AppState.HOME); 
+                    }}
                     className="flex-shrink-0 w-12 h-full bg-white/[0.04] rounded-xl border border-white/[0.06] flex items-center justify-center text-white/40 hover:text-white transition-colors"
                 >
                     <Home size={18} />

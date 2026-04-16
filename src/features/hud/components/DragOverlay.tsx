@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../../game/store/gameStore';
-import { getDragYOffset } from '@utils/responsive';
+import { getDragYOffset } from '@/src/utils/responsive/responsive';
 
 export const DragOverlay: React.FC = () => {
   const draggedPiece = useGameStore(state => state.draggedPiece);

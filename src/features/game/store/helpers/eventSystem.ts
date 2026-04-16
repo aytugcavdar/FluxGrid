@@ -9,7 +9,7 @@ type GetFn = () => GameStore;
 type SetFn = (partial: Partial<GameStore>) => void;
 
 // Tier thresholds and events for Endless mode
-const TIER_THRESHOLDS = [0, 1500, 4000, 9000, 18000, 35000, 60000];
+const TIER_THRESHOLDS = [0, 5000, 12000, 25000, 45000, 75000, 120000];
 const TIER_EVENTS = ['ICE_STORM', 'GRAVITY_RUSH', 'QUAKE', 'MIRROR', 'CHAOS', 'VOID'];
 
 // Return type for checkTierEvent
@@ -109,8 +109,12 @@ export function checkTierEvent(
   
   const newTier = TIER_THRESHOLDS.filter(t => score >= t).length - 1;
   
-  if (newTier > currentTier && newTier >= 1 && newTier <= 6) {
-    const eventName = TIER_EVENTS[newTier - 1];
+  // Kademeli tier atlama: Her seferinde sadece 1 tier atla
+  // Oyuncu her tier'ı deneyimlemeli
+  const nextTier = currentTier + 1;
+  
+  if (newTier >= nextTier && nextTier >= 1 && nextTier <= 6) {
+    const eventName = TIER_EVENTS[nextTier - 1];
     
     const duration = EVENT_DURATIONS[eventName as keyof typeof EVENT_DURATIONS] ?? 10;
     
@@ -126,11 +130,11 @@ export function checkTierEvent(
     const result: TierEventResult = {
       activeEvent: eventName as 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID',
       eventMovesRemaining: duration,
-      difficultyTier: newTier,
+      difficultyTier: nextTier, // Sadece 1 tier atla
       lastAction: {
         type: 'MILESTONE',
-        tier: newTier,
-        tierName: tierNames[newTier] ?? `Tier ${newTier}`,
+        tier: nextTier,
+        tierName: tierNames[nextTier] ?? `Tier ${nextTier}`,
       },
     };
     

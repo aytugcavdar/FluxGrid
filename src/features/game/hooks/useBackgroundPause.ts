@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { isAndroid } from '../../../utils/platform';
+import { isAndroid } from '../../../utils/platform/platform';
 import { useGameStore } from '../store/gameStore';
 
 interface BackgroundPauseState {

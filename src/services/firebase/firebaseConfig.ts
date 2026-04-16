@@ -1,6 +1,8 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getRemoteConfig, RemoteConfig } from 'firebase/remote-config';
 import { getAnalytics, Analytics } from 'firebase/analytics';
+import { getPerformance, FirebasePerformance } from 'firebase/performance';
+import { appCheckService } from '../security/appCheckService';
 
 // Firebase configuration from environment variables
 const firebaseConfig = {
@@ -16,6 +18,8 @@ const firebaseConfig = {
 let app: FirebaseApp | null = null;
 let remoteConfig: RemoteConfig | null = null;
 let analytics: Analytics | null = null;
+let performance: FirebasePerformance | null = null;
+let appCheckInitialized = false;
 
 /**
  * Initialize Firebase app if not already initialized
@@ -29,8 +33,32 @@ export function initializeFirebase(): FirebaseApp {
     } else {
       app = initializeApp(firebaseConfig);
     }
+    
+    // Initialize App Check after Firebase app is created
+    if (!appCheckInitialized) {
+      initializeAppCheck();
+    }
   }
   return app;
+}
+
+/**
+ * Initialize Firebase App Check
+ * Called automatically after Firebase app initialization
+ */
+async function initializeAppCheck(): Promise<void> {
+  if (appCheckInitialized) {
+    return;
+  }
+  
+  try {
+    await appCheckService.initialize();
+    appCheckInitialized = true;
+    console.log('[Firebase] App Check initialized successfully');
+  } catch (error) {
+    console.error('[Firebase] App Check initialization failed:', error);
+    // Don't throw - graceful degradation
+  }
 }
 
 /**
@@ -56,6 +84,22 @@ export function getFirebaseAnalytics(): Analytics | null {
     return analytics;
   } catch (error) {
     console.warn('[Firebase] Analytics not available:', error);
+    return null;
+  }
+}
+
+/**
+ * Get Firebase Performance instance
+ */
+export function getFirebasePerformance(): FirebasePerformance | null {
+  try {
+    if (!performance) {
+      const firebaseApp = initializeFirebase();
+      performance = getPerformance(firebaseApp);
+    }
+    return performance;
+  } catch (error) {
+    console.warn('[Firebase] Performance not available:', error);
     return null;
   }
 }

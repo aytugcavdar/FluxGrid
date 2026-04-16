@@ -4,7 +4,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Piece, PieceShape, GridState, GRID_SIZE, CellType, MiniEventState } from '../../types';
 import { SHAPES } from '../../constants';
-import { SeededRNG, getDailySeed } from '@utils/seededRng';
+import { SeededRNG, getDailySeed } from '@/src/utils/game/seededRng';
 import { GameMode } from '@shared/types';
 import { isPieceBlessingActive } from './miniEventSystem';
 

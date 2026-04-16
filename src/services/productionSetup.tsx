@@ -11,8 +11,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { ErrorBoundary } from '../components/ErrorBoundary';
-import { ConsentModal } from '../components/ConsentModal';
+import { ErrorBoundary } from '../shared/components/ErrorBoundary';
+import { ConsentModal } from '../shared/components/ConsentModal';
 import { initializeProductionServices, serviceInitializer } from './serviceInitializer';
 import { logger } from './logging/logger';
 import { gdprManager } from './gdpr/gdprManager';
