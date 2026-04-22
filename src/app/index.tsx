@@ -26,7 +26,6 @@ import { pushNotificationService, notificationScheduler } from '../services/noti
 import { initializeLazyLoading } from '../utils/performance/lazyLoader';
 import { initializeMemoryOptimization } from '../utils/performance/memoryOptimizer';
 import { PageTransition } from '../shared/components/PageTransition';
-import { LoadingScreen } from '../shared/components/LoadingScreen';
 
 // Get app version from package.json
 const APP_VERSION = '1.0.0';
@@ -52,16 +51,6 @@ const RootApp: React.FC = () => {
   const { i18n } = useTranslation();
   const [updateDialogConfig, setUpdateDialogConfig] = useState<UpdateDialogConfig | null>(null);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  // Simulate initial loading
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1500); // 1.5 seconds loading
-    
-    return () => clearTimeout(timer);
-  }, []);
   
   // Set user context for Sentry (anonymous ID)
   useEffect(() => {
@@ -195,11 +184,6 @@ const RootApp: React.FC = () => {
     // Cleanup on unmount
     return cleanup;
   }, [appState]);
-  
-  // Show loading screen on initial load
-  if (isLoading) {
-    return <LoadingScreen message={i18n.language === 'tr' ? 'Yükleniyor...' : 'Loading...'} />;
-  }
   
   // Show game screen when in GAME state, otherwise show menu
   if (appState === AppState.GAME) {

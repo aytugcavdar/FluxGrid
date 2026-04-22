@@ -1,19 +1,17 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { usePassiveAbilityStore } from '@features/abilities/store/passiveAbilityStore';
 
 /**
  * Hook to sync game data to localStorage when game ends
  * 
  * This hook watches the isGameOver state and triggers localStorage sync
- * when the game ends, including score, stats, and abilities data.
+ * when the game ends, including score and stats data.
  * 
  * Offline Support:
  * - All data is saved to localStorage immediately
  */
 export function useGameSync() {
   const { isGameOver, score, gameMode, stats, maxLevelReached } = useGameStore();
-  const { passiveAbilities, equippedSlots } = usePassiveAbilityStore();
   
   // Track game start time to calculate session duration
   const gameStartTimeRef = useRef<number>(Date.now());
@@ -48,7 +46,7 @@ export function useGameSync() {
     };
 
     syncData();
-  }, [isGameOver, score, gameMode, stats, maxLevelReached, passiveAbilities, equippedSlots]);
+  }, [isGameOver, score, gameMode, stats, maxLevelReached]);
 
   return {};
 }

@@ -5,7 +5,7 @@ interface SurgeFlashProps {
   active: boolean;
 }
 
-export const SurgeFlash: React.FC<SurgeFlashProps> = ({ active }) => (
+export const SurgeFlash: React.FC<SurgeFlashProps> = React.memo(({ active }) => (
   <AnimatePresence>
     {active && (
       <motion.div
@@ -29,4 +29,7 @@ export const SurgeFlash: React.FC<SurgeFlashProps> = ({ active }) => (
       />
     )}
   </AnimatePresence>
-);
+), (prevProps, nextProps) => {
+  // Only re-render if active prop changes
+  return prevProps.active === nextProps.active;
+});

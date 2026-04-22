@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useThemeStore } from '../shared/store/themeStore';
 import { useGameStore } from '../features/game/store/gameStore';
-import { useTutorialStore } from '../shared/store/tutorialStore';
+import { useTutorialStore } from '../features/tutorial/store/tutorialStore';
 import { GameMode, AppState } from '@shared/types';
 import { useCountUp } from '@shared/hooks/useCountUp';
 import { useBrowserHistory } from './hooks/useBrowserHistory';
@@ -15,20 +15,22 @@ import { playSkill, playHaptic, unlockAudio, playGameOver, playChronoBonus, play
 import { AdManager } from '@/src/utils/managers/adManager';
 import { createContinueGrid } from '@/src/utils/game/gameHelpers';
 import { getRandomPiecesSync } from '../features/game/store/helpers/pieces';
-import { useAbilityStore } from '../features/abilities/store/abilityStore';
-import { usePassiveAbilityStore } from '../features/abilities/store/passiveAbilityStore';
 import { GameScreen } from './components/GameScreen';
 import { DragOverlay } from '../features/hud/components/DragOverlay';
 import { ParticleExplosionOverlay } from '../features/visual-effects/components/ParticleExplosionOverlay';
-import { ScreenShakeEffect, LineClearAnimations, ComboGlowEffect, PlacementFeedbackEffect, GridBreathingEffect, BackgroundEffects, PerfectClearEffect, PlacementImpactEffect } from '../features/visual-effects/components';
-import { TutorialManager } from '../shared/components/TutorialManager';
-import { AbilityPanel } from '../features/abilities/components/AbilityPanel';
+import { ScreenShakeEffect, LineClearAnimations, ComboGlowEffect, PlacementFeedbackEffect, GridBreathingEffect, BackgroundEffects, PerfectClearEffect, PlacementImpactEffect, TierTransitionAnimation, ScoreMilestoneCelebration, AbilityUnlockAnimation, StreakIndicator, NearMissWarning, PauseResumeAnimation, GameOverSequence, VictoryCelebration, ModeChangeTransition } from '../features/visual-effects/components';
 import { TierCelebrationOverlay } from '../features/hud/components/TierCelebrationOverlay';
-import { ContinueModal } from './components/ContinueModal';
-import { GameOverModal } from './components/GameOverModal';
 import { ExitConfirmDialog } from '../shared/components/ExitConfirmDialog';
 import { generateShareText, shareResult } from '../utils/sharing/shareResult';
 import { ErrorBoundary } from './ErrorBoundary';
+import { PerformanceMetricsDisplay } from '@features/performance';
+import { initializePerformanceSystem, cleanupPerformanceSystem } from '@features/performance';
+import { initializeTutorialSystem, handleGameEnd } from '@features/tutorial';
+
+// Lazy load modals for better initial bundle size
+const ContinueModal = lazy(() => import('./components/ContinueModal').then(m => ({ default: m.ContinueModal })));
+const GameOverModal = lazy(() => import('./components/GameOverModal').then(m => ({ default: m.GameOverModal })));
+const AchievementNotification = lazy(() => import('../features/achievements/components/AchievementNotification').then(m => ({ default: m.AchievementNotification })));
 
 interface ScorePopup {
   id: number;
@@ -49,15 +51,13 @@ interface ChronoPopup {
 const App: React.FC = () => {
   const { t, i18n } = useTranslation();
   const {
-    initGame, pieces, isGameOver, resetGame, score, combo, lastAction, isSurgeActive,
+    initGame, pieces, isGameOver, resetGame, score, combo, lastAction,
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
     dailyClearHistory, highScore, stats, highScores,
-    activeSkill, activateSkill,
     maxCombo, chronoBonus, timedBoostMovesLeft, finalSprintBonus, difficultyTier, grid
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors, getPieceColors } = useThemeStore();
   const colors = getThemeColors();
-  const [showAbilities, setShowAbilities] = useState(false);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [prevGameOver, setPrevGameOver] = useState(false);
   const [scorePopups, setScorePopups] = useState<ScorePopup[]>([]);
@@ -67,7 +67,6 @@ const App: React.FC = () => {
   const [showPerfect, setShowPerfect] = useState(false);
   const [showSurgeFlash, setShowSurgeFlash] = useState(false);
   const lastActionRef = useRef<typeof lastAction>(null);
-  const prevSurgeRef = useRef(false);
   const [timePopups, setTimePopups] = useState<TimePopup[]>([]);
   const timePopupIdRef = useRef(0);
   const [chronoPopups, setChronoPopups] = useState<ChronoPopup[]>([]);
@@ -76,6 +75,9 @@ const App: React.FC = () => {
   const prevComboRef = useRef(combo);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared'>('idle');
   const [surgeWasUsed, setSurgeWasUsed] = useState(false);
+  
+  // Save gameMode when game over happens to prevent mode switching bug
+  const [gameOverMode, setGameOverMode] = useState<GameMode>(gameMode);
   
   // Enhanced visual feedback states
   const [showComboMilestone, setShowComboMilestone] = useState(false);
@@ -94,8 +96,10 @@ const App: React.FC = () => {
   
   // Score display animation state
   const displayScore = useCountUp(score, 450, isGameOver);
-  const currentModeHighScore = highScores[gameMode] || 0;
-  const isNewRecord = score > 0 && score >= currentModeHighScore;
+  
+  // Memoize expensive score calculations (Requirement 1.5)
+  const currentModeHighScore = useMemo(() => highScores[gameMode] || 0, [highScores, gameMode]);
+  const isNewRecord = useMemo(() => score > 0 && score >= currentModeHighScore, [score, currentModeHighScore]);
   const [showRecordBadge, setShowRecordBadge] = useState(false);
   const [showButtons, setShowButtons] = useState(false);
   
@@ -140,81 +144,159 @@ const App: React.FC = () => {
   const browserHistory = useBrowserHistory();
   const { showExitDialog, handleConfirm: handleExitConfirm, handleCancel: handleExitCancel } = browserHistory;
 
+  // Memoized event handlers for performance
+  const handlePlayAgain = useCallback(() => {
+    initGame(gameOverMode);
+  }, [gameOverMode, initGame]);
 
+  const handleClose = useCallback(() => {
+    resetGame();
+    setAppState(AppState.MODES);
+  }, [resetGame, setAppState]);
+
+  const handleTryMode = useCallback((mode: GameMode) => {
+    initGame(mode);
+  }, [initGame]);
+
+  const handleShare = useCallback(async () => {
+    const text = generateShareText(score, gameOverMode, combo, surgeWasUsed, dailyClearHistory);
+    const result = await shareResult(text);
+    setShareStatus(result === 'failed' ? 'idle' : result === 'shared' ? 'shared' : 'copied');
+    if (result !== 'failed') {
+      setTimeout(() => setShareStatus('idle'), 2000);
+    }
+  }, [score, gameOverMode, combo, surgeWasUsed, dailyClearHistory]);
+
+  const handleCloseIOSInstructions = useCallback(() => {
+    localStorage.setItem('ios_pwa_instructions_shown', 'true');
+    setShowIOSInstructions(false);
+  }, [setShowIOSInstructions]);
+
+  const handleThemeChange = useCallback((theme: 'dark' | 'light' | 'neon') => {
+    playClick();
+    setTheme(theme);
+  }, [setTheme]);
+
+  const handleLanguageChange = useCallback((lang: 'tr' | 'en') => {
+    playClick();
+    changeLanguage(lang);
+  }, []);
+
+  const handleThemeSelectorClose = useCallback(() => {
+    playClick();
+    setShowThemeSelector(false);
+  }, []);
+
+  const handleThemeSelectorBackdropClick = useCallback(() => {
+    setShowThemeSelector(false);
+  }, []);
+
+  const handleModalContentClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+  }, []);
+
+
+
+  // Memoized event handler for tutorial completion
+  const handleTutorialReturnHome = useCallback(() => {
+    resetGame();
+    setAppState(AppState.HOME);
+  }, [resetGame, setAppState]);
 
   // Initialize stores on mount
   useEffect(() => {
-    useAbilityStore.getState().initializeAbilities();
-    usePassiveAbilityStore.getState().initializePassives();
-    
     // Note: Splash is already dismissed by index.tsx for menu
     // No need to dismiss again here
     
-    // Listen for tutorial completion to return to home
-    const handleTutorialReturnHome = () => {
-      resetGame();
-      setAppState(AppState.HOME);
+    // Initialize performance monitoring system
+    // Will check localStorage for production enablement
+    const cleanupPerformance = initializePerformanceSystem();
+    
+    // Listen for localStorage changes to re-initialize if enabled in production
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'enablePerformanceOverlay' && e.newValue === 'true') {
+        console.log('[GameApp] Performance overlay enabled, reinitializing...');
+        // Cleanup old and reinitialize
+        cleanupPerformance();
+        initializePerformanceSystem();
+      }
     };
     
+    window.addEventListener('storage', handleStorageChange);
+    
+    // DON'T initialize tutorial here - it should only start when game starts
+    // Tutorial will be initialized in initGame() when user actually starts playing
+    
+    // Listen for tutorial completion to return to home
     window.addEventListener('tutorial-return-home', handleTutorialReturnHome);
-    return () => window.removeEventListener('tutorial-return-home', handleTutorialReturnHome);
-  }, [resetGame, setAppState]);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('tutorial-return-home', handleTutorialReturnHome);
+      cleanupPerformance();
+    };
+  }, [handleTutorialReturnHome]);
 
 
+
+  // Memoized event handler for beforeunload
+  const handleBeforeUnload = useCallback((e: BeforeUnloadEvent) => {
+    if (appState === AppState.GAME && !isGameOver) {
+      // Save game before closing
+      useGameStore.getState().saveCurrentGame();
+      
+      e.preventDefault();
+      // Modern browsers ignore custom messages, but setting returnValue triggers the dialog
+      e.returnValue = '';
+    }
+  }, [appState, isGameOver]);
 
   // Warn before closing/refreshing if game is in progress
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (appState === AppState.GAME && !isGameOver) {
-        // Save game before closing
-        useGameStore.getState().saveCurrentGame();
-        
-        e.preventDefault();
-        // Modern browsers ignore custom messages, but setting returnValue triggers the dialog
-        e.returnValue = '';
-      }
-    };
-
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [handleBeforeUnload]);
+
+  // Memoized event handler for visibility change
+  const handleVisibilityChange = useCallback(() => {
+    if (document.hidden && appState === AppState.GAME && !isGameOver) {
+      // App going to background, save game
+      console.log('[GameApp] App going to background, saving game...');
+      useGameStore.getState().saveCurrentGame();
+    }
   }, [appState, isGameOver]);
 
   // Auto-save when app goes to background (mobile)
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden && appState === AppState.GAME && !isGameOver) {
-        // App going to background, save game
-        console.log('[GameApp] App going to background, saving game...');
-        useGameStore.getState().saveCurrentGame();
-      }
-    };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [handleVisibilityChange]);
+
+  // Memoized event handler for pause event
+  const handlePause = useCallback(() => {
+    if (appState === AppState.GAME && !isGameOver) {
+      console.log('[GameApp] App paused, saving game...');
+      useGameStore.getState().saveCurrentGame();
+    }
   }, [appState, isGameOver]);
 
   // Auto-save on pause event (Capacitor/Cordova)
   useEffect(() => {
-    const handlePause = () => {
-      if (appState === AppState.GAME && !isGameOver) {
-        console.log('[GameApp] App paused, saving game...');
-        useGameStore.getState().saveCurrentGame();
-      }
-    };
-
     document.addEventListener('pause', handlePause);
     return () => document.removeEventListener('pause', handlePause);
-  }, [appState, isGameOver]);
+  }, [handlePause]);
+
+  // Memoized event handler for first touch (audio unlock)
+  const handleFirstTouch = useCallback(() => {
+    unlockAudio();
+    window.removeEventListener('pointerdown', handleFirstTouch);
+  }, []);
 
   useEffect(() => {
     // We don't call initGame() here anymore to allow starting on the HOME screen.
-    const handleFirstTouch = () => {
-      unlockAudio();
-      window.removeEventListener('pointerdown', handleFirstTouch);
-    };
     window.addEventListener('pointerdown', handleFirstTouch);
     return () => window.removeEventListener('pointerdown', handleFirstTouch);
-  }, []);
+  }, [handleFirstTouch]);
 
   // URL parameter handling for shortcuts
   useEffect(() => {
@@ -253,9 +335,13 @@ const App: React.FC = () => {
   useEffect(() => {
     if (isGameOver && !prevGameOver) {
       playGameOver();
+      // Save the current gameMode when game over happens
+      setGameOverMode(gameMode);
+      // Handle game end for tutorial system
+      handleGameEnd();
     }
     setPrevGameOver(isGameOver);
-  }, [isGameOver]);
+  }, [isGameOver, gameMode]);
 
   // Show continue modal when game over and continue is available
   useEffect(() => {
@@ -270,7 +356,7 @@ const App: React.FC = () => {
   }, [isGameOver, prevGameOver]);
 
   // Handle continue feature
-  const handleContinue = async () => {
+  const handleContinue = useCallback(async () => {
     console.log('[GameApp] handleContinue called');
     
     // CRITICAL: Prevent multiple clicks
@@ -312,8 +398,6 @@ const App: React.FC = () => {
           isGameOver: false,
           combo: 0,
           lastAction: null,
-          isSurgeActive: false,
-          activeSkill: null,
         });
         
         setShowContinueModal(false);
@@ -330,11 +414,11 @@ const App: React.FC = () => {
       setShowContinueModal(false);
       setIsLoadingAd(false);
     }
-  };
+  }, [isLoadingAd, gameMode]);
 
-  const handleDecline = () => {
+  const handleDecline = useCallback(() => {
     setShowContinueModal(false);
-  };
+  }, []);
 
   // Score popup on score change
   useEffect(() => {
@@ -342,9 +426,10 @@ const App: React.FC = () => {
       const diff = score - prevScoreRef.current;
       const id = popupIdRef.current++;
       setScorePopups(prev => [...prev.slice(-3), { id, value: diff, combo }]);
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         setScorePopups(prev => prev.filter(p => p.id !== id));
       }, 1200);
+      return () => clearTimeout(timer);
     }
     prevScoreRef.current = score;
   }, [score, combo]);
@@ -354,7 +439,29 @@ const App: React.FC = () => {
     if (!lastAction || lastAction === lastActionRef.current) return;
     lastActionRef.current = lastAction;
     
+    // Tutorial validation events
+    if (lastAction.type === 'PLACE') {
+      // Dispatch piece placed event for tutorial
+      window.dispatchEvent(new CustomEvent('tutorial-validation', {
+        detail: { type: 'piece_placed' }
+      }));
+    }
+    
     if (lastAction.type !== 'CLEAR') return;
+
+    // Dispatch line cleared event for tutorial
+    if (lastAction.lines && lastAction.lines > 0) {
+      window.dispatchEvent(new CustomEvent('tutorial-validation', {
+        detail: { type: 'line_cleared' }
+      }));
+    }
+    
+    // Dispatch combo achieved event for tutorial
+    if (lastAction.combo && lastAction.combo >= 2) {
+      window.dispatchEvent(new CustomEvent('tutorial-validation', {
+        detail: { type: 'combo_achieved' }
+      }));
+    }
 
     // Handle CHRONO bonus popup
     if (lastAction.chronoBonus && lastAction.chronoBonus > 0) {
@@ -372,11 +479,13 @@ const App: React.FC = () => {
     const chain = lastAction.chainCount ?? 0;
     if (chain >= 2) {
       setShownChain(chain);
-      setTimeout(() => setShownChain(0), 1400);
+      const timer = setTimeout(() => setShownChain(0), 1400);
+      return () => clearTimeout(timer);
     }
     if (lastAction.colorBonus) {
       setShowPerfect(true);
-      setTimeout(() => setShowPerfect(false), 1600);
+      const timer = setTimeout(() => setShowPerfect(false), 1600);
+      return () => clearTimeout(timer);
     }
     
     // Line count display (2+ lines cleared)
@@ -384,18 +493,10 @@ const App: React.FC = () => {
     if (linesCleared >= 2) {
       setLineCountToShow(linesCleared);
       setShowLineCount(true);
-      setTimeout(() => setShowLineCount(false), 1000);
+      const timer = setTimeout(() => setShowLineCount(false), 1000);
+      return () => clearTimeout(timer);
     }
   }, [lastAction]);
-
-  // Surge flash
-  useEffect(() => {
-    if (isSurgeActive && !prevSurgeRef.current) {
-      setShowSurgeFlash(true);
-      setTimeout(() => setShowSurgeFlash(false), 1200);
-    }
-    prevSurgeRef.current = isSurgeActive;
-  }, [isSurgeActive]);
 
   // Track previous timeLeft for combo break detection
   useEffect(() => {
@@ -415,7 +516,8 @@ const App: React.FC = () => {
     // Combo milestone detection (5, 10, 15, 20)
     if ([5, 10, 15, 20].includes(combo) && combo > prevComboRef.current) {
       setShowComboMilestone(true);
-      setTimeout(() => setShowComboMilestone(false), 800);
+      const timer = setTimeout(() => setShowComboMilestone(false), 800);
+      return () => clearTimeout(timer);
     }
     
     prevComboRef.current = combo;
@@ -428,13 +530,15 @@ const App: React.FC = () => {
     // RUSH başladı (0'dan > 0'a geçti)
     if (prevRushMovesRef.current === 0 && timedBoostMovesLeft > 0) {
       setShowRushStart(true);
-      setTimeout(() => setShowRushStart(false), 1500);
+      const timer = setTimeout(() => setShowRushStart(false), 1500);
+      return () => clearTimeout(timer);
     }
     
     // RUSH bitti (1'den 0'a düştü)
     if (prevRushMovesRef.current === 1 && timedBoostMovesLeft === 0) {
       setShowRushEnd(true);
-      setTimeout(() => setShowRushEnd(false), 300);
+      const timer = setTimeout(() => setShowRushEnd(false), 300);
+      return () => clearTimeout(timer);
     }
     
     prevRushMovesRef.current = timedBoostMovesLeft;
@@ -462,7 +566,8 @@ const App: React.FC = () => {
       playSkill();
       playHaptic('surge');
       
-      setTimeout(() => setTierCelebration(null), 2800);
+      const timer = setTimeout(() => setTierCelebration(null), 2800);
+      return () => clearTimeout(timer);
     }
   }, [lastAction]);
 
@@ -491,11 +596,6 @@ const App: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [unlockedAchievementId, clearAchievementNotification, achievements]);
-
-  // Track surge usage for sharing
-  useEffect(() => {
-    if (isSurgeActive) setSurgeWasUsed(true);
-  }, [isSurgeActive]);
 
   // Reset share state on new game
   useEffect(() => {
@@ -539,11 +639,11 @@ const App: React.FC = () => {
       <AnimatePresence mode="wait">
         {appState === AppState.GAME && (
           <GameScreen
+            key={`game-${gameMode}-${isGameOver ? 'over' : 'playing'}`}
+            grid={grid}
             pieces={pieces}
             combo={combo}
             gameMode={gameMode}
-            activeSkill={activeSkill}
-            activateSkill={activateSkill}
             gridContainerRef={gridContainerRef}
             gridSize={gridSize}
             scorePopups={scorePopups}
@@ -577,64 +677,11 @@ const App: React.FC = () => {
       <PlacementImpactEffect />
       <PerfectClearEffect />
       <ParticleExplosionOverlay />
-      <TutorialManager />
-      <AnimatePresence>
-        {showAbilities && <AbilityPanel onClose={() => setShowAbilities(false)} />}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {unlockedAchievementId && (
-          <motion.div
-            initial={{ y: -100, opacity: 0, scale: 0.8 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: -100, opacity: 0, scale: 0.8 }}
-            transition={{ 
-              type: "spring", 
-              stiffness: 300, 
-              damping: 20 
-            }}
-            onClick={() => clearAchievementNotification()}
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-3 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 w-[calc(100vw-2rem)] max-w-[340px] cursor-pointer active:scale-95 transition-transform"
-            style={{
-              background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
-              boxShadow: '0 10px 40px rgba(251, 191, 36, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)',
-            }}
-          >
-            <motion.div 
-              className="w-9 h-9 sm:w-11 sm:h-11 bg-white/30 rounded-full flex items-center justify-center text-xl sm:text-2xl flex-shrink-0"
-              animate={{ 
-                rotate: [0, -10, 10, -10, 10, 0],
-                scale: [1, 1.1, 1, 1.1, 1]
-              }}
-              transition={{ 
-                duration: 0.6,
-                repeat: Infinity,
-                repeatDelay: 2
-              }}
-            >
-              🏅
-            </motion.div>
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-amber-900/70">
-                Başarım Açıldı!
-              </span>
-              <span className="font-bold text-sm sm:text-base text-gray-900 truncate leading-tight">
-                {achievements.find(a => a.id === unlockedAchievementId)?.name}
-              </span>
-              <span className="text-[11px] sm:text-xs text-amber-900/60 truncate leading-tight">
-                {achievements.find(a => a.id === unlockedAchievementId)?.description}
-              </span>
-            </div>
-            <motion.div
-              className="text-xl sm:text-2xl flex-shrink-0"
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 1, repeat: Infinity }}
-            >
-              ✨
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      
+      {/* Achievement Notification */}
+      <Suspense fallback={null}>
+        <AchievementNotification />
+      </Suspense>
 
       {/* Tier Celebration Overlay */}
       <AnimatePresence>
@@ -655,58 +702,49 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       <AnimatePresence>
-        <ContinueModal
-          isVisible={showContinueModal}
-          onContinue={handleContinue}
-          onDecline={handleDecline}
-          canContinue={AdManager.canShowRewardedContinue()}
-          usesRemaining={continueUsesRemaining}
-          isLoading={isLoadingAd}
-        />
+        <Suspense fallback={null}>
+          <ContinueModal
+            isVisible={showContinueModal}
+            onContinue={handleContinue}
+            onDecline={handleDecline}
+            canContinue={AdManager.canShowRewardedContinue()}
+            usesRemaining={continueUsesRemaining}
+            isLoading={isLoadingAd}
+          />
+        </Suspense>
       </AnimatePresence>
 
       <AnimatePresence>
-        <GameOverModal
-          isGameOver={isGameOver && !showContinueModal}
-          score={score}
-          displayScore={displayScore}
-          highScore={highScore}
-          currentModeHighScore={currentModeHighScore}
-          isNewRecord={isNewRecord}
-          showRecordBadge={showRecordBadge}
-          showButtons={showButtons}
-          gameMode={gameMode}
-          combo={combo}
-          maxCombo={maxCombo}
-          chronoBonus={chronoBonus}
-          finalSprintBonus={finalSprintBonus}
-          stats={stats}
-          difficultyTier={difficultyTier}
-          surgeWasUsed={surgeWasUsed}
-          dailyClearHistory={dailyClearHistory}
-          shareStatus={shareStatus}
-          showPWAPrompt={showPWAPrompt}
-          showIOSInstructions={showIOSInstructions}
-          onClose={() => {
-            resetGame();
-            setAppState(AppState.MODES); // Go back to menu
-          }}
-          onPlayAgain={() => initGame(gameMode)}
-          onTryMode={(mode) => initGame(mode)}
-          onShare={async () => {
-            const text = generateShareText(score, gameMode, combo, surgeWasUsed, dailyClearHistory);
-            const result = await shareResult(text);
-            setShareStatus(result === 'failed' ? 'idle' : result === 'shared' ? 'shared' : 'copied');
-            if (result !== 'failed') {
-              setTimeout(() => setShareStatus('idle'), 2000);
-            }
-          }}
-          onInstallPWA={triggerInstall}
-          onCloseIOSInstructions={() => {
-            localStorage.setItem('ios_pwa_instructions_shown', 'true');
-            setShowIOSInstructions(false);
-          }}
-        />
+        <Suspense fallback={null}>
+          <GameOverModal
+            isGameOver={isGameOver && !showContinueModal}
+            score={score}
+            displayScore={displayScore}
+            highScore={highScore}
+            currentModeHighScore={currentModeHighScore}
+            isNewRecord={isNewRecord}
+            showRecordBadge={showRecordBadge}
+            showButtons={showButtons}
+            gameMode={gameOverMode}
+            combo={combo}
+            maxCombo={maxCombo}
+            chronoBonus={chronoBonus}
+            finalSprintBonus={finalSprintBonus}
+            stats={stats}
+            difficultyTier={difficultyTier}
+            surgeWasUsed={surgeWasUsed}
+            dailyClearHistory={dailyClearHistory}
+            shareStatus={shareStatus}
+            showPWAPrompt={showPWAPrompt}
+            showIOSInstructions={showIOSInstructions}
+            onClose={handleClose}
+            onPlayAgain={handlePlayAgain}
+            onTryMode={handleTryMode}
+            onShare={handleShare}
+            onInstallPWA={triggerInstall}
+            onCloseIOSInstructions={handleCloseIOSInstructions}
+          />
+        </Suspense>
       </AnimatePresence>
       
       {/* Theme Selector Modal */}
@@ -717,12 +755,12 @@ const App: React.FC = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-            onClick={() => setShowThemeSelector(false)}
+            onClick={handleThemeSelectorBackdropClick}
           >
             <motion.div
               initial={{ scale: 0.9, y: 30 }}
               animate={{ scale: 1, y: 0 }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={handleModalContentClick}
               className="bg-gray-800 border border-white/8 p-6 rounded-2xl shadow-2xl max-w-sm w-full"
             >
               <h2 className="text-2xl font-bold text-white mb-4 text-center">{t('settings.title')}</h2>
@@ -730,7 +768,7 @@ const App: React.FC = () => {
               
               <div className="grid grid-cols-2 gap-3 mb-6">
                 <button
-                  onClick={() => { playClick(); setTheme('dark'); }}
+                  onClick={() => handleThemeChange('dark')}
                   className={clsx(
                     "p-4 rounded-xl border-2 transition-all",
                     currentTheme === 'dark' ? "border-blue-500 bg-blue-500/10" : "border-white/10 bg-white/5 hover:bg-white/10"
@@ -742,7 +780,7 @@ const App: React.FC = () => {
                 </button>
                 
                 <button
-                  onClick={() => { playClick(); setTheme('light'); }}
+                  onClick={() => handleThemeChange('light')}
                   className={clsx(
                     "p-4 rounded-xl border-2 transition-all",
                     currentTheme === 'light' ? "border-blue-500 bg-blue-500/10" : "border-white/10 bg-white/5 hover:bg-white/10"
@@ -754,7 +792,7 @@ const App: React.FC = () => {
                 </button>
                 
                 <button
-                  onClick={() => { playClick(); setTheme('neon'); }}
+                  onClick={() => handleThemeChange('neon')}
                   className={clsx(
                     "p-4 rounded-xl border-2 transition-all",
                     currentTheme === 'neon' ? "border-blue-500 bg-blue-500/10" : "border-white/10 bg-white/5 hover:bg-white/10"
@@ -763,18 +801,6 @@ const App: React.FC = () => {
                   <div className="w-full h-16 rounded-lg mb-2" style={{ background: 'linear-gradient(180deg, #0f0e17 0%, #1a0a2e 100%)' }}></div>
                   <p className="text-white text-sm font-bold">{t('settings.neon')}</p>
                   <p className="text-gray-400 text-xs">{t('settings.neonSub')}</p>
-                </button>
-                
-                <button
-                  onClick={() => { playClick(); setTheme('ocean'); }}
-                  className={clsx(
-                    "p-4 rounded-xl border-2 transition-all",
-                    currentTheme === 'ocean' ? "border-blue-500 bg-blue-500/10" : "border-white/10 bg-white/5 hover:bg-white/10"
-                  )}
-                >
-                  <div className="w-full h-16 rounded-lg mb-2" style={{ background: 'linear-gradient(180deg, #0a1929 0%, #0c1821 100%)' }}></div>
-                  <p className="text-white text-sm font-bold">{t('settings.ocean')}</p>
-                  <p className="text-gray-400 text-xs">{t('settings.oceanSub')}</p>
                 </button>
               </div>
 
@@ -787,7 +813,7 @@ const App: React.FC = () => {
                   {(['tr', 'en'] as const).map(lang => (
                     <button
                       key={lang}
-                      onClick={() => { playClick(); changeLanguage(lang); }}
+                      onClick={() => handleLanguageChange(lang)}
                       style={{
                         flex: 1,
                         padding: '10px 0',
@@ -808,7 +834,7 @@ const App: React.FC = () => {
               </div>
               
               <button
-                onClick={() => { playClick(); setShowThemeSelector(false); }}
+                onClick={handleThemeSelectorClose}
                 className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all"
               >
                 {t('settings.confirm')}
@@ -824,6 +850,17 @@ const App: React.FC = () => {
         onConfirm={handleExitConfirm}
         onCancel={handleExitCancel}
       />
+      
+      {/* New Juice System Components */}
+      <TierTransitionAnimation />
+      <ScoreMilestoneCelebration />
+      <AbilityUnlockAnimation />
+      <StreakIndicator />
+      <NearMissWarning />
+      <PauseResumeAnimation />
+      <GameOverSequence />
+      <VictoryCelebration />
+      <ModeChangeTransition />
     </div>
   );
 };

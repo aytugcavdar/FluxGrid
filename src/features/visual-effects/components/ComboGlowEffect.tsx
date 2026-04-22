@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useJuiceStore } from '../store/juiceStore';
 
-export const ComboGlowEffect: React.FC = () => {
+export const ComboGlowEffect: React.FC = React.memo(() => {
   const comboGlow = useJuiceStore((state) => state.comboGlow);
 
   return (
@@ -86,4 +86,4 @@ export const ComboGlowEffect: React.FC = () => {
       </AnimatePresence>
     </div>
   );
-};
+});

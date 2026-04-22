@@ -252,7 +252,13 @@ export const useAchievementStore = create<AchievementStore>((set, get) => ({
     const state = get();
     const achievement = state.achievements[id];
     
-    if (!achievement || achievement.unlocked) return;
+    // CRITICAL FIX: Double-check if already unlocked (race condition protection)
+    if (!achievement || achievement.unlocked) {
+      console.log(`[Achievement] Skipping unlock for ${id} - already unlocked or not found`);
+      return;
+    }
+    
+    console.log(`[Achievement] Unlocking achievement: ${id}`);
     
     const unlocked = {
       ...achievement,
@@ -275,7 +281,9 @@ export const useAchievementStore = create<AchievementStore>((set, get) => ({
     
     // Auto-clear recent unlock after 5 seconds
     setTimeout(() => {
-      if (get().recentUnlock?.id === id) {
+      const currentState = get();
+      if (currentState.recentUnlock?.id === id) {
+        console.log(`[Achievement] Auto-clearing notification for ${id}`);
         set({ recentUnlock: null });
       }
     }, 5000);

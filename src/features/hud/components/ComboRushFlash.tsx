@@ -7,7 +7,7 @@ interface ComboRushFlashProps {
   onStart?: boolean; // true = başlangıç animasyonu, false = bitiş animasyonu
 }
 
-export const ComboRushFlash: React.FC<ComboRushFlashProps> = ({ active, movesLeft, onStart = false }) => {
+export const ComboRushFlash: React.FC<ComboRushFlashProps> = React.memo(({ active, movesLeft, onStart = false }) => {
   if (!active) return null;
 
   return (
@@ -87,4 +87,9 @@ export const ComboRushFlash: React.FC<ComboRushFlashProps> = ({ active, movesLef
       )}
     </AnimatePresence>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if props change
+  return prevProps.active === nextProps.active && 
+         prevProps.movesLeft === nextProps.movesLeft && 
+         prevProps.onStart === nextProps.onStart;
+});

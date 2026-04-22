@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../../game/store/gameStore';
 
-export const BackgroundEffects: React.FC = () => {
+export const BackgroundEffects: React.FC = React.memo(() => {
   const combo = useGameStore((state) => state.combo);
   const difficultyTier = useGameStore((state) => state.difficultyTier);
   const isSurgeActive = useGameStore((state) => state.isSurgeActive);
@@ -44,4 +44,4 @@ export const BackgroundEffects: React.FC = () => {
       }}
     />
   );
-};
+});

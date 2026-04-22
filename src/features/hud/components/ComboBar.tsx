@@ -4,7 +4,7 @@ import { useGameStore } from '@features/game/store/gameStore';
 
 const COMBO_DECAY_MS = 4000; // 4 saniyede combo sıfırlanır (görsel)
 
-export const ComboBar: React.FC = () => {
+export const ComboBar: React.FC = React.memo(() => {
   const combo = useGameStore(s => s.combo);
   const lastAction = useGameStore(s => s.lastAction);
   const [fillPercent, setFillPercent] = useState(0);
@@ -150,4 +150,4 @@ export const ComboBar: React.FC = () => {
       </motion.div>
     </AnimatePresence>
   );
-};
+});

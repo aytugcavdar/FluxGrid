@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { GameMode } from '@shared/types';
-import { SkillType } from '../../features/game/types';
 import { Grid } from '../../features/game/components/Grid';
 import { Piece } from '../../features/game/components/Piece';
-import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual, ComboMilestone, LineCountDisplay } from '@features/hud';
+import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual, ComboMilestone, LineCountDisplay, FloatingScoreText, PerfectClearPopup } from '@features/hud';
 import { useThemeStore } from '@shared/store/themeStore';
-import { useTutorialStore } from '@shared/store/tutorialStore';
+import { useTutorialStore } from '../../features/tutorial/store/tutorialStore';
 import { playClick } from '@utils/audio';
 import { AdBanner } from './AdBanner';
 import { AdManager } from '@/src/utils/managers/adManager';
+import { useGameStore } from '../../features/game/store/gameStore';
+import { TutorialOverlay } from '@features/tutorial';
+import { PerformanceMetricsDisplay } from '@features/performance';
 
 interface ScorePopup {
   id: number;
@@ -29,11 +31,10 @@ interface ChronoPopupData {
 }
 
 interface GameScreenProps {
+  grid: any; // GridState type
   pieces: any[];
   combo: number;
   gameMode: GameMode;
-  activeSkill: SkillType | null;
-  activateSkill: (skill: SkillType) => void;
   gridContainerRef: React.RefObject<HTMLDivElement | null>;
   gridSize: number;
   scorePopups: ScorePopup[];
@@ -54,12 +55,13 @@ interface GameScreenProps {
   showLineCount: boolean;
 }
 
-export const GameScreen: React.FC<GameScreenProps> = ({
+import { areGameScreenPropsEqual } from './GameScreenMemo';
+
+export const GameScreen: React.FC<GameScreenProps> = React.memo(({
+  grid,
   pieces,
   combo,
   gameMode,
-  activeSkill,
-  activateSkill,
   gridContainerRef,
   gridSize,
   scorePopups,
@@ -83,6 +85,28 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const colors = getThemeColors();
   const isTutorialActive = useTutorialStore(state => state.isActive);
 
+  // Perfect clear state
+  const [showPerfectClear, setShowPerfectClear] = useState(false);
+  const [prevPerfectClear, setPrevPerfectClear] = useState(false);
+
+  // Detect perfect clear from game state
+  useEffect(() => {
+    const perfectClearDetected = useGameStore.getState().perfectClearDetected;
+    
+    if (perfectClearDetected && !prevPerfectClear) {
+      setShowPerfectClear(true);
+      
+      // Auto-hide after 3 seconds
+      setTimeout(() => {
+        setShowPerfectClear(false);
+        // Reset perfect clear flag in store
+        useGameStore.setState({ perfectClearDetected: false });
+      }, 3000);
+    }
+    
+    setPrevPerfectClear(perfectClearDetected);
+  }, [prevPerfectClear]);
+
   // Check if banner should be shown (native platform only)
   // Note: AdBanner component handles all visibility logic internally
   const showBanner = typeof window !== 'undefined' && 
@@ -91,16 +115,17 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   // Track banner height for dynamic tray padding
   const [bannerHeight, setBannerHeight] = useState(0);
 
+  // Memoized event handlers for banner events
+  const handleBannerShown = React.useCallback((event: Event) => {
+    const customEvent = event as CustomEvent<{ height: number }>;
+    setBannerHeight(customEvent.detail.height);
+  }, []);
+
+  const handleBannerHidden = React.useCallback(() => {
+    setBannerHeight(0);
+  }, []);
+
   useEffect(() => {
-    const handleBannerShown = (event: Event) => {
-      const customEvent = event as CustomEvent<{ height: number }>;
-      setBannerHeight(customEvent.detail.height);
-    };
-
-    const handleBannerHidden = () => {
-      setBannerHeight(0);
-    };
-
     window.addEventListener('fluxgrid-banner-shown', handleBannerShown);
     window.addEventListener('fluxgrid-banner-hidden', handleBannerHidden);
 
@@ -108,7 +133,20 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       window.removeEventListener('fluxgrid-banner-shown', handleBannerShown);
       window.removeEventListener('fluxgrid-banner-hidden', handleBannerHidden);
     };
-  }, []);
+  }, [handleBannerShown, handleBannerHidden]);
+
+  // Memoized event handlers for performance
+  const handleEventStartComplete = React.useCallback(() => {
+    setEventStartVisual(null);
+  }, [setEventStartVisual]);
+
+  const handleTimePopupAnimationComplete = React.useCallback((popupId: number) => {
+    setTimePopups(prev => prev.filter(p => p.id !== popupId));
+  }, [setTimePopups]);
+
+  const handleChronoPopupComplete = React.useCallback((id: number) => {
+    setChronoPopups(prev => prev.filter(p => p.id !== id));
+  }, [setChronoPopups]);
 
   return (
     <motion.div
@@ -136,75 +174,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         className="flex-1 relative flex items-center justify-center min-h-0 overflow-hidden"
         style={{ padding: '0px 4px 4px' }}
       >
-        {/* Active Skill Banner */}
-        <AnimatePresence>
-          {(activeSkill === SkillType.SHATTER || activeSkill === SkillType.BOMB) && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              style={{
-                position: 'absolute',
-                top: 8,
-                left: 12,
-                right: 12,
-                zIndex: 25,
-                pointerEvents: 'auto',
-                padding: '10px 14px',
-                background: activeSkill === SkillType.SHATTER 
-                  ? 'linear-gradient(90deg, rgba(239,68,68,0.15), rgba(239,68,68,0.08))' 
-                  : 'linear-gradient(90deg, rgba(249,115,22,0.15), rgba(249,115,22,0.08))',
-                border: `1px solid ${activeSkill === SkillType.SHATTER ? 'rgba(239,68,68,0.3)' : 'rgba(249,115,22,0.3)'}`,
-                borderRadius: 10,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <motion.div
-                  animate={{ scale: [1, 1.1, 1] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                  style={{ fontSize: 20, lineHeight: 1 }}
-                >
-                  {activeSkill === SkillType.SHATTER ? '🔨' : '💣'}
-                </motion.div>
-                <div>
-                  <div style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: activeSkill === SkillType.SHATTER ? '#ef4444' : '#f97316',
-                    marginBottom: 1
-                  }}>
-                    {activeSkill === SkillType.SHATTER ? 'Hedef bloğa dokun' : 'Patlama merkezi seç'}
-                  </div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
-                    {activeSkill === SkillType.SHATTER ? 'Tek blok kır' : '3×3 alan temizle'}
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => { playClick(); activateSkill(activeSkill); }}
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 6,
-                  background: 'rgba(0,0,0,0.2)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: 'rgba(255,255,255,0.6)',
-                  fontSize: 14
-                }}
-              >
-                ✕
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         <div 
           ref={gridContainerRef}
           style={{ 
@@ -224,7 +193,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             aspectRatio: '1/1',
             position: 'relative'
           }}>
-            <Grid />
+            <Grid grid={grid} />
           </div>
         </div>
       </main>
@@ -272,19 +241,25 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       {showBanner && <AdBanner position="bottom" />}
 
       {/* Game Visual Effects */}
-      <ScorePopups popups={scorePopups} />
-      <ComboFlash combo={combo} />
+      {/* ComboDisplay DISABLED - causes freeze at 10x combo */}
+      {/* <ComboDisplay /> */}
+      <FloatingScoreText />
+      {/* ScorePopups DISABLED - replaced with FloatingScoreText */}
+      {/* <ScorePopups popups={scorePopups} /> */}
+      {/* ComboFlash DISABLED - removed edge glow effect */}
+      {/* <ComboFlash combo={combo} /> */}
       <SurgeFlash active={showSurgeFlash} />
       <ComboRushFlash active={showRushStart} movesLeft={timedBoostMovesLeft} onStart={true} />
       <ComboRushFlash active={showRushEnd} movesLeft={0} onStart={false} />
-      {gameMode !== GameMode.ZEN && <ComboBar />}
-      <ComboMilestone combo={combo} show={showComboMilestone} />
+      <ComboBar />
+      {/* ComboMilestone DISABLED - causes crash at 10x combo */}
+      {/* <ComboMilestone combo={combo} show={showComboMilestone} /> */}
       <LineCountDisplay lineCount={lineCountToShow} show={showLineCount} />
       
       {/* Event Start Visual */}
       <EventStartVisual 
         eventType={eventStartVisual} 
-        onComplete={() => setEventStartVisual(null)} 
+        onComplete={handleEventStartComplete} 
       />
 
       {/* Time Popups */}
@@ -308,9 +283,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               pointerEvents: 'none',
               zIndex: 100
             }}
-            onAnimationComplete={() => {
-              setTimePopups(prev => prev.filter(p => p.id !== popup.id));
-            }}
+            onAnimationComplete={() => handleTimePopupAnimationComplete(popup.id)}
           >
             {popup.value > 0 ? `+${popup.value}s` : `${popup.value}s`}
           </motion.div>
@@ -324,9 +297,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             key={popup.id}
             id={popup.id}
             seconds={popup.seconds}
-            onComplete={(id: number) => {
-              setChronoPopups(prev => prev.filter(p => p.id !== id));
-            }}
+            onComplete={handleChronoPopupComplete}
           />
         ))}
       </AnimatePresence>
@@ -336,6 +307,15 @@ export const GameScreen: React.FC<GameScreenProps> = ({
           {showPerfect && <PerfectBonus key="perfect" show={showPerfect} />}
         </AnimatePresence>
       </div>
+
+      {/* Perfect Clear Popup */}
+      <PerfectClearPopup show={showPerfectClear} />
+      
+      {/* Tutorial Overlay */}
+      <TutorialOverlay />
+      
+      {/* Performance Metrics Display */}
+      <PerformanceMetricsDisplay />
     </motion.div>
   );
-};
+}, areGameScreenPropsEqual);

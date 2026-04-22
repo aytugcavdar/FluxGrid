@@ -5,7 +5,7 @@ interface PerfectBonusProps {
   show: boolean;
 }
 
-export const PerfectBonus: React.FC<PerfectBonusProps> = ({ show }) => {
+export const PerfectBonus: React.FC<PerfectBonusProps> = React.memo(({ show }) => {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const isMobile = window.innerWidth < 768;
   
@@ -65,4 +65,7 @@ export const PerfectBonus: React.FC<PerfectBonusProps> = ({ show }) => {
       </span>
     </motion.div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if show prop changes
+  return prevProps.show === nextProps.show;
+});

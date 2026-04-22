@@ -16,7 +16,7 @@ const TIER_COLORS: Record<number, string> = {
   6: '#dc2626',  // dark red
 };
 
-export const TierCelebrationOverlay: React.FC<TierCelebrationOverlayProps> = ({
+export const TierCelebrationOverlay: React.FC<TierCelebrationOverlayProps> = React.memo(({
   tier,
   tierName,
   multiplier,
@@ -86,4 +86,4 @@ export const TierCelebrationOverlay: React.FC<TierCelebrationOverlayProps> = ({
       </motion.div>
     </>
   );
-};
+});

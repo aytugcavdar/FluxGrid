@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { GridState, Piece, GRID_SIZE, GridCell, SkillType, CellType, Achievement, MiniEventState, MultiplierBreakdown, ProgressionState } from '../types';
+import { GridState, Piece, GRID_SIZE, GridCell, CellType, Achievement, MultiplierBreakdown, ProgressionState } from '../types';
 import { AppState, GameStats, GameMode } from '@shared/types';
-import { POINTS, FLUX_COST, EXPANDED_ACHIEVEMENTS, ZEN_PALETTES, TIER_SCORE_MULTIPLIERS, TIMED_MODE, COMBO_TIMER } from '../constants';
+import { POINTS, EXPANDED_ACHIEVEMENTS, TIER_SCORE_MULTIPLIERS, TIMED_MODE, COMBO_TIMER } from '../constants';
 import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playHaptic } from '../../../utils/audio';
 import { safeExecute, ErrorCategory } from '../../../utils/managers/errorHandler';
 import { safeLocalStorageGet, safeParseInt, safeJSONParse } from './helpers/localStorage';
@@ -10,16 +10,14 @@ import { createEmptyGrid, processGrid } from './helpers/grid';
 import { getRandomPiecesSync } from './helpers/pieces';
 import { useThemeStore } from '@shared/store/themeStore';
 import { useProfileStore } from '../../profile/store/profileStore';
-import { useTutorialStore } from '@shared/store/tutorialStore';
-import { checkAndUpdateStreak } from '@/src/utils/managers/streakManager';
+import { useTutorialStore } from '../../tutorial/store/tutorialStore';
 import { tickTimerImpl } from './helpers/timerLogic';
 import { checkTierEvent, tickActiveEvent } from './helpers/eventSystem';
 import { updateAchievements, syncNewAchievement } from './helpers/achievementSystem';
-import { usePassiveAbilityStore } from '../../abilities/store/passiveAbilityStore';
-import { createMiniEventState, checkMiniEvents, tickMiniEvents, shouldPreventComboBreak } from './helpers/miniEventSystem';
+import { createMiniEventState, checkMiniEvents, shouldPreventComboBreak, getMiniEventMultiplier, isPieceBlessingActive } from './helpers/miniEventSystem';
 import { createProgressionState, updateStreak, getStreakMultiplier, checkMilestones } from './helpers/progressionSystem';
 import { JuiceTriggers } from '../../visual-effects/utils/juiceTriggers';
-import { calculateScore, calculateFluxGain } from './helpers/scoreCalculator';
+import { calculateScore } from './helpers/scoreCalculator';
 import { migrateSaveData, SaveData } from './helpers/migration';
 import { LocalStorageService } from '@services/local/localStorageService';
 import { useVisualEffectStore } from '../../visual-effects/store/visualEffectStore';
@@ -31,11 +29,8 @@ export interface GameStore {
   pieces: Piece[];
   score: number;
   highScore: number;
-  flux: number;
   combo: number;
   isGameOver: boolean;
-  isSurgeActive: boolean;
-  activeSkill: SkillType | null;
   draggedPiece: Piece | null;
   lastAction: {
     type: 'PLACE' | 'CLEAR' | 'MILESTONE';
@@ -73,10 +68,7 @@ export interface GameStore {
   maxLevelReached: number;
   difficultyTier: number;
 
-  // ZEN Mode State
-  zenSessionTime: number;
-  zenBlocksPlaced: number;
-  zenPaletteIndex: number;
+  // ZEN Mode State removed - ZEN mode deprecated
 
   // Daily Challenge State
   dailyClearHistory: boolean[][];
@@ -136,9 +128,6 @@ export interface GameStore {
   clearAchievementNotification: () => void;
   placePiece: (piece: Piece, startX: number, startY: number) => boolean;
   canPlacePiece: (grid: GridState, piece: Piece, startX: number, startY: number) => boolean;
-  activateSkill: (skill: SkillType) => void;
-  useShatter: (x: number, y: number) => void;
-  useBomb: (x: number, y: number) => void;
   setDraggedPiece: (piece: Piece | null) => void;
   checkGameOver: () => void;
   resetGame: () => void;
@@ -189,11 +178,8 @@ export const useGameStore = create<GameStore>((set, get) => {
   pieces: [],
   score: 0,
   highScore: savedHighScore,
-  flux: 100,
   combo: 0,
   isGameOver: false,
-  isSurgeActive: false,
-  activeSkill: null,
   draggedPiece: null,
   lastAction: null,
   
@@ -220,10 +206,7 @@ export const useGameStore = create<GameStore>((set, get) => {
   maxLevelReached: savedMaxLevel,
   difficultyTier: 0,
 
-  // ZEN Mode Initial State
-  zenSessionTime: 0,
-  zenBlocksPlaced: 0,
-  zenPaletteIndex: 0,
+  // ZEN Mode Initial State removed - ZEN mode deprecated
 
   // Daily Challenge Initial State
   dailyClearHistory: [],
@@ -275,9 +258,14 @@ export const useGameStore = create<GameStore>((set, get) => {
   initGame: (mode = GameMode.ENDLESS, savedData?: SaveData) => {
     const success = safeExecute(
       () => {
+        // If starting a NEW game (not loading saved), clear any existing save
+        if (!savedData) {
+          console.log('[GameStore] Starting new game, clearing saved game...');
+          clearGameSave();
+        }
+        
         const isTimed = mode === GameMode.TIMED;
         const isDaily = mode === GameMode.DAILY_CHALLENGE;
-        const isZen = mode === GameMode.ZEN;
         const initialGrid = createEmptyGrid();
         
         const now = Date.now();
@@ -302,17 +290,14 @@ export const useGameStore = create<GameStore>((set, get) => {
             3, 
             initialGrid, 
             isDaily, 
-            isZen ? ZEN_PALETTES[0] : useThemeStore.getState().getPieceColors(), 
+            useThemeStore.getState().getPieceColors(), 
             loadedTier, 
             mode,
             loadedMiniEventState
           ),
           score: loadedScore,
-          flux: isZen ? 100 : 50,
           combo: 0,
           isGameOver: false,
-          isSurgeActive: false,
-          activeSkill: null,
           lastAction: null,
           unlockedAchievementId: null,
           appState: AppState.GAME,
@@ -321,10 +306,6 @@ export const useGameStore = create<GameStore>((set, get) => {
           timerStartTime: isTimed ? now : null,
           timerExpectedEnd: isTimed ? now + 60000 : null,
           difficultyTier: loadedTier,
-          // ZEN mode initialization
-          zenSessionTime: isZen ? 0 : get().zenSessionTime,
-          zenBlocksPlaced: isZen ? 0 : get().zenBlocksPlaced,
-          zenPaletteIndex: isZen ? 0 : get().zenPaletteIndex,
           // Daily Challenge initialization
           dailyClearHistory: [],
           // Event System initialization
@@ -361,6 +342,15 @@ export const useGameStore = create<GameStore>((set, get) => {
         // Save stats to localStorage
         LocalStorageService.saveStats(newStats);
         
+        // Initialize tutorial system if this is a new game (not loading saved)
+        if (!savedData) {
+          const tutorialStore = useTutorialStore.getState();
+          if (!tutorialStore.isCompleted) {
+            console.log('[GameStore] Starting tutorial for new player');
+            tutorialStore.start();
+          }
+        }
+        
         return true;
       },
       false,
@@ -389,216 +379,6 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   setDraggedPiece: (piece) => set({ draggedPiece: piece }),
 
-  activateSkill: (skill) => {
-    const { flux, pieces, activeSkill, bonusRerolls, bonusShatter, bonusBomb } = get();
-    
-    if (activeSkill === skill) {
-      set({ activeSkill: null }); // Toggle off
-      return;
-    }
-
-    if (skill === SkillType.REROLL) {
-      // Check bonus first, then flux
-      if (bonusRerolls > 0) {
-        const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
-        
-        set({
-          bonusRerolls: bonusRerolls - 1,
-          pieces: getRandomPiecesSync(
-            3, 
-            get().grid, 
-            get().gameMode === GameMode.DAILY_CHALLENGE, 
-            useThemeStore.getState().getPieceColors(), 
-            currentTier, 
-            get().gameMode,
-            get().miniEventState
-          ),
-          activeSkill: null
-        });
-        
-        // Sync to profileStore
-        useProfileStore.getState().incrementSkillUse('REROLL' as any);
-        
-        // Track ability usage for achievements
-        const abilityCount = parseInt(localStorage.getItem('flux_ability_count') || '0') + 1;
-        localStorage.setItem('flux_ability_count', abilityCount.toString());
-        useAchievementStore.getState().checkAchievement('ability_master', abilityCount);
-        
-        get().checkGameOver();
-      } else if (flux >= FLUX_COST.REROLL) {
-        const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
-        
-        set({
-          flux: flux - FLUX_COST.REROLL,
-          pieces: getRandomPiecesSync(
-            3, 
-            get().grid, 
-            get().gameMode === GameMode.DAILY_CHALLENGE, 
-            useThemeStore.getState().getPieceColors(), 
-            currentTier, 
-            get().gameMode,
-            get().miniEventState
-          ),
-          activeSkill: null
-        });
-        
-        // Sync to profileStore
-        useProfileStore.getState().incrementSkillUse('REROLL' as any);
-        
-        // Track ability usage for achievements
-        const abilityCount = parseInt(localStorage.getItem('flux_ability_count') || '0') + 1;
-        localStorage.setItem('flux_ability_count', abilityCount.toString());
-        useAchievementStore.getState().checkAchievement('ability_master', abilityCount);
-        
-        get().checkGameOver();
-      }
-    } else if (skill === SkillType.SHATTER) {
-      // Check bonus first, then flux
-      if (bonusShatter > 0) {
-        set({ activeSkill: SkillType.SHATTER });
-      } else if (flux >= FLUX_COST.SHATTER) {
-        set({ activeSkill: SkillType.SHATTER });
-      }
-    } else if (skill === SkillType.BOMB) {
-      // Check bonus first, then flux
-      if (bonusBomb > 0) {
-        set({ activeSkill: SkillType.BOMB });
-      } else if (flux >= FLUX_COST.BOMB) {
-        set({ activeSkill: SkillType.BOMB });
-      }
-    }
-  },
-
-  useShatter: (x, y) => {
-    const { grid, flux, score, bonusShatter } = get();
-    if (!grid[y][x].filled) return;
-
-    // Remove block
-    const tempGrid = grid.map(row => row.map(cell => ({ ...cell })));
-    tempGrid[y][x] = { filled: false, color: '' };
-
-    // Apply gravity immediately for that column
-    for (let row = y; row > 0; row--) {
-      tempGrid[row][x] = tempGrid[row - 1][x];
-    }
-    tempGrid[0][x] = { filled: false, color: '' };
-
-    // Process grid for chain reactions
-    const { grid: finalGrid, totalLinesCleared, actions } = processGrid(tempGrid);
-
-    const newCombo = totalLinesCleared > 0 ? get().combo + 1 : get().combo; // Don't reset combo on skill use, just add if it clears
-    const extraScore = totalLinesCleared * POINTS.LINE_CLEARED * (newCombo > 0 ? newCombo : 1);
-    
-    // Audio + Haptic Feedback for Skill
-    playSkill();
-    if (totalLinesCleared > 0) playClear(totalLinesCleared);
-    playHaptic('skill');
-
-    const newScore = score + 5 + extraScore;
-    const newHighScore = Math.max(newScore, get().highScore);
-
-    // Deduct cost: bonus first, then flux
-    const updates: Partial<GameStore> = {
-      grid: finalGrid,
-      score: newScore,
-      highScore: newHighScore,
-      combo: newCombo,
-      activeSkill: null
-    };
-    
-    if (bonusShatter > 0) {
-      updates.bonusShatter = bonusShatter - 1;
-    } else {
-      updates.flux = flux - FLUX_COST.SHATTER;
-    }
-
-    set(updates);
-    
-    // Sync to profileStore
-    useProfileStore.getState().incrementSkillUse('SHATTER' as any);
-    
-    // Track ability usage for achievements
-    const abilityCount = parseInt(localStorage.getItem('flux_ability_count') || '0') + 1;
-    localStorage.setItem('flux_ability_count', abilityCount.toString());
-    useAchievementStore.getState().checkAchievement('ability_master', abilityCount);
-  },
-
-  useBomb: (x, y) => {
-    const { grid, flux, score, bonusBomb } = get();
-    
-    const tempGrid = grid.map(row => row.map(cell => ({ ...cell })));
-    let blocksDestroyed = 0;
-
-    // Destroy 3x3 area
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        const ny = y + dy;
-        const nx = x + dx;
-        if (ny >= 0 && ny < GRID_SIZE && nx >= 0 && nx < GRID_SIZE) {
-          if (tempGrid[ny][nx].filled) {
-            tempGrid[ny][nx] = { filled: false, color: '' };
-            blocksDestroyed++;
-          }
-        }
-      }
-    }
-
-    if (blocksDestroyed === 0) return; // Don't use skill if nothing hit
-
-    // Apply Gravity for all affected columns
-    for (let col = Math.max(0, x - 1); col <= Math.min(GRID_SIZE - 1, x + 1); col++) {
-       // Simple gravity for this column
-       const stack: GridCell[] = [];
-       for (let row = 0; row < GRID_SIZE; row++) {
-         if (tempGrid[row][col].filled) stack.push(tempGrid[row][col]);
-       }
-       for (let row = GRID_SIZE - 1; row >= 0; row--) {
-         const popped = stack.pop();
-         if (popped) tempGrid[row][col] = popped;
-         else tempGrid[row][col] = { filled: false, color: '' };
-       }
-    }
-
-    // Process grid for chain reactions
-    const { grid: finalGrid, totalLinesCleared, actions } = processGrid(tempGrid);
-    
-    const newCombo = totalLinesCleared > 0 ? get().combo + 1 : get().combo;
-    const extraScore = totalLinesCleared * POINTS.LINE_CLEARED * (newCombo > 0 ? newCombo : 1);
-
-    // Audio + Haptic Feedback for Bomb
-    playSkill();
-    if (totalLinesCleared > 0) playClear(totalLinesCleared);
-    playHaptic('skill');
-
-    const newScore = score + (blocksDestroyed * 5) + extraScore;
-    const newHighScore = Math.max(newScore, get().highScore);
-
-    // Deduct cost: bonus first, then flux
-    const updates: Partial<GameStore> = {
-      grid: finalGrid,
-      score: newScore,
-      highScore: newHighScore,
-      combo: newCombo,
-      activeSkill: null
-    };
-    
-    if (bonusBomb > 0) {
-      updates.bonusBomb = bonusBomb - 1;
-    } else {
-      updates.flux = flux - FLUX_COST.BOMB;
-    }
-
-    set(updates);
-    
-    // Sync to profileStore
-    useProfileStore.getState().incrementSkillUse('BOMB' as any);
-    
-    // Track ability usage for achievements
-    const abilityCount = parseInt(localStorage.getItem('flux_ability_count') || '0') + 1;
-    localStorage.setItem('flux_ability_count', abilityCount.toString());
-    useAchievementStore.getState().checkAchievement('ability_master', abilityCount);
-  },
-
   canPlacePiece: (grid, piece, startX, startY) => {
     for (let row = 0; row < piece.shape.length; row++) {
       for (let col = 0; col < piece.shape[row].length; col++) {
@@ -621,7 +401,7 @@ export const useGameStore = create<GameStore>((set, get) => {
   },
 
   placePiece: (piece, startX, startY) => {
-    const { grid, score, combo, flux, highScore, isSurgeActive, gameMode } = get();
+    const { grid, score, combo, highScore, gameMode } = get();
     
     // Grid validation
     if (!grid || grid.length !== GRID_SIZE) {
@@ -702,7 +482,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     // Trigger juice effects for line clears
     if (linesCleared > 0) {
-      const newCombo = combo + 1;
+      const newCombo = combo + linesCleared;
       JuiceTriggers.onLinesCleared(actions as any, newCombo);
     }
 
@@ -712,32 +492,37 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({ perfectClearDetected: true });
     }
 
-    // Handle CELL_CLEAR actions - trigger explosion effects
-    actions.forEach(action => {
-      if (action.type === 'CELL_CLEAR') {
-        const clearAction = action as any; // Type assertion for CELL_CLEAR
-        clearAction.cells.forEach((cell: any) => {
-          // Add explosion effect for each cleared cell
-          // Add delay based on chain index for chain reactions
-          const delay = (clearAction.chainIndex - 1) * 200; // 200ms delay per chain step
+    // Handle CELL_CLEAR actions - COMPLETELY DISABLED at combo >= 10 for performance
+    // At combo 5-9: max 2 explosions, at combo < 5: max 3 explosions
+    if (combo < 10) {
+      const maxExplosions = combo >= 5 ? 2 : 3;
+      
+      actions.forEach(action => {
+        if (action.type === 'CELL_CLEAR') {
+          const clearAction = action as any;
           
-          setTimeout(() => {
-            useVisualEffectStore.getState().addEffect({
-              type: 'explosion',
-              duration: 180, // Faster: 180ms (was 250ms)
-              target: `cell-${cell.x}-${cell.y}`,
-              props: {
-                x: cell.x,
-                y: cell.y,
-                color: cell.color,
-                blockSize: 20,
-                cellType: cell.cellType
-              }
-            });
-          }, delay);
-        });
-      }
-    });
+          // Limit explosions based on combo
+          const cellsToExplode = clearAction.cells.slice(0, maxExplosions);
+          
+          cellsToExplode.forEach((cell: any) => {
+            setTimeout(() => {
+              useVisualEffectStore.getState().addEffect({
+                type: 'explosion',
+                duration: 100,
+                target: `cell-${cell.x}-${cell.y}`,
+                props: {
+                  x: cell.x,
+                  y: cell.y,
+                  color: cell.color,
+                  blockSize: 20,
+                  cellType: cell.cellType
+                }
+              });
+            }, 50);
+          });
+        }
+      });
+    }
 
     // Handle CHRONO_BONUS actions
     let chronoBonusSeconds = 0;
@@ -746,23 +531,6 @@ export const useGameStore = create<GameStore>((set, get) => {
         chronoBonusSeconds += action.seconds;
       }
     });
-
-    // ZEN mode: Blok sayısını artır
-    // ZEN modda blok sayısını artır ve palette rotation kontrol et
-    if (gameMode === GameMode.ZEN) {
-      set({ zenBlocksPlaced: get().zenBlocksPlaced + 1 });
-      
-      // Palette rotation: her 10 satırda bir palet değiştir
-      if (linesCleared > 0) {
-        const currentStats = get().stats;
-        const totalLines = currentStats.linesCleared + linesCleared;
-        const newPaletteIndex = Math.floor(totalLines / 10) % ZEN_PALETTES.length;
-        
-        if (newPaletteIndex !== get().zenPaletteIndex) {
-          set({ zenPaletteIndex: newPaletteIndex });
-        }
-      }
-    }
 
     // Check and activate mini-events (only for ENDLESS mode, before score calculation)
     let updatedMiniEventState = get().miniEventState;
@@ -773,7 +541,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       updatedMiniEventState = createMiniEventState();
     }
 
-    // 4. Puan hesaplama (ZEN modda skip edilir)
+    // 4. Puan hesaplama
     // Combo Timer System: SADECE satır temizlendiğinde timer başlar/sıfırlanır
     // Timer bitmeden yeni satır temizlenirse combo devam eder
     // Timer biterse combo 0'a düşer
@@ -786,13 +554,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     let newCombo: number;
     let newComboTimerStart: number | null = null;
     
-    if (gameMode === GameMode.ZEN) {
-      // ZEN mode: combo never breaks, only increases
-      newCombo = combo + (linesCleared > 0 ? 1 : 0);
-      newComboTimerStart = linesCleared > 0 ? now : currentComboTimer;
-    } else if (linesCleared > 0) {
-      // Lines cleared: increase combo and reset/start timer
-      newCombo = combo + 1;
+    if (linesCleared > 0) {
+      // Lines cleared: increase combo by number of lines cleared and reset/start timer
+      newCombo = combo + linesCleared;
       newComboTimerStart = now; // Reset timer ONLY when lines are cleared
     } else if (comboShieldPrevented) {
       // COMBO_SHIELD active: preserve combo and timer
@@ -864,24 +628,24 @@ export const useGameStore = create<GameStore>((set, get) => {
     // Final seconds multiplier: Timed modda son 10 saniyede 1.5x
     const isFinalSeconds = gameMode === GameMode.TIMED && get().timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD;
 
-    // Pasif yetenek çarpanları
-    const passiveScoreMultiplier = usePassiveAbilityStore.getState().calculateScoreMultiplier();
+    // Pasif yetenek çarpanları kaldırıldı (ZEN mode deprecated)
+    const passiveScoreMultiplier = 1.0;
 
     const basePoints = (blocksPlaced * POINTS.BLOCK_PLACED) +
                        (linesCleared * POINTS.LINE_CLEARED) +
                        (comboMultiplier * POINTS.COMBO_MULTIPLIER);
     
-    // Calculate score using score calculator
+    // Calculate score using score calculator (NO flux multiplier)
     const { score: pointsGained, breakdown } = calculateScore(
       basePoints,
       colorBonus,
-      isSurgeActive,
+      1.0, // No flux multiplier - removed completely
       gameMode === GameMode.ENDLESS ? get().difficultyTier : 0,
       gameMode === GameMode.ENDLESS ? get().activeEvent : null,
       updatedMiniEventState,
       linesCleared,
       passiveScoreMultiplier,
-      streakMultiplier  // YENİ parametre
+      streakMultiplier
     );
     
     // Track final sprint bonus for Timed mode
@@ -891,8 +655,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       sprintBonusGained = Math.floor(basePoints * 0.5 * quakeMultiplier * passiveScoreMultiplier);
     }
     
-    // ZEN modda skor güncellenmez
-    const newScore = gameMode === GameMode.ZEN ? 0 : (score + pointsGained);
+    const newScore = score + pointsGained;
 
     // Check milestones (Endless mode only)
     if (gameMode === GameMode.ENDLESS) {
@@ -937,7 +700,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         combo: comboMultiplier,
         chainCount,
         colorBonus,
-        surgeBonus: isSurgeActive,
+        surgeBonus: false, // Removed surge system
         chronoBonus: chronoBonusSeconds, // Add CHRONO bonus to lastAction
       }});
       
@@ -956,35 +719,6 @@ export const useGameStore = create<GameStore>((set, get) => {
       }});
     }
 
-    // Flux hesaplama
-    const passiveFluxMultiplier = usePassiveAbilityStore.getState().calculateFluxMultiplier();
-    
-    // Calculate flux using flux calculator
-    const fluxGained = calculateFluxGain(
-      blocksPlaced,
-      linesCleared,
-      gameMode === GameMode.ENDLESS ? get().difficultyTier : 0,
-      updatedMiniEventState,
-      passiveFluxMultiplier
-    );
-    
-    const rawFlux = flux + fluxGained;
-    const newFlux = Math.min(100, rawFlux);
-
-    // Surge: flux 100'e ulaşırsa aktif et; eğer surge kullanıldıysa sıfırla
-    // ZEN modda surge yok, flux her zaman 100
-    const surgeWasUsed = isSurgeActive && linesCleared > 0;
-    const surgeJustFilled = !isSurgeActive && rawFlux >= 100;
-    const newIsSurgeActive = gameMode === GameMode.ZEN ? false : (surgeJustFilled ? true : (surgeWasUsed ? false : isSurgeActive));
-    const finalFlux = gameMode === GameMode.ZEN ? 100 : (surgeWasUsed ? 0 : newFlux); // ZEN'de flux her zaman 100
-
-    if (surgeJustFilled && gameMode !== GameMode.ZEN) {
-      playSurgeStart();
-      playHaptic('surge');
-    } else if (surgeWasUsed) {
-      playSurgeEnd();
-    }
-
     // 5. Tepsi güncelle
     let currentPieces = get().pieces.filter(p => p.instanceId !== piece.instanceId);
     if (currentPieces.length === 0) {
@@ -993,8 +727,6 @@ export const useGameStore = create<GameStore>((set, get) => {
       const pieceCount = 3;
       
       const isDaily = get().gameMode === GameMode.DAILY_CHALLENGE;
-      const isZen = get().gameMode === GameMode.ZEN;
-      const zenPalette = isZen ? ZEN_PALETTES[get().zenPaletteIndex] : undefined;
       const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
       
       // Get tutorial step if tutorial is active
@@ -1005,7 +737,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         pieceCount, 
         newGrid, 
         isDaily, 
-        zenPalette ?? useThemeStore.getState().getPieceColors(), 
+        useThemeStore.getState().getPieceColors(), 
         currentTier, 
         get().gameMode,
         updatedMiniEventState
@@ -1097,14 +829,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     const tierUpdates = tierResult ?? {};
     let finalGrid = (eventUpdates as any)?.grid ?? (tierUpdates as any)?.grid ?? newGrid;
     
-    // CRITICAL: After event effects (GRAVITY_RUSH, QUAKE, etc.), check for new line clears
-    // Events can create new full rows/columns that need to be cleared
-    // We process the grid again but don't add score (event effects are automatic, not player actions)
-    // This applies to both tier activation (checkTierEvent) and ongoing events (tickActiveEvent)
-    if ((eventUpdates && (eventUpdates as any).grid) || (tierUpdates && (tierUpdates as any).grid)) {
-      const { grid: processedGrid } = processGrid(finalGrid);
-      finalGrid = processedGrid;
-    }
+    // BUG FIX: Event effects artık kendi içlerinde processGrid çağırmıyor
+    // Bu yüzden burada tekrar processGrid çağırmaya gerek yok
+    // Double processing score jump ve freeze'e neden oluyordu
     
     // Tick mini-events after score calculation (only for ENDLESS mode)
     if (gameMode === GameMode.ENDLESS) {
@@ -1120,8 +847,6 @@ export const useGameStore = create<GameStore>((set, get) => {
       score: newScore,
       highScore: Math.max(newScore, get().highScore),
       combo: newCombo, // Use newCombo instead of comboMultiplier
-      flux: finalFlux,
-      isSurgeActive: newIsSurgeActive,
       pieces: currentPieces,
       timeLeft: Math.min(99, get().timeLeft + extraTime),
       achievements: updatedAchievements,
@@ -1205,30 +930,18 @@ export const useGameStore = create<GameStore>((set, get) => {
       achievementStore.checkAchievement('streak_30', currentStreak);
     }
     
-    // Check flux master achievement (surge activations)
-    if (surgeJustFilled && gameMode !== GameMode.ZEN) {
-      // Track surge activations - we'll use a counter in localStorage
-      const surgeCount = parseInt(localStorage.getItem('flux_surge_count') || '0') + 1;
-      localStorage.setItem('flux_surge_count', surgeCount.toString());
-      achievementStore.checkAchievement('flux_master', surgeCount);
-    }
+    // Check flux master achievement (removed - no flux system)
     
     return true;
   },
 
   checkGameOver: () => {
-    const { grid, pieces, activeSkill, gameMode } = get();
-    
-    // ZEN modda oyun hiç bitmez
-    if (gameMode === GameMode.ZEN) return;
+    const { grid, pieces, gameMode } = get();
     
     // Don't check game over while pieces are loading
     if (get().isPiecesLoading) return;
     
     if (pieces.length === 0) return; // Should not happen due to refill logic
-
-    // If we have a skill active (like Shatter), game is not over
-    if (activeSkill === SkillType.SHATTER) return;
 
     // Check if ANY piece can fit ANYWHERE
     let canFitAny = false;
@@ -1248,7 +961,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     if (!canFitAny) {
       // Daily Challenge tamamlandığında streak güncelle
       if (gameMode === GameMode.DAILY_CHALLENGE) {
-        checkAndUpdateStreak();
+        // Use streakStore instead of checkAndUpdateStreak
+        import('@/src/shared/store/streakStore').then(({ useStreakStore }) => {
+          useStreakStore.getState().recordGameCompleted();
+        });
       }
       
       // Update mode-specific high scores and stats on game end
@@ -1356,9 +1072,11 @@ export const useGameStore = create<GameStore>((set, get) => {
       // Sync data to widgets and update
       const state = get();
       import('@/src/utils/native/widgetHelper').then(({ syncAllWidgetData }) => {
-        // Get daily challenge streak from localStorage (not in-game streak)
-        const dailyStreak = parseInt(localStorage.getItem('flux_daily_streak') || '0');
-        syncAllWidgetData(state.highScores, dailyStreak);
+        // Get streak from streakStore instead of localStorage
+        import('@/src/shared/store/streakStore').then(({ useStreakStore }) => {
+          const currentStreak = useStreakStore.getState().currentStreak;
+          syncAllWidgetData(state.highScores, currentStreak);
+        });
       });
     }
   },
@@ -1393,7 +1111,6 @@ export const useGameStore = create<GameStore>((set, get) => {
       miniEventState: state.miniEventState,
       progressionState: state.progressionState,
       totalMovesPlayed: state.totalMovesPlayed,
-      activeSkill: state.activeSkill,
       isSurgeActive: state.isSurgeActive,
       savedAt: Date.now(),
     });
@@ -1439,7 +1156,6 @@ export const useGameStore = create<GameStore>((set, get) => {
         grid: restoredGrid,
         score: savedState.score,
         combo: savedState.combo,
-        flux: savedState.flux,
         difficultyTier: savedState.difficultyTier,
         timeLeft: savedState.timeLeft,
         timedBoostMovesLeft: savedState.timedBoostMovesLeft,
@@ -1453,8 +1169,6 @@ export const useGameStore = create<GameStore>((set, get) => {
         // IMPORTANT: Recreate progression state instead of restoring
         progressionState: createProgressionState(),
         totalMovesPlayed: savedState.totalMovesPlayed,
-        activeSkill: savedState.activeSkill,
-        isSurgeActive: savedState.isSurgeActive,
         timerStartTime: isTimed ? now : null,
         timerExpectedEnd: isTimed ? now + (savedState.timeLeft * 1000) : null,
         isGameOver: false,

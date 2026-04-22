@@ -19,7 +19,6 @@ export enum GameMode {
   ENDLESS = 'ENDLESS',
   TIMED = 'TIMED',
   DAILY_CHALLENGE = 'DAILY_CHALLENGE',
-  ZEN = 'ZEN',
 }
 
 // Game Statistics

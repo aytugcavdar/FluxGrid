@@ -8,4 +8,12 @@ export { GridBreathingEffect } from './GridBreathingEffect';
 export { BackgroundEffects } from './BackgroundEffects';
 export { PerfectClearEffect } from './PerfectClearEffect';
 export { PlacementImpactEffect } from './PlacementImpactEffect';
-
+export { TierTransitionAnimation } from './TierTransitionAnimation';
+export { ScoreMilestoneCelebration } from './ScoreMilestoneCelebration';
+export { AbilityUnlockAnimation } from './AbilityUnlockAnimation';
+export { StreakIndicator } from './StreakIndicator';
+export { NearMissWarning } from './NearMissWarning';
+export { PauseResumeAnimation } from './PauseResumeAnimation';
+export { GameOverSequence } from './GameOverSequence';
+export { VictoryCelebration } from './VictoryCelebration';
+export { ModeChangeTransition } from './ModeChangeTransition';

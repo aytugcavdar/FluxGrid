@@ -44,13 +44,16 @@ export const processGrid = (initialGrid: GridState): {
   let iceBroken = 0;
   const actions: Array<{ type: string; [key: string]: any }> = [];
 
+  // Process grid for line clears and chain reactions
   do {
     linesClearedInPass = 0;
     
     // 1. Check Rows
     const fullRows: number[] = [];
     for (let y = 0; y < GRID_SIZE; y++) {
-      if (currentGrid[y].every(cell => cell.filled)) fullRows.push(y);
+      if (currentGrid[y].every(cell => cell.filled)) {
+        fullRows.push(y);
+      }
     }
 
     // 2. Check Cols
@@ -63,7 +66,9 @@ export const processGrid = (initialGrid: GridState): {
           break;
         }
       }
-      if (isFull) fullCols.push(x);
+      if (isFull) {
+        fullCols.push(x);
+      }
     }
 
     linesClearedInPass = fullRows.length + fullCols.length;

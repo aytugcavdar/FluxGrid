@@ -2,7 +2,7 @@ import React from 'react';
 import { useVisualEffectStore } from '../store/visualEffectStore';
 import { ParticleExplosion } from './ParticleExplosion';
 
-export const ParticleExplosionOverlay: React.FC = () => {
+export const ParticleExplosionOverlay: React.FC = React.memo(() => {
   const activeEffects = useVisualEffectStore(state => state.activeEffects);
   const removeEffect = useVisualEffectStore(state => state.removeEffect);
   
@@ -34,4 +34,4 @@ export const ParticleExplosionOverlay: React.FC = () => {
       ))}
     </div>
   );
-};
+});

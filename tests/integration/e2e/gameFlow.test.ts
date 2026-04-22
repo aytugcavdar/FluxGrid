@@ -7,10 +7,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useGameStore } from '@features/game/store/gameStore';
-import { usePassiveAbilityStore } from '@features/abilities/store/passiveAbilityStore';
 import { LocalStorageService } from '@services/local/localStorageService';
 import { GameMode } from '@shared/types';
-import { PassiveAbilityType } from '@features/abilities/types';
 
 describe('E2E: Game Flow with localStorage Persistence', () => {
   beforeEach(() => {
@@ -164,45 +162,8 @@ describe('E2E: Game Flow with localStorage Persistence', () => {
     expect(savedStats2?.endlessMaxTier).toBe(3);
   });
 
-  it('should persist passive abilities correctly', () => {
-    // Test ability persistence by directly using LocalStorageService
-    const testAbilityId = PassiveAbilityType.SCORE_MULTIPLIER;
-    
-    // Save abilities with unlocked ability
-    LocalStorageService.savePassiveAbilities({
-      unlocked: [testAbilityId],
-      equipped: [],
-      maxLevel: 1,
-    });
-    
-    // Verify ability was unlocked and saved
-    const savedAbilities = LocalStorageService.loadPassiveAbilities();
-    expect(savedAbilities).toBeDefined();
-    expect(savedAbilities?.unlocked).toContain(testAbilityId);
-    
-    // Equip the ability
-    LocalStorageService.savePassiveAbilities({
-      unlocked: [testAbilityId],
-      equipped: [testAbilityId],
-      maxLevel: 1,
-    });
-    
-    // Verify ability was equipped and saved
-    const savedAbilities2 = LocalStorageService.loadPassiveAbilities();
-    expect(savedAbilities2?.equipped).toContain(testAbilityId);
-    
-    // Unequip the ability
-    LocalStorageService.savePassiveAbilities({
-      unlocked: [testAbilityId],
-      equipped: [],
-      maxLevel: 1,
-    });
-    
-    // Verify ability was unequipped and saved
-    const savedAbilities3 = LocalStorageService.loadPassiveAbilities();
-    expect(savedAbilities3?.equipped).not.toContain(testAbilityId);
-    expect(savedAbilities3?.unlocked).toContain(testAbilityId); // Still unlocked
-  });
+  // Test removed: Passive abilities feature deprecated (ZEN mode removed)
+  // it('should persist passive abilities correctly', () => { ... });
 
   it('should handle mode-specific statistics correctly', () => {
     // Test mode-specific stats by directly saving to localStorage

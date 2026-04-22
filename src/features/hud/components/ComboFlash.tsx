@@ -5,7 +5,7 @@ interface ComboFlashProps {
   combo: number;
 }
 
-export const ComboFlash: React.FC<ComboFlashProps> = ({ combo }) => {
+export const ComboFlash: React.FC<ComboFlashProps> = React.memo(({ combo }) => {
   if (combo <= 1) return null;
   
   // Determine intensity based on combo level
@@ -111,4 +111,7 @@ export const ComboFlash: React.FC<ComboFlashProps> = ({ combo }) => {
       )}
     </>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if combo value changes
+  return prevProps.combo === nextProps.combo;
+});

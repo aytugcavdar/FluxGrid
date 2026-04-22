@@ -50,6 +50,29 @@
     public boolean *(android.webkit.WebView, java.lang.String);
 }
 
+# Skia rendering optimizations - Keep Skia classes for GPU acceleration
+-keep class android.graphics.** { *; }
+-keep class android.opengl.** { *; }
+-keepclassmembers class android.graphics.** { *; }
+-keepclassmembers class android.opengl.** { *; }
+
+# WebView Chromium optimizations
+-keep class org.chromium.** { *; }
+-dontwarn org.chromium.**
+
+# GPU and hardware acceleration
+-keep class android.view.HardwareCanvas { *; }
+-keep class android.view.GLES20Canvas { *; }
+-keep class android.view.HardwareRenderer { *; }
+-keep class android.view.ThreadedRenderer { *; }
+
+# Optimize WebView rendering pipeline
+-optimizations !code/simplification/arithmetic
+-optimizations !code/simplification/cast
+-optimizations !field/*
+-optimizations !class/merging/*
+-optimizations !code/allocation/variable
+
 # AndroidX
 -keep class androidx.** { *; }
 -keep interface androidx.** { *; }

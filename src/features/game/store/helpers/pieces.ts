@@ -4,7 +4,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Piece, PieceShape, GridState, GRID_SIZE, CellType, MiniEventState } from '../../types';
 import { SHAPES } from '../../constants';
-import { SeededRNG, getDailySeed } from '@/src/utils/game/seededRng';
+import { SeededRNG, getDailySeed } from '../../../../utils/game/seededRng';
 import { GameMode } from '@shared/types';
 import { isPieceBlessingActive } from './miniEventSystem';
 
@@ -243,9 +243,15 @@ export const getRandomPiecesSync = (
         type = CellType.CHRONO;  // 15% chance
       }
     } else {
-      // OTHER MODES: Original special block logic
-      if (specialRand > 0.92) type = CellType.BOMB;      // 8% chance
-      else if (specialRand > 0.85) type = CellType.ICE;  // 7% chance
+      // OTHER MODES: Original special block logic (ICE and BOMB only)
+      // Total special blocks: 15% (NORMAL: 85%)
+      // Distribution: BOMB 8%, ICE 7%
+      if (specialRand > 0.92) {
+        type = CellType.BOMB;           // 8% chance (0.92-1.00)
+      } else if (specialRand > 0.85) {
+        type = CellType.ICE;            // 7% chance (0.85-0.92)
+      }
+      // else: NORMAL (85% chance, 0.00-0.85)
     }
 
     // CHRONO blocks are always single dots for easy placement
@@ -254,8 +260,18 @@ export const getRandomPiecesSync = (
       if (dotShape) selectedShape = dotShape;
     }
 
-    // Use custom colors if provided, otherwise use the shape's default color
-    const pieceColor = colors ? colors[i % colors.length] : selectedShape.color;
+    // Determine piece color based on type
+    let pieceColor: string;
+    if (type === CellType.CHRONO) {
+      pieceColor = '#fbbf24'; // Gold
+    } else if (type === CellType.ICE) {
+      pieceColor = '#7dd3fc'; // Light blue
+    } else if (type === CellType.BOMB) {
+      pieceColor = '#1c1917'; // Dark (bomb color)
+    } else {
+      // Use custom colors if provided, otherwise use the shape's default color
+      pieceColor = colors ? colors[i % colors.length] : selectedShape.color;
+    }
 
     newPieces.push({ 
         ...selectedShape,
@@ -449,9 +465,15 @@ export const getRandomPieces = (
         type = CellType.CHRONO;  // 15% chance
       }
     } else {
-      // OTHER MODES: Original special block logic
-      if (specialRand > 0.92) type = CellType.BOMB;      // 8% chance
-      else if (specialRand > 0.85) type = CellType.ICE;  // 7% chance
+      // OTHER MODES: Original special block logic (ICE and BOMB only)
+      // Total special blocks: 15% (NORMAL: 85%)
+      // Distribution: BOMB 8%, ICE 7%
+      if (specialRand > 0.92) {
+        type = CellType.BOMB;           // 8% chance (0.92-1.00)
+      } else if (specialRand > 0.85) {
+        type = CellType.ICE;            // 7% chance (0.85-0.92)
+      }
+      // else: NORMAL (85% chance, 0.00-0.85)
     }
 
     // CHRONO blocks are always single dots for easy placement
@@ -460,8 +482,18 @@ export const getRandomPieces = (
       if (dotShape) selectedShape = dotShape;
     }
 
-    // Use custom colors if provided, otherwise use the shape's default color
-    const pieceColor = colors ? colors[i % colors.length] : selectedShape.color;
+    // Determine piece color based on type
+    let pieceColor: string;
+    if (type === CellType.CHRONO) {
+      pieceColor = '#fbbf24'; // Gold
+    } else if (type === CellType.ICE) {
+      pieceColor = '#7dd3fc'; // Light blue
+    } else if (type === CellType.BOMB) {
+      pieceColor = '#1c1917'; // Dark (bomb color)
+    } else {
+      // Use custom colors if provided, otherwise use the shape's default color
+      pieceColor = colors ? colors[i % colors.length] : selectedShape.color;
+    }
 
     newPieces.push({ 
         ...selectedShape,

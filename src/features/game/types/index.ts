@@ -44,13 +44,7 @@ export interface Piece extends PieceShape {
   type?: CellType;
 }
 
-// Skills
-export enum SkillType {
-  REROLL = 'REROLL',
-  SHATTER = 'SHATTER',
-  BOMB = 'BOMB',
-  GRAVITY_FLUSH = 'GRAVITY_FLUSH',
-}
+// Skills enum removed - skill system deprecated
 
 // Achievements
 export interface Achievement {
@@ -65,54 +59,13 @@ export interface Achievement {
   fluxReward?: number;
 }
 
-// Mini-event types
-export enum MiniEventType {
-  FLUX_SURGE = 'FLUX_SURGE',
-  SCORE_RUSH = 'SCORE_RUSH',
-  CLEAR_BONUS = 'CLEAR_BONUS',
-  COMBO_SHIELD = 'COMBO_SHIELD',     // YENİ
-  PIECE_BLESSING = 'PIECE_BLESSING', // YENİ
-}
+// Mini-event system removed - types deprecated
 
-// Mini-event state
-export interface MiniEventState {
-  activeEvents: Set<MiniEventType>;
-  moveCounters: {
-    [MiniEventType.FLUX_SURGE]: number;
-    [MiniEventType.SCORE_RUSH]: number;
-    [MiniEventType.CLEAR_BONUS]: number;
-    [MiniEventType.COMBO_SHIELD]: number;     // YENİ
-    [MiniEventType.PIECE_BLESSING]: number;   // YENİ
-  };
-  lastActivation: {
-    [MiniEventType.FLUX_SURGE]: number;
-    [MiniEventType.SCORE_RUSH]: number;
-    [MiniEventType.CLEAR_BONUS]: number;
-    [MiniEventType.COMBO_SHIELD]: number;     // YENİ
-    [MiniEventType.PIECE_BLESSING]: number;   // YENİ
-  };
-  comboShieldActive: boolean;  // YENİ - COMBO_SHIELD kullanılabilir mi?
-}
-
-// Tier configuration
-export interface TierConfig {
-  thresholds: readonly number[];
-  scoreMultipliers: readonly number[];
-  fluxMultipliers: readonly number[];
-}
-
-// Event configuration
-export interface EventConfig {
-  durations: Record<string, number>;
-  triggerIntervals: Record<string, number>;
-  scoreMultipliers: Record<string, number>;
-}
-
-// Multiplier breakdown for UI
+// Multiplier breakdown for UI (mini-events removed)
 export interface MultiplierBreakdown {
   tier: number;
   event: number;
-  miniEvents: { type: MiniEventType; multiplier: number }[];
+  miniEvents: any[]; // Deprecated, kept for compatibility
   total: number;
 }
 

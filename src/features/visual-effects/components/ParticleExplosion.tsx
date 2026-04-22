@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { useCleanup } from '@shared/hooks/useCleanup';
 
 export interface ParticleExplosionProps {
   x: number;              // Grid coordinate (0-9)
@@ -47,7 +48,7 @@ const generateParticles = (
   return particles;
 };
 
-export const ParticleExplosion: React.FC<ParticleExplosionProps> = ({
+export const ParticleExplosion: React.FC<ParticleExplosionProps> = React.memo(({
   x,
   y,
   color,
@@ -55,6 +56,8 @@ export const ParticleExplosion: React.FC<ParticleExplosionProps> = ({
   onComplete,
   isMobile = false,
 }) => {
+  const cleanup = useCleanup();
+  
   const particles = useMemo(
     () => generateParticles(color, blockSize, isMobile),
     [color, blockSize, isMobile]
@@ -63,12 +66,10 @@ export const ParticleExplosion: React.FC<ParticleExplosionProps> = ({
   const duration = 0.18; // Fixed fast duration: 180ms
   
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const timer = cleanup.trackTimeout(() => {
       onComplete();
     }, duration * 1000);
-    
-    return () => clearTimeout(timer);
-  }, [duration, onComplete]);
+  }, [duration, onComplete, cleanup]);
   
   return (
     <div
@@ -119,4 +120,11 @@ export const ParticleExplosion: React.FC<ParticleExplosionProps> = ({
       })}
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if props change
+  return prevProps.x === nextProps.x && 
+         prevProps.y === nextProps.y && 
+         prevProps.color === nextProps.color && 
+         prevProps.blockSize === nextProps.blockSize && 
+         prevProps.isMobile === nextProps.isMobile;
+});

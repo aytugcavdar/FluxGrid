@@ -13,7 +13,7 @@ const getLineCountColor = (count: number): string => {
   return '#ffffff';
 };
 
-export const LineCountDisplay: React.FC<LineCountDisplayProps> = ({ lineCount, show }) => {
+export const LineCountDisplay: React.FC<LineCountDisplayProps> = React.memo(({ lineCount, show }) => {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   
   if (!show || lineCount < 2) return null;
@@ -49,4 +49,7 @@ export const LineCountDisplay: React.FC<LineCountDisplayProps> = ({ lineCount, s
       </motion.span>
     </motion.div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if lineCount or show changes
+  return prevProps.lineCount === nextProps.lineCount && prevProps.show === nextProps.show;
+});

@@ -27,7 +27,7 @@ const TIER_COLORS: Record<number, { primary: string; bg: string; border: string 
   6: { primary: '#dc2626', bg: 'rgba(220,38,38,0.1)', border: 'rgba(220,38,38,0.2)' },
 };
 
-export const TierDisplay: React.FC<TierDisplayProps> = ({ tier, isMobile = false }) => {
+export const TierDisplay: React.FC<TierDisplayProps> = React.memo(({ tier, isMobile = false }) => {
   const [prevTier, setPrevTier] = useState(tier);
   const [animationKey, setAnimationKey] = useState(0);
   const [showGlow, setShowGlow] = useState(false);
@@ -152,4 +152,7 @@ export const TierDisplay: React.FC<TierDisplayProps> = ({ tier, isMobile = false
       </span>
     </motion.div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if tier or isMobile changes
+  return prevProps.tier === nextProps.tier && prevProps.isMobile === nextProps.isMobile;
+});

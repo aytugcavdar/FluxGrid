@@ -52,24 +52,12 @@ describe('tierSystem', () => {
     });
   });
 
-  describe('getTierFluxMultiplier', () => {
-    it('should return 1.0 for tier 0', () => {
+  describe('getTierFluxMultiplier (DEPRECATED)', () => {
+    it('should return 1.0 for all tiers (flux system removed)', () => {
       expect(getTierFluxMultiplier(0)).toBe(1.0);
-    });
-
-    it('should return 1.1 for tier 1', () => {
-      expect(getTierFluxMultiplier(1)).toBe(1.1);
-    });
-
-    it('should return 2.0 for tier 6', () => {
-      expect(getTierFluxMultiplier(6)).toBe(2.0);
-    });
-
-    it('should return 1.0 for invalid negative tier', () => {
+      expect(getTierFluxMultiplier(1)).toBe(1.0);
+      expect(getTierFluxMultiplier(6)).toBe(1.0);
       expect(getTierFluxMultiplier(-1)).toBe(1.0);
-    });
-
-    it('should return 1.0 for invalid tier above 6', () => {
       expect(getTierFluxMultiplier(7)).toBe(1.0);
     });
   });

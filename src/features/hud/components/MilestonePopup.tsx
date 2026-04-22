@@ -19,7 +19,7 @@ interface MilestonePopupProps {
  * @remarks
  * **Validates: Requirements 7.5, 7.6, 7.7**
  */
-export const MilestonePopup: React.FC<MilestonePopupProps> = ({ milestone, onClose }) => {
+export const MilestonePopup: React.FC<MilestonePopupProps> = React.memo(({ milestone, onClose }) => {
   useEffect(() => {
     if (milestone) {
       const timer = setTimeout(onClose, 2000);
@@ -109,4 +109,7 @@ export const MilestonePopup: React.FC<MilestonePopupProps> = ({ milestone, onClo
       </motion.div>
     </AnimatePresence>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if milestone changes
+  return prevProps.milestone === nextProps.milestone;
+});

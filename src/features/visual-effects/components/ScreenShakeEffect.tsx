@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useJuiceStore } from '../store/juiceStore';
 
-export const ScreenShakeEffect: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ScreenShakeEffect: React.FC<{ children: React.ReactNode }> = React.memo(({ children }) => {
   const screenShake = useJuiceStore((state) => state.screenShake);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
 
@@ -50,4 +50,4 @@ export const ScreenShakeEffect: React.FC<{ children: React.ReactNode }> = ({ chi
       {children}
     </motion.div>
   );
-};
+});

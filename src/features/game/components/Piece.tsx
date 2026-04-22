@@ -9,7 +9,7 @@ interface Props {
   index?: number;
 }
 
-export const Piece: React.FC<Props> = ({ piece, index = 0 }) => {
+export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
   const { setDraggedPiece, draggedPiece, pieces, activeEvent } = useGameStore();
   const ref = useRef<HTMLDivElement>(null);
   const [windowWidth, setWindowWidth] = React.useState(window.innerWidth);
@@ -187,4 +187,7 @@ export const Piece: React.FC<Props> = ({ piece, index = 0 }) => {
       </motion.div>
     </motion.div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison: only re-render if piece reference or index changes
+  return prevProps.piece === nextProps.piece && prevProps.index === nextProps.index;
+});

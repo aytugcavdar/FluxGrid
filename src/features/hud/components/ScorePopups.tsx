@@ -13,7 +13,7 @@ interface ScorePopupsProps {
   popups: ScorePopup[];
 }
 
-export const ScorePopups: React.FC<ScorePopupsProps> = ({ popups }) => {
+export const ScorePopups: React.FC<ScorePopupsProps> = React.memo(({ popups }) => {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   
   const stackedPopups = popups.map((p, index) => ({
@@ -98,4 +98,7 @@ export const ScorePopups: React.FC<ScorePopupsProps> = ({ popups }) => {
       </AnimatePresence>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison: only re-render if popups array reference changes
+  return prevProps.popups === nextProps.popups;
+});

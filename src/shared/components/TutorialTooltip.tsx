@@ -31,8 +31,8 @@ const STEP_CONTENT: Record<number, StepContent> = {
     description: 'Bir satırı veya sütunu tamamen doldurarak temizle ve puan kazan!',
   },
   3: {
-    title: 'Flux Enerjisi 🔋',
-    description: 'Parça yerleştirdikçe Flux dolar. %100 olunca SURGE aktif olur ve 2× puan kazanırsın!',
+    title: 'Kombo Yap 🔥',
+    description: 'Arka arkaya satır temizleyerek kombo yap ve daha fazla puan kazan!',
   },
   4: {
     title: 'Hazırsın! 🎉',

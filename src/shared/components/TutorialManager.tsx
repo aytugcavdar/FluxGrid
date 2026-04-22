@@ -12,7 +12,7 @@ import { TutorialConfetti } from './TutorialConfetti';
 const STEP_SELECTORS: Record<number, string | null> = {
   1: '[data-piece-slot="0"]',     // İlk piece slot
   2: 'canvas',                    // 3D grid canvas
-  3: '[data-testid="flux-meter"]',// Flux bar
+  3: null,                        // No highlight (flux removed)
   4: null,                        // Highlight yok, sadece confetti
 };
 
@@ -20,7 +20,7 @@ const STEP_SELECTORS: Record<number, string | null> = {
 // COMPONENT
 // ============================================================================
 
-export const TutorialManager: React.FC = () => {
+export const TutorialManager: React.FC = React.memo(() => {
   const { isActive, currentStep, nextStep, skip, complete } = useTutorialStore();
   const { lastAction } = useGameStore();
   
@@ -169,4 +169,4 @@ export const TutorialManager: React.FC = () => {
       )}
     </>
   );
-};
+});

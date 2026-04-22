@@ -3,7 +3,7 @@ import * as BABYLON from 'babylonjs';
 import { useGameStore } from '../store/gameStore';
 import { useThemeStore } from '../../../shared/store/themeStore';
 import { useVisualEffectStore } from '../../visual-effects/store/visualEffectStore';
-import { GRID_SIZE, SkillType, CellType, GridState } from '../types';
+import { GRID_SIZE, CellType, GridState } from '../types';
 import { GameMode } from '@shared/types';
 import { getDragYOffset, setCanvasRect } from '../../../utils/responsive/responsive';
 import { playHaptic } from '../../../utils/audio';
@@ -60,10 +60,15 @@ import { ParticlePoolManager } from '../../visual-effects/particles/ParticlePool
 import { ParticleEmitter } from '../../visual-effects/particles/ParticleEmitter';
 import { HapticManager } from '../../../utils/audio/haptics';
 import { getBatterySaverManager } from '../../visual-effects/performance/BatterySaverManager';
+import { LineClearAnimationSystem } from '../../visual-effects/line-clear/LineClearAnimationSystem';
 
-export const Grid: React.FC = () => {
+interface GridProps {
+    grid: GridState;
+}
+
+const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { grid, draggedPiece, placePiece, canPlacePiece, activeSkill, setDraggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, totalMovesPlayed, perfectClearDetected } = useGameStore();
+    const { draggedPiece, placePiece, canPlacePiece, setDraggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, totalMovesPlayed, perfectClearDetected } = useGameStore();
     const { getThemeColors } = useThemeStore();
 
     // Platform detection - calculate once at initialization
@@ -76,6 +81,9 @@ export const Grid: React.FC = () => {
     
     // Animation coordinator ref
     const animationCoordinatorRef = useRef<AnimationCoordinator | null>(null);
+    
+    // Line clear animation system ref
+    const lineClearSystemRef = useRef<LineClearAnimationSystem | null>(null);
 
     // Task 9.1: Integrate useFPSLimiter hook
     const { state: fpsState } = useFPSLimiter(engineRef.current, true);
@@ -135,8 +143,115 @@ export const Grid: React.FC = () => {
         console.log('[Grid] Android touch CSS injected');
     }, []);
 
-    const stateRef = useRef({ grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected });
-    useEffect(() => { stateRef.current = { grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected }; }, [grid, draggedPiece, activeSkill, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected]);
+    const stateRef = useRef({ grid: gridProp, draggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected });
+    useEffect(() => { stateRef.current = { grid: gridProp, draggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected }; }, [gridProp, draggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected]);
+    
+    // Track previous score to detect game reset
+    const prevScoreRef = useRef(score);
+    
+    // Detect game reset and animate mesh cleanup
+    useEffect(() => {
+        // If score goes from non-zero to zero, game was reset
+        if (prevScoreRef.current > 0 && score === 0 && !isGameOver) {
+            console.log('[Grid] Game reset detected, animating mesh cleanup');
+            
+            // Animate all meshes flying away
+            const meshesToAnimate: Array<{
+                mesh: BABYLON.Mesh;
+                velocity: BABYLON.Vector3;
+                rotationVelocity: BABYLON.Vector3;
+                startTime: number;
+            }> = [];
+            
+            meshMapRef.current.forEach((mesh) => {
+                // Random upward velocity with some horizontal spread
+                const velocity = new BABYLON.Vector3(
+                    (Math.random() - 0.5) * 8,  // Random X velocity
+                    Math.random() * 12 + 8,      // Upward Y velocity (8-20)
+                    (Math.random() - 0.5) * 8    // Random Z velocity
+                );
+                
+                const rotationVelocity = new BABYLON.Vector3(
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.3
+                );
+                
+                meshesToAnimate.push({
+                    mesh,
+                    velocity,
+                    rotationVelocity,
+                    startTime: Date.now()
+                });
+            });
+            
+            // Animate meshes for 1 second then dispose
+            const animationDuration = 1000; // 1 second
+            const gravity = -20; // Gravity acceleration
+            
+            const animateCleanup = () => {
+                const now = Date.now();
+                let allDone = true;
+                
+                meshesToAnimate.forEach(({ mesh, velocity, rotationVelocity, startTime }) => {
+                    const elapsed = (now - startTime) / 1000; // Convert to seconds
+                    
+                    if (elapsed < animationDuration / 1000) {
+                        allDone = false;
+                        
+                        // Apply physics
+                        const deltaTime = 0.016; // ~60 FPS
+                        velocity.y += gravity * deltaTime;
+                        
+                        mesh.position.addInPlace(velocity.clone().scale(deltaTime));
+                        mesh.rotation.addInPlace(rotationVelocity);
+                        
+                        // Fade out
+                        const fadeProgress = elapsed / (animationDuration / 1000);
+                        if (mesh.material) {
+                            (mesh.material as BABYLON.StandardMaterial).alpha = 1 - fadeProgress;
+                        }
+                    }
+                });
+                
+                if (!allDone) {
+                    requestAnimationFrame(animateCleanup);
+                } else {
+                    // Animation complete, dispose all meshes
+                    meshMapRef.current.forEach((mesh) => {
+                        mesh.dispose();
+                    });
+                    meshMapRef.current.clear();
+                    
+                    console.log('[Grid] Animated mesh cleanup complete');
+                }
+            };
+            
+            // Start animation
+            requestAnimationFrame(animateCleanup);
+            
+            // Reset animation states
+            lineClearAnimationRef.current = null;
+            placementAnimationRef.current = null;
+            gameOverAnimationRef.current = null;
+            tierFlashRef.current = null;
+            comboStateRef.current = null;
+            
+            // Clear fragment pool
+            fragmentPoolRef.current.activeFragments.forEach(({ mesh }) => {
+                mesh.isVisible = false;
+            });
+            fragmentPoolRef.current.activeFragments.clear();
+            
+            // Hide ghost meshes
+            ghostMeshesRef.current.forEach(m => { m.isVisible = false; });
+            
+            // Reset last action
+            lastHandledActionRef.current = null;
+        }
+        
+        prevScoreRef.current = score;
+    }, [score, isGameOver]);
 
     const [hoverCoord, setHoverCoord] = useState<{ x: number, y: number } | null>(null);
     const hoverCoordRef = useRef<{ x: number, y: number } | null>(null);
@@ -215,6 +330,11 @@ export const Grid: React.FC = () => {
         color: BABYLON.Color3;
     } | null>(null);
     const prevTierRef = useRef(0);
+    
+    // Task 3.2: Idle detection system refs
+    const renderLoopActiveRef = useRef(true);
+    const lastTouchTimeRef = useRef(Date.now());
+    const idleCheckIntervalRef = useRef<number | null>(null);
 
     useEffect(() => {
         if (!canvasRef.current) return;
@@ -269,8 +389,8 @@ export const Grid: React.FC = () => {
         // Store engine ref for hooks
         engineRef.current = engine;
 
-        // Hardware scaling for better resolution
-        // Use 1.0 for crisp rendering (no downscaling)
+        // Hardware scaling disabled - use full native resolution for best visual quality
+        // Performance is optimized through FPS limiting and idle detection instead
         engine.setHardwareScalingLevel(1.0);
 
         const scene = new BABYLON.Scene(engine);
@@ -571,6 +691,13 @@ export const Grid: React.FC = () => {
             perfectClearCelebration.setReducedMotion(true);
         }
         
+        // Initialize line clear animation system
+        const lineClearSystem = new LineClearAnimationSystem(scene);
+        if (prefersReducedMotion) {
+            lineClearSystem.setReducedMotion(true);
+        }
+        lineClearSystemRef.current = lineClearSystem;
+        
         // Inject animation systems into coordinator
         animationCoordinator.setPlacementImpactSystem(placementImpactSystem);
         animationCoordinator.setComboMilestoneSystem(comboMilestoneSystem);
@@ -688,16 +815,14 @@ export const Grid: React.FC = () => {
         let frameCount = 0; // Frame counter for throttling animations
 
         scene.registerBeforeRender(() => {
-            // Task 9.3: FPS Limiter check - skip frame if too soon
-            if (!fpsLimiterRef.current.shouldRenderFrame()) {
-                return; // Skip this frame
-            }
-
+            // Task 3.1: FPS Limiter check moved to render loop - this callback always runs
+            // The actual frame skipping happens in the render loop (native/web paths)
+            
             const deltaTime = engine.getDeltaTime() / 1000; // Convert to seconds
             time += deltaTime;
             frameCount++;
             const currentTime = Date.now(); // Current timestamp for animations
-            const { grid, draggedPiece, activeSkill, score, combo, lastAction, isGameOver, gameMode: currentGameMode, timeLeft: currentTimeLeft, difficultyTier: currentTier, perfectClearDetected: currentPerfectClear } = stateRef.current;
+            const { grid, draggedPiece, score, combo, lastAction, isGameOver, gameMode: currentGameMode, timeLeft: currentTimeLeft, difficultyTier: currentTier, perfectClearDetected: currentPerfectClear } = stateRef.current;
 
             // ─── Animation Coordinator: Update all animation systems ───
             if (animationCoordinatorRef.current) {
@@ -839,6 +964,46 @@ export const Grid: React.FC = () => {
                             lineClearAnimationRef,
                             (lineCount: number) => triggerCameraShake(lineCount, shakeIntensityRef, prefersReducedMotion)
                         );
+                        
+                        // Trigger enhanced line clear animation system
+                        if (lineClearSystemRef.current) {
+                            // Collect cell positions for cleared lines
+                            const cellPositions: BABYLON.Vector3[] = [];
+                            const clearedLineIndices = [...rows, ...cols];
+                            
+                            // Get positions from cleared cells
+                            rows.forEach(y => {
+                                for (let x = 0; x < GRID_SIZE; x++) {
+                                    const cell = grid[y]?.[x];
+                                    if (cell?.id) {
+                                        const mesh = meshMapRef.current.get(cell.id);
+                                        if (mesh) {
+                                            cellPositions.push(mesh.position.clone());
+                                        }
+                                    }
+                                }
+                            });
+                            
+                            cols.forEach(x => {
+                                for (let y = 0; y < GRID_SIZE; y++) {
+                                    const cell = grid[y]?.[x];
+                                    if (cell?.id) {
+                                        const mesh = meshMapRef.current.get(cell.id);
+                                        if (mesh) {
+                                            cellPositions.push(mesh.position.clone());
+                                        }
+                                    }
+                                }
+                            });
+                            
+                            // Trigger enhanced line clear animation
+                            lineClearSystemRef.current.triggerLineClear({
+                                clearedLines: clearedLineIndices,
+                                cellPositions,
+                                hasColorBonus: lastAction.colorBonus || false,
+                                isPerfectClear: perfectClearDetected || false
+                            });
+                        }
                     }
                     
                     // Trigger combo milestone if applicable
@@ -957,13 +1122,6 @@ export const Grid: React.FC = () => {
                                 (mesh.material as BABYLON.StandardMaterial).emissiveColor =
                                     BABYLON.Color3.FromHexString("#f59e0b").scale(chronoPulse);
                             }
-                            // SHATTER skill: Show pulse on ALL filled cells (sadece skill aktifken)
-                            else if (cell.type === CellType.NORMAL && activeSkill === SkillType.SHATTER && cell.filled) {
-                                // Pulse opacity between 0.15 and 0.25 (daha yavaş)
-                                const pulseAlpha = 0.15 + Math.abs(Math.sin(time * 3)) * 0.10; // Yavaşlatıldı: 5 -> 3
-                                (mesh.material as BABYLON.StandardMaterial).emissiveColor =
-                                    BABYLON.Color3.FromHexString("#ef4444").scale(pulseAlpha);
-                            }
                         }
                     }
                 });
@@ -1031,102 +1189,17 @@ export const Grid: React.FC = () => {
                 });
             }
             
-            // Skill overlay rendering (moved from separate renderLoop)
-            // Hide all skill overlays first
-            skillOverlayMeshesRef.current.forEach(m => m.isVisible = false);
-            
-            if (activeSkill && currentHover) {
-                if (activeSkill === SkillType.SHATTER) {
-                    // Emphasize the hovered cell with stronger overlay
-                    if (currentHover.x >= 0 && currentHover.x < GRID_SIZE && 
-                        currentHover.y >= 0 && currentHover.y < GRID_SIZE &&
-                        grid[currentHover.y][currentHover.x].filled) {
-                        
-                        // Reuse or create overlay
-                        let overlay = skillOverlayMeshesRef.current[0];
-                        if (!overlay) {
-                            overlay = BABYLON.MeshBuilder.CreateBox("shatter-overlay", {
-                                size: CELL_SIZE * 0.95,
-                                height: 0.7
-                            }, scene);
-                            overlay.position.y = 0.1;
-                            
-                            const mat = new BABYLON.StandardMaterial("shatterMat", scene);
-                            mat.emissiveColor = BABYLON.Color3.FromHexString("#ef4444");
-                            overlay.material = mat;
-                            overlay.isPickable = false;
-                            
-                            skillOverlayMeshesRef.current[0] = overlay;
-                        }
-                        
-                        overlay.position = getVectorPos(currentHover.x, currentHover.y);
-                        overlay.position.y = 0.1;
-                        (overlay.material as BABYLON.StandardMaterial).alpha = 0.6; // Stronger emphasis
-                        
-                        // Prominent red border
-                        overlay.enableEdgesRendering();
-                        overlay.edgesWidth = 6;
-                        overlay.edgesColor = new BABYLON.Color4(0.93, 0.27, 0.27, 1.0);
-                        
-                        overlay.isVisible = true;
-                    }
-                } else if (activeSkill === SkillType.BOMB) {
-                    // Highlight 3x3 area with enhanced visibility
-                    let overlayIndex = 0;
-                    for (let dy = -1; dy <= 1; dy++) {
-                        for (let dx = -1; dx <= 1; dx++) {
-                            const x = currentHover.x + dx;
-                            const y = currentHover.y + dy;
-                            
-                            if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE) {
-                                // Reuse or create overlay
-                                let overlay = skillOverlayMeshesRef.current[overlayIndex];
-                                if (!overlay) {
-                                    overlay = BABYLON.MeshBuilder.CreateBox(`bomb-overlay-${overlayIndex}`, {
-                                        size: CELL_SIZE * 0.95,
-                                        height: 0.7
-                                    }, scene);
-                                    overlay.position.y = 0.1;
-                                    
-                                    const mat = new BABYLON.StandardMaterial(`bombMat-${overlayIndex}`, scene);
-                                    overlay.material = mat;
-                                    overlay.isPickable = false;
-                                    
-                                    skillOverlayMeshesRef.current[overlayIndex] = overlay;
-                                }
-                                
-                                overlay.position = getVectorPos(x, y);
-                                overlay.position.y = 0.1;
-                                
-                                const mat = overlay.material as BABYLON.StandardMaterial;
-                                const isCenter = (dx === 0 && dy === 0);
-                                
-                                // Center cell: opacity 0.7, surrounding: 0.3
-                                mat.alpha = isCenter ? 0.7 : 0.3;
-                                mat.emissiveColor = isCenter 
-                                    ? BABYLON.Color3.FromHexString("#f97316")  // Center: darker orange
-                                    : BABYLON.Color3.FromHexString("#fb923c"); // Surrounding: lighter orange
-                                
-                                // Mobil için optimize edilmiş animasyon hızı - throttled
-                                if (shouldUpdateAnimations) {
-                                    const pulse = 0.8 + Math.abs(Math.sin(time * 6)) * 0.15; // Yavaşlatıldı: 12 -> 6, azaltıldı: 0.2 -> 0.15
-                                    mat.emissiveColor = mat.emissiveColor.scale(pulse);
-                                }
-                                
-                                overlay.isVisible = true;
-                                overlayIndex++;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Task 9.3: Update FPS limiter frame time after successful render
-            fpsLimiterRef.current.updateFrameTime();
+            // Render loop continues...
+            // Task 3.1: FPS limiter frame time update moved to render loop
+            // This ensures updateFrameTime() is only called when frame is actually rendered
         });
 
         const handleGlobalPointerMove = (e: PointerEvent) => {
             globalMouseRef.current = { x: e.clientX, y: e.clientY };
+            // Task 3.2: Update last touch time for idle detection
+            if (e.pointerType === 'touch') {
+                lastTouchTimeRef.current = Date.now();
+            }
         };
 
         const handleWindowPointerUp = () => {
@@ -1155,22 +1228,11 @@ export const Grid: React.FC = () => {
         };
 
         const handleCanvasPointerUp = (e: PointerEvent) => {
-            const { activeSkill } = stateRef.current;
-            const hover = hoverCoordRef.current;
-            
-            // Handle skill usage
-            if (activeSkill === SkillType.SHATTER && hover) {
-                if (hover.x >= 0 && hover.x < GRID_SIZE && hover.y >= 0 && hover.y < GRID_SIZE) {
-                    const shatterFn = useGameStore.getState().useShatter;
-                    shatterFn(hover.x, hover.y);
-                }
-            } else if (activeSkill === SkillType.BOMB && hover) {
-                if (hover.x >= 0 && hover.x < GRID_SIZE && hover.y >= 0 && hover.y < GRID_SIZE) {
-                    const bombFn = useGameStore.getState().useBomb;
-                    bombFn(hover.x, hover.y);
-                }
-            }
             // Note: Piece placement is handled by window handler
+            // Task 3.2: Update last touch time for idle detection
+            if (e.pointerType === 'touch') {
+                lastTouchTimeRef.current = Date.now();
+            }
         };
 
         window.addEventListener('pointerup', handleWindowPointerUp);
@@ -1191,6 +1253,8 @@ export const Grid: React.FC = () => {
                 {
                     handler: (event) => {
                         touchStartTime = performance.now();
+                        // Task 3.2: Update last touch time for idle detection
+                        lastTouchTimeRef.current = Date.now();
                     },
                     preventDefault: true,
                     measureResponseTime: true,
@@ -1203,6 +1267,91 @@ export const Grid: React.FC = () => {
             
             console.log('[Grid] Touch event optimization enabled');
         }
+        
+        // Task 3.2: Idle detection helper functions
+        const hasActiveAnimations = (): boolean => {
+            // Check animation refs
+            const hasLineClear = lineClearAnimationRef.current?.active ?? false;
+            const hasPlacement = placementAnimationRef.current?.active ?? false;
+            const hasGameOver = gameOverAnimationRef.current?.active ?? false;
+            const hasTierFlash = tierFlashRef.current?.active ?? false;
+            
+            // Check animation coordinator
+            const hasCoordinatorAnimations = (animationCoordinatorRef.current?.getActiveAnimationCount() ?? 0) > 0;
+            
+            return hasLineClear || hasPlacement || hasGameOver || hasTierFlash || hasCoordinatorAnimations;
+        };
+        
+        const isIdle = (): boolean => {
+            // Check if user is dragging a piece
+            if (stateRef.current.draggedPiece !== null) {
+                return false;
+            }
+            
+            // Check if any animations are active
+            if (hasActiveAnimations()) {
+                return false;
+            }
+            
+            // Check if touch occurred within last 2 seconds
+            const timeSinceLastTouch = Date.now() - lastTouchTimeRef.current;
+            if (timeSinceLastTouch < 2000) {
+                return false;
+            }
+            
+            return true;
+        };
+        
+        const pauseRenderLoop = () => {
+            if (!renderLoopActiveRef.current) {
+                return; // Already paused
+            }
+            
+            console.log('[Grid] Pausing render loop (idle detected)');
+            renderLoopActiveRef.current = false;
+            
+            if (isNativeApp) {
+                // Cancel animation frame for native apps
+                const animationFrameId = (engine as any)._nativeAnimationFrameId;
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    (engine as any)._nativeAnimationFrameId = null;
+                }
+            } else {
+                // Stop render loop for web
+                engine.stopRenderLoop();
+            }
+        };
+        
+        const resumeRenderLoop = () => {
+            if (renderLoopActiveRef.current) {
+                return; // Already running
+            }
+            
+            console.log('[Grid] Resuming render loop (activity detected)');
+            renderLoopActiveRef.current = true;
+            
+            if (isNativeApp) {
+                // Restart animation frame for native apps
+                const renderFrame = () => {
+                    if (fpsLimiterRef.current.shouldRenderFrame()) {
+                        scene.render();
+                        fpsLimiterRef.current.updateFrameTime();
+                    }
+                    (engine as any)._nativeAnimationFrameId = requestAnimationFrame(renderFrame);
+                };
+                
+                (engine as any)._nativeAnimationFrameId = requestAnimationFrame(renderFrame);
+            } else {
+                // Restart render loop for web
+                engine.runRenderLoop(() => {
+                    if (fpsLimiterRef.current.shouldRenderFrame()) {
+                        scene.render();
+                        fpsLimiterRef.current.updateFrameTime();
+                    }
+                });
+            }
+        };
 
         // Start render loop with proper frame rate control
         if (isNativeApp) {
@@ -1211,7 +1360,11 @@ export const Grid: React.FC = () => {
             let animationFrameId: number;
             
             const renderFrame = () => {
-                scene.render();
+                // Task 3.1: Check FPS limiter before rendering
+                if (fpsLimiterRef.current.shouldRenderFrame()) {
+                    scene.render();
+                    fpsLimiterRef.current.updateFrameTime();
+                }
                 animationFrameId = requestAnimationFrame(renderFrame);
             };
             
@@ -1234,7 +1387,11 @@ export const Grid: React.FC = () => {
                 // Only restart if not already running
                 if (!(engine as any)._nativeAnimationFrameId) {
                     const renderFrame = () => {
-                        scene.render();
+                        // Task 3.1: Check FPS limiter before rendering
+                        if (fpsLimiterRef.current.shouldRenderFrame()) {
+                            scene.render();
+                            fpsLimiterRef.current.updateFrameTime();
+                        }
                         animationFrameId = requestAnimationFrame(renderFrame);
                     };
                     
@@ -1251,10 +1408,24 @@ export const Grid: React.FC = () => {
             (engine as any)._resumeListener = handleResume;
         } else {
             // Web: Use default render loop
+            // Task 3.1: Wrap scene.render() with FPS limiter check
             engine.runRenderLoop(() => {
-                scene.render();
+                if (fpsLimiterRef.current.shouldRenderFrame()) {
+                    scene.render();
+                    fpsLimiterRef.current.updateFrameTime();
+                }
             });
         }
+        
+        // Task 3.2: Start idle detection interval
+        idleCheckIntervalRef.current = window.setInterval(() => {
+            if (isIdle()) {
+                pauseRenderLoop();
+            } else if (!renderLoopActiveRef.current) {
+                // Resume if not idle and render loop is paused
+                resumeRenderLoop();
+            }
+        }, 1000); // Check every second
 
         // Background pause is now handled by useBackgroundPause hook
         // No need for manual initialization
@@ -1318,6 +1489,12 @@ export const Grid: React.FC = () => {
         return () => {
             unsubscribeTheme();
             
+            // Task 3.2: Clear idle detection interval
+            if (idleCheckIntervalRef.current !== null) {
+                clearInterval(idleCheckIntervalRef.current);
+                idleCheckIntervalRef.current = null;
+            }
+            
             // Background pause cleanup is now handled by useBackgroundPause hook
             
             // Cancel native animation frame if active
@@ -1367,6 +1544,12 @@ export const Grid: React.FC = () => {
             if (animationCoordinatorRef.current) {
                 animationCoordinatorRef.current.dispose();
                 animationCoordinatorRef.current = null;
+            }
+            
+            // Dispose line clear animation system
+            if (lineClearSystemRef.current) {
+                lineClearSystemRef.current.dispose();
+                lineClearSystemRef.current = null;
             }
             
             // Task 24.7: Dispose battery saver manager
@@ -1430,27 +1613,8 @@ export const Grid: React.FC = () => {
     }, [isSurgeActive]);
 
     // ESC key listener for skill cancellation
-    useEffect(() => {
-        const handleEscapeKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && stateRef.current.activeSkill) {
-                const { activateSkill, activeSkill: currentSkill } = useGameStore.getState();
-                if (currentSkill) {
-                    activateSkill(currentSkill); // Toggle off
-                }
-            }
-        };
-        
-        document.addEventListener('keydown', handleEscapeKey);
-        return () => document.removeEventListener('keydown', handleEscapeKey);
-    }, []);
-
     return (
-        <div className={clsx(
-            "relative w-full h-full overflow-hidden transition-all duration-300",
-            activeSkill === SkillType.SHATTER ? "ring-2 ring-rose-500/30" :
-                activeSkill === SkillType.BOMB ? "ring-2 ring-orange-500/30" :
-                    ""
-        )}>
+        <div className="relative w-full h-full overflow-hidden">
             <canvas
                 ref={canvasRef}
                 data-grid-container
@@ -1462,3 +1626,12 @@ export const Grid: React.FC = () => {
         </div>
     );
 };
+
+// Task 1.1: Wrap Grid component with React.memo and custom comparison
+// Requirements: 1.1, 1.2, 5.1, 5.2, 5.3
+// Custom comparison function for grid prop (reference equality)
+export const Grid = React.memo(GridComponent, (prevProps, nextProps) => {
+    // Return true if props are equal (should NOT re-render)
+    // Return false if props are different (should re-render)
+    return prevProps.grid === nextProps.grid;
+});

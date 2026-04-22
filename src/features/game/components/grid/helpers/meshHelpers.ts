@@ -140,6 +140,129 @@ export function createBlockMesh(
     box.position.y = 12;
     return box;
 
+  } else if (type === CellType.LIGHTNING) {
+    // LIGHTNING Block: Gold/yellow electric appearance
+    const box = BABYLON.MeshBuilder.CreateBox(id, { size: CELL_SIZE * 0.88, height: 0.68 }, scene);
+    mat.diffuseColor = BABYLON.Color3.FromHexString("#fbbf24");
+    mat.emissiveColor = BABYLON.Color3.FromHexString("#f59e0b");
+    mat.specularColor = BABYLON.Color3.FromHexString("#fcd34d");
+    mat.specularPower = 32;
+    mat.alpha = 1.0;
+    box.material = mat;
+
+    // Bright golden edges
+    box.enableEdgesRendering();
+    box.edgesWidth = 3.0;
+    box.edgesColor = new BABYLON.Color4(0.99, 0.83, 0.30, 1.0);
+
+    // Lightning bolt marker on top (zigzag shape using boxes)
+    const markerSize = CELL_SIZE * 0.3;
+    const marker = BABYLON.MeshBuilder.CreateBox(`${id}-lightning`, { 
+      width: markerSize * 0.4, 
+      height: 0.06, 
+      depth: markerSize 
+    }, scene);
+    marker.position.y = 0.37;
+    marker.rotation.y = Math.PI / 4; // 45 degree rotation for visual interest
+    const mMat = new BABYLON.StandardMaterial(`${id}-lightningMat`, scene);
+    mMat.emissiveColor = BABYLON.Color3.FromHexString("#fef3c7");
+    mMat.disableLighting = true;
+    mMat.alpha = 0.95;
+    marker.material = mMat;
+    marker.parent = box;
+    marker.isPickable = false;
+
+    box.isPickable = false;
+    box.position.y = 12;
+    return box;
+
+  } else if (type === CellType.TARGET) {
+    // TARGET Block: Orange target appearance
+    const box = BABYLON.MeshBuilder.CreateBox(id, { size: CELL_SIZE * 0.88, height: 0.68 }, scene);
+    mat.diffuseColor = BABYLON.Color3.FromHexString("#f97316");
+    mat.emissiveColor = BABYLON.Color3.FromHexString("#ea580c");
+    mat.specularColor = BABYLON.Color3.FromHexString("#fb923c");
+    mat.specularPower = 32;
+    mat.alpha = 1.0;
+    box.material = mat;
+
+    // Bright orange edges
+    box.enableEdgesRendering();
+    box.edgesWidth = 3.0;
+    box.edgesColor = new BABYLON.Color4(0.98, 0.57, 0.24, 1.0);
+
+    // Target marker on top (concentric circles using torus)
+    const markerSize = CELL_SIZE * 0.25;
+    const outerRing = BABYLON.MeshBuilder.CreateTorus(`${id}-target-outer`, {
+      diameter: markerSize,
+      thickness: 0.03,
+      tessellation: 16
+    }, scene);
+    outerRing.position.y = 0.37;
+    outerRing.rotation.x = Math.PI / 2; // Lay flat
+    const ringMat = new BABYLON.StandardMaterial(`${id}-targetMat`, scene);
+    ringMat.emissiveColor = BABYLON.Color3.FromHexString("#fed7aa");
+    ringMat.disableLighting = true;
+    ringMat.alpha = 0.95;
+    outerRing.material = ringMat;
+    outerRing.parent = box;
+    outerRing.isPickable = false;
+
+    // Inner circle
+    const innerCircle = BABYLON.MeshBuilder.CreateCylinder(`${id}-target-center`, {
+      diameter: markerSize * 0.4,
+      height: 0.04,
+      tessellation: 16
+    }, scene);
+    innerCircle.position.y = 0.37;
+    const centerMat = new BABYLON.StandardMaterial(`${id}-targetCenterMat`, scene);
+    centerMat.emissiveColor = BABYLON.Color3.FromHexString("#fed7aa");
+    centerMat.disableLighting = true;
+    centerMat.alpha = 0.95;
+    innerCircle.material = centerMat;
+    innerCircle.parent = box;
+    innerCircle.isPickable = false;
+
+    box.isPickable = false;
+    box.position.y = 12;
+    return box;
+
+  } else if (type === CellType.DIAMOND) {
+    // DIAMOND Block: Fuchsia/magenta diamond appearance
+    const box = BABYLON.MeshBuilder.CreateBox(id, { size: CELL_SIZE * 0.88, height: 0.68 }, scene);
+    mat.diffuseColor = BABYLON.Color3.FromHexString("#d946ef");
+    mat.emissiveColor = BABYLON.Color3.FromHexString("#c026d3");
+    mat.specularColor = BABYLON.Color3.FromHexString("#e879f9");
+    mat.specularPower = 32;
+    mat.alpha = 1.0;
+    box.material = mat;
+
+    // Bright fuchsia edges
+    box.enableEdgesRendering();
+    box.edgesWidth = 3.0;
+    box.edgesColor = new BABYLON.Color4(0.91, 0.47, 0.98, 1.0);
+
+    // Diamond marker on top (rotated box to create diamond shape)
+    const markerSize = CELL_SIZE * 0.28;
+    const marker = BABYLON.MeshBuilder.CreateBox(`${id}-diamond`, { 
+      width: markerSize, 
+      height: 0.06, 
+      depth: markerSize 
+    }, scene);
+    marker.position.y = 0.37;
+    marker.rotation.y = Math.PI / 4; // 45 degree rotation to create diamond shape
+    const mMat = new BABYLON.StandardMaterial(`${id}-diamondMat`, scene);
+    mMat.emissiveColor = BABYLON.Color3.FromHexString("#f5d0fe");
+    mMat.disableLighting = true;
+    mMat.alpha = 0.95;
+    marker.material = mMat;
+    marker.parent = box;
+    marker.isPickable = false;
+
+    box.isPickable = false;
+    box.position.y = 12;
+    return box;
+
   } else {
     // NORMAL Block
     const box = BABYLON.MeshBuilder.CreateBox(id, { size: CELL_SIZE * 0.92, height: 0.6 }, scene);

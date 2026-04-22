@@ -20,7 +20,7 @@ interface TierProgressBarProps {
  * @remarks
  * **Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5**
  */
-export const TierProgressBar: React.FC<TierProgressBarProps> = ({ tier, score }) => {
+export const TierProgressBar: React.FC<TierProgressBarProps> = React.memo(({ tier, score }) => {
   const progress = getTierProgress(score, tier);
   const isMaxTier = tier >= 6;
   
@@ -87,4 +87,7 @@ export const TierProgressBar: React.FC<TierProgressBarProps> = ({ tier, score })
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if tier or score changes
+  return prevProps.tier === nextProps.tier && prevProps.score === nextProps.score;
+});

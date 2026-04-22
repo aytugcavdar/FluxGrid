@@ -2,8 +2,10 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../../game/store/gameStore';
 import { useJuiceStore } from '../store/juiceStore';
+import { useCleanup } from '@shared/hooks/useCleanup';
 
-export const PlacementImpactEffect: React.FC = () => {
+export const PlacementImpactEffect: React.FC = React.memo(() => {
+  const cleanup = useCleanup();
   const lastAction = useGameStore((state) => state.lastAction);
   const [impacts, setImpacts] = React.useState<Array<{
     id: number;
@@ -27,12 +29,13 @@ export const PlacementImpactEffect: React.FC = () => {
         useJuiceStore.getState().triggerScreenShake(shakeIntensity, shakeDuration);
         
         // Remove after animation
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           setImpacts(prev => prev.filter(i => i.id !== id));
         }, 800);
+        cleanup.trackTimeout(timeoutId);
       }
     }
-  }, [lastAction]);
+  }, [lastAction, cleanup]);
 
   return (
     <div className="fixed inset-0 pointer-events-none z-45">
@@ -159,4 +162,4 @@ export const PlacementImpactEffect: React.FC = () => {
       </AnimatePresence>
     </div>
   );
-};
+});

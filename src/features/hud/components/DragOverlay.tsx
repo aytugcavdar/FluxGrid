@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useGameStore } from '../../game/store/gameStore';
 import { getDragYOffset } from '@/src/utils/responsive/responsive';
 
-export const DragOverlay: React.FC = () => {
+export const DragOverlay: React.FC = React.memo(() => {
   const draggedPiece = useGameStore(state => state.draggedPiece);
   const [pos, setPos] = useState({ x: -1000, y: -1000 });
 
@@ -114,4 +114,4 @@ export const DragOverlay: React.FC = () => {
       </motion.div>
     </div>
   );
-};
+});

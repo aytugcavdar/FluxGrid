@@ -3,7 +3,7 @@ import { PerformanceMonitor } from '../utils/performanceMonitor';
 
 export interface VisualEffect {
   id: string;
-  type: 'explosion' | 'pulse' | 'flash' | 'glow';
+  type: 'explosion' | 'pulse' | 'flash' | 'glow' | 'lightning-line' | 'particle-burst' | 'circle-expand' | 'area-clear' | 'glow-pulse' | 'sparkle-burst' | 'score-popup';
   timestamp: number;
   duration: number;
   target?: string; // DOM element ID or grid coordinate
@@ -71,6 +71,11 @@ export const useVisualEffectStore = create<VisualEffectStore>((set, get) => {
     performanceMonitor.setActiveEffectCount(get().activeEffects.length);
   });
   
+  // Start automatic cleanup of completed effects
+  setInterval(() => {
+    get().clearCompletedEffects();
+  }, 1000); // Clean up every second
+  
   return {
     // Initial state
     activeEffects: [],
@@ -117,11 +122,26 @@ export const useVisualEffectStore = create<VisualEffectStore>((set, get) => {
     
     clearCompletedEffects: () => {
       const now = Date.now();
-      set((state) => ({
-        activeEffects: state.activeEffects.filter(
-          (effect) => now - effect.timestamp < effect.duration
-        ),
-      }));
+      set((state) => {
+        // Get completed effects for disposal
+        const completedEffects = state.activeEffects.filter(
+          (effect) => now - effect.timestamp >= effect.duration
+        );
+        
+        // Dispose Babylon.js resources for completed effects
+        completedEffects.forEach((effect) => {
+          // Dispatch disposal event for Babylon.js cleanup
+          window.dispatchEvent(new CustomEvent('dispose-effect', {
+            detail: { effectId: effect.id }
+          }));
+        });
+        
+        return {
+          activeEffects: state.activeEffects.filter(
+            (effect) => now - effect.timestamp < effect.duration
+          ),
+        };
+      });
     },
     
     updatePerformanceMode: (fps) => {

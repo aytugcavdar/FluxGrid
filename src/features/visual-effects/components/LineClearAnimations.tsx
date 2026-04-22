@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useJuiceStore } from '../store/juiceStore';
+import { useCleanup } from '@shared/hooks/useCleanup';
 
-export const LineClearAnimations: React.FC = () => {
+export const LineClearAnimations: React.FC = React.memo(() => {
+  const cleanup = useCleanup();
   const lineClearAnimations = useJuiceStore((state) => state.lineClearAnimations);
   const [gridBounds, setGridBounds] = useState<DOMRect | null>(null);
 
@@ -23,15 +25,15 @@ export const LineClearAnimations: React.FC = () => {
     updateGridBounds();
     
     // Update on resize
-    window.addEventListener('resize', updateGridBounds);
+    const handleResize = () => updateGridBounds();
+    window.addEventListener('resize', handleResize);
+    cleanup.trackListener(window, 'resize', handleResize);
     
     // Also update when animations change (grid might have moved)
     if (lineClearAnimations.length > 0) {
       updateGridBounds();
     }
-    
-    return () => window.removeEventListener('resize', updateGridBounds);
-  }, [lineClearAnimations.length]);
+  }, [lineClearAnimations.length, cleanup]);
 
   if (!gridBounds) {
     console.warn('[LineClearAnimations] No grid bounds available');
@@ -241,4 +243,4 @@ export const LineClearAnimations: React.FC = () => {
       </AnimatePresence>
     </div>
   );
-};
+});

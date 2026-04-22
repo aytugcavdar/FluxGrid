@@ -8,7 +8,7 @@ interface Props {
   blockSize: number;
 }
 
-export const GhostPreviewPulse: React.FC<Props> = ({ isValid, x, y, blockSize }) => {
+export const GhostPreviewPulse: React.FC<Props> = React.memo(({ isValid, x, y, blockSize }) => {
   return (
     <motion.div
       className="absolute pointer-events-none rounded-md"
@@ -39,4 +39,10 @@ export const GhostPreviewPulse: React.FC<Props> = ({ isValid, x, y, blockSize })
       }}
     />
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if props change
+  return prevProps.isValid === nextProps.isValid && 
+         prevProps.x === nextProps.x && 
+         prevProps.y === nextProps.y && 
+         prevProps.blockSize === nextProps.blockSize;
+});

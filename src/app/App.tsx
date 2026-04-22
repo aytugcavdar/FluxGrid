@@ -5,6 +5,7 @@ import { useUnifiedNavigationStore, type AppScreen } from '../shared/store/unifi
 import { useSettingsStore } from '../shared/store/settingsStore';
 import { useThemeStore } from '../shared/store/themeStore';
 import { useGameStore } from '../features/game/store/gameStore';
+import { useStreakStore } from '../shared/store/streakStore';
 import { HomeScreen } from './HomeScreen';
 import { StatisticsScreen } from './StatisticsScreen';
 import { SettingsScreen } from './SettingsScreen';
@@ -25,6 +26,7 @@ export const App: React.FC = () => {
   const { loadSettings, language } = useSettingsStore();
   const { getThemeColors } = useThemeStore();
   const { setGameMode, achievements: rawAchievements, unlockedAchievementId } = useGameStore();
+  const { initialize: initializeStreak, currentStreak } = useStreakStore();
   const colors = getThemeColors();
   
   // Ensure achievements is always an array
@@ -36,6 +38,9 @@ export const App: React.FC = () => {
   // Load settings and sync language on mount
   useEffect(() => {
     loadSettings();
+    
+    // Initialize streak store
+    initializeStreak();
     
     // Request notification permission on first launch (native only)
     import('../utils/native/notificationHelper').then(({ requestNotificationPermission }) => {
@@ -51,13 +56,12 @@ export const App: React.FC = () => {
     // Sync existing data to widgets on app start
     import('../utils/native/widgetHelper').then(({ syncAllWidgetData }) => {
       const gameState = useGameStore.getState();
-      // Get daily challenge streak from localStorage (not in-game streak)
-      const dailyStreak = parseInt(localStorage.getItem('flux_daily_streak') || '0');
-      syncAllWidgetData(gameState.highScores, dailyStreak);
+      // Use currentStreak from streakStore instead of localStorage
+      syncAllWidgetData(gameState.highScores, currentStreak);
     }).catch(error => {
       console.error('[App] Failed to sync widget data:', error);
     });
-  }, [loadSettings]);
+  }, [loadSettings, initializeStreak, currentStreak]);
   
   // Sync language with i18n
   useEffect(() => {

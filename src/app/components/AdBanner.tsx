@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useTutorialStore } from '@shared/store/tutorialStore';
+import { useTutorialStore } from '../../features/tutorial/store/tutorialStore';
 import { useGameStore } from '@features/game/store/gameStore';
 import { AdManager } from '@/src/utils/managers/adManager';
 
@@ -7,7 +7,7 @@ export interface AdBannerProps {
   position: 'bottom';
 }
 
-export const AdBanner: React.FC<AdBannerProps> = () => {
+export const AdBanner: React.FC<AdBannerProps> = React.memo(() => {
   const isTutorialActive = useTutorialStore(state => state.isActive);
   const isGameOver = useGameStore(state => state.isGameOver);
 
@@ -84,4 +84,4 @@ export const AdBanner: React.FC<AdBannerProps> = () => {
       }}
     />
   );
-};
+});

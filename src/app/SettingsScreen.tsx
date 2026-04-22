@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../shared/store/settingsStore';
 import { useThemeStore, ThemeType } from '../shared/store/themeStore';
 import { useGameStore } from '../features/game/store/gameStore';
-import { useTutorialStore } from '../shared/store/tutorialStore';
+import { useTutorialStore } from '../features/tutorial/store/tutorialStore';
 import { usePerformanceStore } from '../features/game/store/performanceStore';
 import { useVisualEffectStore } from '../features/visual-effects/store/visualEffectStore';
+import { useJuiceStore } from '../features/visual-effects/store/juiceStore';
 import { GameMode } from '@shared/types';
 import { ToggleSwitch, SectionHeader } from '../shared/components';
 import { isAndroid } from '../utils/platform/platform';
@@ -41,6 +42,7 @@ export const SettingsScreen: React.FC = () => {
   const { reset: resetTutorial } = useTutorialStore();
   const { debugMode, setDebugMode, exportMetrics, metrics } = usePerformanceStore();
   const { prefersReducedMotion, setReducedMotion } = useVisualEffectStore();
+  const { performanceMode, setPerformanceMode } = useJuiceStore();
   const colors = getThemeColors();
   const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'success' | 'error'>('idle');
   const [fpsLimit, setFpsLimit] = useState<30 | 60 | 'auto'>('auto');
@@ -75,6 +77,14 @@ export const SettingsScreen: React.FC = () => {
       setFpsLimit(parseInt(savedFPS) as 30 | 60);
     } else {
       setFpsLimit('auto');
+    }
+  }, []);
+
+  // Sync performance mode between stores on mount
+  useEffect(() => {
+    // Sync juiceStore's performanceMode to settingsStore on mount
+    if (performanceMode !== performanceModeEnabled) {
+      setPerformanceModeEnabled(performanceMode);
     }
   }, []);
 
@@ -436,8 +446,11 @@ export const SettingsScreen: React.FC = () => {
               <ToggleSwitch
                 label={t('settingsScreen.performanceMode')}
                 description={t('settingsScreen.performanceModeDesc')}
-                value={performanceModeEnabled}
-                onChange={setPerformanceModeEnabled}
+                value={performanceMode}
+                onChange={(enabled) => {
+                  setPerformanceMode(enabled);
+                  setPerformanceModeEnabled(enabled);
+                }}
               />
               
               <ToggleSwitch

@@ -6,7 +6,7 @@ interface ComboMilestoneProps {
   show: boolean;
 }
 
-export const ComboMilestone: React.FC<ComboMilestoneProps> = ({ combo, show }) => {
+export const ComboMilestone: React.FC<ComboMilestoneProps> = React.memo(({ combo, show }) => {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   
   // Only show for milestones: 5, 10, 15, 20
@@ -59,4 +59,7 @@ export const ComboMilestone: React.FC<ComboMilestoneProps> = ({ combo, show }) =
       </motion.div>
     </motion.div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if combo or show changes
+  return prevProps.combo === nextProps.combo && prevProps.show === nextProps.show;
+});

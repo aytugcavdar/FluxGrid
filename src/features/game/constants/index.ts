@@ -32,21 +32,12 @@ export const SHAPES: PieceShape[] = [
   { id: 'corner', shape: [[1, 1], [1, 0]], color: COLORS[5] },
 ];
 
-export const FLUX_COST = {
-  REROLL: 20,
-  SHATTER: 40,
-  BOMB: 75,
-  ROTATE: 15,
-  SWAP: 25,
-  FREEZE: 50,
-  MAGNET: 60,
-  UNDO: 30,
-};
+// FLUX_COST removed - flux system deprecated
 
 // Tier progression constants (rebalanced for smoother curve)
 export const TIER_THRESHOLDS = [0, 5000, 12000, 25000, 45000, 75000, 120000] as const;
 export const TIER_SCORE_MULTIPLIERS = [1.0, 1.15, 1.35, 1.6, 2.0, 2.5, 3.0] as const;
-export const TIER_FLUX_MULTIPLIERS = [1.0, 1.1, 1.2, 1.3, 1.5, 1.7, 2.0] as const;
+// TIER_FLUX_MULTIPLIERS removed - flux system deprecated
 
 // Rescue mechanism thresholds (tier-based)
 export const RESCUE_DENSITY_THRESHOLDS = {
@@ -87,49 +78,7 @@ export const EVENT_SCORE_MULTIPLIERS = {
   QUAKE: 1.3,
 } as const;
 
-// Tier bazlı mini-event intervalleri
-export const MINI_EVENT_INTERVALS = {
-  // Tier 0-2
-  TIER_0_2: {
-    FLUX_SURGE: 50,
-    SCORE_RUSH: 100,
-    CLEAR_BONUS: 150,
-    COMBO_SHIELD: 200,
-    PIECE_BLESSING: 250,
-  },
-  // Tier 3-4
-  TIER_3_4: {
-    FLUX_SURGE: 40,
-    SCORE_RUSH: 80,
-    CLEAR_BONUS: 120,
-    COMBO_SHIELD: 160,
-    PIECE_BLESSING: 200,
-  },
-  // Tier 5-6
-  TIER_5_6: {
-    FLUX_SURGE: 30,
-    SCORE_RUSH: 60,
-    CLEAR_BONUS: 90,
-    COMBO_SHIELD: 120,
-    PIECE_BLESSING: 150,
-  },
-} as const;
-
-// Mini-event multiplier'lar (değişmedi)
-export const MINI_EVENT_MULTIPLIERS = {
-  FLUX_SURGE: 2.0,
-  SCORE_RUSH: 1.5,
-  CLEAR_BONUS: 3.0,
-} as const;
-
-// Mini-event süreleri
-export const MINI_EVENT_DURATIONS = {
-  FLUX_SURGE: 10,
-  SCORE_RUSH: 10,
-  CLEAR_BONUS: 1,      // Single-use
-  COMBO_SHIELD: 1,     // Single-use
-  PIECE_BLESSING: 5,   // 5 hamle
-} as const;
+// Mini-event system removed - all constants deprecated
 
 // ICE_STORM spawn count
 export const ICE_STORM_SPAWN_COUNT = 2;
@@ -151,19 +100,13 @@ export const STREAK_MULTIPLIERS = {
   4: 4.0,  // 4x (max)
 } as const;
 
-export const ZEN_PALETTES = [
-  ['#f59e0b', '#3b82f6', '#a78bfa', '#10b981', '#f472b6', '#6366f1'],  // default warm
-  ['#06b6d4', '#0ea5e9', '#38bdf8', '#7dd3fc', '#67e8f9', '#22d3ee'],  // ocean cool
-  ['#e879f9', '#a78bfa', '#818cf8', '#c084fc', '#f472b6', '#e879f9'],  // neon purple
-  ['#34d399', '#6ee7b7', '#a7f3d0', '#10b981', '#059669', '#047857'],  // forest green
-];
+// ZEN_PALETTES removed - ZEN mode deprecated
 
 export const POINTS = {
   BLOCK_PLACED: 15,
   LINE_CLEARED: 150,
   COMBO_MULTIPLIER: 75,
   COLOR_BONUS_MULTIPLIER: 1.5,
-  SURGE_MULTIPLIER: 2.0,
   BLITZ_TIME_BONUS: 100,
 };
 
@@ -188,6 +131,43 @@ export const CHRONO_BLOCK = {
   type: 'CHRONO' as const,
   bonusSeconds: 5,
 };
+
+// Special Block Configurations
+export const SPECIAL_BLOCKS = {
+  LIGHTNING: {
+    color: '#fbbf24',        // Gold/Yellow
+    icon: '⚡',               // Lightning bolt
+    glowColor: '#f59e0b',    // Amber glow
+    type: 'LIGHTNING' as const,
+    spawnRate: 0.05,         // 5%
+  },
+  TARGET: {
+    color: '#f97316',        // Orange
+    icon: '🎯',              // Target
+    glowColor: '#ea580c',    // Deep orange glow
+    type: 'TARGET' as const,
+    spawnRate: 0.10,         // 10%
+    clearRadius: 1,          // 3x3 area (radius 1)
+  },
+  DIAMOND: {
+    color: '#d946ef',        // Fuchsia/Pink
+    icon: '💎',              // Diamond
+    glowColor: '#c026d3',    // Purple glow
+    type: 'DIAMOND' as const,
+    spawnRate: 0.10,         // 10%
+    scoreMultiplier: 2.0,    // 2x score
+  },
+} as const;
+
+// Updated spawn rates (total 40%)
+export const SPAWN_RATES = {
+  NORMAL: 0.60,    // 60%
+  ICE: 0.07,       // 7%
+  BOMB: 0.08,      // 8%
+  LIGHTNING: 0.05, // 5%
+  TARGET: 0.10,    // 10%
+  DIAMOND: 0.10,   // 10%
+} as const;
 
 // Achievements
 import type { Achievement } from '../types';

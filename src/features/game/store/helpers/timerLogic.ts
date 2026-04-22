@@ -4,7 +4,7 @@ import { safeExecute, ErrorCategory } from '../../../../utils/managers/errorHand
 import { TIMED_MODE } from '../../constants';
 
 /**
- * Timer tick logic for ZEN and TIMED game modes
+ * Timer tick logic for TIMED game mode
  * Also updates combo timer for all modes
  */
 export const tickTimerImpl = (
@@ -34,16 +34,6 @@ export const tickTimerImpl = (
         } else {
           set({ comboTimeLeft: remaining });
         }
-      }
-      
-      // ZEN modda session time'ı artır
-      if (gameMode === GameMode.ZEN) {
-        const newTime = get().zenSessionTime + 1;
-        // Guard: Makul bir üst limit (24 saat = 86400 saniye)
-        if (newTime < 86400) {
-          set({ zenSessionTime: newTime });
-        }
-        return;
       }
       
       // TIMED modda timer'ı azalt (Date.now() bazlı)

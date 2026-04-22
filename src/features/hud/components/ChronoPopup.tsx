@@ -13,7 +13,7 @@ interface ChronoPopupProps {
  * Displays "+Xs" popup when CHRONO block is cleared
  * Fixed positioning at right edge with slide-in and float-up animation
  */
-export const ChronoPopup: React.FC<ChronoPopupProps> = ({
+export const ChronoPopup: React.FC<ChronoPopupProps> = React.memo(({
   id,
   seconds,
   onComplete,
@@ -78,4 +78,8 @@ export const ChronoPopup: React.FC<ChronoPopupProps> = ({
       </span>
     </motion.div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if props change
+  return prevProps.id === nextProps.id && 
+         prevProps.seconds === nextProps.seconds;
+});

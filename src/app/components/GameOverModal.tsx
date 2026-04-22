@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
@@ -46,7 +46,7 @@ const getModeIcon = (mode: GameMode): string => {
   return icons[mode] || '🎮';
 };
 
-export const GameOverModal: React.FC<GameOverModalProps> = ({
+export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
   isGameOver,
   score,
   displayScore,
@@ -75,6 +75,17 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   onCloseIOSInstructions,
 }) => {
   const [visibleStats, setVisibleStats] = useState(0);
+  
+  // Memoize expensive percentage calculations (Requirement 1.5)
+  const scorePercentage = useMemo(() => 
+    currentModeHighScore > 0 ? Math.round((score / currentModeHighScore) * 100) : 0,
+    [score, currentModeHighScore]
+  );
+  
+  const progressPercentage = useMemo(() => 
+    currentModeHighScore > 0 ? Math.min((score / currentModeHighScore) * 100, 100) : 0,
+    [score, currentModeHighScore]
+  );
 
   useEffect(() => {
     if (isGameOver) {
@@ -163,7 +174,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           
           {!isNewRecord && currentModeHighScore > 0 && (
             <div className="mt-2 text-xs text-gray-400">
-              En iyinin %{Math.round((score / currentModeHighScore) * 100)}'i
+              En iyinin %{scorePercentage}'i
             </div>
           )}
         </div>
@@ -348,12 +359,12 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         {!isNewRecord && currentModeHighScore > 0 && score > 0 && (
           <div className="mb-4 p-3 bg-white/5 rounded-lg text-center">
             <div className="text-xs text-gray-400 mb-1">
-              Rekoruna %{Math.round((score / currentModeHighScore) * 100)} yaklaştın
+              Rekoruna %{scorePercentage} yaklaştın
             </div>
             <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${Math.min((score / currentModeHighScore) * 100, 100)}%` }}
+                animate={{ width: `${progressPercentage}%` }}
                 transition={{ duration: 1, ease: 'easeOut' }}
                 className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"
               />
@@ -456,4 +467,4 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
       </motion.div>
     </motion.div>
   );
-};
+});

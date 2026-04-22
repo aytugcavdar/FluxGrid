@@ -1,21 +1,24 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../../game/store/gameStore';
+import { useCleanup } from '@shared/hooks/useCleanup';
 
-export const PerfectClearEffect: React.FC = () => {
+export const PerfectClearEffect: React.FC = React.memo(() => {
+  const cleanup = useCleanup();
   const perfectClearDetected = useGameStore((state) => state.perfectClearDetected);
   const [showEffect, setShowEffect] = React.useState(false);
 
   React.useEffect(() => {
     if (perfectClearDetected) {
       setShowEffect(true);
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         setShowEffect(false);
         // Reset the flag in store
         useGameStore.setState({ perfectClearDetected: false });
       }, 3500);
+      cleanup.trackTimeout(timeoutId);
     }
-  }, [perfectClearDetected]);
+  }, [perfectClearDetected, cleanup]);
 
   return (
     <div className="fixed inset-0 pointer-events-none z-60">
@@ -154,4 +157,4 @@ export const PerfectClearEffect: React.FC = () => {
       </AnimatePresence>
     </div>
   );
-};
+});

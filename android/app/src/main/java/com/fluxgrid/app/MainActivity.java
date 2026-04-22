@@ -69,6 +69,34 @@ public class MainActivity extends BridgeActivity {
             webView.setScrollBarStyle(WebView.SCROLLBARS_OUTSIDE_OVERLAY);
             webView.setScrollbarFadingEnabled(true);
             
+            // Advanced WebView optimizations for Skia rendering
+            // Reduce overdraw and improve GPU performance
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+            
+            // Optimize JavaScript execution
+            settings.setJavaScriptCanOpenWindowsAutomatically(false);
+            
+            // Disable zoom controls (not needed for game)
+            settings.setBuiltInZoomControls(false);
+            settings.setDisplayZoomControls(false);
+            settings.setSupportZoom(false);
+            
+            // Optimize media playback
+            settings.setMediaPlaybackRequiresUserGesture(false);
+            
+            // Enable aggressive resource loading
+            settings.setLoadsImagesAutomatically(true);
+            settings.setBlockNetworkImage(false);
+            settings.setBlockNetworkLoads(false);
+            
+            // Optimize text rendering
+            settings.setTextZoom(100);
+            
+            // Force GPU rasterization for better Skia performance
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                settings.setOffscreenPreRaster(true);
+            }
+            
             // Add JavaScript interface for widget updates and PiP
             webView.addJavascriptInterface(new WidgetBridge(), "FluxGridWidget");
             webView.addJavascriptInterface(new NativeBridge(), "FluxGridNative");

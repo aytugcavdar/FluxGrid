@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
-// Types
-export type RewardType = 'flux' | 'reroll' | 'shatter' | 'bomb';
+// Types (flux removed)
+export type RewardType = 'reroll' | 'shatter' | 'bomb';
 
 export interface RewardDefinition {
   day: number;
@@ -33,13 +33,13 @@ interface DailyRewardStore {
 const STORAGE_KEY = 'flux_daily_reward';
 
 export const WEEKLY_REWARDS: RewardDefinition[] = [
-  { day: 1, type: 'flux', amount: 30, icon: '⚡', label: '30 Flux' },
-  { day: 2, type: 'reroll', amount: 1, icon: '🔄', label: '1 Reroll' },
-  { day: 3, type: 'flux', amount: 50, icon: '⚡', label: '50 Flux' },
-  { day: 4, type: 'shatter', amount: 1, icon: '💎', label: '1 Shatter' },
-  { day: 5, type: 'flux', amount: 75, icon: '⚡', label: '75 Flux' },
-  { day: 6, type: 'bomb', amount: 1, icon: '💣', label: '1 Bomb' },
-  { day: 7, type: 'flux', amount: 150, icon: '⚡', label: '150 Flux' },
+  { day: 1, type: 'reroll', amount: 1, icon: '🔄', label: '1 Reroll' },
+  { day: 2, type: 'shatter', amount: 1, icon: '💎', label: '1 Shatter' },
+  { day: 3, type: 'bomb', amount: 1, icon: '💣', label: '1 Bomb' },
+  { day: 4, type: 'reroll', amount: 2, icon: '🔄', label: '2 Reroll' },
+  { day: 5, type: 'shatter', amount: 2, icon: '💎', label: '2 Shatter' },
+  { day: 6, type: 'bomb', amount: 2, icon: '💣', label: '2 Bomb' },
+  { day: 7, type: 'reroll', amount: 3, icon: '🔄', label: '3 Reroll' },
 ];
 
 const DEFAULT_STATE = {
@@ -134,7 +134,7 @@ function computeCurrentReward(currentStreak: number): RewardDefinition {
   return WEEKLY_REWARDS[rewardIndex];
 }
 
-// Apply reward to game store
+// Apply reward to game store (flux removed)
 function applyReward(reward: RewardDefinition): void {
   try {
     // Import gameStore dynamically to avoid circular dependency
@@ -146,10 +146,7 @@ function applyReward(reward: RewardDefinition): void {
         return;
       }
       
-      if (reward.type === 'flux') {
-        const newFlux = Math.min(100, gameStore.flux + reward.amount);
-        gameStore.setState({ flux: newFlux });
-      } else if (reward.type === 'reroll') {
+      if (reward.type === 'reroll') {
         gameStore.setState({ bonusRerolls: gameStore.bonusRerolls + reward.amount });
       } else if (reward.type === 'shatter') {
         gameStore.setState({ bonusShatter: gameStore.bonusShatter + reward.amount });

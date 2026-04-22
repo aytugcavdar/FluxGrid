@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useJuiceStore } from '../store/juiceStore';
 
-export const PlacementFeedbackEffect: React.FC = () => {
+export const PlacementFeedbackEffect: React.FC = React.memo(() => {
   const placementFeedback = useJuiceStore((state) => state.placementFeedback);
 
   return (
@@ -27,4 +27,4 @@ export const PlacementFeedbackEffect: React.FC = () => {
       </AnimatePresence>
     </div>
   );
-};
+});

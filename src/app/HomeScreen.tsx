@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useSettingsStore } from '../shared/store/settingsStore';
 import { useThemeStore } from '../shared/store/themeStore';
 import { useDailyRewardStore } from '../shared/store/dailyRewardStore';
-import { useTutorialStore } from '../shared/store/tutorialStore';
+import { useStreakStore } from '../shared/store/streakStore';
+import { useTutorialStore } from '../features/tutorial/store/tutorialStore';
 import { GameMode } from '@shared/types';
 import { playClick } from '@utils/audio';
 import { DailyRewardModal } from './components/DailyRewardModal';
@@ -33,22 +34,30 @@ export const HomeScreen: React.FC = () => {
     setHasSave(hasSavedGame());
   }, [hasSavedGame]);
   
-  // Check if tutorial should be shown on mount (only once)
+  // Auto-start tutorial for first-time users
   useEffect(() => {
-    const { shouldShow, start } = useTutorialStore.getState();
-    if (shouldShow()) {
-      initGame(GameMode.ENDLESS); // Önce oyunu başlat
-      setTimeout(() => start(), 500); // Sonra tutorial'ı başlat (canvas yüklensin)
+    const tutorialData = localStorage.getItem('flux_tutorial_v2');
+    
+    // If no tutorial data exists, this is a first-time user
+    if (!tutorialData) {
+      console.log('[HomeScreen] First-time user detected - starting tutorial immediately');
+      
+      // Start game immediately (no delay)
+      initGame(GameMode.ENDLESS);
+    } else {
+      console.log('[HomeScreen] Returning user - staying on home screen');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps - only run once on mount
+  }, []); // Only run once on mount
 
   // Get best scores - handle undefined highScores
   const sonsuzBestScore = highScores?.[GameMode.ENDLESS] || 0;
   const timedBestScore = highScores?.[GameMode.TIMED] || 0;
+  
+  // Memoize expensive best score calculation (Requirement 1.5)
+  const overallBestScore = useMemo(() => Math.max(sonsuzBestScore, timedBestScore), [sonsuzBestScore, timedBestScore]);
 
-  // Daily streak from localStorage
-  const dailyStreak = parseInt(localStorage.getItem('flux_daily_streak') || '0');
+  // Daily streak from streakStore (not localStorage directly)
+  const { currentStreak: dailyStreak } = useStreakStore();
 
   return (
     <div
@@ -269,7 +278,7 @@ export const HomeScreen: React.FC = () => {
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
               }}>
-                {Math.max(sonsuzBestScore, timedBestScore).toLocaleString('en-US')}
+                {overallBestScore.toLocaleString('en-US')}
               </div>
             </motion.div>
           </motion.div>

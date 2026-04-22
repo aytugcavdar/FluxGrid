@@ -7,26 +7,67 @@ import { ClearAction } from '../../game/store/helpers/grid';
 export class JuiceTriggers {
   /**
    * Trigger effects when lines are cleared
+   * 
+   * Performance scaling based on combo:
+   * - Combo < 5: All effects (particles, screen shake, glow, line animations)
+   * - Combo 5-9: Minimal effects (line animations only)
+   * - Combo >= 10: No effects (prevents freeze)
    */
   static onLinesCleared(actions: ClearAction[], combo: number): void {
     const { 
+      performanceMode,
       triggerScreenShake, 
-      addLineClearAnimation, 
+      addLineClearAnimation,
       addParticleExplosion,
-      triggerComboGlow 
+      triggerComboGlow
     } = useJuiceStore.getState();
     
-    // Calculate intensity based on combo
-    const intensity = Math.min(combo, 10) / 10;
-    
-    // Screen shake (stronger with higher combo)
-    if (combo >= 2) {
-      const shakeIntensity = 2 + (combo * 0.5);
-      const shakeDuration = 150 + (combo * 20);
-      triggerScreenShake(shakeIntensity, Math.min(shakeDuration, 400));
+    // Skip all effects if performance mode is enabled
+    if (performanceMode) {
+      return;
     }
     
-    // Process each clear action
+    // PERFORMANCE MODE: Disable all effects at combo >= 10
+    if (combo >= 10) {
+      return; // Skip ALL effects at 10x+ combo to prevent freeze
+    }
+    
+    // MINIMAL MODE: Only line animations at combo 5-9
+    if (combo >= 5) {
+      // Only add line clear animations (minimal cost)
+      this.addLineClearAnimations(actions, addLineClearAnimation);
+      return;
+    }
+    
+    // FULL MODE: All effects at combo < 5
+    // 1. Line clear animations (always enabled)
+    this.addLineClearAnimations(actions, addLineClearAnimation);
+    
+    // 2. Particle effects
+    this.addParticleEffects(actions, addParticleExplosion);
+    
+    // 3. Screen shake
+    if (combo >= 2) {
+      const shakeIntensity = Math.min(2 + combo * 0.5, 5);
+      const shakeDuration = 100;
+      triggerScreenShake(shakeIntensity, shakeDuration);
+    }
+    
+    // 4. Combo glow
+    if (combo >= 3) {
+      const glowIntensity = Math.min(combo * 0.2, 1);
+      const glowColor = this.getComboColor(combo);
+      triggerComboGlow(glowIntensity, glowColor);
+    }
+  }
+  
+  /**
+   * Add line clear animations for cleared rows/columns
+   */
+  private static addLineClearAnimations(
+    actions: ClearAction[], 
+    addLineClearAnimation: (animation: any) => void
+  ): void {
     actions.forEach((action) => {
       if (action.type === 'CELL_CLEAR') {
         // Group cells by row/column
@@ -72,36 +113,45 @@ export class JuiceTriggers {
             chainIndex: action.chainIndex,
           });
         });
-        
-        // Add particle explosions for each cleared cell
-        action.cells.forEach((cell) => {
-          // Calculate screen position (approximate)
-          const cellSize = 40; // Approximate cell size
-          const gridOffsetX = window.innerWidth / 2 - (10 * cellSize) / 2;
-          const gridOffsetY = window.innerHeight / 2 - (10 * cellSize) / 2;
-          
-          addParticleExplosion({
-            x: gridOffsetX + cell.x * cellSize + cellSize / 2,
-            y: gridOffsetY + cell.y * cellSize + cellSize / 2,
-            color: cell.color,
-            intensity: intensity,
-          });
-        });
       }
     });
-    
-    // Combo glow effect
-    if (combo >= 3) {
-      const glowColors = [
-        '#3b82f6', // blue
-        '#8b5cf6', // purple
-        '#ec4899', // pink
-        '#f59e0b', // amber
-        '#10b981', // green
-      ];
-      const colorIndex = Math.min(combo - 3, glowColors.length - 1);
-      triggerComboGlow(intensity, glowColors[colorIndex]);
-    }
+  }
+  
+  /**
+   * Add particle explosion effects for cleared cells
+   */
+  private static addParticleEffects(
+    actions: ClearAction[],
+    addParticleExplosion: (explosion: any) => void
+  ): void {
+    actions.forEach((action) => {
+      if (action.type === 'CELL_CLEAR') {
+        // Add particle explosion at the center of cleared cells
+        const cells = action.cells;
+        if (cells.length > 0) {
+          const centerX = cells.reduce((sum, cell) => sum + cell.x, 0) / cells.length;
+          const centerY = cells.reduce((sum, cell) => sum + cell.y, 0) / cells.length;
+          const color = cells[0]?.color || '#ffffff';
+          const intensity = Math.min(cells.length * 0.1, 1);
+          
+          addParticleExplosion({
+            x: centerX,
+            y: centerY,
+            color,
+            intensity,
+          });
+        }
+      }
+    });
+  }
+  
+  /**
+   * Get combo color based on combo level
+   */
+  private static getComboColor(combo: number): string {
+    if (combo >= 4) return '#ff00ff'; // Purple for high combo
+    if (combo >= 3) return '#00ffff'; // Cyan for medium combo
+    return '#ffff00'; // Yellow for low combo
   }
   
   /**
@@ -116,7 +166,13 @@ export class JuiceTriggers {
    * Trigger effects for invalid placement
    */
   static onInvalidPlacement(): void {
-    const { triggerScreenShake, triggerPlacementFeedback } = useJuiceStore.getState();
+    const { performanceMode, triggerScreenShake, triggerPlacementFeedback } = useJuiceStore.getState();
+    
+    // Skip all effects if performance mode is enabled
+    if (performanceMode) {
+      return;
+    }
+    
     triggerScreenShake(3, 100);
     triggerPlacementFeedback('invalid');
     
@@ -130,7 +186,13 @@ export class JuiceTriggers {
    * Trigger effects for valid placement
    */
   static onValidPlacement(): void {
-    const { triggerPlacementFeedback } = useJuiceStore.getState();
+    const { performanceMode, triggerPlacementFeedback } = useJuiceStore.getState();
+    
+    // Skip all effects if performance mode is enabled
+    if (performanceMode) {
+      return;
+    }
+    
     triggerPlacementFeedback('valid');
     
     // Subtle haptic feedback

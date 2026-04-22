@@ -10,7 +10,7 @@ type SetFn = (partial: Partial<GameStore>) => void;
 
 // Tier thresholds and events for Endless mode
 const TIER_THRESHOLDS = [0, 5000, 12000, 25000, 45000, 75000, 120000];
-const TIER_EVENTS = ['ICE_STORM', 'GRAVITY_RUSH', 'QUAKE', 'MIRROR', 'CHAOS', 'VOID'];
+const TIER_EVENTS = ['ICE_STORM', 'QUAKE', 'MIRROR', 'CHAOS', 'VOID'];
 
 // Return type for checkTierEvent
 type TierEventResult = {
@@ -348,7 +348,23 @@ export function tickActiveEvent(
       }
     }
     
-    updates.grid = flippedGrid;
+    // CRITICAL FIX: Process grid after gravity flip to clear full lines!
+    // Without this, full rows/columns don't explode
+    const { grid: processedGrid, totalLinesCleared, chainCount, colorBonus, bombsExploded, iceBroken, diamondMultipliers, actions } = processGrid(flippedGrid);
+    
+    updates.grid = processedGrid;
+    
+    // If lines were cleared, update score and stats
+    if (totalLinesCleared > 0) {
+      // Store clear info for gameStore to handle scoring
+      updates.lastAction = {
+        type: 'CLEAR' as const,
+        lines: totalLinesCleared,
+        chainCount,
+        colorBonus,
+        surgeBonus: false, // Event clears don't use surge
+      };
+    }
   }
   
   if (activeEvent === 'QUAKE') {
@@ -474,9 +490,10 @@ export function tickActiveEvent(
         })
       );
       
-      // processGrid çalıştır — satır temizleme olabilir
-      const { grid: processedMirrorGrid } = processGrid(mirrorGrid);
-      updates.grid = processedMirrorGrid;
+      // BUG FIX: MIRROR event'te processGrid ÇAĞRILMASIN
+      // Bu, double score calculation ve infinite loop'u önler
+      // Grid processing zaten placePiece'de yapılıyor
+      updates.grid = mirrorGrid;
     } else {
       // BUG FIX: Mirror yerleşim bulamazsa ICE_STORM fallback
       // En azından 1 ICE bloğu spawn et
@@ -506,7 +523,7 @@ export function tickActiveEvent(
   if (activeEvent === 'CHAOS') {
     const movesElapsed = EVENT_DURATIONS.CHAOS - eventMovesRemaining;
     if (movesElapsed > 0 && movesElapsed % EVENT_TRIGGER_INTERVALS.CHAOS === 0) {
-      const chaosEvents = ['ICE_STORM', 'GRAVITY_RUSH', 'MIRROR'] as const;
+      const chaosEvents = ['ICE_STORM', 'MIRROR'] as const;
       const randomEvent = chaosEvents[Math.floor(Math.random() * chaosEvents.length)];
       
       // Geçici olarak o event'in single-move efektini çalıştır
@@ -604,8 +621,8 @@ export function tickActiveEvent(
             })
           );
           
-          const { grid: processedMirrorGrid } = processGrid(mirrorGrid);
-          updates.grid = processedMirrorGrid;
+          // BUG FIX: CHAOS içinde MIRROR event'te de processGrid ÇAĞRILMASIN
+          updates.grid = mirrorGrid;
         } else {
           // BUG FIX: Mirror yerleşim bulamazsa ICE_STORM fallback (CHAOS içinde)
           const emptyPositions: {x: number; y: number}[] = [];

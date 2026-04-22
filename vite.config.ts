@@ -2,6 +2,7 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
@@ -21,6 +22,13 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [
         react(),
+        visualizer({
+          filename: './dist/stats.html',
+          open: false, // Don't auto-open in browser
+          gzipSize: true,
+          brotliSize: true,
+          template: 'treemap', // Use treemap visualization
+        }),
         viteStaticCopy({
           targets: [
             {
@@ -83,12 +91,87 @@ export default defineConfig(({ mode }) => {
       build: {
         rollupOptions: {
           output: {
-            manualChunks: {
-              'babylon': ['babylonjs'],
-              'vendor': ['react', 'react-dom', 'framer-motion', 'zustand']
+            manualChunks: (id) => {
+              // React vendor chunk
+              if (id.includes('node_modules/react') || 
+                  id.includes('node_modules/react-dom') || 
+                  id.includes('node_modules/scheduler')) {
+                return 'react-vendor';
+              }
+              
+              // Animation vendor chunk
+              if (id.includes('node_modules/framer-motion')) {
+                return 'animation-vendor';
+              }
+              
+              // State management vendor chunk
+              if (id.includes('node_modules/zustand')) {
+                return 'state-vendor';
+              }
+              
+              // i18n vendor chunk
+              if (id.includes('node_modules/i18next') || 
+                  id.includes('node_modules/react-i18next')) {
+                return 'i18n-vendor';
+              }
+              
+              // Babylon.js vendor chunk (if used)
+              if (id.includes('node_modules/babylonjs')) {
+                return 'babylon-vendor';
+              }
+              
+              // Firebase vendor chunk
+              if (id.includes('node_modules/firebase') || 
+                  id.includes('node_modules/@firebase')) {
+                return 'firebase-vendor';
+              }
+              
+              // Game core chunk (game logic, stores, helpers)
+              if (id.includes('/src/features/game/')) {
+                return 'game-core';
+              }
+              
+              // Visual effects chunk (animations, particles, juice)
+              if (id.includes('/src/features/visual-effects/')) {
+                return 'visual-effects';
+              }
+              
+              // HUD chunk (UI components for game)
+              if (id.includes('/src/features/hud/')) {
+                return 'hud';
+              }
+              
+              // Achievements chunk
+              if (id.includes('/src/features/achievements/')) {
+                return 'achievements';
+              }
+              
+              // Profile chunk
+              if (id.includes('/src/features/profile/')) {
+                return 'profile';
+              }
+              
+              // Other node_modules go to vendor chunk
+              if (id.includes('node_modules')) {
+                return 'vendor';
+              }
             }
           }
-        }
+        },
+        // Increase chunk size warning limit for better optimization
+        chunkSizeWarningLimit: 500, // 500KB limit for main chunks
+        // Enable minification
+        minify: 'terser',
+        terserOptions: {
+          compress: {
+            drop_console: true, // Remove console.log in production
+            drop_debugger: true,
+          },
+        },
+        // Enable compression
+        reportCompressedSize: true,
+        // Asset optimization
+        assetsInlineLimit: 4096, // Inline assets smaller than 4kb
       }
     };
 });

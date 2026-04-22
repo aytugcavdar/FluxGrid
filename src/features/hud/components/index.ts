@@ -7,8 +7,8 @@ export { ComboFlash } from './ComboFlash';
 export { DragOverlay } from './DragOverlay';
 export { ComboBar } from './ComboBar';
 export { ComboRushFlash } from './ComboRushFlash';
-export { MiniEventIndicators } from './MiniEventIndicators';
-export { MultiplierBreakdownDisplay } from './MultiplierBreakdownDisplay';
+// MiniEventIndicators removed - mini-event system deprecated
+// MultiplierBreakdownDisplay removed - mini-event system deprecated
 export { TierDisplay } from './TierDisplay';
 export { ChronoPopup } from './ChronoPopup';
 export { EventStartVisual } from './EventStartVisual';
@@ -16,3 +16,6 @@ export { TierMilestoneNotification } from './TierMilestoneNotification';
 export { TierCelebrationOverlay } from './TierCelebrationOverlay';
 export { ComboMilestone } from './ComboMilestone';
 export { LineCountDisplay } from './LineCountDisplay';
+export { ComboDisplay } from './ComboDisplay';
+export { FloatingScoreText } from './FloatingScoreText';
+export { PerfectClearPopup } from './PerfectClearPopup';

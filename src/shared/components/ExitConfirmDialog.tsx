@@ -8,7 +8,7 @@ interface ExitConfirmDialogProps {
   onCancel: () => void;
 }
 
-export const ExitConfirmDialog: React.FC<ExitConfirmDialogProps> = ({
+export const ExitConfirmDialog: React.FC<ExitConfirmDialogProps> = React.memo(({
   isVisible,
   onConfirm,
   onCancel,
@@ -120,4 +120,4 @@ export const ExitConfirmDialog: React.FC<ExitConfirmDialogProps> = ({
       )}
     </AnimatePresence>
   );
-};
+});

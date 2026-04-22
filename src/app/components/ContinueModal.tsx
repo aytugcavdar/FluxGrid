@@ -11,7 +11,7 @@ export interface ContinueModalProps {
   isLoading?: boolean; // Yeni prop
 }
 
-export const ContinueModal: React.FC<ContinueModalProps> = ({
+export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
   isVisible,
   onContinue,
   onDecline,
@@ -178,4 +178,4 @@ export const ContinueModal: React.FC<ContinueModalProps> = ({
       )}
     </AnimatePresence>
   );
-};
+});

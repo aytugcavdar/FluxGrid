@@ -1,4 +1,4 @@
-import { TIER_THRESHOLDS, TIER_SCORE_MULTIPLIERS, TIER_FLUX_MULTIPLIERS } from '../../constants';
+import { TIER_THRESHOLDS, TIER_SCORE_MULTIPLIERS } from '../../constants';
 
 /**
  * Calculate current tier based on score
@@ -73,41 +73,14 @@ export function getTierScoreMultiplier(tier: number): number {
 }
 
 /**
- * Get tier flux multiplier
+ * Get tier flux multiplier (DEPRECATED - Flux system removed)
  * 
- * Returns the flux gain multiplier for a given tier level. Flux multipliers
- * scale with tier to help players afford abilities at higher difficulties:
- * [1.0, 1.1, 1.2, 1.3, 1.5, 1.7, 2.0]
- * 
+ * @deprecated Flux system has been removed. This function now returns 1.0 for all tiers.
  * @param tier - The tier level (0-6)
- * @returns Flux multiplier for the tier:
- *   - Tier 0: 1.0x (no bonus)
- *   - Tier 1: 1.1x
- *   - Tier 2: 1.2x
- *   - Tier 3: 1.3x
- *   - Tier 4: 1.5x
- *   - Tier 5: 1.7x
- *   - Tier 6: 2.0x
- *   - Invalid tier: 1.0x (safe default)
- * 
- * @example
- * getTierFluxMultiplier(0)  // Returns 1.0
- * getTierFluxMultiplier(4)  // Returns 1.5
- * getTierFluxMultiplier(6)  // Returns 2.0
- * getTierFluxMultiplier(-5) // Returns 1.0 (invalid tier)
- * 
- * @remarks
- * - Invalid tier values (< 0 or >= 7) return 1.0x for graceful degradation
- * - Applied to base flux calculation: (blocks × 2 + lines × 10) × tier_multiplier
- * - Stacks multiplicatively with mini-event flux multipliers (Flux Surge)
- * - Final flux is capped at 100 regardless of multipliers
- * - Only applies in ENDLESS game mode
- * 
- * **Validates: Requirements 4.3**
+ * @returns Always returns 1.0
  */
 export function getTierFluxMultiplier(tier: number): number {
-  if (tier < 0 || tier >= TIER_FLUX_MULTIPLIERS.length) return 1.0;
-  return TIER_FLUX_MULTIPLIERS[tier] ?? 1.0;
+  return 1.0;
 }
 
 /**
