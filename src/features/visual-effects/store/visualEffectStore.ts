@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { PerformanceMonitor } from '../utils/performanceMonitor';
+import { performanceMonitor } from '@core/services/performance/PerformanceMonitor';
 
 export interface VisualEffect {
   id: string;
@@ -45,9 +45,6 @@ export interface VisualEffectStore {
   setPerfectClearActive: (active: boolean) => void;
 }
 
-// Create performance monitor instance
-const performanceMonitor = new PerformanceMonitor();
-
 export const useVisualEffectStore = create<VisualEffectStore>((set, get) => {
   // Initialize prefers-reduced-motion listener
   const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -60,21 +57,25 @@ export const useVisualEffectStore = create<VisualEffectStore>((set, get) => {
   
   mediaQuery.addEventListener('change', handleReducedMotionChange);
   
-  // Start performance monitoring
-  performanceMonitor.startMonitoring((metrics) => {
-    const { fps, activeEffectCount } = metrics;
-    
-    // Update FPS and performance mode
-    get().updatePerformanceMode(fps);
-    
-    // Update active effect count
-    performanceMonitor.setActiveEffectCount(get().activeEffects.length);
-  });
+  // Initialize performance monitor if not already initialized
+  if (!performanceMonitor.isInitialized()) {
+    performanceMonitor.initialize().catch(err => {
+      console.warn('[VisualEffectStore] Failed to initialize performance monitor:', err);
+    });
+  }
   
   // Start automatic cleanup of completed effects
   setInterval(() => {
     get().clearCompletedEffects();
   }, 1000); // Clean up every second
+  
+  // Monitor FPS periodically
+  setInterval(() => {
+    const metrics = performanceMonitor.getMetrics();
+    if (metrics.avgFps > 0) {
+      get().updatePerformanceMode(metrics.avgFps);
+    }
+  }, 2000); // Check every 2 seconds
   
   return {
     // Initial state

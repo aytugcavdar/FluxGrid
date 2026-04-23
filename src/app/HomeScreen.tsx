@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../features/game/store/gameStore';
-import { useSettingsStore } from '../shared/store/settingsStore';
+import { useSettingsStore } from '@core/state/settingsStore';
 import { useThemeStore } from '../shared/store/themeStore';
 import { useDailyRewardStore } from '../shared/store/dailyRewardStore';
 import { useStreakStore } from '../shared/store/streakStore';

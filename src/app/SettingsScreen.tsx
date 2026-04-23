@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSettingsStore } from '../shared/store/settingsStore';
+import { useSettingsStore } from '@core/state/settingsStore';
 import { useThemeStore, ThemeType } from '../shared/store/themeStore';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useTutorialStore } from '../features/tutorial/store/tutorialStore';

@@ -5,7 +5,7 @@ import { StatisticsScreen } from '../StatisticsScreen';
 import { SettingsScreen } from '../SettingsScreen';
 import { useThemeStore } from '../../shared/store/themeStore';
 import { useGameStore } from '../../features/game/store/gameStore';
-import { useSettingsStore } from '../../shared/store/settingsStore';
+import { useSettingsStore } from '@core/state/settingsStore';
 import { GameMode } from '@shared/types';
 
 // Mock i18next

@@ -9,7 +9,7 @@ type GetFn = () => GameStore;
 type SetFn = (partial: Partial<GameStore>) => void;
 
 // Tier thresholds and events for Endless mode
-const TIER_THRESHOLDS = [0, 5000, 12000, 25000, 45000, 75000, 120000];
+const TIER_THRESHOLDS = [0, 5000, 15000, 30000, 55000, 90000, 140000];
 const TIER_EVENTS = ['ICE_STORM', 'QUAKE', 'MIRROR', 'CHAOS', 'VOID'];
 
 // Return type for checkTierEvent

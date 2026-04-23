@@ -39,7 +39,7 @@
 
 import React, { useEffect } from 'react';
 import { TutorialManager } from './TutorialManager';
-import { useTutorialStore } from '../store/tutorialStore';
+import { useTutorialStore } from '@features/tutorial/store/tutorialStore';
 
 // ============================================================================
 // TYPES
@@ -170,7 +170,7 @@ export const Tutorial: React.FC<TutorialProps> = ({
 export default Tutorial;
 
 // Re-export tutorial store for convenience
-export { useTutorialStore } from '../store/tutorialStore';
+export { useTutorialStore } from '@features/tutorial/store/tutorialStore';
 
 /**
  * Tutorial API

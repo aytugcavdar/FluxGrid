@@ -3,21 +3,21 @@ import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useThemeStore } from '../shared/store/themeStore';
 import { GameMode } from '@shared/types';
-import { PerformanceCard, ProgressBar, StatCard, AchievementCard, SectionHeader, PerformanceDNACard, RecentLogsTimeline, TrendAnalysisChart } from '../shared/components';
+import { PerformanceCard, ProgressBar, StatCard, AchievementCard, SectionHeader, RecentLogsTimeline, TrendAnalysisChart } from '../shared/components';
 import { ScoreDistributionChart } from '../shared/components/ScoreDistributionChart';
 import { Achievement } from '../shared/types/ui';
 import { usePerformanceMetrics } from '../shared/hooks/usePerformanceMetrics';
 import { useTrendData } from '../shared/hooks/useTrendData';
 import { TrendPeriod } from '../shared/utils/trendDataAggregation';
 
-type TabType = 'stats' | 'achievements';
+type TabType = 'overview' | 'achievements';
 
 export const StatisticsScreen: React.FC = () => {
   const { highScores, stats, achievements: gameAchievements, gameLogs } = useGameStore();
   const { getThemeColors } = useThemeStore();
   const { t } = useTranslation();
   const colors = getThemeColors();
-  const [activeTab, setActiveTab] = useState<TabType>('stats');
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('daily');
   
   // Get performance metrics
@@ -166,27 +166,27 @@ export const StatisticsScreen: React.FC = () => {
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
         }}
       >
-        <div className="w-full max-w-[448px] mx-auto flex gap-3">
+        <div className="w-full max-w-[448px] mx-auto flex gap-2">
           <button
-            onClick={() => setActiveTab('stats')}
-            className="flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all"
+            onClick={() => setActiveTab('overview')}
+            className="flex-1 py-3 px-3 rounded-xl text-xs font-bold transition-all"
             style={{
-              background: activeTab === 'stats' 
+              background: activeTab === 'overview' 
                 ? 'linear-gradient(135deg, rgba(147, 51, 234, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%)' 
                 : 'rgba(255, 255, 255, 0.03)',
-              color: activeTab === 'stats' ? '#a855f7' : colors.textSecondary,
-              border: activeTab === 'stats' 
+              color: activeTab === 'overview' ? '#a855f7' : colors.textSecondary,
+              border: activeTab === 'overview' 
                 ? '1px solid rgba(168, 85, 247, 0.3)' 
                 : '1px solid rgba(255, 255, 255, 0.08)',
-              boxShadow: activeTab === 'stats' ? '0 4px 16px rgba(168, 85, 247, 0.2)' : 'none',
+              boxShadow: activeTab === 'overview' ? '0 4px 16px rgba(168, 85, 247, 0.2)' : 'none',
             }}
-            aria-pressed={activeTab === 'stats'}
+            aria-pressed={activeTab === 'overview'}
           >
-            📊 {t('stats.title', 'İstatistik')}
+            📊 İstatistik
           </button>
           <button
             onClick={() => setActiveTab('achievements')}
-            className="flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all"
+            className="flex-1 py-3 px-3 rounded-xl text-xs font-bold transition-all"
             style={{
               background: activeTab === 'achievements' 
                 ? 'linear-gradient(135deg, rgba(249, 115, 22, 0.2) 0%, rgba(251, 146, 60, 0.2) 100%)' 
@@ -199,7 +199,7 @@ export const StatisticsScreen: React.FC = () => {
             }}
             aria-pressed={activeTab === 'achievements'}
           >
-            🏆 {t('stats.achievements', 'Başarımlar')}
+            🏆 Başarım
           </button>
         </div>
       </div>
@@ -207,7 +207,168 @@ export const StatisticsScreen: React.FC = () => {
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-4 py-3" style={{ paddingBottom: '76px' }}>
         <div className="w-full max-w-[448px] mx-auto">
-          {activeTab === 'stats' && (
+          {activeTab === 'overview' && (
+            <>
+          {/* TREND ANALİZİ Section */}
+          <div className="mb-6">
+            <SectionHeader title={t('stats.trendAnalysis')} />
+            
+            {/* Period Selector */}
+            <div className="flex gap-2 mb-4">
+              {(['daily', 'weekly', 'monthly'] as TrendPeriod[]).map((period) => (
+                <button
+                  key={period}
+                  onClick={() => setTrendPeriod(period)}
+                  className="flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all"
+                  style={{
+                    background: trendPeriod === period 
+                      ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(147, 51, 234, 0.2) 100%)' 
+                      : 'rgba(255, 255, 255, 0.03)',
+                    color: trendPeriod === period ? '#a855f7' : colors.textSecondary,
+                    border: trendPeriod === period 
+                      ? '1px solid rgba(168, 85, 247, 0.3)' 
+                      : '1px solid rgba(255, 255, 255, 0.08)',
+                    boxShadow: trendPeriod === period ? '0 4px 12px rgba(168, 85, 247, 0.15)' : 'none',
+                  }}
+                >
+                  {period === 'daily' ? `📅 ${t('stats.daily')}` : period === 'weekly' ? `📊 ${t('stats.weekly')}` : `📈 ${t('stats.monthly')}`}
+                </button>
+              ))}
+            </div>
+            
+            <TrendAnalysisChart
+              data={trendData}
+              lines={[
+                { dataKey: 'score', color: '#a855f7', label: 'SKOR' },
+                { dataKey: 'combo', color: '#f59e0b', label: 'KOMBO' },
+              ]}
+              height={200}
+              showGrid={true}
+              showLegend={true}
+            />
+          </div>
+          
+          {/* SKOR DAĞILIMI Section */}
+          <div className="mb-6">
+            <ScoreDistributionChart data={scoreDistribution} height={180} />
+          </div>
+          
+          {/* MOD PERFORMANSI Section */}
+          <div className="mb-6">
+            <SectionHeader title={t('stats.modePerformance')} />
+            
+            <div className="space-y-3">
+              <PerformanceCard
+                mode={GameMode.ENDLESS}
+                bestScore={sonsuzBestScore}
+                maxCombo={stats.endlessMaxCombo || 0}
+                maxTier={stats.endlessMaxTier || 0}
+                color="#a855f7"
+              />
+              
+              <PerformanceCard
+                mode={GameMode.TIMED}
+                bestScore={timedBestScore}
+                maxCombo={stats.timedMaxCombo || 0}
+                chronoBonus={stats.timedChronoBonus || 0}
+                color="#f59e0b"
+              />
+            </div>
+          </div>
+
+          {/* GENEL İLERLEME Section */}
+          <div className="mb-6">
+            <SectionHeader title={t('stats.overallProgress')} />
+            
+            <div
+              className="rounded-2xl p-5 space-y-4 backdrop-blur-xl"
+              style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+              }}
+            >
+              <ProgressBar
+                label={t('stats.totalBlocks')}
+                value={stats.blocksPlaced || 0}
+                maxValue={5000}
+                color="#a855f7"
+              />
+              
+              <ProgressBar
+                label={t('stats.linesCleared')}
+                value={stats.linesCleared || 0}
+                maxValue={500}
+                color="#3b82f6"
+              />
+              
+              <ProgressBar
+                label={t('stats.bombsExploded')}
+                value={stats.bombsExploded || 0}
+                maxValue={100}
+                color="#ef4444"
+              />
+              
+              <ProgressBar
+                label={t('stats.iceBroken')}
+                value={stats.iceBroken || 0}
+                maxValue={100}
+                color="#06b6d4"
+              />
+              
+              <ProgressBar
+                label={t('stats.totalGames')}
+                value={stats.gamesPlayed || 0}
+                maxValue={150}
+                color="#10b981"
+              />
+            </div>
+          </div>
+
+          {/* GENEL Section */}
+          <div className="mb-6">
+            <SectionHeader title={t('stats.general')} />
+            
+            <div className="grid grid-cols-2 gap-3">
+              <StatCard
+                icon="🎮"
+                label={t('stats.totalGames')}
+                value={stats.gamesPlayed || 0}
+                color="#a855f7"
+              />
+              
+              <StatCard
+                icon="🏆"
+                label={t('stats.totalScore')}
+                value={stats.totalScore || 0}
+                color="#f59e0b"
+              />
+              
+              <StatCard
+                icon="⚡"
+                label={t('stats.lines')}
+                value={stats.linesCleared || 0}
+                color="#06b6d4"
+              />
+              
+              <StatCard
+                icon="💣"
+                label={t('stats.bombs')}
+                value={stats.bombsExploded || 0}
+                color="#ef4444"
+              />
+            </div>
+          </div>
+          
+          {/* SON OYUNLAR Section */}
+          <div className="mb-6">
+            <SectionHeader title={t('stats.recentGames')} />
+            <RecentLogsTimeline logs={recentLogs} maxItems={5} />
+          </div>
+            </>
+          )}
+
+          {activeTab === 'achievements' && (
             <>
           {/* TREND ANALİZİ Section */}
           <div className="mb-6">

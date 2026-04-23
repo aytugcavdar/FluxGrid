@@ -8,7 +8,7 @@ import { App } from './App'; // New UI for menu
 import AppWithErrorBoundary from './GameApp'; // Old App for game
 import { useGameStore } from '../features/game/store/gameStore';
 import { AppState } from '@shared/types';
-import { AdManager } from '@/src/utils/managers/adManager';
+import { AdManager } from '@core/services/ads/AdManager';
 import { useStreakStore } from '@shared/store/streakStore';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { useUnifiedNavigationStore } from '@shared/store/unifiedNavigationStore';

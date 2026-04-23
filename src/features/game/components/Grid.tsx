@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import * as BABYLON from 'babylonjs';
 import { useGameStore } from '../store/gameStore';
 import { useThemeStore } from '../../../shared/store/themeStore';
+import { useSettingsStore } from '@core/state/settingsStore';
 import { useVisualEffectStore } from '../../visual-effects/store/visualEffectStore';
 import { GRID_SIZE, CellType, GridState } from '../types';
 import { GameMode } from '@shared/types';
@@ -70,6 +71,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const { draggedPiece, placePiece, canPlacePiece, setDraggedPiece, score, combo, isSurgeActive, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, totalMovesPlayed, perfectClearDetected } = useGameStore();
     const { getThemeColors } = useThemeStore();
+    const { ghostBlockEnabled } = useSettingsStore();
 
     // Platform detection - calculate once at initialization
     const isNativeApp = !!(window as any).Capacitor?.isNativePlatform?.();
@@ -737,9 +739,9 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 // Drag offset - Must exactly match the 2D DragOverlay offset
                 const DRAG_Y_OFFSET = stateRef.current.draggedPiece ? getDragYOffset() : 0;
 
-                if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
-                    pickInfo = scene.pick(x, y + DRAG_Y_OFFSET, (mesh) => mesh === ground);
-                }
+                // Always try to pick, even if outside canvas bounds
+                // This allows ghost preview to show when dragging from outside
+                pickInfo = scene.pick(x, y + DRAG_Y_OFFSET, (mesh) => mesh === ground);
             }
 
             if (pickInfo && pickInfo.hit && pickInfo.pickedPoint) {
@@ -766,33 +768,54 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                     }
 
                     // --- Ghost Piece Logic (Pool-based) ---
-                    // Hide all ghosts first
-                    ghostMeshesRef.current.forEach(m => { m.isVisible = false; });
+                    // Only show ghost if enabled in settings
+                    if (ghostBlockEnabled) {
+                        // Hide all ghosts first
+                        ghostMeshesRef.current.forEach(m => { m.isVisible = false; });
 
-                    // Check if valid placement
-                    const isValid = canPlacePiece(stateRef.current.grid, draggedPiece, fx, fy);
+                        // Check if valid placement
+                        const isValid = canPlacePiece(stateRef.current.grid, draggedPiece, fx, fy);
 
-                    if (isValid) {
-                        // Show ghost meshes from pool
-                        let ghostIndex = 0;
-                        draggedPiece.shape.forEach((row, rIdx) => {
-                            row.forEach((cell, cIdx) => {
-                                if (cell && ghostIndex < GHOST_POOL_SIZE) {
-                                    const gx = fx + cIdx;
-                                    const gy = fy + rIdx;
-                                    
-                                    const ghost = ghostMeshesRef.current[ghostIndex++];
-                                    ghost.position = getVectorPos(gx, gy);
-                                    ghost.position.y = -0.45; // Slightly above grid base
+                        if (isValid) {
+                            // Show ghost meshes from pool
+                            let ghostIndex = 0;
+                            draggedPiece.shape.forEach((row, rIdx) => {
+                                row.forEach((cell, cIdx) => {
+                                    if (cell && ghostIndex < GHOST_POOL_SIZE) {
+                                        const gx = fx + cIdx;
+                                        const gy = fy + rIdx;
+                                        
+                                        const ghost = ghostMeshesRef.current[ghostIndex++];
+                                        ghost.position = getVectorPos(gx, gy);
+                                        ghost.position.y = -0.2; // Higher position to avoid overlap with grid blocks
 
-                                    const gMat = ghost.material as BABYLON.StandardMaterial;
-                                    gMat.diffuseColor = BABYLON.Color3.FromHexString(draggedPiece.color);
-                                    gMat.emissiveColor = BABYLON.Color3.FromHexString(draggedPiece.color).scale(0.5);
-                                    gMat.alpha = 0.4; // Semi-transparent
-                                    ghost.isVisible = true;
-                                }
+                                        const gMat = ghost.material as BABYLON.StandardMaterial;
+                                        
+                                        // For BOMB pieces, use a brighter red color for visibility
+                                        // Debug: Log piece type and color
+                                        if (ghostIndex === 1) {
+                                            console.log('[Ghost] Piece type:', draggedPiece.type, 'Color:', draggedPiece.color, 'IsBomb:', draggedPiece.type === CellType.BOMB);
+                                        }
+                                        
+                                        const ghostColor = draggedPiece.type === CellType.BOMB 
+                                            ? '#ef4444' // Bright red for BOMB
+                                            : draggedPiece.color;
+                                        
+                                        gMat.diffuseColor = BABYLON.Color3.FromHexString(ghostColor);
+                                        gMat.emissiveColor = BABYLON.Color3.FromHexString(ghostColor).scale(0.6);
+                                        gMat.alpha = 0.5; // Slightly more opaque for better visibility
+                                        
+                                        // Disable edges for ghost preview (no borders)
+                                        ghost.disableEdgesRendering();
+                                        
+                                        ghost.isVisible = true;
+                                    }
+                                });
                             });
-                        });
+                        }
+                    } else {
+                        // Hide all ghosts if setting is disabled
+                        ghostMeshesRef.current.forEach(m => { m.isVisible = false; });
                     }
                 } else {
                     const newCoord = { x: rx, y: ry };
@@ -800,11 +823,13 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                     setHoverCoord(newCoord);
                 }
             } else {
-                hoverCoordRef.current = null;
-                setHoverCoord(null);
-
-                // Hide all ghosts if mouse leaves grid
-                ghostMeshesRef.current.forEach(m => { m.isVisible = false; });
+                // Only clear hover if not dragging a piece
+                // This allows ghost to persist when dragging from outside canvas
+                if (!stateRef.current.draggedPiece) {
+                    hoverCoordRef.current = null;
+                    setHoverCoord(null);
+                    ghostMeshesRef.current.forEach(m => { m.isVisible = false; });
+                }
             }
         };
 
@@ -1205,18 +1230,35 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         const handleWindowPointerUp = () => {
             const { draggedPiece } = stateRef.current;
             
-            // Handle piece placement - check canvas bounds first
-            if (draggedPiece && hoverCoordRef.current && canvasRef.current) {
-                const rect = canvasRef.current.getBoundingClientRect();
-                const mousePos = globalMouseRef.current;
-                
-                // Only place if pointer is within canvas bounds
-                if (mousePos && 
-                    mousePos.x >= rect.left && 
-                    mousePos.x <= rect.right && 
-                    mousePos.y >= rect.top && 
-                    mousePos.y <= rect.bottom) {
+            // Handle piece placement
+            if (draggedPiece) {
+                if (hoverCoordRef.current) {
+                    // If we have a valid hover coordinate, place the piece
                     placePiece(draggedPiece, hoverCoordRef.current.x, hoverCoordRef.current.y);
+                } else if (globalMouseRef.current && canvasRef.current) {
+                    // Fallback: Try to calculate position from mouse coordinates
+                    const rect = canvasRef.current.getBoundingClientRect();
+                    const x = globalMouseRef.current.x - rect.left;
+                    const y = globalMouseRef.current.y - rect.top;
+                    const DRAG_Y_OFFSET = getDragYOffset();
+                    
+                    const pickInfo = sceneRef.current?.pick(x, y + DRAG_Y_OFFSET, (mesh) => mesh.name === 'ground');
+                    
+                    if (pickInfo && pickInfo.hit && pickInfo.pickedPoint) {
+                        const p = pickInfo.pickedPoint;
+                        const GRID_OFFSET = (GRID_SIZE * TOTAL_CELL_SIZE) / 2;
+                        const rawX = (p.x + GRID_OFFSET) / TOTAL_CELL_SIZE;
+                        const rawY = (-p.z + GRID_OFFSET) / TOTAL_CELL_SIZE;
+                        const rx = Math.round(rawX);
+                        const ry = Math.round(rawY);
+                        
+                        const shapeW = draggedPiece.shape[0].length;
+                        const shapeH = draggedPiece.shape.length;
+                        const fx = rx - Math.floor((shapeW - 1) / 2);
+                        const fy = ry - Math.floor((shapeH - 1) / 2);
+                        
+                        placePiece(draggedPiece, fx, fy);
+                    }
                 }
             }
             

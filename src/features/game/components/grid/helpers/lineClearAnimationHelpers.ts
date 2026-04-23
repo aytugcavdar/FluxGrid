@@ -1,15 +1,15 @@
 /**
  * Line Clear Animation Update Helpers
- * Update logic for line clear animation phases
+ * Update logic for line clear animation phases with enhanced sweep effects
  */
 
 import * as BABYLON from 'babylonjs';
 import { GridState } from '../../../types';
-import { GRID_SIZE } from '../constants';
+import { GRID_SIZE, LINE_CLEAR_SWEEP } from '../constants';
 import { getVectorPos } from './positionHelpers';
 
 /**
- * Update line clear animation (all phases)
+ * Update line clear animation (all phases) - OPTIMIZED FOR SPEED
  */
 export function updateLineClearAnimation(
   lineClearAnimationRef: { current: any },
@@ -24,17 +24,17 @@ export function updateLineClearAnimation(
   const elapsed = Date.now() - anim.startTime;
   
   if (anim.phase === 'brightness') {
-    // Stage 1: Brightness wave (0-150ms)
-    if (elapsed < 150) {
-      anim.progress = elapsed / 150;
+    // Stage 1: Brightness sweep (0-100ms) - FASTER
+    if (elapsed < 100) { // Reduced from 150ms
+      anim.progress = elapsed / 100;
       
-      // Convert cleared cells to array and sort left-to-right
+      // Convert cleared cells to array and sort left-to-right for sweep effect
       const cellsArray = Array.from(anim.clearedCells as Set<string>).map((key: string) => {
         const [x, y] = key.split(',').map(Number);
         return { key, x, y };
       }).sort((a, b) => a.x - b.x);
       
-      // Apply brightness wave
+      // Apply brightness sweep wave (left to right)
       cellsArray.forEach((cellData, index) => {
         const cell = grid[cellData.y]?.[cellData.x];
         if (cell?.id) {
@@ -43,22 +43,23 @@ export function updateLineClearAnimation(
             const mat = mesh.material as BABYLON.StandardMaterial;
             const originalColor = anim.originalColors.get(cellData.key) || mat.diffuseColor;
             
-            // Calculate wave progress for this cell
+            // Calculate sweep wave progress for this cell
             const cellWaveProgress = (anim.progress * cellsArray.length - index) / cellsArray.length;
             const clampedProgress = Math.max(0, Math.min(1, cellWaveProgress));
             
-            // Brightness peaks at 0.5 progress, then fades
+            // Brightness peaks at 0.5 progress, then fades (sharper peak)
             let brightness: number;
-            if (clampedProgress < 0.5) {
-              brightness = clampedProgress * 2;
+            if (clampedProgress < 0.4) {
+              brightness = clampedProgress * 2.5; // Faster rise
             } else {
-              brightness = 2 - (clampedProgress * 2);
+              brightness = 2.5 - (clampedProgress * 2.5); // Faster fall
             }
             
-            // Apply white brightness overlay
+            // Apply bright white flash with color tint
             const white = BABYLON.Color3.White();
-            mat.emissiveColor = BABYLON.Color3.Lerp(originalColor, white, brightness * 0.8);
-            (mat as any).emissiveIntensity = 1.0;
+            const flashColor = BABYLON.Color3.Lerp(originalColor, white, 0.7); // More white
+            mat.emissiveColor = BABYLON.Color3.Lerp(originalColor, flashColor, brightness);
+            (mat as any).emissiveIntensity = 1.0 + brightness * 0.5; // Extra intensity
           }
         }
       });
@@ -69,49 +70,66 @@ export function updateLineClearAnimation(
       anim.progress = 0;
     }
   } else if (anim.phase === 'particles') {
-    // Stage 2: Particle emission (150-300ms)
-    if (elapsed < 150) {
-      anim.progress = elapsed / 150;
+    // Stage 2: Particle emission (100-200ms) - FASTER
+    if (elapsed < 100) { // Reduced from 150ms
+      anim.progress = elapsed / 100;
       
-      // Trigger particle explosions at the start
-      // Note: Enhanced particle emission is now handled by AnimationCoordinator
-      // during the 'particles' phase in Grid.tsx render loop
-      if (anim.progress < 0.1 && !isLowEndDevice) {
-        const particleCount = isLowEndDevice ? 3 : 6;
+      // Trigger particle explosions at the start with sweep effect
+      if (anim.progress < 0.15 && !isLowEndDevice) {
+        const particleCount = isLowEndDevice ? 4 : 8; // More particles
         
-        anim.clearedCells.forEach((key: string) => {
+        // Sort cells for sweep effect
+        const cellsArray = Array.from(anim.clearedCells as Set<string>).map((key: string) => {
           const [x, y] = key.split(',').map(Number);
-          const cell = grid[y]?.[x];
+          return { key, x, y };
+        }).sort((a, b) => a.x - b.x);
+        
+        cellsArray.forEach((cellData, index) => {
+          const cell = grid[cellData.y]?.[cellData.x];
           if (cell) {
-            const worldPos = getVectorPos(x, y);
+            const worldPos = getVectorPos(cellData.x, cellData.y);
             
-            // Trigger visual effect explosion (legacy system)
-            useVisualEffectStore.getState().addEffect({
-              type: 'explosion',
-              duration: 180,
-              props: {
-                x: worldPos.x,
-                y: worldPos.y,
-                color: cell.color,
-                blockSize: 28,
-                cellType: cell.type,
-                particleCount: particleCount
-              }
-            });
+            // Stagger particle emission for sweep effect
+            const delay = index * (LINE_CLEAR_SWEEP.CHAIN_DELAY / cellsArray.length);
+            
+            setTimeout(() => {
+              // Trigger visual effect explosion (legacy system)
+              useVisualEffectStore.getState().addEffect({
+                type: 'explosion',
+                duration: 150, // Faster explosion
+                props: {
+                  x: worldPos.x,
+                  y: worldPos.y,
+                  color: cell.color,
+                  blockSize: 32, // Larger particles
+                  cellType: cell.type,
+                  particleCount: particleCount
+                }
+              });
+            }, delay);
           }
         });
       }
       
-      // Fade out cleared cells
-      anim.clearedCells.forEach((key: string) => {
+      // Fade out cleared cells with sweep
+      const cellsArray = Array.from(anim.clearedCells as Set<string>).map((key: string) => {
         const [x, y] = key.split(',').map(Number);
-        const cell = grid[y]?.[x];
+        return { key, x, y };
+      }).sort((a, b) => a.x - b.x);
+      
+      cellsArray.forEach((cellData, index) => {
+        const cell = grid[cellData.y]?.[cellData.x];
         if (cell?.id) {
           const mesh = meshMap.get(cell.id);
           if (mesh?.material) {
             const mat = mesh.material as BABYLON.StandardMaterial;
+            
+            // Calculate sweep fade for this cell
+            const cellFadeProgress = (anim.progress * cellsArray.length - index) / cellsArray.length;
+            const clampedFade = Math.max(0, Math.min(1, cellFadeProgress));
+            
             mat.emissiveColor = BABYLON.Color3.Black();
-            mat.alpha = 1.0 - anim.progress;
+            mat.alpha = 1.0 - clampedFade;
           }
         }
       });
@@ -122,9 +140,9 @@ export function updateLineClearAnimation(
       anim.progress = 0;
     }
   } else if (anim.phase === 'collapse') {
-    // Stage 3: Collapse (200ms)
-    if (elapsed < 200) {
-      anim.progress = elapsed / 200;
+    // Stage 3: Collapse (100ms) - MUCH FASTER
+    if (elapsed < 100) { // Reduced from 200ms
+      anim.progress = elapsed / 100;
       const easedProgress = anim.progress * (2 - anim.progress); // ease-out-quad
       
       // Animate falling blocks

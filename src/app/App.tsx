@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useUnifiedNavigationStore, type AppScreen } from '../shared/store/unifiedNavigationStore';
-import { useSettingsStore } from '../shared/store/settingsStore';
+import { useSettingsStore } from '@core/state/settingsStore';
 import { useThemeStore } from '../shared/store/themeStore';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useStreakStore } from '../shared/store/streakStore';
@@ -18,7 +18,7 @@ import { initializeDeepLinkHandler, removeDeepLinkHandler } from '../utils/nativ
 import { showAchievementNotification } from '../utils/native/notificationHelper';
 import '../utils/native/testWidgetSync'; // Load test helper
 import { AchievementNotification } from '../features/achievements';
-import type { ConsentType } from '@services/gdpr';
+import type { ConsentType } from '@core/services/gdpr';
 
 export const App: React.FC = () => {
   const { i18n } = useTranslation();

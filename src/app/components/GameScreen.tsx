@@ -9,7 +9,7 @@ import { useThemeStore } from '@shared/store/themeStore';
 import { useTutorialStore } from '../../features/tutorial/store/tutorialStore';
 import { playClick } from '@utils/audio';
 import { AdBanner } from './AdBanner';
-import { AdManager } from '@/src/utils/managers/adManager';
+import { AdManager } from '@core/services/ads/AdManager';
 import { useGameStore } from '../../features/game/store/gameStore';
 import { TutorialOverlay } from '@features/tutorial';
 import { PerformanceMetricsDisplay } from '@features/performance';

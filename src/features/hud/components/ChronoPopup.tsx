@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ANIMATION_DURATIONS } from '../../../utils/animation/animationUtils';
+import { ANIMATION_DURATIONS } from '@features/visual-effects/utils/animation/animationUtils';
 
 interface ChronoPopupProps {
   id: number;

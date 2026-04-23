@@ -4,7 +4,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Piece, PieceShape, GridState, GRID_SIZE, CellType, MiniEventState } from '../../types';
 import { SHAPES } from '../../constants';
-import { SeededRNG, getDailySeed } from '../../../../utils/game/seededRng';
+import { SeededRNG, getDailySeed } from '@features/game/utils/game/seededRng';
 import { GameMode } from '@shared/types';
 import { isPieceBlessingActive } from './miniEventSystem';
 
@@ -267,7 +267,7 @@ export const getRandomPiecesSync = (
     } else if (type === CellType.ICE) {
       pieceColor = '#7dd3fc'; // Light blue
     } else if (type === CellType.BOMB) {
-      pieceColor = '#1c1917'; // Dark (bomb color)
+      pieceColor = '#ef4444'; // Bright red for visibility
     } else {
       // Use custom colors if provided, otherwise use the shape's default color
       pieceColor = colors ? colors[i % colors.length] : selectedShape.color;
@@ -489,7 +489,7 @@ export const getRandomPieces = (
     } else if (type === CellType.ICE) {
       pieceColor = '#7dd3fc'; // Light blue
     } else if (type === CellType.BOMB) {
-      pieceColor = '#1c1917'; // Dark (bomb color)
+      pieceColor = '#ef4444'; // Bright red for visibility
     } else {
       // Use custom colors if provided, otherwise use the shape's default color
       pieceColor = colors ? colors[i % colors.length] : selectedShape.color;

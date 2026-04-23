@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useTutorialStore } from '../store/tutorialStore';
+import { useTutorialStore } from '@features/tutorial/store/tutorialStore';
 import { useGameStore } from '@features/game/store/gameStore';
 import { TutorialTooltip } from './TutorialTooltip';
 import { TutorialHighlight } from './TutorialHighlight';

@@ -298,9 +298,19 @@ export function initGhostPool(scene: BABYLON.Scene): BABYLON.Mesh[] {
     const mat = new BABYLON.StandardMaterial(`ghost-mat-${i}`, scene);
     mat.alpha = 0.5;
     mat.specularColor = BABYLON.Color3.Black();
+    mat.specularPower = 0;
+    
+    // Ensure proper alpha blending
+    mat.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+    mat.needDepthPrePass = true;
+    
     ghost.material = mat;
     ghost.isPickable = false;
     ghost.isVisible = false;
+    
+    // Render ghost meshes on top of everything else
+    ghost.renderingGroupId = 1;
+    
     pool.push(ghost);
   }
   return pool;

@@ -1,11 +1,12 @@
 /**
  * Placement Helpers
- * Piece placement animation utilities
+ * Piece placement animation utilities with enhanced impact effects
  */
 
 import * as BABYLON from 'babylonjs';
 import { PlacementAnimation } from '../types';
 import { applySpringCurve } from './animationHelpers';
+import { PLACEMENT_ANIMATION_DURATION, PLACEMENT_IMPACT } from '../constants';
 
 /**
  * Update placement animations in the render loop
@@ -19,9 +20,9 @@ export function updatePlacementAnimations(
   if (!placementAnimationRef.current?.active) return;
   
   const anim = placementAnimationRef.current;
-  const ANIMATION_DURATION = 80; // 80ms total animation
+  const ANIMATION_DURATION = PLACEMENT_ANIMATION_DURATION; // Use constant (150ms)
   const EMISSIVE_DURATION = 300; // 300ms emissive glow
-  const springCurve: [number, number, number] = prefersReducedMotion ? [1.0, 1.05, 1.0] : [1.0, 1.15, 1.0];
+  const springCurve: [number, number, number] = prefersReducedMotion ? [1.0, 1.05, 1.0] : [1.0, 1.2, 1.0]; // More bounce
   
   let allComplete = true;
   
@@ -31,7 +32,7 @@ export function updatePlacementAnimations(
     
     const elapsed = currentTime - cellAnim.startTime;
     
-    // Scale animation (80ms)
+    // Scale animation (150ms - faster)
     if (elapsed < ANIMATION_DURATION) {
       allComplete = false;
       const progress = elapsed / ANIMATION_DURATION;
@@ -42,15 +43,15 @@ export function updatePlacementAnimations(
       mesh.scaling = cellAnim.originalScale;
     }
     
-    // Emissive glow animation (300ms)
+    // Emissive glow animation (300ms) - brighter initial glow
     if (elapsed < EMISSIVE_DURATION && mesh.material) {
       allComplete = false;
       const mat = mesh.material as BABYLON.StandardMaterial;
       const progress = elapsed / EMISSIVE_DURATION;
       const intensity = 1.0 - progress; // Fade from 1.0 to 0.0
       
-      // Apply enhanced emissive color
-      const enhancedEmissive = cellAnim.originalEmissive.scale(1.0 + intensity * 2.0);
+      // Apply enhanced emissive color with stronger initial glow
+      const enhancedEmissive = cellAnim.originalEmissive.scale(1.0 + intensity * 3.5); // Increased from 2.0 to 3.5
       mat.emissiveColor = enhancedEmissive;
     } else if (mesh.material) {
       // Restore original emissive
@@ -67,13 +68,16 @@ export function updatePlacementAnimations(
 
 /**
  * Animate placement of cells with spring curve and stagger timing
+ * Enhanced with impact effects based on drop height and combo
  */
 export function animatePlacement(
   cellIds: string[],
   meshMap: Map<string, BABYLON.Mesh>,
   placementAnimationRef: { current: PlacementAnimation | null },
   disableAnimations: boolean,
-  prefersReducedMotion: boolean
+  prefersReducedMotion: boolean,
+  dropHeight?: number,
+  combo?: number
 ): void {
   if (disableAnimations && !prefersReducedMotion) {
     // Skip animation completely if animations are disabled and not reduced motion
@@ -81,7 +85,7 @@ export function animatePlacement(
   }
   
   const currentTime = Date.now();
-  const STAGGER_DELAY = 15; // 15ms per cell
+  const STAGGER_DELAY = 10; // Reduced from 15ms to 10ms for faster feel
   
   const cellAnimations = new Map<string, {
     cellId: string;
@@ -111,4 +115,7 @@ export function animatePlacement(
     startTime: currentTime,
     cellAnimations
   };
+  
+  // TODO: Add particle burst effect based on dropHeight and combo
+  // This will be implemented in the particle system enhancement
 }

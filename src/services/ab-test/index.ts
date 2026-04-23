@@ -1,26 +1,21 @@
 /**
- * A/B Testing Module
+ * Ab-test Service (DEPRECATED)
  * 
- * Exports A/B testing functionality including:
- * - A/B Test Manager for variant assignment and tracking
- * - Feature flag helpers for runtime feature toggling
+ * @deprecated This file is deprecated. Use @core/services/ab-test instead.
+ * This file is kept for backward compatibility and will be removed in a future version.
  * 
- * Requirements: 9.1, 9.2, 9.3, 9.5, 9.6, 9.8, 9.9, 9.10
+ * Migration path:
+ * - Old: import { ... } from '@core/services/ab-test'
+ * - New: import { ... } from '@core/services/ab-test'
  */
 
-export { ABTestManager, abTestManager } from './abTestManager';
-export type { ABTestVariant, ABTest, ABTestConfig } from './abTestManager';
+// Re-export from canonical location
+export * from '../../core/services/ab-test/index';
 
-export {
-  FeatureFlag,
-  isFeatureEnabled,
-  getFeatureValue,
-  getAllFeatureFlags,
-  getFeatureFlagConfig,
-  getAllFeatureFlagConfigs,
-  useFeatureFlag,
-  FeatureGuard,
-  withFeature,
-  withFeatureOr,
-  getFeatureValueOr,
-} from './featureFlags';
+// Log deprecation warning in development
+if (process.env.NODE_ENV === 'development') {
+  console.warn(
+    '[DEPRECATION] services/ab-test is deprecated. ' +
+    'Use @core/services/ab-test instead.'
+  );
+}

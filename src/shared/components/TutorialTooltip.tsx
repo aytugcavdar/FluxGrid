@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTutorialStore } from '../store/tutorialStore';
+import { useTutorialStore } from '@features/tutorial/store/tutorialStore';
 
 // ============================================================================
 // TYPES

@@ -8,7 +8,7 @@
  */
 
 import { useState } from 'react';
-import { ConsentType } from '@services/gdpr';
+import { ConsentType } from '@core/services/gdpr';
 
 export interface ConsentModalProps {
   onConsent: (consentType: ConsentType) => void | Promise<void>;

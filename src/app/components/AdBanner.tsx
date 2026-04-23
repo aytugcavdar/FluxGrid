@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useTutorialStore } from '../../features/tutorial/store/tutorialStore';
 import { useGameStore } from '@features/game/store/gameStore';
-import { AdManager } from '@/src/utils/managers/adManager';
+import { AdManager } from '@core/services/ads/AdManager';
 
 export interface AdBannerProps {
   position: 'bottom';

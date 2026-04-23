@@ -1,9 +1,10 @@
 /**
  * Camera Helpers
- * Camera shake and positioning utilities
+ * Camera shake and positioning utilities with enhanced impact effects
  */
 
 import * as BABYLON from 'babylonjs';
+import { PLACEMENT_IMPACT, COMBO_MILESTONES } from '../constants';
 
 /**
  * Update camera shake in render loop
@@ -14,7 +15,7 @@ export function updateCameraShake(
   deltaTime: number,
   prefersReducedMotion: boolean
 ): void {
-  // Camera shake completely disabled
+  // Camera shake disabled
   shakeIntensityRef.current = 0;
   
   // Ensure camera is at default position
@@ -30,7 +31,34 @@ export function triggerCameraShake(
   shakeIntensityRef: { current: number },
   prefersReducedMotion: boolean
 ): void {
-  // Camera shake disabled - no shake effect
+  // Camera shake disabled - no effect
+  shakeIntensityRef.current = 0;
+}
+
+/**
+ * Trigger camera shake for placement impact
+ * Enhanced with drop height and combo multipliers
+ */
+export function triggerPlacementShake(
+  dropHeight: number,
+  combo: number,
+  blockCount: number,
+  shakeIntensityRef: { current: number },
+  prefersReducedMotion: boolean
+): void {
+  // Camera shake disabled - no effect
+  shakeIntensityRef.current = 0;
+}
+
+/**
+ * Trigger camera shake for combo milestones
+ */
+export function triggerComboShake(
+  combo: number,
+  shakeIntensityRef: { current: number },
+  prefersReducedMotion: boolean
+): void {
+  // Camera shake disabled - no effect
   shakeIntensityRef.current = 0;
 }
 

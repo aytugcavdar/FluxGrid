@@ -30,13 +30,16 @@ export const SHAPES: PieceShape[] = [
   { id: 'z_shape', shape: [[1, 1, 0], [0, 1, 1]], color: COLORS[3] },
   { id: 's_shape', shape: [[0, 1, 1], [1, 1, 0]], color: COLORS[1] },
   { id: 'corner', shape: [[1, 1], [1, 0]], color: COLORS[5] },
+  { id: 'diagonal_2', shape: [[1, 0], [0, 1]], color: '#f97316' }, // Orange - diagonal left-to-right
+  { id: 'diagonal_2_rev', shape: [[0, 1], [1, 0]], color: '#ec4899' }, // Hot Pink - diagonal right-to-left
+  { id: 'small_plus', shape: [[0, 1, 0], [1, 1, 1]], color: '#8b5cf6' }, // Purple - small plus
 ];
 
 // FLUX_COST removed - flux system deprecated
 
 // Tier progression constants (rebalanced for smoother curve)
-export const TIER_THRESHOLDS = [0, 5000, 12000, 25000, 45000, 75000, 120000] as const;
-export const TIER_SCORE_MULTIPLIERS = [1.0, 1.15, 1.35, 1.6, 2.0, 2.5, 3.0] as const;
+export const TIER_THRESHOLDS = [0, 5000, 15000, 30000, 55000, 90000, 140000] as const;
+export const TIER_SCORE_MULTIPLIERS = [1.0, 1.2, 1.5, 1.8, 2.2, 2.6, 3.0] as const;
 // TIER_FLUX_MULTIPLIERS removed - flux system deprecated
 
 // Rescue mechanism thresholds (tier-based)

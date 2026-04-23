@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { TIER_SCORE_MULTIPLIERS } from '../../features/game/constants';
-import { playSkill, playHaptic } from '../../utils/audio';
+import { playSkill, playHaptic } from '@core/utils/audio';
 
 describe('GameApp - Tier Celebration Detection (Task 2.2)', () => {
   it('should import TIER_SCORE_MULTIPLIERS from game/constants (Req 12.4)', () => {

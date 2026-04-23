@@ -8,7 +8,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ConsentModal } from './ConsentModal';
-import { ConsentType } from '@services/gdpr';
+import { ConsentType } from '@core/services/gdpr';
 
 describe('ConsentModal', () => {
   it('should render consent modal with title and description', () => {

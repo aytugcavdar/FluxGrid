@@ -1,41 +1,14 @@
 /**
- * Device Performance Detection
+ * DEPRECATED - Use new location
  * 
- * Detects device capability to automatically enable performance mode on low-end devices
+ * @deprecated This location is deprecated. Use the new location instead.
+ * This file is kept for backward compatibility and will be removed in a future version.
  */
 
-export type DevicePerformance = 'high' | 'medium' | 'low';
+// Re-export from canonical location
+export * from '../core/utils/device/devicePerformance';
 
-/**
- * Detect device performance capability based on hardware specs
- */
-export function detectDevicePerformance(): DevicePerformance {
-  // Check hardware concurrency (CPU cores)
-  const cores = navigator.hardwareConcurrency || 2;
-  
-  // Check device memory (if available)
-  const memory = (navigator as any).deviceMemory || 4;
-  
-  // Check if mobile device
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  
-  // High-end: 8+ cores, 8+ GB RAM, desktop
-  if (cores >= 8 && memory >= 8 && !isMobile) {
-    return 'high';
-  }
-  
-  // Medium: 4+ cores, 4+ GB RAM
-  if (cores >= 4 && memory >= 4) {
-    return 'medium';
-  }
-  
-  // Low-end: everything else
-  return 'low';
-}
-
-/**
- * Check if performance mode should be enabled automatically
- */
-export function shouldEnablePerformanceMode(): boolean {
-  return detectDevicePerformance() === 'low';
+// Log deprecation warning in development
+if (process.env.NODE_ENV === 'development') {
+  console.warn('[DEPRECATION] src/utils/devicePerformance.ts is deprecated. Use src/core/utils/device/devicePerformance.ts instead.');
 }

@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { ConsentModal } from './ConsentModal';
-import { GDPRManager, ConsentType } from '@services/gdpr';
+import { GDPRManager, ConsentType } from '@core/services/gdpr';
 
 /**
  * Example: App-level integration
