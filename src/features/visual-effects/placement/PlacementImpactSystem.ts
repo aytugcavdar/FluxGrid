@@ -43,6 +43,7 @@ export class PlacementImpactSystem {
   private activeAnimations: Map<string, PlacementAnimation>;
   private prefersReducedMotion: boolean = false;
   private qualityPreset: 'high' | 'medium' | 'low' = 'high';
+  private juiceEffectsManager: any = null;
   
   constructor(
     scene: BABYLON.Scene,
@@ -81,10 +82,30 @@ export class PlacementImpactSystem {
       this.emitImpactParticles(cellIds, meshMap);
     }
     
-    // 3. Haptic feedback
+    // 3. Juice Effects - Dust particles and ripple
+    if (this.juiceEffectsManager && !this.prefersReducedMotion) {
+      // Emit dust particles at each placed cell
+      const positions: BABYLON.Vector3[] = [];
+      cellIds.forEach(id => {
+        const mesh = meshMap.get(id);
+        if (mesh) {
+          positions.push(mesh.position.clone());
+        }
+      });
+      
+      if (positions.length > 0) {
+        this.juiceEffectsManager.emitDustParticles(positions, dropHeight);
+        
+        // Trigger ripple effect from center of placed piece
+        const epicenter = positions[0]; // Use first cell as epicenter
+        this.juiceEffectsManager.triggerRippleEffect(epicenter, meshMap, dropHeight);
+      }
+    }
+    
+    // 4. Haptic feedback
     this.hapticManager.play('placement');
     
-    // 4. Audio feedback (handled by caller - audio.ts playPlace)
+    // 5. Audio feedback (handled by caller - audio.ts playPlace)
     // Volume calculation: min(0.8, dropHeight / 12 * 0.8)
   }
   
@@ -224,6 +245,13 @@ export class PlacementImpactSystem {
         this.config.particleCount = 4;
         break;
     }
+  }
+  
+  /**
+   * Set juice effects manager
+   */
+  setJuiceEffectsManager(manager: any): void {
+    this.juiceEffectsManager = manager;
   }
   
   /**

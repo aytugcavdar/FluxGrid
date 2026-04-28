@@ -6,12 +6,15 @@
 
 import * as BABYLON from 'babylonjs';
 import { detectReducedMotion } from '../utils/reducedMotionDetector';
+import { SPSParticlePoolManager } from '../particles/SPSParticlePoolManager';
+import { EmissionConfig } from '../particles/config/particles.config';
 
 export interface LineClearParams {
   clearedLines: number[];
   cellPositions: BABYLON.Vector3[];
   hasColorBonus: boolean;
   isPerfectClear: boolean;
+  iceBlockPositions?: BABYLON.Vector3[]; // Positions of ice blocks that were cleared
 }
 
 interface LineClearAnimation {
@@ -27,9 +30,12 @@ export class LineClearAnimationSystem {
   private activeAnimations: Map<string, LineClearAnimation> = new Map();
   private prefersReducedMotion: boolean;
   private flashMeshes: Map<number, BABYLON.Mesh> = new Map();
+  private particleManager: SPSParticlePoolManager;
+  private juiceEffectsManager: any = null;
   
-  constructor(scene: BABYLON.Scene) {
+  constructor(scene: BABYLON.Scene, particleManager: SPSParticlePoolManager) {
     this.scene = scene;
+    this.particleManager = particleManager;
     this.prefersReducedMotion = detectReducedMotion();
   }
 
@@ -44,6 +50,26 @@ export class LineClearAnimationSystem {
     const baseIntensity = this.prefersReducedMotion ? 1.2 : 1.5; // 120% for reduced motion, 150% normal
     const intensityBoost = lineCount >= 3 ? 1.2 : 1.0;
     const flashIntensity = baseIntensity * intensityBoost;
+    
+    // Emit juice effects
+    if (this.juiceEffectsManager && params.cellPositions.length > 0) {
+      // Explosion particles for multi-line clears
+      if (lineCount >= 2) {
+        // Create colors array (use white for now, can be customized later)
+        const colors = params.cellPositions.map(() => new BABYLON.Color3(1, 1, 1));
+        this.juiceEffectsManager.emitExplosionParticles(params.cellPositions, colors, lineCount);
+      }
+      
+      // Icy particles for ice blocks
+      if (params.iceBlockPositions && params.iceBlockPositions.length > 0) {
+        this.juiceEffectsManager.emitIcyParticles(params.iceBlockPositions);
+      }
+      
+      // Implode animation for cleared cells
+      // Note: This requires actual mesh references, not just positions
+      // For now, we'll skip this until we have mesh references
+      // this.juiceEffectsManager.triggerImplodeAnimation(clearedMeshes, params.clearedLines);
+    }
     
     // Sequence: Rainbow (if color bonus) → Flash → Cascade
     let currentDelay = 0;
@@ -243,89 +269,46 @@ export class LineClearAnimationSystem {
   public triggerPerfectClear(): void {
     const confettiCount = this.prefersReducedMotion ? 15 : 50;
     
-    // Emit confetti particles from grid center
+    // Emit confetti particles from grid center using SPS
     const centerPosition = new BABYLON.Vector3(0, 0, 0);
     
-    for (let i = 0; i < confettiCount; i++) {
-      this.createConfettiParticle(centerPosition);
-    }
+    // Rainbow colors for confetti
+    const colors = [
+      new BABYLON.Color4(1, 0, 0, 1),      // Red
+      new BABYLON.Color4(1, 0.5, 0, 1),    // Orange
+      new BABYLON.Color4(1, 1, 0, 1),      // Yellow
+      new BABYLON.Color4(0, 1, 0, 1),      // Green
+      new BABYLON.Color4(0, 0, 1, 1),      // Blue
+      new BABYLON.Color4(0.5, 0, 1, 1),    // Purple
+    ];
+    
+    // Emit confetti in batches with different colors
+    const batchSize = Math.ceil(confettiCount / colors.length);
+    
+    colors.forEach((color) => {
+      const config: EmissionConfig = {
+        color,
+        lifetime: 2000, // 2 seconds
+        speed: 8, // Outward speed
+        gravityDelay: 0, // Apply gravity immediately
+        applyColorVariation: true, // Add visual richness
+      };
+      
+      this.particleManager.emitRadial(centerPosition, batchSize, config);
+    });
     
     // Display "PERFECT CLEAR!" text (handled by HUD component)
     // This will be triggered via event system
   }
 
   /**
-   * Create a single confetti particle
+   * Create a single confetti particle (DEPRECATED - now using SPS)
+   * @deprecated Use SPSParticlePoolManager.emitRadial instead
    */
   private createConfettiParticle(origin: BABYLON.Vector3): void {
-    const particle = BABYLON.MeshBuilder.CreateBox(`confetti-${Date.now()}-${Math.random()}`, {
-      size: 0.2,
-    }, this.scene);
-    
-    particle.position = origin.clone();
-    
-    // Random color
-    const colors = [
-      new BABYLON.Color3(1, 0, 0),
-      new BABYLON.Color3(1, 0.5, 0),
-      new BABYLON.Color3(1, 1, 0),
-      new BABYLON.Color3(0, 1, 0),
-      new BABYLON.Color3(0, 0, 1),
-      new BABYLON.Color3(0.5, 0, 1),
-    ];
-    const color = colors[Math.floor(Math.random() * colors.length)];
-    
-    const material = new BABYLON.StandardMaterial(`confetti-mat-${Date.now()}`, this.scene);
-    material.diffuseColor = color;
-    material.emissiveColor = color.scale(0.5);
-    particle.material = material;
-    
-    // Random outward velocity
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 5 + Math.random() * 5;
-    const velocity = new BABYLON.Vector3(
-      Math.cos(angle) * speed,
-      10 + Math.random() * 5, // Upward
-      Math.sin(angle) * speed
-    );
-    
-    // Random rotation velocity
-    const rotationVelocity = new BABYLON.Vector3(
-      (Math.random() - 0.5) * 0.2,
-      (Math.random() - 0.5) * 0.2,
-      (Math.random() - 0.5) * 0.2
-    );
-    
-    // Animate particle
-    const startTime = Date.now();
-    const lifetime = 2000; // 2 seconds
-    const gravity = -15;
-    
-    const animateParticle = () => {
-      const elapsed = (Date.now() - startTime) / 1000;
-      
-      if (elapsed >= lifetime / 1000) {
-        particle.dispose();
-        return;
-      }
-      
-      // Apply physics
-      const deltaTime = 0.016; // ~60fps
-      velocity.y += gravity * deltaTime;
-      
-      particle.position.addInPlace(velocity.clone().scale(deltaTime));
-      particle.rotation.addInPlace(rotationVelocity);
-      
-      // Fade out
-      const fadeProgress = elapsed / (lifetime / 1000);
-      if (particle.material) {
-        (particle.material as BABYLON.StandardMaterial).alpha = 1 - fadeProgress;
-      }
-      
-      requestAnimationFrame(animateParticle);
-    };
-    
-    animateParticle();
+    // This method is deprecated and replaced by SPS particle emission
+    // Keeping for reference during migration
+    console.warn('createConfettiParticle is deprecated. Use SPSParticlePoolManager instead.');
   }
 
   /**
@@ -344,6 +327,13 @@ export class LineClearAnimationSystem {
     // (Can be extended for performance optimization)
   }
 
+  /**
+   * Set juice effects manager
+   */
+  public setJuiceEffectsManager(manager: any): void {
+    this.juiceEffectsManager = manager;
+  }
+  
   /**
    * Set reduced motion preference
    */

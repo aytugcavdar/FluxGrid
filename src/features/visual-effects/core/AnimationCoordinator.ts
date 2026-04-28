@@ -51,6 +51,7 @@ export class AnimationCoordinator {
   private perfectClearCelebration?: any;
   private particlePoolManager?: any;
   private particleEmitter?: any;
+  private juiceEffectsManager?: any;
   
   constructor(config: AnimationCoordinatorConfig) {
     this.scene = config.scene;
@@ -79,6 +80,10 @@ export class AnimationCoordinator {
   
   setParticleEmitter(emitter: any): void {
     this.particleEmitter = emitter;
+  }
+  
+  setJuiceEffectsManager(manager: any): void {
+    this.juiceEffectsManager = manager;
   }
   
   /**
@@ -170,6 +175,9 @@ export class AnimationCoordinator {
     if (this.perfectClearCelebration?.setQualityPreset) {
       this.perfectClearCelebration.setQualityPreset(preset);
     }
+    if (this.juiceEffectsManager?.setQualityPreset) {
+      this.juiceEffectsManager.setQualityPreset(preset);
+    }
   }
   
   /**
@@ -196,6 +204,9 @@ export class AnimationCoordinator {
     if (this.perfectClearCelebration?.setReducedMotion) {
       this.perfectClearCelebration.setReducedMotion(enabled);
     }
+    if (this.juiceEffectsManager?.setReducedMotion) {
+      this.juiceEffectsManager.setReducedMotion(enabled);
+    }
   }
   
   /**
@@ -210,6 +221,12 @@ export class AnimationCoordinator {
     if (this.particlePoolManager?.update) {
       const deltaTime = 16; // Approximate 60 FPS
       this.particlePoolManager.update(deltaTime);
+    }
+    
+    // Update juice effects manager
+    if (this.juiceEffectsManager?.update) {
+      const deltaTime = 16 / 1000; // Convert to seconds
+      this.juiceEffectsManager.update(deltaTime);
     }
   }
   

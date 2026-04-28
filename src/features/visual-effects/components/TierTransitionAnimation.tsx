@@ -2,13 +2,84 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useJuiceStore } from '../store/juiceStore';
 
+// Detect if device is weak (low-end)
+const isWeakDevice = (): boolean => {
+  const ua = navigator.userAgent.toLowerCase();
+  
+  // PRIORITY 1: Check User Agent for known weak devices (most reliable)
+  const isKnownWeakDevice = 
+    ua.includes('sm-j') ||      // Samsung J series (budget)
+    ua.includes('sm-a') ||      // Samsung A series (budget)
+    ua.includes('sm-g5') ||     // Samsung G5xx series (GM510, etc.)
+    ua.includes('sm-g6') ||     // Samsung G6xx series
+    ua.includes('sm-g7') ||     // Samsung G7xx series
+    ua.includes('redmi') ||     // Xiaomi Redmi (budget)
+    ua.includes('poco') ||      // Xiaomi Poco (budget)
+    ua.includes('moto e') ||    // Motorola E (budget)
+    ua.includes('moto g') ||    // Motorola G (budget)
+    ua.includes('android 6') || // Old Android
+    ua.includes('android 7') ||
+    ua.includes('android 8') ||
+    ua.includes('android 9');
+  
+  // PRIORITY 2: Check RAM (4GB or less = weak for games)
+  const deviceMemory = (navigator as any).deviceMemory || 4;
+  const hasLowRAM = deviceMemory <= 4;
+  
+  // Combine checks: Known weak device OR low RAM = weak
+  return isKnownWeakDevice || hasLowRAM;
+};
+
 export const TierTransitionAnimation: React.FC = React.memo(() => {
   const tierTransition = useJuiceStore((state) => state.tierTransition);
+  const skipAnimations = isWeakDevice();
 
   if (!tierTransition) return null;
 
   const { fromTier, toTier } = tierTransition;
   const isUpgrade = toTier > fromTier;
+  
+  // Skip all animations on weak devices - just show a simple notification
+  if (skipAnimations) {
+    return (
+      <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
+        <div
+          className="relative bg-gradient-to-br from-gray-900/95 to-gray-800/95 backdrop-blur-xl rounded-2xl p-6 shadow-2xl border"
+          style={{
+            borderColor: isUpgrade ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+          }}
+        >
+          {/* Simple icon */}
+          <div className="text-4xl mb-2 text-center">
+            {isUpgrade ? '⬆️' : '⬇️'}
+          </div>
+
+          {/* Title */}
+          <h2
+            className="text-2xl font-bold text-center mb-2"
+            style={{
+              color: isUpgrade ? '#10b981' : '#ef4444',
+            }}
+          >
+            {isUpgrade ? 'TIER UP!' : 'TIER DOWN'}
+          </h2>
+
+          {/* Tier numbers */}
+          <div className="flex items-center justify-center gap-3 text-xl font-bold">
+            <span className="text-gray-400">Tier {fromTier}</span>
+            <span className="text-white">→</span>
+            <span
+              style={{
+                color: isUpgrade ? '#10b981' : '#ef4444',
+              }}
+            >
+              Tier {toTier}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">

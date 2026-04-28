@@ -1,17 +1,39 @@
 import { useJuiceStore } from '../store/juiceStore';
 import { ClearAction } from '../../game/store/helpers/grid';
+import { AudioBPMManager } from '../audio/AudioBPMManager';
 
 /**
  * Trigger juice effects based on game actions
  */
 export class JuiceTriggers {
+  private static audioBPMManager: AudioBPMManager | null = null;
+  
+  /**
+   * Initialize JuiceTriggers with AudioBPMManager
+   * @param bpmManager AudioBPMManager instance
+   */
+  static initialize(bpmManager: AudioBPMManager): void {
+    this.audioBPMManager = bpmManager;
+  }
+  
+  /**
+   * Update audio manager (called each frame)
+   * @param deltaTime Time since last frame in milliseconds
+   */
+  static update(deltaTime: number): void {
+    if (this.audioBPMManager) {
+      this.audioBPMManager.update(deltaTime);
+    }
+  }
   /**
    * Trigger effects when lines are cleared
    * 
    * Performance scaling based on combo:
    * - Combo < 5: All effects (particles, screen shake, glow, line animations)
-   * - Combo 5-9: Minimal effects (line animations only)
-   * - Combo >= 10: No effects (prevents freeze)
+   * - Combo >= 5: Minimal effects (line animations only)
+   * 
+   * Note: SPS particle system now supports unlimited particles without performance degradation.
+   * The combo >= 10 restriction has been removed after migrating to Solid Particle System.
    */
   static onLinesCleared(actions: ClearAction[], combo: number): void {
     const { 
@@ -27,12 +49,7 @@ export class JuiceTriggers {
       return;
     }
     
-    // PERFORMANCE MODE: Disable all effects at combo >= 10
-    if (combo >= 10) {
-      return; // Skip ALL effects at 10x+ combo to prevent freeze
-    }
-    
-    // MINIMAL MODE: Only line animations at combo 5-9
+    // MINIMAL MODE: Only line animations at combo >= 5
     if (combo >= 5) {
       // Only add line clear animations (minimal cost)
       this.addLineClearAnimations(actions, addLineClearAnimation);
@@ -134,12 +151,22 @@ export class JuiceTriggers {
           const color = cells[0]?.color || '#ffffff';
           const intensity = Math.min(cells.length * 0.1, 1);
           
-          addParticleExplosion({
+          const explosion = {
             x: centerX,
             y: centerY,
             color,
             intensity,
-          });
+          };
+          
+          // Quantize particle emission to 16th note if AudioBPMManager is available
+          if (this.audioBPMManager) {
+            this.audioBPMManager.scheduleOnBeat(() => {
+              addParticleExplosion(explosion);
+            }, '16th');
+          } else {
+            // Fallback: immediate emission
+            addParticleExplosion(explosion);
+          }
         }
       }
     });

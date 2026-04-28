@@ -268,7 +268,7 @@ export function createBlockMesh(
     const box = BABYLON.MeshBuilder.CreateBox(id, { size: CELL_SIZE * 0.92, height: 0.6 }, scene);
     const col = BABYLON.Color3.FromHexString(colorHex);
     mat.diffuseColor = col;
-    mat.emissiveColor = col.scale(0.05);
+    mat.emissiveColor = col.scale(0.06); // Daha düşük emissive
     mat.specularColor = BABYLON.Color3.Black();
     mat.specularPower = 0;
     mat.alpha = 0.95;
@@ -277,7 +277,7 @@ export function createBlockMesh(
     // Clean edges
     box.enableEdgesRendering();
     box.edgesWidth = 1.5;
-    box.edgesColor = new BABYLON.Color4(1, 1, 1, 0.12);
+    box.edgesColor = new BABYLON.Color4(1, 1, 1, 0.12); // Daha az görünür kenarlar
 
     box.isPickable = false;
     box.position.y = 12;

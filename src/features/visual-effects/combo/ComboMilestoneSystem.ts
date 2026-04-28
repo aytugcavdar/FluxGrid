@@ -67,6 +67,8 @@ export class ComboMilestoneSystem {
   private lastMilestone: number = 0;
   private prefersReducedMotion: boolean = false;
   private qualityPreset: 'high' | 'medium' | 'low' = 'high';
+  private juiceEffectsManager: any = null;
+  private meshMap: Map<string, any> | null = null;
   
   constructor(
     particleEmitter: ParticleEmitter,
@@ -74,6 +76,22 @@ export class ComboMilestoneSystem {
   ) {
     this.particleEmitter = particleEmitter;
     this.hapticManager = hapticManager;
+  }
+  
+  /**
+   * Set juice effects manager
+   * @param manager JuiceEffectsManager instance
+   */
+  public setJuiceEffectsManager(manager: any): void {
+    this.juiceEffectsManager = manager;
+  }
+  
+  /**
+   * Set mesh map for grid pulse
+   * @param meshMap Map of cell IDs to meshes
+   */
+  public setMeshMap(meshMap: Map<string, any>): void {
+    this.meshMap = meshMap;
   }
   
   /**
@@ -87,12 +105,22 @@ export class ComboMilestoneSystem {
       if (currentCombo >= milestone && this.lastMilestone < milestone) {
         this.triggerMilestone(milestone);
         this.lastMilestone = milestone;
+        
+        // Start grid pulse for high milestones (10+)
+        if (milestone >= 10 && this.juiceEffectsManager && this.meshMap) {
+          this.juiceEffectsManager.startGridPulse(this.meshMap, currentCombo);
+        }
       }
     }
     
     // Reset when combo breaks
     if (currentCombo === 0) {
       this.lastMilestone = 0;
+      
+      // Stop grid pulse
+      if (this.juiceEffectsManager) {
+        this.juiceEffectsManager.stopGridPulse();
+      }
     }
   }
   

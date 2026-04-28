@@ -18,7 +18,7 @@ import { getRandomPiecesSync } from '../features/game/store/helpers/pieces';
 import { GameScreen } from './components/GameScreen';
 import { DragOverlay } from '../features/hud/components/DragOverlay';
 import { ParticleExplosionOverlay } from '../features/visual-effects/components/ParticleExplosionOverlay';
-import { ScreenShakeEffect, LineClearAnimations, ComboGlowEffect, PlacementFeedbackEffect, GridBreathingEffect, BackgroundEffects, PerfectClearEffect, PlacementImpactEffect, TierTransitionAnimation, ScoreMilestoneCelebration, AbilityUnlockAnimation, StreakIndicator, NearMissWarning, PauseResumeAnimation, GameOverSequence, VictoryCelebration, ModeChangeTransition } from '../features/visual-effects/components';
+import { ScreenShakeEffect, LineClearAnimations, PlacementFeedbackEffect, GridBreathingEffect, PerfectClearEffect, PlacementImpactEffect, TierTransitionAnimation, ScoreMilestoneCelebration, AbilityUnlockAnimation, StreakIndicator, NearMissWarning, PauseResumeAnimation, GameOverSequence, VictoryCelebration, ModeChangeTransition } from '../features/visual-effects/components';
 import { TierCelebrationOverlay } from '../features/hud/components/TierCelebrationOverlay';
 import { ExitConfirmDialog } from '../shared/components/ExitConfirmDialog';
 import { generateShareText, shareResult } from '../utils/sharing/shareResult';
@@ -633,9 +633,6 @@ const App: React.FC = () => {
 
   return (
     <div className="game-container" onPointerDown={unlockAudio} style={{ background: colors.background }}>
-      {/* Background Effects Layer */}
-      <BackgroundEffects />
-      
       <AnimatePresence mode="wait">
         {appState === AppState.GAME && (
           <GameScreen
@@ -672,7 +669,6 @@ const App: React.FC = () => {
       </ScreenShakeEffect>
       <GridBreathingEffect />
       <LineClearAnimations />
-      <ComboGlowEffect />
       <PlacementFeedbackEffect />
       <PlacementImpactEffect />
       <PerfectClearEffect />

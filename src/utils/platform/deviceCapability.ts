@@ -119,7 +119,7 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
   const gpuTier = classifyGPUTier(gpuRenderer);
   
   // Combine GPU, memory, and cores for final tier
-  if (gpuTier === DeviceTier.LOW || memory < 4 || cores <= 4) {
+  if (gpuTier === DeviceTier.LOW || memory <= 4 || cores <= 4) {
     tier = DeviceTier.LOW;
   } else if (gpuTier === DeviceTier.HIGH && memory >= 6 && cores > 4) {
     tier = DeviceTier.HIGH;
@@ -155,8 +155,8 @@ export function getPerformanceConfig(tier: DeviceTier): PerformanceConfig {
   switch (tier) {
     case DeviceTier.LOW:
       return {
-        fragmentPoolSize: 15,
-        hardwareScaling: 2.0, // Lower resolution for better performance
+        fragmentPoolSize: 10,
+        hardwareScaling: 1.0, // Full resolution
         enableGlow: false,
         enableParticles: false,
         antialias: false,
@@ -166,7 +166,7 @@ export function getPerformanceConfig(tier: DeviceTier): PerformanceConfig {
     case DeviceTier.MID:
       return {
         fragmentPoolSize: 25,
-        hardwareScaling: 1.2, // Balanced quality/performance
+        hardwareScaling: 1.0, // Full resolution like HIGH
         enableGlow: true,
         enableParticles: true,
         antialias: false,

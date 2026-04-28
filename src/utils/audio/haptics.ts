@@ -23,6 +23,9 @@ export type HapticPattern =
   | 'surge_activation'    // [30, 10, 40, 10, 50] - Surge mode start
   | 'perfect_clear'       // [50, 30, 50, 30, 70] - Perfect clear
   | 'rotation'            // [15] - Piece rotation
+  | 'beat_light'          // [20] - Light beat pulse
+  | 'beat_medium'         // [40] - Medium beat pulse (line clear on beat)
+  | 'beat_heavy'          // [60] - Heavy beat pulse (combo milestone on beat)
   | 'hover'               // [4] - UI hover (legacy)
   | 'skill'               // [80, 50, 80] - Skill activation (legacy)
   | 'success'             // [30, 20, 40] - Success feedback
@@ -73,6 +76,20 @@ const HAPTIC_PATTERNS: Record<HapticPattern, HapticPatternConfig> = {
     impactStyle: ImpactStyle.Light
   },
   
+  // Beat synchronization patterns
+  beat_light: {
+    vibration: [20],
+    impactStyle: ImpactStyle.Light
+  },
+  beat_medium: {
+    vibration: [40],
+    impactStyle: ImpactStyle.Medium
+  },
+  beat_heavy: {
+    vibration: [60],
+    impactStyle: ImpactStyle.Heavy
+  },
+  
   // Legacy patterns (for backward compatibility)
   hover: {
     vibration: [4],
@@ -100,6 +117,8 @@ export class HapticManager {
   private maxHapticsPerSecond: number = 10;
   private hapticCount: number = 0;
   private throttleResetInterval: number;
+  private hapticHistory: Array<{ pattern: HapticPattern; timestamp: number; priority: 'gameplay' | 'beat' }> = [];
+  private beatHapticsEnabled: boolean = true;
   
   constructor() {
     // Detect platform
@@ -112,6 +131,9 @@ export class HapticManager {
     // Reset throttle counter every second
     this.throttleResetInterval = window.setInterval(() => {
       this.hapticCount = 0;
+      // Clean up old haptic history (older than 1 second)
+      const now = Date.now();
+      this.hapticHistory = this.hapticHistory.filter(h => now - h.timestamp < 1000);
     }, 1000);
   }
   
@@ -136,22 +158,41 @@ export class HapticManager {
   }
   
   /**
-   * Play haptic pattern
+   * Play haptic pattern with priority support
    * Requirements: 1.3, 3.5, 5.1-5.8
    */
-  async play(pattern: HapticPattern, intensity?: number): Promise<void> {
+  async play(pattern: HapticPattern, intensity?: number, priority: 'gameplay' | 'beat' = 'gameplay'): Promise<void> {
     // Check if haptics are enabled
     if (!this.systemHapticsEnabled) {
       return;
     }
     
-    // Throttle haptic events (max 10 per second)
-    // Requirements: 5.7
-    if (this.hapticCount >= this.maxHapticsPerSecond) {
+    // Check if beat haptics are disabled
+    if (priority === 'beat' && !this.beatHapticsEnabled) {
       return;
     }
     
     const now = Date.now();
+    
+    // Throttle haptic events with priority (max 10 per second)
+    // Requirements: 5.7
+    if (this.hapticHistory.length >= this.maxHapticsPerSecond) {
+      // Check if we can drop a beat haptic to make room for gameplay haptic
+      if (priority === 'gameplay') {
+        const beatHapticIndex = this.hapticHistory.findIndex(h => h.priority === 'beat');
+        if (beatHapticIndex !== -1) {
+          // Remove lowest priority haptic (beat)
+          this.hapticHistory.splice(beatHapticIndex, 1);
+        } else {
+          // All haptics are gameplay, drop this one
+          return;
+        }
+      } else {
+        // Beat haptic, drop it
+        return;
+      }
+    }
+    
     const timeSinceLastHaptic = now - this.lastHapticTime;
     
     // Minimum 100ms between haptics
@@ -161,6 +202,13 @@ export class HapticManager {
     
     this.lastHapticTime = now;
     this.hapticCount++;
+    
+    // Add to history
+    this.hapticHistory.push({
+      pattern,
+      timestamp: now,
+      priority,
+    });
     
     const config = HAPTIC_PATTERNS[pattern];
     if (!config) {
@@ -300,6 +348,13 @@ export class HapticManager {
    */
   respectSystemSettings(): boolean {
     return this.systemHapticsEnabled;
+  }
+  
+  /**
+   * Enable or disable beat haptics
+   */
+  setBeatHapticsEnabled(enabled: boolean): void {
+    this.beatHapticsEnabled = enabled;
   }
   
   /**
