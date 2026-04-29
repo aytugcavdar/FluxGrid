@@ -19,6 +19,7 @@ import { showAchievementNotification } from '../utils/native/notificationHelper'
 import '../utils/native/testWidgetSync'; // Load test helper
 import { AchievementNotification } from '../features/achievements';
 import type { ConsentType } from '@core/services/gdpr';
+import { RemoteLogger } from '../utils/debug/RemoteLogger';
 
 export const App: React.FC = () => {
   const { i18n } = useTranslation();
@@ -198,6 +199,9 @@ export const App: React.FC = () => {
       
       {/* GDPR Consent Modal */}
       {showConsentModal && <ConsentModal onConsent={handleConsent} />}
+      
+      {/* Remote Debug Logger - Toggle with 3-finger double-tap */}
+      <RemoteLogger />
     </div>
   );
 };

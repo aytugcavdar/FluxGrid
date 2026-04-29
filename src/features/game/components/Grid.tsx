@@ -422,6 +422,14 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         engine.setHardwareScalingLevel(perfConfig.hardwareScaling);
         
         console.log(`[Grid] Hardware scaling set to ${perfConfig.hardwareScaling} for ${deviceCapabilities.tier} tier device`);
+        console.log(`[Grid] Device info:`, {
+            tier: deviceCapabilities.tier,
+            memory: deviceCapabilities.memory,
+            cores: deviceCapabilities.cores,
+            gpu: deviceCapabilities.gpuRenderer,
+            isNative: deviceCapabilities.isNative,
+            isAndroid: deviceCapabilities.isAndroid
+        });
 
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0, 0, 0, 0);
@@ -431,13 +439,30 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
         // Low-end device scene optimizations
         if (isLowEndDevice) {
+            // Disable expensive features
             scene.skipPointerMovePicking = true;
             scene.autoClear = true;
             scene.autoClearDepthAndStencil = true;
             scene.blockMaterialDirtyMechanism = true; // Disable material dirty checks
             scene.renderTargetsEnabled = false; // Disable render targets
+            
+            // Aggressive performance optimizations
+            scene.particlesEnabled = false; // Disable all particle systems
+            scene.spritesEnabled = false; // Disable sprites
+            scene.postProcessesEnabled = false; // Disable post-processing
+            scene.lensFlaresEnabled = false; // Disable lens flares
+            scene.proceduralTexturesEnabled = false; // Disable procedural textures
+            scene.shadowsEnabled = false; // Disable shadows completely
+            
+            // Reduce render quality
+            scene.imageProcessingConfiguration.vignetteEnabled = false;
+            scene.imageProcessingConfiguration.grainEnabled = false;
+            scene.imageProcessingConfiguration.chromaticAberrationEnabled = false;
+            
+            // Apply Babylon's scene optimizer
             BABYLON.SceneOptimizer.OptimizeAsync(scene, BABYLON.SceneOptimizerOptions.HighDegradationAllowed());
-            console.log('[Grid] Aggressive scene optimizations applied for low-end device');
+            
+            console.log('[Grid] AGGRESSIVE scene optimizations applied for low-end device');
         }
 
         // Store references for theme updates
@@ -556,10 +581,13 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 slot.material = slotMat;
 
                 // Grid lines — themed and more visible
-                slot.enableEdgesRendering();
-                slot.edgesWidth = isMobile ? 2.0 : 2.5;
-                const edgeColor = BABYLON.Color3.FromHexString(themeColors.gridEdge);
-                slot.edgesColor = new BABYLON.Color4(edgeColor.r, edgeColor.g, edgeColor.b, 0.5);
+                // CRITICAL: Skip edges on LOW devices - 100 slots * edges = MASSIVE performance hit
+                if (!isLowEndDevice) {
+                    slot.enableEdgesRendering();
+                    slot.edgesWidth = isMobile ? 2.0 : 2.5;
+                    const edgeColor = BABYLON.Color3.FromHexString(themeColors.gridEdge);
+                    slot.edgesColor = new BABYLON.Color4(edgeColor.r, edgeColor.g, edgeColor.b, 0.5);
+                }
                 
                 gridSlotsRef.push(slot);
             }
@@ -616,211 +644,206 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         fragmentPoolRef.current.pool = initFragmentPool(scene);
         
         // Initialize AnimationCoordinator and animation systems
-        const animationCoordinator = new AnimationCoordinator({
-            scene,
-            qualityPreset: deviceCapabilities.tier === 'high' ? 'high' : deviceCapabilities.tier === 'mid' ? 'medium' : 'low',
-            prefersReducedMotion
-        });
+        // Skip on LOW devices to save massive CPU/GPU
+        let animationCoordinator: AnimationCoordinator | null = null;
+        let particlePoolManager: ParticlePoolManager | null = null;
+        let particleEmitter: ParticleEmitter | null = null;
+        let placementImpactSystem: PlacementImpactSystem | null = null;
+        let comboMilestoneSystem: ComboMilestoneSystem | null = null;
+        let perfectClearCelebration: PerfectClearCelebration | null = null;
+        let lineClearSystem: LineClearAnimationSystem | null = null;
+        let spsParticleManager: SPSParticlePoolManager | null = null;
+        let juiceEffectsManager: any | null = null;
+        let trailManager: TrailMeshManager | null = null;
+        let kineticAnimation: KineticAnimationController | null = null;
+        let performanceMonitor: PerformanceMonitor | null = null;
+        let adaptiveQuality: AdaptiveQualitySystem | null = null;
         
-        // Track current quality preset for adaptive reduction
-        let currentQualityPreset: 'high' | 'medium' | 'low' = deviceCapabilities.tier === 'high' ? 'high' : deviceCapabilities.tier === 'mid' ? 'medium' : 'low';
-        
-        // Setup performance drop callback for automatic quality reduction
-        // Requirements: 13.4, 14.1
-        // TODO: Re-enable performance monitoring after fixing async import issue
-        /*
-        const performanceMonitor = new (await import('../../../features/visual-effects/utils/performanceMonitor')).PerformanceMonitor();
-        performanceMonitor.onPerformanceDrop(() => {
-            console.log('[Grid] Performance drop detected, reducing quality');
-            
-            // Downgrade quality preset: high → medium → low
-            if (currentQualityPreset === 'high') {
-                currentQualityPreset = 'medium';
-                animationCoordinator.setQualityPreset('medium');
-                particlePoolManager.setQualityPreset('medium');
-            } else if (currentQualityPreset === 'medium') {
-                currentQualityPreset = 'low';
-                animationCoordinator.setQualityPreset('low');
-                particlePoolManager.setQualityPreset('low');
-                
-                // Disable glow layer on low preset
-                if (glowLayerRef.current) {
-                    glowLayerRef.current.intensity = 0;
-                }
-            }
-        });
-        performanceMonitor.startMonitoring();
-        */
-        
-        // Initialize particle pool manager
-        const qualityMultiplier = deviceCapabilities.tier === 'high' ? 1.0 : deviceCapabilities.tier === 'mid' ? 0.6 : 0.4;
-        const particlePoolManager = new ParticlePoolManager({
-            scene,
-            qualityMultiplier
-        });
-        
-        // Task 20: Initialize particle emitter for line clear particles
-        const particleEmitter = new ParticleEmitter(particlePoolManager);
-        
-        // Initialize haptic manager
-        const hapticManager = new HapticManager();
-        
-        // Task 24.7: Initialize battery saver manager
-        // Requirements: 14.6
-        const batterySaverManager = getBatterySaverManager({
-            onQualityChange: (preset) => {
-                console.log('[Grid] Battery saver quality change:', preset);
-                currentQualityPreset = preset;
-                animationCoordinator.setQualityPreset(preset);
-                particlePoolManager.setQualityPreset(preset);
-                
-                // Disable glow layer on low preset
-                if (preset === 'low' && glowLayerRef.current) {
-                    glowLayerRef.current.intensity = 0;
-                }
-            },
-            onFPSChange: (targetFPS) => {
-                console.log('[Grid] Battery saver FPS change:', targetFPS);
-                fpsLimiterRef.current.setTargetFPS(targetFPS);
-            },
-            onHapticsChange: (enabled) => {
-                console.log('[Grid] Battery saver haptics change:', enabled);
-                hapticManager.setEnabled(enabled);
-            }
-        });
-        
-        // Initialize battery monitoring (async)
-        batterySaverManager.initialize().catch((error) => {
-            console.debug('[Grid] Battery saver initialization failed:', error);
-        });
-        
-        // Initialize placement impact system
-        const placementImpactSystem = new PlacementImpactSystem(
-            scene,
-            particlePoolManager,
-            hapticManager
-        );
-        
-        // Set reduced motion preference
-        if (prefersReducedMotion) {
-            placementImpactSystem.setReducedMotion(true);
-        }
-        
-        // Initialize combo milestone system
-        const comboMilestoneSystem = new ComboMilestoneSystem(
-            particleEmitter,
-            hapticManager
-        );
-        
-        // Set reduced motion preference
-        if (prefersReducedMotion) {
-            comboMilestoneSystem.setReducedMotion(true);
-        }
-        
-        // Initialize perfect clear celebration
-        const perfectClearCelebration = new PerfectClearCelebration(
-            particleEmitter,
-            hapticManager
-        );
-        
-        // Set reduced motion preference
-        if (prefersReducedMotion) {
-            perfectClearCelebration.setReducedMotion(true);
-        }
-        
-        // Initialize line clear animation system with SPS particle manager
-        const spsParticleManager = new SPSParticlePoolManager({
-            scene,
-            capacity: 2000,
-            particleSize: 0.1,
-        });
-        spsParticleManagerRef.current = spsParticleManager;
-        
-        const lineClearSystem = new LineClearAnimationSystem(scene, spsParticleManager);
-        if (prefersReducedMotion) {
-            lineClearSystem.setReducedMotion(true);
-        }
-        lineClearSystemRef.current = lineClearSystem;
-        
-        // Initialize UI3D Manager
-        // Skip on weak devices to save CPU/GPU
         if (!isLowEndDevice) {
+            animationCoordinator = new AnimationCoordinator({
+                scene,
+                qualityPreset: deviceCapabilities.tier === 'high' ? 'high' : 'medium',
+                prefersReducedMotion
+            });
+        
+            // Track current quality preset for adaptive reduction
+            let currentQualityPreset: 'high' | 'medium' | 'low' = deviceCapabilities.tier === 'high' ? 'high' : 'medium';
+            
+            // Initialize particle pool manager
+            const qualityMultiplier = deviceCapabilities.tier === 'high' ? 1.0 : 0.5;
+            particlePoolManager = new ParticlePoolManager({
+                scene,
+                qualityMultiplier
+            });
+            
+            // Task 20: Initialize particle emitter for line clear particles
+            particleEmitter = new ParticleEmitter(particlePoolManager);
+            
+            // Initialize haptic manager
+            const hapticManager = new HapticManager();
+            
+            // Task 24.7: Initialize battery saver manager
+            // Requirements: 14.6
+            const batterySaverManager = getBatterySaverManager({
+                onQualityChange: (preset) => {
+                    console.log('[Grid] Battery saver quality change:', preset);
+                    currentQualityPreset = preset;
+                    animationCoordinator?.setQualityPreset(preset);
+                    particlePoolManager?.setQualityPreset(preset);
+                    
+                    // Disable glow layer on low preset
+                    if (preset === 'low' && glowLayerRef.current) {
+                        glowLayerRef.current.intensity = 0;
+                    }
+                },
+                onFPSChange: (targetFPS) => {
+                    console.log('[Grid] Battery saver FPS change:', targetFPS);
+                    fpsLimiterRef.current.setTargetFPS(targetFPS);
+                },
+                onHapticsChange: (enabled) => {
+                    console.log('[Grid] Battery saver haptics change:', enabled);
+                    hapticManager.setEnabled(enabled);
+                }
+            });
+            
+            // Initialize battery monitoring (async)
+            batterySaverManager.initialize().catch((error) => {
+                console.debug('[Grid] Battery saver initialization failed:', error);
+            });
+            
+            // Initialize placement impact system
+            placementImpactSystem = new PlacementImpactSystem(
+                scene,
+                particlePoolManager,
+                hapticManager
+            );
+            
+            // Set reduced motion preference
+            if (prefersReducedMotion) {
+                placementImpactSystem.setReducedMotion(true);
+            }
+            
+            // Initialize combo milestone system
+            comboMilestoneSystem = new ComboMilestoneSystem(
+                particleEmitter,
+                hapticManager
+            );
+            
+            // Set reduced motion preference
+            if (prefersReducedMotion) {
+                comboMilestoneSystem.setReducedMotion(true);
+            }
+            
+            // Initialize perfect clear celebration
+            perfectClearCelebration = new PerfectClearCelebration(
+                particleEmitter,
+                hapticManager
+            );
+            
+            // Set reduced motion preference
+            if (prefersReducedMotion) {
+                perfectClearCelebration.setReducedMotion(true);
+            }
+            
+            // Initialize line clear animation system with SPS particle manager
+            spsParticleManager = new SPSParticlePoolManager({
+                scene,
+                capacity: deviceCapabilities.tier === 'high' ? 2000 : 1000,
+                particleSize: 0.1,
+            });
+            spsParticleManagerRef.current = spsParticleManager;
+            
+            lineClearSystem = new LineClearAnimationSystem(scene, spsParticleManager);
+            if (prefersReducedMotion) {
+                lineClearSystem.setReducedMotion(true);
+            }
+            lineClearSystemRef.current = lineClearSystem;
+            
+            // Initialize UI3D Manager
             const ui3dManager = new UI3DManager(scene);
             ui3dManager.initializeComboMeter(new BABYLON.Vector3(8, 15, 0));
             ui3dManagerRef.current = ui3dManager;
-        } else {
-            ui3dManagerRef.current = null;
-        }
-        
-        // Initialize Special Block Effects Manager
-        // Skip on weak devices to save CPU/GPU
-        if (!isLowEndDevice) {
+            
+            // Initialize Special Block Effects Manager
             const specialBlockManager = new SpecialBlockEffectsManager(scene, spsParticleManager);
             specialBlockManagerRef.current = specialBlockManager;
+            
+            // Initialize kinetic animation controller and trail manager
+            trailManager = new TrailMeshManager(scene);
+            kineticAnimation = new KineticAnimationController();
+            kineticAnimation.setTrailManager(trailManager);
+            kineticAnimationRef.current = kineticAnimation;
+            trailManagerRef.current = trailManager;
+            
+            // Initialize performance monitor and adaptive quality system
+            performanceMonitor = new PerformanceMonitor();
+            adaptiveQuality = new AdaptiveQualitySystem({
+                particleManager: spsParticleManager,
+                trailManager: trailManager,
+                onPerformanceModeChange: (enabled) => {
+                    console.log('[Grid] Performance mode:', enabled);
+                }
+            });
+            
+            // Store refs
+            performanceMonitorRef.current = performanceMonitor;
+            adaptiveQualityRef.current = adaptiveQuality;
+            
+            // Initialize Juice Effects Manager (after all systems are created)
+            juiceEffectsManager = new JuiceEffectsManager({
+                scene,
+                particlePoolManager,
+                spsParticleManager,
+                qualityPreset: currentQualityPreset,
+                prefersReducedMotion,
+            });
+            juiceEffectsManagerRef.current = juiceEffectsManager;
+            
+            // Inject juice effects manager into animation systems
+            placementImpactSystem.setJuiceEffectsManager?.(juiceEffectsManager);
+            kineticAnimation.setJuiceEffectsManager?.(juiceEffectsManager);
+            lineClearSystem.setJuiceEffectsManager?.(juiceEffectsManager);
+            comboMilestoneSystem.setJuiceEffectsManager?.(juiceEffectsManager);
+            comboMilestoneSystem.setMeshMap?.(meshMapRef.current);
+            animationCoordinator.setJuiceEffectsManager?.(juiceEffectsManager);
+            
+            // Connect performance monitor callbacks
+            performanceMonitor.onPerformanceDegradation = (level) => {
+                adaptiveQuality?.handleDegradation(level);
+            };
+            
+            performanceMonitor.onPerformanceRestored = () => {
+                adaptiveQuality?.handleRestoration();
+            };
+            
+            // Inject animation systems into coordinator
+            animationCoordinator.setPlacementImpactSystem(placementImpactSystem);
+            animationCoordinator.setComboMilestoneSystem(comboMilestoneSystem);
+            animationCoordinator.setPerfectClearCelebration(perfectClearCelebration);
+            
+            // Task 20: Inject particle systems into coordinator
+            animationCoordinator.setParticlePoolManager(particlePoolManager);
+            animationCoordinator.setParticleEmitter(particleEmitter);
+            
+            // Store coordinator ref
+            animationCoordinatorRef.current = animationCoordinator;
+            
+            console.log('[Grid] Animation systems initialized for MID/HIGH tier device');
         } else {
+            // LOW device: Skip ALL animation systems
+            animationCoordinatorRef.current = null;
+            juiceEffectsManagerRef.current = null;
+            lineClearSystemRef.current = null;
+            spsParticleManagerRef.current = null;
+            ui3dManagerRef.current = null;
             specialBlockManagerRef.current = null;
+            kineticAnimationRef.current = null;
+            trailManagerRef.current = null;
+            performanceMonitorRef.current = null;
+            adaptiveQualityRef.current = null;
+            
+            console.log('[Grid] Animation systems DISABLED for LOW tier device');
         }
-        
-        // Initialize kinetic animation controller and trail manager
-        const trailManager = new TrailMeshManager(scene);
-        const kineticAnimation = new KineticAnimationController();
-        kineticAnimation.setTrailManager(trailManager);
-        kineticAnimationRef.current = kineticAnimation;
-        trailManagerRef.current = trailManager;
-        
-        // Initialize performance monitor and adaptive quality system
-        const performanceMonitor = new PerformanceMonitor();
-        const adaptiveQuality = new AdaptiveQualitySystem({
-            particleManager: spsParticleManager,
-            trailManager: trailManager,
-            onPerformanceModeChange: (enabled) => {
-                console.log('[Grid] Performance mode:', enabled);
-                // TODO: Update game state or UI to reflect performance mode
-            }
-        });
-        
-        // Store refs
-        performanceMonitorRef.current = performanceMonitor;
-        adaptiveQualityRef.current = adaptiveQuality;
-        
-        // Initialize Juice Effects Manager (after all systems are created)
-        const juiceEffectsManager = new JuiceEffectsManager({
-            scene,
-            particlePoolManager,
-            spsParticleManager,
-            qualityPreset: currentQualityPreset,
-            prefersReducedMotion,
-        });
-        juiceEffectsManagerRef.current = juiceEffectsManager;
-        
-        // Inject juice effects manager into animation systems
-        placementImpactSystem.setJuiceEffectsManager?.(juiceEffectsManager);
-        kineticAnimation.setJuiceEffectsManager?.(juiceEffectsManager);
-        lineClearSystem.setJuiceEffectsManager?.(juiceEffectsManager);
-        comboMilestoneSystem.setJuiceEffectsManager?.(juiceEffectsManager);
-        comboMilestoneSystem.setMeshMap?.(meshMapRef.current);
-        animationCoordinator.setJuiceEffectsManager?.(juiceEffectsManager);
-        
-        // Connect performance monitor callbacks
-        performanceMonitor.onPerformanceDegradation = (level) => {
-            adaptiveQuality.handleDegradation(level);
-        };
-        
-        performanceMonitor.onPerformanceRestored = () => {
-            adaptiveQuality.handleRestoration();
-        };
-        
-        // Inject animation systems into coordinator
-        animationCoordinator.setPlacementImpactSystem(placementImpactSystem);
-        animationCoordinator.setComboMilestoneSystem(comboMilestoneSystem);
-        animationCoordinator.setPerfectClearCelebration(perfectClearCelebration);
-        
-        // Task 20: Inject particle systems into coordinator
-        animationCoordinator.setParticlePoolManager(particlePoolManager);
-        animationCoordinator.setParticleEmitter(particleEmitter);
-        
-        // Store coordinator ref
-        animationCoordinatorRef.current = animationCoordinator;
 
 
         // --- Logic Helpers ---
@@ -832,9 +855,17 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             );
         };
 
-        // Wrapper for createBlockMesh helper
+        // Wrapper for createBlockMesh helper - pass device tier for optimization
         const createBlockMeshLocal = (colorHex: string, id: string, type: CellType = CellType.NORMAL, health?: number) => {
-            return createBlockMesh(colorHex, id, scene, type, health);
+            const mesh = createBlockMesh(colorHex, id, scene, type, health);
+            
+            // CRITICAL OPTIMIZATION: Disable edges rendering on LOW devices
+            // Edges rendering is VERY expensive and causes massive FPS drops
+            if (isLowEndDevice && mesh.edgesRenderer) {
+                mesh.disableEdgesRendering();
+            }
+            
+            return mesh;
         };
 
         // --- Interaction ---
@@ -944,6 +975,18 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         let time = 0;
         let frameCount = 0; // Frame counter for throttling animations
         let hoverUpdateCounter = 0; // Counter for throttling hover updates on weak devices
+        
+        // Adaptive throttling based on device tier - ULTRA AGGRESSIVE for GM510
+        const animationThrottle = deviceCapabilities.tier === 'low' ? 15 : deviceCapabilities.tier === 'mid' ? 6 : 2;
+        const hoverThrottle = deviceCapabilities.tier === 'low' ? 12 : deviceCapabilities.tier === 'mid' ? 6 : 1;
+        const gridSyncThrottle = deviceCapabilities.tier === 'low' ? 8 : deviceCapabilities.tier === 'mid' ? 3 : 1;
+        
+        console.log(`[Grid] Throttling config:`, {
+            animation: `every ${animationThrottle} frames`,
+            hover: `every ${hoverThrottle} frames`,
+            gridSync: `every ${gridSyncThrottle} frames`,
+            tier: deviceCapabilities.tier
+        });
 
         scene.registerBeforeRender(() => {
             // Task 3.1: FPS Limiter check moved to render loop - this callback always runs
@@ -956,32 +999,34 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             const { grid, draggedPiece, score, combo, lastAction, isGameOver, gameMode: currentGameMode, timeLeft: currentTimeLeft, difficultyTier: currentTier, perfectClearDetected: currentPerfectClear } = stateRef.current;
 
             // ─── Animation Coordinator: Update all animation systems ───
-            // Skip on weak devices to save CPU/GPU
-            if (animationCoordinatorRef.current && !isLowEndDevice) {
+            // Throttle on MID tier devices (every 3 frames = 20fps)
+            const shouldUpdateAnimations = deviceCapabilities.tier === 'high' || (frameCount % animationThrottle === 0);
+            
+            if (animationCoordinatorRef.current && !isLowEndDevice && shouldUpdateAnimations) {
                 animationCoordinatorRef.current.update(currentTime);
             }
             
             // ─── Juice Effects Manager: Update all juice effects ───
-            // Skip on weak devices (already disabled via quality preset)
-            if (juiceEffectsManagerRef.current && !isLowEndDevice) {
+            // Throttle on MID tier devices
+            if (juiceEffectsManagerRef.current && !isLowEndDevice && shouldUpdateAnimations) {
                 juiceEffectsManagerRef.current.update(deltaTime, camera);
             }
             
             // ─── SPS Particle Manager: Update particle physics ───
-            // Skip on weak devices to save CPU
-            if (spsParticleManagerRef.current && !isLowEndDevice) {
+            // Throttle on MID tier devices
+            if (spsParticleManagerRef.current && !isLowEndDevice && shouldUpdateAnimations) {
                 spsParticleManagerRef.current.update(deltaTime * 1000, camera); // Convert to milliseconds
             }
             
             // ─── UI3D Manager: Update all UI elements ───
-            // Skip on weak devices to save CPU
-            if (ui3dManagerRef.current && !isLowEndDevice) {
+            // Throttle on MID tier devices
+            if (ui3dManagerRef.current && !isLowEndDevice && shouldUpdateAnimations) {
                 ui3dManagerRef.current.update(deltaTime * 1000); // Convert to milliseconds
             }
             
             // ─── Special Block Manager: Update all special block effects ───
-            // Skip on weak devices to save CPU
-            if (specialBlockManagerRef.current && !isLowEndDevice) {
+            // Throttle on MID tier devices
+            if (specialBlockManagerRef.current && !isLowEndDevice && shouldUpdateAnimations) {
                 specialBlockManagerRef.current.update(deltaTime * 1000); // Convert to milliseconds
             }
             
@@ -1316,7 +1361,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
             // Update hover - throttled on weak devices (every 3 frames = ~20fps)
             hoverUpdateCounter++;
-            const shouldUpdateHover = isLowEndDevice ? (hoverUpdateCounter % 3 === 0) : true;
+            const shouldUpdateHover = hoverUpdateCounter % hoverThrottle === 0;
             if (shouldUpdateHover) {
                 updateHover();
             }
@@ -1324,18 +1369,23 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             // 0. Animate Particles — skip (particles removed)
 
             // 1. Sync Active Grid
-            // Throttle grid sync on weak devices (every 2 frames = 30fps)
-            const shouldSyncGrid = isLowEndDevice ? (frameCount % 2 === 0) : true;
+            // Throttle grid sync on weak/mid devices - VERY AGGRESSIVE for LOW
+            const shouldSyncGrid = frameCount % gridSyncThrottle === 0;
             
             if (shouldSyncGrid) {
                 const activeIds = new Set<string>();
                 const newlyCreatedIds: string[] = []; // Track newly created blocks for placement animation
                 
-                // Throttle animations: only update emissive colors every 3 frames (20fps instead of 60fps)
-                const shouldUpdateAnimations = !disableAnimations && (frameCount % 3 === 0);
+                // Throttle animations: only update emissive colors based on device tier
+                // LOW: every 10 frames (6fps), MID: every 4 frames (15fps), HIGH: every 2 frames (30fps)
+                const shouldUpdateAnimations = !disableAnimations && (frameCount % animationThrottle === 0);
                 
                 // Skip grid sync during line clear animation to prevent conflicts
                 const isAnimating = lineClearAnimationRef.current?.active || false;
+                
+                // LOW DEVICE OPTIMIZATION: Skip lerp and emissive updates completely
+                const skipLerp = isLowEndDevice;
+                const skipEmissive = isLowEndDevice;
                 
                 grid.forEach((row, y) => {
                 row.forEach((cell, x) => {
@@ -1346,17 +1396,22 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                         if (!mesh) {
                             mesh = createBlockMeshLocal(cell.color, cell.id, cell.type, cell.health);
                             mesh.position = targetPos.clone();
-                            mesh.position.y = 2; // Drop from low height for instant placement feel
+                            mesh.position.y = skipLerp ? 0 : 2; // Instant placement on LOW devices
                             meshMap.set(cell.id, mesh);
                             
                             // Track newly created block for placement animation
-                            newlyCreatedIds.push(cell.id);
+                            if (!isLowEndDevice) {
+                                newlyCreatedIds.push(cell.id);
+                            }
                         }
 
-                        mesh.isVisible = true;
+                        // Only update visibility if it changed (avoid redundant updates)
+                        if (!mesh.isVisible) {
+                            mesh.isVisible = true;
+                        }
 
-                        // Update material if health changed (for ICE)
-                        if (cell.type === CellType.ICE && cell.health === 1 && mesh.material) {
+                        // Update material if health changed (for ICE) - Skip on LOW devices
+                        if (!isLowEndDevice && cell.type === CellType.ICE && cell.health === 1 && mesh.material) {
                             const mat = mesh.material as BABYLON.StandardMaterial;
                             if (!mat.wireframe) { // Only update if not already cracked
                                 mat.alpha = 0.6;
@@ -1364,63 +1419,78 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                             }
                         }
 
-                        // Smooth landing (skip if being animated by line clear)
-                        // Use faster lerp on weak devices to reduce CPU load
-                        const cellKey = `${x},${y}`;
-                        const isBeingAnimated = lineClearAnimationRef.current?.clearedCells.has(cellKey) || 
-                                               lineClearAnimationRef.current?.affectedBlocks.has(cellKey);
-                        
-                        if (!isBeingAnimated) {
-                            const lerpSpeed = isLowEndDevice ? 1.0 : 0.8; // Instant on weak devices
-                            mesh.position = BABYLON.Vector3.Lerp(mesh.position, targetPos, lerpSpeed);
+                        // Smooth landing (skip completely on LOW devices)
+                        if (!skipLerp) {
+                            const cellKey = `${x},${y}`;
+                            const isBeingAnimated = lineClearAnimationRef.current?.clearedCells.has(cellKey) || 
+                                                   lineClearAnimationRef.current?.affectedBlocks.has(cellKey);
+                            
+                            if (!isBeingAnimated) {
+                                mesh.position = BABYLON.Vector3.Lerp(mesh.position, targetPos, 0.8);
+                            }
+                        } else {
+                            // LOW device: Instant snap to position
+                            mesh.position = targetPos;
                         }
 
-                        // Animasyonlar sadece yüksek performanslı cihazlarda ve throttled
-                        // Skip emissive animations for blocks being cleared
-                        const isBeingCleared = lineClearAnimationRef.current?.clearedCells.has(cellKey);
-                        
-                        // Skip all emissive animations on weak devices
-                        if (shouldUpdateAnimations && !isBeingCleared && !isLowEndDevice) {
-                            // Bomba bloğu animate - tehlike nabzı (daha yavaş, mobil için optimize)
-                            if (cell.type === CellType.BOMB && mesh.material) {
-                                const bombPulse = 0.4 + Math.abs(Math.sin(time * 2)) * 0.3; // Enhanced for bloom
-                                (mesh.material as BABYLON.StandardMaterial).emissiveColor =
-                                    BABYLON.Color3.FromHexString("#f59e0b").scale(bombPulse);
-                            }
-                            // Buz bloğu animate - soğuk parıltı (daha yavaş)
-                            else if (cell.type === CellType.ICE && mesh.material) {
-                                const icePulse = 0.2 + Math.abs(Math.sin(time * 1)) * 0.2; // Enhanced for bloom
-                                const iceColor = cell.health === 1
-                                    ? BABYLON.Color3.FromHexString("#60a5fa")
-                                    : BABYLON.Color3.FromHexString("#38bdf8");
-                                (mesh.material as BABYLON.StandardMaterial).emissiveColor = iceColor.scale(icePulse + 0.15);
-                            }
-                            // CHRONO bloğu animate - altın nabız
-                            else if (cell.type === CellType.CHRONO && mesh.material) {
-                                const chronoPulse = 0.2 + Math.abs(Math.sin(time * 2.5)) * 0.3; // Enhanced for bloom
-                                (mesh.material as BABYLON.StandardMaterial).emissiveColor =
-                                    BABYLON.Color3.FromHexString("#f59e0b").scale(chronoPulse);
-                            }
-                            // Normal blocks get subtle glow during high combos
-                            else if (combo >= 5 && mesh.material) {
-                                const comboGlow = Math.min(combo * 0.02, 0.15); // Max 0.15 at combo 7+
-                                const mat = mesh.material as BABYLON.StandardMaterial;
-                                const baseEmissive = mat.diffuseColor.scale(0.05);
-                                mat.emissiveColor = baseEmissive.add(mat.diffuseColor.scale(comboGlow));
+                        // Skip ALL emissive animations on LOW devices
+                        if (!skipEmissive && shouldUpdateAnimations && !isLowEndDevice) {
+                            const cellKey = `${x},${y}`;
+                            const isBeingCleared = lineClearAnimationRef.current?.clearedCells.has(cellKey);
+                            
+                            if (!isBeingCleared) {
+                                // Bomba bloğu animate - tehlike nabzı (daha yavaş, mobil için optimize)
+                                if (cell.type === CellType.BOMB && mesh.material) {
+                                    const bombPulse = 0.4 + Math.abs(Math.sin(time * 2)) * 0.3;
+                                    (mesh.material as BABYLON.StandardMaterial).emissiveColor =
+                                        BABYLON.Color3.FromHexString("#f59e0b").scale(bombPulse);
+                                }
+                                // Buz bloğu animate - soğuk parıltı (daha yavaş)
+                                else if (cell.type === CellType.ICE && mesh.material) {
+                                    const icePulse = 0.2 + Math.abs(Math.sin(time * 1)) * 0.2;
+                                    const iceColor = cell.health === 1
+                                        ? BABYLON.Color3.FromHexString("#60a5fa")
+                                        : BABYLON.Color3.FromHexString("#38bdf8");
+                                    (mesh.material as BABYLON.StandardMaterial).emissiveColor = iceColor.scale(icePulse + 0.15);
+                                }
+                                // CHRONO bloğu animate - altın nabız
+                                else if (cell.type === CellType.CHRONO && mesh.material) {
+                                    const chronoPulse = 0.2 + Math.abs(Math.sin(time * 2.5)) * 0.3;
+                                    (mesh.material as BABYLON.StandardMaterial).emissiveColor =
+                                        BABYLON.Color3.FromHexString("#f59e0b").scale(chronoPulse);
+                                }
+                                // Normal blocks get subtle glow during high combos
+                                else if (combo >= 5 && mesh.material) {
+                                    const comboGlow = Math.min(combo * 0.02, 0.15);
+                                    const mat = mesh.material as BABYLON.StandardMaterial;
+                                    const baseEmissive = mat.diffuseColor.scale(0.05);
+                                    mat.emissiveColor = baseEmissive.add(mat.diffuseColor.scale(comboGlow));
+                                }
                             }
                         }
                     }
                 });
             });
 
-            // Cleanup
-            for (const [id, mesh] of meshMap.entries()) {
-                if (!activeIds.has(id)) {
-                    mesh.scaling.scaleInPlace(0.7);
-                    mesh.rotation.y += 0.3;
-                    if (mesh.scaling.x < 0.05) {
+            // Cleanup - Simplified for LOW devices
+            if (isLowEndDevice) {
+                // LOW: Instant disposal without animation
+                for (const [id, mesh] of meshMap.entries()) {
+                    if (!activeIds.has(id)) {
                         mesh.dispose();
                         meshMap.delete(id);
+                    }
+                }
+            } else {
+                // MID/HIGH: Animated disposal
+                for (const [id, mesh] of meshMap.entries()) {
+                    if (!activeIds.has(id)) {
+                        mesh.scaling.scaleInPlace(0.7);
+                        mesh.rotation.y += 0.3;
+                        if (mesh.scaling.x < 0.05) {
+                            mesh.dispose();
+                            meshMap.delete(id);
+                        }
                     }
                 }
             }
@@ -1450,8 +1520,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                     ? BABYLON.Color3.FromHexString(draggedPiece.color)
                     : BABYLON.Color3.FromHexString("#ef4444");
 
-                // Pulse factor for ghost breathing effect (daha yavaş)
-                const ghostY = 0.35 + Math.sin(time * 3) * 0.04; // Yavaşlatıldı: 6 -> 3, azaltıldı: 0.06 -> 0.04
+                // Pulse factor for ghost breathing effect - DISABLED on LOW devices
+                const ghostY = isLowEndDevice ? 0.35 : (0.35 + Math.sin(time * 3) * 0.04);
 
                 let ghostIndex = 0;
                 draggedPiece.shape.forEach((row, dy) => {
@@ -1467,15 +1537,17 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
                                 const mat = ghostBox.material as BABYLON.StandardMaterial;
                                 mat.diffuseColor = baseColor;
-                                mat.emissiveColor = baseColor.scale(0.2); // Reduced preview emissive
+                                mat.emissiveColor = isLowEndDevice ? BABYLON.Color3.Black() : baseColor.scale(0.2);
                                 mat.alpha = isValid ? 0.6 : 0.3;
 
-                                // Bright edge outlines for clarity
-                                ghostBox.enableEdgesRendering();
-                                ghostBox.edgesWidth = isValid ? 4.0 : 2.5;
-                                ghostBox.edgesColor = isValid
-                                    ? new BABYLON.Color4(baseColor.r, baseColor.g, baseColor.b, 0.9)
-                                    : new BABYLON.Color4(1, 0.3, 0.3, 0.7);
+                                // CRITICAL: Skip edges rendering on LOW devices - VERY expensive
+                                if (!isLowEndDevice) {
+                                    ghostBox.enableEdgesRendering();
+                                    ghostBox.edgesWidth = isValid ? 4.0 : 2.5;
+                                    ghostBox.edgesColor = isValid
+                                        ? new BABYLON.Color4(baseColor.r, baseColor.g, baseColor.b, 0.9)
+                                        : new BABYLON.Color4(1, 0.3, 0.3, 0.7);
+                                }
 
                                 ghostBox.isVisible = true;
                             }

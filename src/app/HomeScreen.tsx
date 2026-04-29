@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, MotionConfig } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useSettingsStore } from '@core/state/settingsStore';
@@ -11,6 +11,7 @@ import { GameMode } from '@shared/types';
 import { playClick } from '@utils/audio';
 import { DailyRewardModal } from './components/DailyRewardModal';
 import { Gift } from 'lucide-react';
+import { detectDeviceCapabilities } from '../utils/platform/deviceCapability';
 
 export const HomeScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -23,6 +24,12 @@ export const HomeScreen: React.FC = () => {
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [hasSave, setHasSave] = useState(false);
   const hasReward = canClaimToday;
+  
+  // Detect device tier for performance optimization
+  const deviceCapabilities = useMemo(() => detectDeviceCapabilities(), []);
+  const isLowEndDevice = deviceCapabilities.tier === 'low';
+  
+  console.log('[HomeScreen] Device tier:', deviceCapabilities.tier, 'Animations:', !isLowEndDevice);
 
   // Initialize rewards on mount
   useEffect(() => {
@@ -60,6 +67,7 @@ export const HomeScreen: React.FC = () => {
   const { currentStreak: dailyStreak } = useStreakStore();
 
   return (
+    <MotionConfig reducedMotion={isLowEndDevice ? "always" : "never"}>
     <div
       className="fixed inset-0 flex flex-col overflow-hidden"
       style={{ 
@@ -68,7 +76,8 @@ export const HomeScreen: React.FC = () => {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)'
       }}
     >
-      {/* Animated Background Orbs */}
+      {/* Animated Background Orbs - Skip on LOW devices */}
+      {!isLowEndDevice && (
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           animate={{
@@ -119,9 +128,10 @@ export const HomeScreen: React.FC = () => {
           }}
         />
       </div>
+      )}
 
-      {/* Floating Particles */}
-      {[...Array(8)].map((_, i) => (
+      {/* Floating Particles - Skip on LOW devices */}
+      {!isLowEndDevice && [...Array(8)].map((_, i) => (
         <motion.div
           key={i}
           className="absolute w-1 h-1 bg-white/20 rounded-full"
@@ -476,5 +486,6 @@ export const HomeScreen: React.FC = () => {
         onClose={() => setShowRewardModal(false)}
       />
     </div>
+    </MotionConfig>
   );
 };

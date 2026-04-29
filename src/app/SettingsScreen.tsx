@@ -97,29 +97,83 @@ export const SettingsScreen: React.FC = () => {
 
   // Handle performance metrics export
   const handleExportMetrics = async () => {
+    setExportStatus('exporting');
+    
     try {
       const metricsData = exportMetrics();
       
-      // Try native share API first
-      if (navigator.share) {
+      // Log metrics summary to console for debugging
+      const metricsObj = JSON.parse(metricsData);
+      console.log('[Settings] ===== PERFORMANCE METRICS SUMMARY =====');
+      console.log('[Settings] Current FPS:', metricsObj.currentFPS);
+      console.log('[Settings] Average FPS:', metricsObj.averageFPS?.toFixed(2));
+      console.log('[Settings] Min FPS:', metricsObj.minFPS);
+      console.log('[Settings] Max FPS:', metricsObj.maxFPS);
+      console.log('[Settings] FPS History:', metricsObj.fpsHistory?.length, 'samples');
+      console.log('[Settings] Touch Response Avg:', metricsObj.averageTouchResponse?.toFixed(2), 'ms');
+      console.log('[Settings] Background Pauses:', metricsObj.backgroundPauseCount);
+      console.log('[Settings] Battery Savings:', metricsObj.estimatedBatterySavings?.toFixed(1), '%');
+      console.log('[Settings] Full data:', metricsObj);
+      console.log('[Settings] ==========================================');
+      
+      // Try native share API first (works on mobile)
+      if (navigator.share && navigator.canShare) {
         const blob = new Blob([metricsData], { type: 'application/json' });
         const file = new File([blob], `fluxgrid-metrics-${Date.now()}.json`, { type: 'application/json' });
-        await navigator.share({
-          title: 'FluxGrid Performance Metrics',
-          files: [file],
-        });
+        
+        // Check if we can share files
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: 'FluxGrid Performance Metrics',
+            text: 'Performance metrics from FluxGrid',
+            files: [file],
+          });
+          setExportStatus('success');
+          console.log('[Settings] Metrics shared successfully via file');
+        } else {
+          // Fallback: Share as text
+          await navigator.share({
+            title: 'FluxGrid Performance Metrics',
+            text: metricsData,
+          });
+          setExportStatus('success');
+          console.log('[Settings] Metrics shared successfully as text');
+        }
       } else {
-        // Fallback to download
+        // Fallback to download (desktop/old browsers)
         const blob = new Blob([metricsData], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `fluxgrid-metrics-${Date.now()}.json`;
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        setExportStatus('success');
+        console.log('[Settings] Metrics downloaded as file');
       }
+      
+      // Reset status after 2 seconds
+      setTimeout(() => setExportStatus('idle'), 2000);
     } catch (error) {
-      console.error('Metrics export failed:', error);
+      console.error('[Settings] Metrics export failed:', error);
+      setExportStatus('error');
+      
+      // Show error message and reset after 3 seconds
+      setTimeout(() => setExportStatus('idle'), 3000);
+      
+      // Last resort: Copy to clipboard
+      try {
+        const metricsData = exportMetrics();
+        await navigator.clipboard.writeText(metricsData);
+        alert('Metrics copied to clipboard! Paste it somewhere to save.');
+        setExportStatus('success');
+        console.log('[Settings] Metrics copied to clipboard as fallback');
+      } catch (clipboardError) {
+        console.error('[Settings] Clipboard copy also failed:', clipboardError);
+        alert('Export failed. Please check console logs for metrics data.');
+      }
     }
   };
 
@@ -736,21 +790,44 @@ export const SettingsScreen: React.FC = () => {
                 {/* Export Metrics Button */}
                 <button
                   onClick={handleExportMetrics}
+                  disabled={exportStatus === 'exporting'}
                   className="w-full p-5 rounded-2xl transition-all"
                   style={{
-                    background: 'rgba(168,85,247,0.1)',
-                    border: '2px solid rgba(168,85,247,0.3)',
+                    background: exportStatus === 'success' 
+                      ? 'rgba(34,197,94,0.1)' 
+                      : exportStatus === 'error'
+                      ? 'rgba(239,68,68,0.1)'
+                      : 'rgba(168,85,247,0.1)',
+                    border: exportStatus === 'success'
+                      ? '2px solid rgba(34,197,94,0.3)'
+                      : exportStatus === 'error'
+                      ? '2px solid rgba(239,68,68,0.3)'
+                      : '2px solid rgba(168,85,247,0.3)',
+                    opacity: exportStatus === 'exporting' ? 0.6 : 1,
                   }}
                   aria-label="Performans metriklerini dışa aktar"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">📊</span>
+                      <span className="text-2xl">
+                        {exportStatus === 'exporting' ? '⏳' : exportStatus === 'success' ? '✅' : exportStatus === 'error' ? '❌' : '📊'}
+                      </span>
                       <div className="text-left">
                         <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
-                          {t('settingsScreen.exportMetrics')}
+                          {exportStatus === 'exporting' 
+                            ? 'Exporting...' 
+                            : exportStatus === 'success'
+                            ? 'Exported!'
+                            : exportStatus === 'error'
+                            ? 'Export Failed'
+                            : t('settingsScreen.exportMetrics')}
                         </p>
-                        <p className="text-xs" style={{ color: colors.textSecondary }}>{t('settingsScreen.exportMetricsDesc')}</p>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>
+                          {exportStatus === 'idle' && t('settingsScreen.exportMetricsDesc')}
+                          {exportStatus === 'exporting' && 'Preparing metrics data...'}
+                          {exportStatus === 'success' && 'Metrics exported successfully!'}
+                          {exportStatus === 'error' && 'Failed to export. Check console.'}
+                        </p>
                       </div>
                     </div>
                   </div>

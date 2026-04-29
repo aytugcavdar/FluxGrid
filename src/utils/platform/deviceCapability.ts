@@ -53,8 +53,8 @@ function getGPURenderer(): string | null {
 
 /**
  * Classify device tier based on GPU renderer string
- * Low-end GPUs: Mali-4xx, Adreno 3xx, PowerVR SGX
- * Mid-range GPUs: Mali-Gxx, Adreno 4xx-5xx
+ * Low-end GPUs: Mali-4xx, Adreno 3xx, PowerVR SGX, Mali-Gxx (G31, G51, G52)
+ * Mid-range GPUs: Mali-Gxx (G57, G68, G71, G72, G76), Adreno 4xx-5xx
  * High-end GPUs: Mali-Gxx (7xx+), Adreno 6xx+
  */
 function classifyGPUTier(gpuRenderer: string | null): DeviceTier | null {
@@ -64,12 +64,21 @@ function classifyGPUTier(gpuRenderer: string | null): DeviceTier | null {
   
   const gpu = gpuRenderer.toLowerCase();
   
-  // Low-end GPU patterns
+  // Low-end GPU patterns (VERY AGGRESSIVE)
   if (
     gpu.includes('mali-4') ||
+    gpu.includes('mali-g31') ||
+    gpu.includes('mali-g51') ||
+    gpu.includes('mali-g52') ||
     gpu.includes('adreno (tm) 3') ||
+    gpu.includes('adreno 3') ||
+    gpu.includes('adreno (tm) 4') ||
+    gpu.includes('adreno 4') ||
+    gpu.includes('adreno (tm) 5') ||
+    gpu.includes('adreno 5') ||
     gpu.includes('powervr sgx') ||
-    gpu.includes('adreno 3')
+    gpu.includes('powervr rogue') ||
+    gpu.includes('videocore')
   ) {
     return DeviceTier.LOW;
   }
@@ -87,7 +96,7 @@ function classifyGPUTier(gpuRenderer: string | null): DeviceTier | null {
     return DeviceTier.HIGH;
   }
   
-  // Mid-range by default (Adreno 4xx-5xx, Mali-Gxx)
+  // Mid-range by default (Mali-G57, G68, G71, G72, G76)
   return DeviceTier.MID;
 }
 
@@ -119,11 +128,13 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
   const gpuTier = classifyGPUTier(gpuRenderer);
   
   // Combine GPU, memory, and cores for final tier
-  if (gpuTier === DeviceTier.LOW || memory <= 4 || cores <= 4) {
+  // VERY AGGRESSIVE: Treat most devices as LOW for GM510-like phones
+  if (gpuTier === DeviceTier.LOW || memory <= 3 || cores <= 4) {
     tier = DeviceTier.LOW;
-  } else if (gpuTier === DeviceTier.HIGH && memory >= 6 && cores > 4) {
+  } else if (gpuTier === DeviceTier.HIGH && memory >= 8 && cores >= 8) {
     tier = DeviceTier.HIGH;
   } else {
+    // Default to MID for 4GB+ RAM and 4+ cores with decent GPU
     tier = DeviceTier.MID;
   }
   
@@ -155,32 +166,32 @@ export function getPerformanceConfig(tier: DeviceTier): PerformanceConfig {
   switch (tier) {
     case DeviceTier.LOW:
       return {
-        fragmentPoolSize: 10,
-        hardwareScaling: 1.0, // Full resolution
+        fragmentPoolSize: 3, // Minimal fragments
+        hardwareScaling: 1.0, // Keep full resolution - don't blur
         enableGlow: false,
         enableParticles: false,
         antialias: false,
-        maxTextureSize: 1024
+        maxTextureSize: 512
       };
     
     case DeviceTier.MID:
       return {
-        fragmentPoolSize: 25,
-        hardwareScaling: 1.0, // Full resolution like HIGH
-        enableGlow: true,
+        fragmentPoolSize: 10, // Reduced fragments
+        hardwareScaling: 1.0, // Keep full resolution - don't blur
+        enableGlow: false, // Disable glow on MID tier to save GPU
         enableParticles: true,
         antialias: false,
-        maxTextureSize: 2048
+        maxTextureSize: 1024
       };
     
     case DeviceTier.HIGH:
       return {
-        fragmentPoolSize: 50,
+        fragmentPoolSize: 25, // Reduced from 30
         hardwareScaling: 1.0, // Full resolution
         enableGlow: true,
         enableParticles: true,
         antialias: true,
-        maxTextureSize: 4096
+        maxTextureSize: 2048
       };
   }
 }

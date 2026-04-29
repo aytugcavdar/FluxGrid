@@ -97,7 +97,8 @@ export function useFPSLimiter(
 
     try {
       const capabilities = detectDeviceCapabilities();
-      const initialFPS = capabilities.tier === DeviceTier.LOW ? 30 : 60;
+      // FIXED: Set 30 FPS for LOW and MID tier devices for better performance
+      const initialFPS = capabilities.tier === DeviceTier.HIGH ? 60 : 30;
 
       setState(prev => ({
         ...prev,
@@ -117,7 +118,7 @@ export function useFPSLimiter(
       console.log('[FPSLimiter] Device tier detected:', capabilities.tier, 'Initial FPS:', initialFPS);
     } catch (error) {
       console.warn('[FPSLimiter] Device tier detection failed, defaulting to mid-tier', error);
-      setState(prev => ({ ...prev, deviceTier: DeviceTier.MID, targetFPS: 60 }));
+      setState(prev => ({ ...prev, deviceTier: DeviceTier.MID, targetFPS: 30 }));
       usePerformanceStore.getState().logError(error);
     }
   }, [shouldEnable]);
@@ -149,7 +150,18 @@ export function useFPSLimiter(
           // Adjust FPS based on battery level (only if not manual mode)
           const manualFPS = getPlatformItem('fps-limit');
           if (!manualFPS || manualFPS === 'auto') {
-            const newFPS = level < 20 ? 30 : 60;
+            // FIXED: More aggressive battery-based FPS reduction
+            let newFPS: number;
+            if (level < 20) {
+              newFPS = 30;
+            } else if (level < 50 && state.deviceTier !== DeviceTier.HIGH) {
+              // For LOW/MID tier devices, use 30 FPS even at medium battery
+              newFPS = 30;
+            } else {
+              // Only HIGH tier devices get 60 FPS at good battery
+              newFPS = state.deviceTier === DeviceTier.HIGH ? 60 : 30;
+            }
+            
             if (newFPS !== state.targetFPS && !state.isIdle) {
               const oldFPS = state.targetFPS;
               setState(prev => ({ ...prev, targetFPS: newFPS }));
@@ -197,9 +209,20 @@ export function useFPSLimiter(
         setState(prev => ({ ...prev, isIdle: false }));
         
         const manualFPS = getPlatformItem('fps-limit');
-        const normalFPS = manualFPS && manualFPS !== 'auto' 
-          ? parseInt(manualFPS)
-          : (state.batteryLevel !== null && state.batteryLevel < 20 ? 30 : 60);
+        let normalFPS: number;
+        
+        if (manualFPS && manualFPS !== 'auto') {
+          normalFPS = parseInt(manualFPS);
+        } else {
+          // FIXED: Restore to device tier appropriate FPS
+          if (state.batteryLevel !== null && state.batteryLevel < 20) {
+            normalFPS = 30;
+          } else if (state.batteryLevel !== null && state.batteryLevel < 50 && state.deviceTier !== DeviceTier.HIGH) {
+            normalFPS = 30;
+          } else {
+            normalFPS = state.deviceTier === DeviceTier.HIGH ? 60 : 30;
+          }
+        }
 
         limiterRef.current?.setTargetFPS(normalFPS);
         setState(prev => ({ ...prev, targetFPS: normalFPS }));
@@ -262,8 +285,14 @@ export function useFPSLimiter(
       let newFPS: number;
 
       if (fps === 'auto') {
-        // Use battery-based FPS
-        newFPS = state.batteryLevel !== null && state.batteryLevel < 20 ? 30 : 60;
+        // FIXED: Use device tier appropriate FPS
+        if (state.batteryLevel !== null && state.batteryLevel < 20) {
+          newFPS = 30;
+        } else if (state.batteryLevel !== null && state.batteryLevel < 50 && state.deviceTier !== DeviceTier.HIGH) {
+          newFPS = 30;
+        } else {
+          newFPS = state.deviceTier === DeviceTier.HIGH ? 60 : 30;
+        }
       } else {
         newFPS = fps;
       }
