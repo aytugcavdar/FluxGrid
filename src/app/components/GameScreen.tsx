@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { GameMode } from '@shared/types';
 import { Grid } from '../../features/game/components/Grid';
 import { Piece } from '../../features/game/components/Piece';
-import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual, ComboMilestone, LineCountDisplay, FloatingScoreText, PerfectClearPopup } from '@features/hud';
+import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual, ComboMilestone, LineCountDisplay, FloatingScoreText, PerfectClearPopup, LineClearFlash } from '@features/hud';
 import { useThemeStore } from '@shared/store/themeStore';
 import { useTutorialStore } from '../../features/tutorial/store/tutorialStore';
 import { playClick } from '@utils/audio';
@@ -198,40 +198,69 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
         </div>
       </main>
 
-      {/* Piece Tray */}
-      <div style={{ 
-        height: `calc(var(--tray-height, 68px) + env(safe-area-inset-bottom, 0px))`,
-        marginBottom: showBanner ? '60px' : '0px', // Banner için boşluk bırak
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 4px)',
-        backgroundColor: colors.trayBackground,
-        borderTop: `1px solid ${colors.hudBorder}`,
-        flexShrink: 0
+      {/* ══ Piece Tray — glassmorphism ══ */}
+      <div style={{
+        height: `calc(var(--tray-height, 72px) + env(safe-area-inset-bottom, 0px))`,
+        marginBottom: showBanner ? '60px' : '0px',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6px)',
+        flexShrink: 0,
+        position: 'relative',
       }}>
-        <div className="max-w-2xl mx-auto h-full flex flex-col" style={{ padding: '4px 6px' }}>
-          <div className="grid grid-cols-3 flex-1 min-h-0" style={{ gap: '4px' }}>
+        {/* Top gradient accent line */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+          background: 'linear-gradient(90deg, transparent 0%, rgba(129,140,248,0.4) 30%, rgba(168,85,247,0.5) 50%, rgba(244,114,182,0.4) 70%, transparent 100%)',
+        }} />
+        {/* Tray background */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg, rgba(10,8,22,0.96) 0%, rgba(13,10,28,0.99) 100%)',
+          backdropFilter: 'blur(12px)',
+        }} />
+
+        <div className="max-w-2xl mx-auto h-full flex flex-col" style={{ padding: '6px 8px 0', position: 'relative' }}>
+          <div className="grid grid-cols-3 flex-1 min-h-0" style={{ gap: '6px' }}>
             <AnimatePresence mode="popLayout">
-              {pieces.map((piece, index) => (
-                <motion.div
-                  key={piece.instanceId}
-                  layout
-                  initial={{ scale: 0.6, opacity: 0, y: 20 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  exit={{ scale: 0.5, opacity: 0 }}
-                  className={clsx(
-                    "piece-slot border transition-colors h-full",
-                    piece.type === 'ICE' ? "bg-blue-900/15 border-blue-400/20" :
-                      piece.type === 'BOMB' ? "bg-red-900/15 border-red-400/20" :
-                        ""
-                  )}
-                  style={{ 
-                    borderRadius: '6px',
-                    backgroundColor: piece.type === 'NORMAL' ? colors.cardBackground : undefined,
-                    borderColor: piece.type === 'NORMAL' ? colors.cardBorder : undefined
-                  }}
-                >
-                  <Piece piece={piece} index={index} />
-                </motion.div>
-              ))}
+              {pieces.map((piece, index) => {
+                const isIce  = piece.type === 'ICE';
+                const isBomb = piece.type === 'BOMB';
+                const borderColor = isIce
+                  ? 'rgba(56,189,248,0.45)'
+                  : isBomb
+                  ? 'rgba(239,68,68,0.45)'
+                  : 'rgba(255,255,255,0.07)';
+                const bgColor = isIce
+                  ? 'rgba(56,189,248,0.06)'
+                  : isBomb
+                  ? 'rgba(239,68,68,0.06)'
+                  : 'rgba(255,255,255,0.03)';
+                const glowColor = isIce
+                  ? '0 0 12px rgba(56,189,248,0.2)'
+                  : isBomb
+                  ? '0 0 12px rgba(239,68,68,0.2)'
+                  : 'none';
+
+                return (
+                  <motion.div
+                    key={piece.instanceId}
+                    layout
+                    initial={{ scale: 0.65, opacity: 0, y: 16 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.55, opacity: 0, y: 8 }}
+                    transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+                    className="piece-slot h-full"
+                    style={{
+                      borderRadius: 10,
+                      border: `1px solid ${borderColor}`,
+                      background: bgColor,
+                      boxShadow: glowColor,
+                      transition: 'border-color 0.2s, box-shadow 0.2s',
+                    }}
+                  >
+                    <Piece piece={piece} index={index} />
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           </div>
         </div>
@@ -246,8 +275,10 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
       <FloatingScoreText />
       {/* ScorePopups DISABLED - replaced with FloatingScoreText */}
       {/* <ScorePopups popups={scorePopups} /> */}
-      {/* ComboFlash DISABLED - removed edge glow effect */}
-      {/* <ComboFlash combo={combo} /> */}
+      {/* Combo edge glow — re-enabled */}
+      <ComboFlash combo={combo} />
+      {/* Line clear horizontal sweep flash */}
+      <LineClearFlash />
       <SurgeFlash active={showSurgeFlash} />
       <ComboRushFlash active={showRushStart} movesLeft={timedBoostMovesLeft} onStart={true} />
       <ComboRushFlash active={showRushEnd} movesLeft={0} onStart={false} />

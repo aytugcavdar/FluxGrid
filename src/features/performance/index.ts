@@ -24,23 +24,12 @@ import {
 } from './store/performanceStore';
 
 export const initializePerformanceSystem = () => {
-  // Allow in development OR if explicitly enabled in production
-  const isProductionEnabled = typeof window !== 'undefined' && 
-                               localStorage.getItem('enablePerformanceOverlay') === 'true';
-  
-  if (process.env.NODE_ENV === 'development' || isProductionEnabled) {
-    console.log('[Performance] Initializing performance system');
-    return initPerf();
-  }
-  return () => {}; // No-op cleanup
+  // Always enable in production for testing
+  console.log('[Performance] Initializing performance system');
+  return initPerf();
 };
 
 export const cleanupPerformanceSystem = () => {
-  const isProductionEnabled = typeof window !== 'undefined' && 
-                               localStorage.getItem('enablePerformanceOverlay') === 'true';
-  
-  if (process.env.NODE_ENV === 'development' || isProductionEnabled) {
-    console.log('[Performance] Cleaning up performance system');
-    cleanupPerf();
-  }
+  console.log('[Performance] Cleaning up performance system');
+  cleanupPerf();
 };

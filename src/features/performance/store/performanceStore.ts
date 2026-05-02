@@ -72,7 +72,7 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
   frameTimeHistory: [],
   warnings: [],
   isMonitoring: false,
-  isOverlayVisible: false,
+  isOverlayVisible: false, // Back to false - toggle with 5 taps
 
   // Update FPS
   updateFPS: (fps: number) => {

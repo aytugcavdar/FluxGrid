@@ -348,23 +348,8 @@ export function tickActiveEvent(
       }
     }
     
-    // CRITICAL FIX: Process grid after gravity flip to clear full lines!
-    // Without this, full rows/columns don't explode
-    const { grid: processedGrid, totalLinesCleared, chainCount, colorBonus, bombsExploded, iceBroken, diamondMultipliers, actions } = processGrid(flippedGrid);
-    
-    updates.grid = processedGrid;
-    
-    // If lines were cleared, update score and stats
-    if (totalLinesCleared > 0) {
-      // Store clear info for gameStore to handle scoring
-      updates.lastAction = {
-        type: 'CLEAR' as const,
-        lines: totalLinesCleared,
-        chainCount,
-        colorBonus,
-        surgeBonus: false, // Event clears don't use surge
-      };
-    }
+    // Event will be processed in gameStore.ts to clear lines
+    updates.grid = flippedGrid;
   }
   
   if (activeEvent === 'QUAKE') {

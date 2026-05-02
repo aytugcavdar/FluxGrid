@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { X } from 'lucide-react';
-import clsx from 'clsx';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, RotateCcw, Share2, ChevronRight } from 'lucide-react';
 import { GameMode } from '@shared/types';
 import { playClick } from '@utils/audio';
 import { generateShareText, shareResult } from '@/src/utils/sharing/shareResult';
@@ -35,436 +34,397 @@ interface GameOverModalProps {
   onCloseIOSInstructions: () => void;
 }
 
-// Helper function to get mode icon
-const getModeIcon = (mode: GameMode): string => {
-  const icons: Record<GameMode, string> = {
-    [GameMode.ENDLESS]: '∞',
-    [GameMode.TIMED]: '⚡',
-    [GameMode.ZEN]: '☁️',
-    [GameMode.DAILY_CHALLENGE]: '📅',
-  };
-  return icons[mode] || '🎮';
+/* ── Animated count-up number ── */
+const CountUp: React.FC<{ target: number; duration?: number; color?: string }> = ({
+  target, duration = 1400, color = 'white',
+}) => {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (target === 0) return;
+    const start = Date.now();
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3); // cubic ease out
+      setVal(Math.round(ease * target));
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [target, duration]);
+  return <span style={{ color }}>{val.toLocaleString()}</span>;
+};
+
+/* ── Confetti particle ── */
+const CONFETTI_COLORS = ['#f59e0b', '#f472b6', '#818cf8', '#34d399', '#fb923c', '#60a5fa'];
+const Confetti: React.FC = () => {
+  const particles = useMemo(() =>
+    Array.from({ length: 32 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+      delay: Math.random() * 0.6,
+      duration: 1.2 + Math.random() * 1.2,
+      size: 5 + Math.random() * 7,
+      rotate: Math.random() * 360,
+    })), []);
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-[90] overflow-hidden">
+      {particles.map(p => (
+        <motion.div
+          key={p.id}
+          initial={{ x: `${p.x}vw`, y: '-5vh', rotate: 0, opacity: 1 }}
+          animate={{ y: '110vh', rotate: p.rotate * 4, opacity: [1, 1, 0] }}
+          transition={{ duration: p.duration, delay: p.delay, ease: 'easeIn' }}
+          style={{
+            position: 'absolute',
+            width: p.size, height: p.size,
+            background: p.color,
+            borderRadius: Math.random() > 0.5 ? '50%' : 2,
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
+/* ── Stat chip ── */
+const StatChip: React.FC<{ icon: string; label: string; value: string | number; color: string; delay?: number; show?: boolean }> = ({
+  icon, label, value, color, delay = 0, show = true,
+}) => (
+  <motion.div
+    initial={{ opacity: 0, y: 12, scale: 0.85 }}
+    animate={{ opacity: show ? 1 : 0, y: show ? 0 : 12, scale: show ? 1 : 0.85 }}
+    transition={{ duration: 0.3, delay, ease: [0.34, 1.56, 0.64, 1] }}
+    style={{
+      flex: 1,
+      padding: '10px 8px',
+      borderRadius: 14,
+      background: `${color}12`,
+      border: `1px solid ${color}30`,
+      textAlign: 'center',
+    }}
+  >
+    <div style={{ fontSize: 16, marginBottom: 3 }}>{icon}</div>
+    <div style={{ fontSize: 14, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+    <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontWeight: 600, marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+  </motion.div>
+);
+
+const MODE_SUGGESTIONS: Record<string, { mode: GameMode; label: string; desc: string; color: string }> = {
+  [GameMode.ENDLESS]: { mode: GameMode.TIMED, label: 'Zamanlı Modu Dene', desc: '60 sn içinde en yüksek skor', color: '#f59e0b' },
+  [GameMode.TIMED]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Sınırsız, tier rekoru kır', color: '#818cf8' },
+  [GameMode.ZEN]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Sınırsız, skor rekoru kır', color: '#818cf8' },
+  [GameMode.DAILY_CHALLENGE]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Pratik yap, hazırlan', color: '#818cf8' },
 };
 
 export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
-  isGameOver,
-  score,
-  displayScore,
-  highScore,
-  currentModeHighScore,
-  isNewRecord,
-  showRecordBadge,
-  showButtons,
-  gameMode,
-  combo,
-  maxCombo,
-  chronoBonus,
-  finalSprintBonus,
-  stats,
-  difficultyTier,
-  surgeWasUsed,
-  dailyClearHistory,
-  shareStatus,
-  showPWAPrompt,
-  showIOSInstructions,
-  onClose,
-  onPlayAgain,
-  onTryMode,
-  onShare,
-  onInstallPWA,
-  onCloseIOSInstructions,
+  isGameOver, score, displayScore, highScore, currentModeHighScore,
+  isNewRecord, showRecordBadge, showButtons, gameMode,
+  combo, maxCombo, chronoBonus, finalSprintBonus, stats,
+  difficultyTier, surgeWasUsed, dailyClearHistory,
+  shareStatus, showPWAPrompt, showIOSInstructions,
+  onClose, onPlayAgain, onTryMode, onShare, onInstallPWA, onCloseIOSInstructions,
 }) => {
   const [visibleStats, setVisibleStats] = useState(0);
-  
-  // Memoize expensive percentage calculations (Requirement 1.5)
-  const scorePercentage = useMemo(() => 
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  const scorePercentage = useMemo(() =>
     currentModeHighScore > 0 ? Math.round((score / currentModeHighScore) * 100) : 0,
-    [score, currentModeHighScore]
-  );
-  
-  const progressPercentage = useMemo(() => 
+    [score, currentModeHighScore]);
+
+  const progressPercentage = useMemo(() =>
     currentModeHighScore > 0 ? Math.min((score / currentModeHighScore) * 100, 100) : 0,
-    [score, currentModeHighScore]
-  );
+    [score, currentModeHighScore]);
 
   useEffect(() => {
     if (isGameOver) {
+      if (isNewRecord) {
+        setTimeout(() => setShowConfetti(true), 800);
+        setTimeout(() => setShowConfetti(false), 3200);
+      }
       const timers = [
-        setTimeout(() => setVisibleStats(1), 400),
-        setTimeout(() => setVisibleStats(2), 580),
-        setTimeout(() => setVisibleStats(3), 760),
-        setTimeout(() => setVisibleStats(4), 940),
+        setTimeout(() => setVisibleStats(1), 500),
+        setTimeout(() => setVisibleStats(2), 680),
+        setTimeout(() => setVisibleStats(3), 860),
+        setTimeout(() => setVisibleStats(4), 1040),
       ];
       return () => timers.forEach(clearTimeout);
     } else {
       setVisibleStats(0);
     }
-  }, [isGameOver]);
+  }, [isGameOver, isNewRecord]);
 
   if (!isGameOver) return null;
 
-  // Mode suggestions
-  const MODE_SUGGESTIONS: Record<string, { mode: GameMode; label: string; desc: string }> = {
-    [GameMode.ENDLESS]: { mode: GameMode.TIMED, label: 'Zamanlı Modu Dene', desc: '60 saniye içinde en yüksek skoru yap' },
-    [GameMode.TIMED]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Sınırsız oyun, skor rekorları kır' },
-    [GameMode.ZEN]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Sınırsız oyun, skor rekorları kır' },
-    [GameMode.DAILY_CHALLENGE]: { mode: GameMode.ENDLESS, label: 'Sonsuz Modu Dene', desc: 'Günlük meydan okuma sonrası pratik yap' },
-  };
   const suggestion = MODE_SUGGESTIONS[gameMode];
+  const modeIsEndless = gameMode === GameMode.ENDLESS;
+  const modeIsTimed = gameMode === GameMode.TIMED;
+
+  /* accent color by mode */
+  const accentColor = modeIsTimed ? '#f59e0b' : '#818cf8';
+  const accentLight = modeIsTimed ? 'rgba(245,158,11,0.15)' : 'rgba(129,140,248,0.15)';
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-    >
+    <>
+      {showConfetti && <Confetti />}
+
       <motion.div
-        initial={{ scale: 0.9, y: 30 }}
-        animate={{ scale: 1, y: 0 }}
-        className="bg-gray-800 border border-white/8 p-6 md:p-8 rounded-2xl shadow-2xl max-w-xs w-full text-center relative overflow-hidden"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center"
+        style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
       >
-        {/* Header Section */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{getModeIcon(gameMode)}</span>
-            <span className="text-xs text-gray-400 uppercase tracking-wider">
-              Oyun Bitti
-            </span>
-          </div>
-          <button
-            onClick={() => {
-              playClick();
-              onClose();
-            }}
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Score Display with Count-Up Animation */}
-        <div className="text-center my-6">
-          <div 
-            className={clsx(
-              "text-4xl font-bold transition-colors duration-300",
-              isNewRecord ? "text-amber-400" : "text-white"
-            )}
-          >
-            {displayScore.toLocaleString()}
-          </div>
-          
-          {isNewRecord && showRecordBadge && (
-            <motion.div
-              initial={{ opacity: 0, y: -10, scale: 0.5 }}
-              animate={{
-                opacity: showRecordBadge ? 1 : 0,
-                y: showRecordBadge ? 0 : -10,
-                scale: showRecordBadge ? [0.5, 1.15, 1.0] : 0.5,
-              }}
-              transition={{
-                duration: 0.4,
-                times: [0, 0.7, 1],
-              }}
-              className="mt-2 text-amber-400 text-sm font-semibold"
-            >
-              🏆 Yeni Rekor!
-            </motion.div>
-          )}
-          
-          {!isNewRecord && currentModeHighScore > 0 && (
-            <div className="mt-2 text-xs text-gray-400">
-              En iyinin %{scorePercentage}'i
-            </div>
-          )}
-        </div>
-
-        {/* Share Preview - Emoji Grid */}
-        {gameMode === GameMode.DAILY_CHALLENGE && dailyClearHistory.length > 0 && (
-          <div className="mb-4 p-3 bg-white/5 rounded-lg">
-            <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-2 text-center">
-              Paylaşım Önizleme
-            </div>
-            <div style={{
-              fontFamily: 'monospace',
-              fontSize: 18,
-              textAlign: 'center',
-              letterSpacing: 4,
-              lineHeight: 1.3
-            }}>
-              {generateShareText(score, gameMode, combo, surgeWasUsed, dailyClearHistory)
-                .split('\n')
-                .slice(2, -2)
-                .map((line, i) => (
-                  <div key={i}>{line || '\u00A0'}</div>
-                ))}
-            </div>
-          </div>
-        )}
-
-        {/* Stats Chips - Mode-Specific */}
-        {stats && (
-          <div className="flex gap-2 mb-4">
-            {gameMode === GameMode.TIMED ? (
-              <>
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
-                  animate={{
-                    opacity: visibleStats >= 1 ? 1 : 0,
-                    y: visibleStats >= 1 ? 0 : 8,
-                    scale: visibleStats >= 1 ? 1 : 0.85,
-                  }}
-                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
-                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
-                >
-                  <div className="text-sm font-bold text-amber-400">
-                    {maxCombo > 0 ? `x${maxCombo}` : '--'}
-                  </div>
-                  <div className="text-[10px] text-gray-500 uppercase">Max Combo</div>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
-                  animate={{
-                    opacity: visibleStats >= 2 ? 1 : 0,
-                    y: visibleStats >= 2 ? 0 : 8,
-                    scale: visibleStats >= 2 ? 1 : 0.85,
-                  }}
-                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
-                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
-                >
-                  <div className="text-sm font-bold text-purple-400">
-                    {stats.linesCleared || 0}
-                  </div>
-                  <div className="text-[10px] text-gray-500 uppercase">Satır</div>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
-                  animate={{
-                    opacity: visibleStats >= 3 ? 1 : 0,
-                    y: visibleStats >= 3 ? 0 : 8,
-                    scale: visibleStats >= 3 ? 1 : 0.85,
-                  }}
-                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
-                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
-                >
-                  <div className="text-sm font-bold text-blue-400">
-                    +{chronoBonus}s
-                  </div>
-                  <div className="text-[10px] text-gray-500 uppercase">Chrono</div>
-                </motion.div>
-                {finalSprintBonus > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.85 }}
-                    animate={{
-                      opacity: visibleStats >= 4 ? 1 : 0,
-                      y: visibleStats >= 4 ? 0 : 8,
-                      scale: visibleStats >= 4 ? 1 : 0.85,
-                    }}
-                    transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
-                    className="flex-1 bg-white/5 rounded-lg py-2 px-3"
-                  >
-                    <div className="text-sm font-bold text-green-400">
-                      +{finalSprintBonus}
-                    </div>
-                    <div className="text-[10px] text-gray-500 uppercase">Sprint</div>
-                  </motion.div>
-                )}
-              </>
-            ) : gameMode === GameMode.ENDLESS ? (
-              <>
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
-                  animate={{
-                    opacity: visibleStats >= 1 ? 1 : 0,
-                    y: visibleStats >= 1 ? 0 : 8,
-                    scale: visibleStats >= 1 ? 1 : 0.85,
-                  }}
-                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
-                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
-                >
-                  <div className="text-sm font-bold text-amber-400">
-                    {maxCombo > 0 ? `x${maxCombo}` : '--'}
-                  </div>
-                  <div className="text-[10px] text-gray-500 uppercase">Max Combo</div>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
-                  animate={{
-                    opacity: visibleStats >= 2 ? 1 : 0,
-                    y: visibleStats >= 2 ? 0 : 8,
-                    scale: visibleStats >= 2 ? 1 : 0.85,
-                  }}
-                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
-                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
-                >
-                  <div className="text-sm font-bold text-purple-400">
-                    {stats.linesCleared || 0}
-                  </div>
-                  <div className="text-[10px] text-gray-500 uppercase">Satır</div>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
-                  animate={{
-                    opacity: visibleStats >= 3 ? 1 : 0,
-                    y: visibleStats >= 3 ? 0 : 8,
-                    scale: visibleStats >= 3 ? 1 : 0.85,
-                  }}
-                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
-                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
-                >
-                  <div className="text-sm font-bold text-orange-400">
-                    T{difficultyTier}
-                  </div>
-                  <div className="text-[10px] text-gray-500 uppercase">Max Tier</div>
-                </motion.div>
-              </>
-            ) : (
-              <>
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
-                  animate={{
-                    opacity: visibleStats >= 1 ? 1 : 0,
-                    y: visibleStats >= 1 ? 0 : 8,
-                    scale: visibleStats >= 1 ? 1 : 0.85,
-                  }}
-                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
-                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
-                >
-                  <div className="text-sm font-bold text-blue-400">
-                    {maxCombo > 0 ? `x${maxCombo}` : '--'}
-                  </div>
-                  <div className="text-[10px] text-gray-500 uppercase">Max Combo</div>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
-                  animate={{
-                    opacity: visibleStats >= 2 ? 1 : 0,
-                    y: visibleStats >= 2 ? 0 : 8,
-                    scale: visibleStats >= 2 ? 1 : 0.85,
-                  }}
-                  transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
-                  className="flex-1 bg-white/5 rounded-lg py-2 px-3"
-                >
-                  <div className="text-sm font-bold text-purple-400">
-                    {stats.linesCleared || 0}
-                  </div>
-                  <div className="text-[10px] text-gray-500 uppercase">Satır</div>
-                </motion.div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Best Score Comparison */}
-        {!isNewRecord && currentModeHighScore > 0 && score > 0 && (
-          <div className="mb-4 p-3 bg-white/5 rounded-lg text-center">
-            <div className="text-xs text-gray-400 mb-1">
-              Rekoruna %{scorePercentage} yaklaştın
-            </div>
-            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${progressPercentage}%` }}
-                transition={{ duration: 1, ease: 'easeOut' }}
-                className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Primary Action Button - Tekrar Oyna */}
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: showButtons ? 1 : 0 }}
-          onClick={() => {
-            playClick();
-            onPlayAgain();
+        <motion.div
+          initial={{ y: 60, scale: 0.96, opacity: 0 }}
+          animate={{ y: 0, scale: 1, opacity: 1 }}
+          exit={{ y: 40, scale: 0.96, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+          style={{
+            width: '100%',
+            maxWidth: 360,
+            margin: '0 16px',
+            borderRadius: 28,
+            background: 'linear-gradient(160deg, #13102a 0%, #1a1535 100%)',
+            border: '1px solid rgba(255,255,255,0.09)',
+            boxShadow: `0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04) inset`,
+            overflow: 'hidden',
+            position: 'relative',
           }}
-          className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all active:scale-95"
         >
-          Tekrar Oyna
-        </motion.button>
+          {/* Top accent line */}
+          <div style={{
+            height: 3,
+            background: isNewRecord
+              ? 'linear-gradient(90deg, #f59e0b, #f472b6, #f59e0b)'
+              : `linear-gradient(90deg, ${accentColor}88, ${accentColor}, ${accentColor}88)`,
+            backgroundSize: isNewRecord ? '200% 100%' : '100% 100%',
+          }} />
 
-        {/* Share Result Button */}
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: showButtons ? 1 : 0 }}
-          onClick={onShare}
-          className="w-full mt-2 py-3 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-400 text-sm font-semibold hover:bg-blue-500/20 transition-all"
-        >
-          {shareStatus === 'copied' ? '✓ Kopyalandı!' : shareStatus === 'shared' ? '✓ Paylaşıldı!' : '↗ Sonucu Paylaş'}
-        </motion.button>
+          {/* Background radial glow */}
+          <div style={{
+            position: 'absolute', top: -60, left: '50%', transform: 'translateX(-50%)',
+            width: 300, height: 200,
+            background: isNewRecord
+              ? 'radial-gradient(ellipse, rgba(245,158,11,0.12) 0%, transparent 70%)'
+              : `radial-gradient(ellipse, ${accentColor}18 0%, transparent 70%)`,
+            pointerEvents: 'none',
+          }} />
 
-        {/* Mode Suggestion */}
-        {suggestion && (
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: showButtons ? 1 : 0 }}
-            onClick={() => { playClick(); onTryMode(suggestion.mode); }}
-            className="w-full mt-2 py-2 px-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-all flex items-center gap-2 text-left"
-          >
-            <div className="flex-1">
-              <div className="text-xs font-semibold text-gray-400">
-                {suggestion.label}
-              </div>
-              <div className="text-[10px] text-gray-500">
-                {suggestion.desc}
-              </div>
-            </div>
-            <div className="text-xs text-gray-500">→</div>
-          </motion.button>
-        )}
-
-        {/* PWA Install Prompt - Non-iOS */}
-        {showPWAPrompt && (
-          <motion.button
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            onClick={async () => {
-              playClick();
-              await onInstallPWA();
-            }}
-            className="w-full mt-3 py-2 px-3 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-all flex items-center gap-2"
-          >
-            <div className="text-lg">📱</div>
-            <div className="flex-1 text-left">
-              <div className="text-xs font-semibold text-blue-400">
-                Ana Ekrana Ekle
-              </div>
-              <div className="text-[10px] text-blue-400/60">
-                Hızlı erişim için
-              </div>
-            </div>
-          </motion.button>
-        )}
-
-        {/* iOS PWA Instructions */}
-        {showIOSInstructions && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-3 p-3 rounded-lg border border-blue-500/30 bg-blue-500/10 text-left"
-          >
-            <div className="flex items-start gap-2 mb-2">
-              <div className="text-lg">📱</div>
-              <div className="flex-1">
-                <div className="text-xs font-semibold text-blue-400 mb-1">
-                  Ana Ekrana Ekle
+          <div style={{ padding: '20px 20px 24px', position: 'relative' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 10,
+                  background: accentLight,
+                  border: `1px solid ${accentColor}40`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 16,
+                }}>
+                  {modeIsTimed ? '⏱' : modeIsEndless ? '∞' : '🎮'}
                 </div>
-                <div className="text-[10px] text-blue-400/80 leading-relaxed">
-                  Safari'de <span className="font-bold">Paylaş</span> butonuna bas, sonra <span className="font-bold">Ana Ekrana Ekle</span>'yi seç
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', lineHeight: 1 }}>
+                    Oyun Bitti
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: accentColor, lineHeight: 1.2 }}>
+                    {modeIsTimed ? 'Zamanlı Mod' : modeIsEndless ? 'Sonsuz Mod' : 'Oyun'}
+                  </div>
                 </div>
               </div>
-              <button
-                onClick={onCloseIOSInstructions}
-                className="text-blue-400/60 hover:text-blue-400"
-              >
+              <button onClick={() => { playClick(); onClose(); }}
+                style={{
+                  width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', color: 'rgba(255,255,255,0.4)',
+                }}>
                 <X size={14} />
               </button>
             </div>
-          </motion.div>
-        )}
+
+            {/* Score section */}
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <AnimatePresence>
+                {isNewRecord && showRecordBadge && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.6, y: -8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 18, delay: 0.3 }}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      padding: '4px 12px', borderRadius: 20, marginBottom: 10,
+                      background: 'linear-gradient(135deg, rgba(245,158,11,0.25), rgba(244,114,182,0.2))',
+                      border: '1px solid rgba(245,158,11,0.45)',
+                    }}
+                  >
+                    <span style={{ fontSize: 13 }}>🏆</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: '#fbbf24', letterSpacing: '0.05em' }}>
+                      YENİ REKOR!
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 18, delay: 0.15 }}
+                style={{
+                  fontSize: 52, fontWeight: 900, lineHeight: 1,
+                  letterSpacing: '-1px',
+                  background: isNewRecord
+                    ? 'linear-gradient(135deg, #fbbf24, #f472b6)'
+                    : 'linear-gradient(135deg, #e2e8f0, #94a3b8)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                }}
+              >
+                <CountUp target={displayScore} color="inherit" />
+              </motion.div>
+
+              {!isNewRecord && currentModeHighScore > 0 && (
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 5 }}>
+                  En iyinin %{scorePercentage}'i
+                </div>
+              )}
+
+              {/* Progress bar vs best */}
+              {!isNewRecord && currentModeHighScore > 0 && score > 0 && (
+                <div style={{ marginTop: 10, width: '100%', height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progressPercentage}%` }}
+                    transition={{ duration: 1.2, delay: 0.5, ease: 'easeOut' }}
+                    style={{
+                      height: '100%',
+                      background: `linear-gradient(90deg, ${accentColor}88, ${accentColor})`,
+                      borderRadius: 2,
+                      boxShadow: `0 0 8px ${accentColor}66`,
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Stat chips */}
+            {stats && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+                {modeIsTimed ? (
+                  <>
+                    <StatChip icon="⚡" label="Max Combo" value={maxCombo > 0 ? `×${maxCombo}` : '--'} color="#f59e0b" delay={0.12} show={visibleStats >= 1} />
+                    <StatChip icon="📊" label="Satır" value={stats.linesCleared || 0} color="#a855f7" delay={0.22} show={visibleStats >= 2} />
+                    <StatChip icon="⏱" label="Chrono" value={`+${chronoBonus}s`} color="#60a5fa" delay={0.32} show={visibleStats >= 3} />
+                    {finalSprintBonus > 0 && <StatChip icon="🏃" label="Sprint" value={`+${finalSprintBonus}`} color="#34d399" delay={0.42} show={visibleStats >= 4} />}
+                  </>
+                ) : modeIsEndless ? (
+                  <>
+                    <StatChip icon="⚡" label="Max Combo" value={maxCombo > 0 ? `×${maxCombo}` : '--'} color="#f59e0b" delay={0.12} show={visibleStats >= 1} />
+                    <StatChip icon="📊" label="Satır" value={stats.linesCleared || 0} color="#a855f7" delay={0.22} show={visibleStats >= 2} />
+                    <StatChip icon="🎯" label="Max Tier" value={`T${difficultyTier}`} color="#fb923c" delay={0.32} show={visibleStats >= 3} />
+                  </>
+                ) : (
+                  <>
+                    <StatChip icon="⚡" label="Max Combo" value={maxCombo > 0 ? `×${maxCombo}` : '--'} color="#60a5fa" delay={0.12} show={visibleStats >= 1} />
+                    <StatChip icon="📊" label="Satır" value={stats.linesCleared || 0} color="#a855f7" delay={0.22} show={visibleStats >= 2} />
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: showButtons ? 1 : 0 }}
+              transition={{ duration: 0.3, delay: 0.6 }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+            >
+              {/* Play Again — primary */}
+              <button
+                onClick={() => { playClick(); onPlayAgain(); }}
+                style={{
+                  width: '100%', padding: '15px 0',
+                  borderRadius: 16, border: 'none',
+                  background: `linear-gradient(135deg, ${accentColor}dd, ${accentColor})`,
+                  boxShadow: `0 8px 28px ${accentColor}50`,
+                  color: 'white', fontSize: 15, fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  letterSpacing: '0.02em',
+                }}
+              >
+                <RotateCcw size={16} />
+                Tekrar Oyna
+              </button>
+
+              {/* Share */}
+              <button
+                onClick={onShare}
+                style={{
+                  width: '100%', padding: '12px 0',
+                  borderRadius: 16, border: `1px solid ${accentColor}35`,
+                  background: `${accentColor}10`,
+                  color: accentColor, fontSize: 13, fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                }}
+              >
+                <Share2 size={14} />
+                {shareStatus === 'copied' ? '✓ Kopyalandı!' : shareStatus === 'shared' ? '✓ Paylaşıldı!' : 'Sonucu Paylaş'}
+              </button>
+
+              {/* Mode suggestion */}
+              {suggestion && (
+                <button
+                  onClick={() => { playClick(); onTryMode(suggestion.mode); }}
+                  style={{
+                    width: '100%', padding: '11px 14px',
+                    borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)',
+                    background: 'rgba(255,255,255,0.04)',
+                    cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                  }}
+                >
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+                    background: `${suggestion.color}18`,
+                    border: `1px solid ${suggestion.color}35`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 16,
+                  }}>
+                    {suggestion.mode === GameMode.TIMED ? '⏱' : '∞'}
+                  </div>
+                  <div style={{ flex: 1, textAlign: 'left' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.75)', lineHeight: 1 }}>{suggestion.label}</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>{suggestion.desc}</div>
+                  </div>
+                  <ChevronRight size={14} style={{ color: 'rgba(255,255,255,0.25)' }} />
+                </button>
+              )}
+
+              {/* PWA Prompt */}
+              {showPWAPrompt && (
+                <button
+                  onClick={async () => { playClick(); await onInstallPWA(); }}
+                  style={{
+                    width: '100%', padding: '11px 14px',
+                    borderRadius: 14, border: '1px solid rgba(59,130,246,0.3)',
+                    background: 'rgba(59,130,246,0.08)',
+                    cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>📱</span>
+                  <div style={{ flex: 1, textAlign: 'left' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#60a5fa' }}>Ana Ekrana Ekle</div>
+                    <div style={{ fontSize: 10, color: 'rgba(96,165,250,0.6)', marginTop: 2 }}>Hızlı erişim için</div>
+                  </div>
+                </button>
+              )}
+            </motion.div>
+          </div>
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </>
   );
 });

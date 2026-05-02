@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Piece as PieceType, CellType } from '../types';
 import { useGameStore } from '../store/gameStore';
 import clsx from 'clsx';
+import { resetVelocityTracking } from '../utils/placementHelper';
 
 interface Props {
   piece: PieceType;
@@ -36,6 +37,9 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
     
     // Add scroll prevention
     document.body.classList.add('dragging');
+    
+    // Velocity sıfırla — yeni drag başlıyor
+    resetVelocityTracking();
     
     // Immediate visual feedback
     setDraggedPiece(piece);

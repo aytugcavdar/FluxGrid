@@ -76,7 +76,26 @@ export const RemoteLogger: React.FC = () => {
     return () => { listeners.delete(listener); };
   }, []);
   
-  // Toggle with 3-finger tap
+  // Listen for toggle event from Settings
+  useEffect(() => {
+    const handleToggle = (event: CustomEvent) => {
+      setVisible(event.detail.visible);
+      (window as any).__REMOTE_LOGGER_VISIBLE__ = event.detail.visible;
+    };
+    
+    window.addEventListener('remote-logger-toggle', handleToggle as EventListener);
+    
+    // Check initial state
+    if ((window as any).__REMOTE_LOGGER_VISIBLE__) {
+      setVisible(true);
+    }
+    
+    return () => {
+      window.removeEventListener('remote-logger-toggle', handleToggle as EventListener);
+    };
+  }, []);
+  
+  // Toggle with 3-finger tap (backup method)
   useEffect(() => {
     let touchCount = 0;
     let touchTimer: NodeJS.Timeout;
@@ -88,7 +107,9 @@ export const RemoteLogger: React.FC = () => {
         touchTimer = setTimeout(() => { touchCount = 0; }, 500);
         
         if (touchCount === 2) {
-          setVisible(prev => !prev);
+          const newVisible = !visible;
+          setVisible(newVisible);
+          (window as any).__REMOTE_LOGGER_VISIBLE__ = newVisible;
           touchCount = 0;
         }
       }
@@ -96,7 +117,7 @@ export const RemoteLogger: React.FC = () => {
     
     document.addEventListener('touchstart', handleTouch);
     return () => document.removeEventListener('touchstart', handleTouch);
-  }, []);
+  }, [visible]);
   
   if (!visible) return null;
   

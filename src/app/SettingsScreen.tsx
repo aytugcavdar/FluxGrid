@@ -710,6 +710,20 @@ export const SettingsScreen: React.FC = () => {
                   onChange={setDebugMode}
                 />
 
+                {/* Remote Logger Toggle */}
+                <ToggleSwitch
+                  label="Remote Logger"
+                  description="Show on-screen debug logs (GPU, FPS, device info)"
+                  value={typeof window !== 'undefined' && (window as any).__REMOTE_LOGGER_VISIBLE__ === true}
+                  onChange={(enabled) => {
+                    if (typeof window !== 'undefined') {
+                      (window as any).__REMOTE_LOGGER_VISIBLE__ = enabled;
+                      // Trigger a custom event to notify RemoteLogger
+                      window.dispatchEvent(new CustomEvent('remote-logger-toggle', { detail: { visible: enabled } }));
+                    }
+                  }}
+                />
+
                 {/* Test Notification Button */}
                 <button
                   onClick={async () => {

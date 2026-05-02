@@ -53,9 +53,11 @@ function getGPURenderer(): string | null {
 
 /**
  * Classify device tier based on GPU renderer string
- * Low-end GPUs: Mali-4xx, Adreno 3xx, PowerVR SGX, Mali-Gxx (G31, G51, G52)
- * Mid-range GPUs: Mali-Gxx (G57, G68, G71, G72, G76), Adreno 4xx-5xx
- * High-end GPUs: Mali-Gxx (7xx+), Adreno 6xx+
+ * Conservative approach: Most devices are MID tier for stability
+ * 
+ * LOW: Very old/weak GPUs (Mali-4xx, Adreno 3xx, PowerVR SGX)
+ * MID: Most modern devices (Mali-G5x, G6x, G7x, Adreno 5xx-6xx) - DEFAULT
+ * HIGH: Only flagship GPUs (Adreno 7xx+, Mali-G7x+, Apple A14+)
  */
 function classifyGPUTier(gpuRenderer: string | null): DeviceTier | null {
   if (!gpuRenderer) {
@@ -64,39 +66,31 @@ function classifyGPUTier(gpuRenderer: string | null): DeviceTier | null {
   
   const gpu = gpuRenderer.toLowerCase();
   
-  // Low-end GPU patterns (VERY AGGRESSIVE)
+  // LOW-END: Only very old/weak GPUs
   if (
     gpu.includes('mali-4') ||
     gpu.includes('mali-g31') ||
-    gpu.includes('mali-g51') ||
-    gpu.includes('mali-g52') ||
     gpu.includes('adreno (tm) 3') ||
     gpu.includes('adreno 3') ||
-    gpu.includes('adreno (tm) 4') ||
-    gpu.includes('adreno 4') ||
-    gpu.includes('adreno (tm) 5') ||
-    gpu.includes('adreno 5') ||
     gpu.includes('powervr sgx') ||
-    gpu.includes('powervr rogue') ||
     gpu.includes('videocore')
   ) {
     return DeviceTier.LOW;
   }
   
-  // High-end GPU patterns
+  // HIGH-END: Only flagship GPUs
   if (
-    gpu.includes('adreno (tm) 6') ||
-    gpu.includes('adreno 6') ||
     gpu.includes('adreno (tm) 7') ||
     gpu.includes('adreno 7') ||
-    gpu.includes('mali-g7') ||
-    gpu.includes('mali-g8') ||
-    gpu.includes('mali-g9')
+    gpu.includes('mali-g78') ||
+    gpu.includes('mali-g710') ||
+    gpu.includes('mali-g715') ||
+    gpu.includes('apple gpu')
   ) {
     return DeviceTier.HIGH;
   }
   
-  // Mid-range by default (Mali-G57, G68, G71, G72, G76)
+  // MID-RANGE: Everything else (default for stability)
   return DeviceTier.MID;
 }
 
@@ -121,20 +115,17 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
   const isNative = Capacitor.isNativePlatform();
   const isAndroid = Capacitor.getPlatform() === 'android';
   
-  // Tier classification based on GPU, memory, and cores
+  // Simple RAM-based tier classification for stability
+  // LOW: 6GB and below (Honor 9X and similar)
+  // MID: 7GB RAM (rare, but exists)
+  // HIGH: 8GB+ RAM
   let tier: DeviceTier;
   
-  // Start with GPU-based classification if available
-  const gpuTier = classifyGPUTier(gpuRenderer);
-  
-  // Combine GPU, memory, and cores for final tier
-  // VERY AGGRESSIVE: Treat most devices as LOW for GM510-like phones
-  if (gpuTier === DeviceTier.LOW || memory <= 3 || cores <= 4) {
+  if (memory <= 6) {
     tier = DeviceTier.LOW;
-  } else if (gpuTier === DeviceTier.HIGH && memory >= 8 && cores >= 8) {
+  } else if (memory >= 8) {
     tier = DeviceTier.HIGH;
   } else {
-    // Default to MID for 4GB+ RAM and 4+ cores with decent GPU
     tier = DeviceTier.MID;
   }
   
@@ -161,13 +152,15 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
 
 /**
  * Get performance configuration based on device tier
+ * All tiers use full resolution (hardwareScaling: 1.0)
+ * Only effects and features differ
  */
 export function getPerformanceConfig(tier: DeviceTier): PerformanceConfig {
   switch (tier) {
     case DeviceTier.LOW:
       return {
-        fragmentPoolSize: 3, // Minimal fragments
-        hardwareScaling: 1.0, // Keep full resolution - don't blur
+        fragmentPoolSize: 3,
+        hardwareScaling: 1.0, // Full resolution
         enableGlow: false,
         enableParticles: false,
         antialias: false,
@@ -175,22 +168,24 @@ export function getPerformanceConfig(tier: DeviceTier): PerformanceConfig {
       };
     
     case DeviceTier.MID:
+      // Balanced settings - better visuals than LOW
       return {
-        fragmentPoolSize: 10, // Reduced fragments
-        hardwareScaling: 1.0, // Keep full resolution - don't blur
-        enableGlow: false, // Disable glow on MID tier to save GPU
+        fragmentPoolSize: 10, // Increased from 8
+        hardwareScaling: 1.0, // Full resolution
+        enableGlow: false, // Still disabled for stability
         enableParticles: true,
-        antialias: false,
+        antialias: false, // Disabled for performance
         maxTextureSize: 1024
       };
     
     case DeviceTier.HIGH:
+      // Premium visuals for flagship devices
       return {
-        fragmentPoolSize: 25, // Reduced from 30
+        fragmentPoolSize: 20, // Increased from 15
         hardwareScaling: 1.0, // Full resolution
-        enableGlow: true,
+        enableGlow: true, // ENABLED for premium look
         enableParticles: true,
-        antialias: true,
+        antialias: true, // ENABLED for smooth edges
         maxTextureSize: 2048
       };
   }

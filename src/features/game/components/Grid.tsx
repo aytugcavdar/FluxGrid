@@ -15,6 +15,7 @@ import { useBackgroundPause } from '../hooks/useBackgroundPause';
 import { usePerformanceStore } from '../store/performanceStore';
 import { injectAndroidTouchCSS, addOptimizedTouchListener } from '../../../utils/device/touchOptimizer';
 import clsx from 'clsx';
+import { findBestPlacement, recordPointerSample, getDragVelocity, resetVelocityTracking, FAST_SWIPE_THRESHOLD } from '../utils/placementHelper';
 
 // Import constants and helpers
 import {
@@ -51,6 +52,9 @@ import {
   updateTimedModeAtmosphere,
   syncGridMeshes
 } from './grid/helpers';
+
+// Import mesh pooling for performance optimization
+import { MeshPool } from './grid/helpers/meshPoolHelpers';
 
 // Import AnimationCoordinator and animation systems
 import { AnimationCoordinator } from '../../visual-effects/core/AnimationCoordinator';
@@ -114,6 +118,9 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
     // Performance monitor refs
     const performanceMonitorRef = useRef<PerformanceMonitor | null>(null);
     const adaptiveQualityRef = useRef<AdaptiveQualitySystem | null>(null);
+    
+    // Battery saver manager ref
+    const batterySaverManagerRef = useRef<any | null>(null);
 
     // Task 9.1: Integrate useFPSLimiter hook
     const { state: fpsState } = useFPSLimiter(engineRef.current, true);
@@ -285,6 +292,10 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
     const globalMouseRef = useRef<{ x: number, y: number } | null>(null);
 
     const meshMapRef = useRef<Map<string, BABYLON.Mesh>>(new Map());
+    
+    // Mesh pool for reusing meshes (performance optimization)
+    const meshPoolRef = useRef<MeshPool | null>(null);
+    
     const ghostMeshesRef = useRef<BABYLON.Mesh[]>([]);
     const guidedHighlightMeshesRef = useRef<BABYLON.Mesh[]>([]);
     const ambientParticlesRef = useRef<BABYLON.Mesh[]>([]);
@@ -436,6 +447,12 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
         // Store scene ref for hooks
         sceneRef.current = scene;
+        
+        // Initialize mesh pool for performance optimization
+        // Pool size based on device tier: LOW=30, MID=50, HIGH=70
+        const poolSize = isLowEndDevice ? 30 : (deviceCapabilities.tier === 'high' ? 70 : 50);
+        meshPoolRef.current = new MeshPool(poolSize);
+        console.log('[Grid] Mesh pool initialized with size:', poolSize);
 
         // Low-end device scene optimizations
         if (isLowEndDevice) {
@@ -670,7 +687,9 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             let currentQualityPreset: 'high' | 'medium' | 'low' = deviceCapabilities.tier === 'high' ? 'high' : 'medium';
             
             // Initialize particle pool manager
-            const qualityMultiplier = deviceCapabilities.tier === 'high' ? 1.0 : 0.5;
+            // Quality based on device tier: LOW=35%, MID=65%, HIGH=100%
+            const qualityMultiplier = deviceCapabilities.tier === 'high' ? 1.0 : 
+                                     deviceCapabilities.tier === 'mid' ? 0.65 : 0.35;
             particlePoolManager = new ParticlePoolManager({
                 scene,
                 qualityMultiplier
@@ -684,7 +703,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             
             // Task 24.7: Initialize battery saver manager
             // Requirements: 14.6
-            const batterySaverManager = getBatterySaverManager({
+            batterySaverManagerRef.current = getBatterySaverManager({
                 onQualityChange: (preset) => {
                     console.log('[Grid] Battery saver quality change:', preset);
                     currentQualityPreset = preset;
@@ -707,7 +726,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             });
             
             // Initialize battery monitoring (async)
-            batterySaverManager.initialize().catch((error) => {
+            batterySaverManagerRef.current.initialize().catch((error) => {
                 console.debug('[Grid] Battery saver initialization failed:', error);
             });
             
@@ -746,9 +765,11 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             }
             
             // Initialize line clear animation system with SPS particle manager
+            // SPS capacity based on device tier: LOW=500, MID=1200, HIGH=2000
             spsParticleManager = new SPSParticlePoolManager({
                 scene,
-                capacity: deviceCapabilities.tier === 'high' ? 2000 : 1000,
+                capacity: deviceCapabilities.tier === 'high' ? 2000 : 
+                         deviceCapabilities.tier === 'mid' ? 1200 : 500,
                 particleSize: 0.1,
             });
             spsParticleManagerRef.current = spsParticleManager;
@@ -855,15 +876,66 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             );
         };
 
-        // Wrapper for createBlockMesh helper - pass device tier for optimization
-        const createBlockMeshLocal = (colorHex: string, id: string, type: CellType = CellType.NORMAL, health?: number) => {
-            const mesh = createBlockMesh(colorHex, id, scene, type, health);
-            
-            // CRITICAL OPTIMIZATION: Disable edges rendering on LOW devices
-            // Edges rendering is VERY expensive and causes massive FPS drops
-            if (isLowEndDevice && mesh.edgesRenderer) {
-                mesh.disableEdgesRendering();
+        // Helper to get cell info from mesh for pooling
+        const getCellInfoFromMesh = (mesh: BABYLON.Mesh, grid: GridState): { color: string; type: CellType; health?: number } | null => {
+            // Try to find cell by mesh ID in grid
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    const cell = grid[y][x];
+                    if (cell.filled && cell.id === mesh.name) {
+                        return {
+                            color: cell.color,
+                            type: cell.type || CellType.NORMAL,
+                            health: cell.health
+                        };
+                    }
+                }
             }
+            
+            // Fallback: try to determine from material color
+            if (mesh.material) {
+                const mat = mesh.material as BABYLON.StandardMaterial;
+                const color = mat.diffuseColor;
+                
+                // Convert color to hex (approximate)
+                const r = Math.round(color.r * 255);
+                const g = Math.round(color.g * 255);
+                const b = Math.round(color.b * 255);
+                const colorHex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+                
+                return {
+                    color: colorHex,
+                    type: CellType.NORMAL,
+                    health: undefined
+                };
+            }
+            
+            return null;
+        };
+
+        // Wrapper for createBlockMesh with MESH POOLING optimization
+        // Reuses meshes from pool instead of creating new ones
+        const createBlockMeshLocal = (colorHex: string, id: string, type: CellType = CellType.NORMAL, health?: number) => {
+            // Try to get mesh from pool
+            const mesh = meshPoolRef.current!.getMesh(
+                colorHex,
+                type,
+                health,
+                () => {
+                    // Pool empty, create new mesh
+                    const newMesh = createBlockMesh(colorHex, id, scene, type, health);
+                    
+                    // CRITICAL OPTIMIZATION: Disable edges rendering on LOW devices
+                    if (isLowEndDevice && newMesh.edgesRenderer) {
+                        newMesh.disableEdgesRendering();
+                    }
+                    
+                    return newMesh;
+                }
+            );
+            
+            // Update mesh ID (important for tracking)
+            mesh.name = id;
             
             return mesh;
         };
@@ -896,8 +968,13 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 if (draggedPiece) {
                     const shapeW = draggedPiece.shape[0].length;
                     const shapeH = draggedPiece.shape.length;
-                    const fx = rx - Math.floor((shapeW - 1) / 2);
-                    const fy = ry - Math.floor((shapeH - 1) / 2);
+                    const cx = rx - Math.floor((shapeW - 1) / 2);
+                    const cy = ry - Math.floor((shapeH - 1) / 2);
+
+                    // A2: Smart snap — en yakın geçerli konumu bul (1 hücre yarıçapı)
+                    const snapped = findBestPlacement(stateRef.current.grid, draggedPiece, cx, cy, 1);
+                    const fx = snapped ? snapped.x : cx;
+                    const fy = snapped ? snapped.y : cy;
 
                     const newCoord = { x: fx, y: fy };
                     if (!hoverCoordRef.current || hoverCoordRef.current.x !== fx || hoverCoordRef.current.y !== fy) {
@@ -932,13 +1009,15 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
                                         const gMat = ghost.material as BABYLON.StandardMaterial;
                                         
-                                        // For BOMB pieces, use a brighter red color for visibility
+                                        // For BOMB pieces, use dark gray color to match actual BOMB appearance
                                         const ghostColor = draggedPiece.type === CellType.BOMB 
-                                            ? '#ef4444' // Bright red for BOMB
+                                            ? '#1c1917' // Dark gray to match BOMB body
                                             : draggedPiece.color;
                                         
                                         gMat.diffuseColor = BABYLON.Color3.FromHexString(ghostColor);
-                                        gMat.emissiveColor = BABYLON.Color3.FromHexString(ghostColor).scale(0.6);
+                                        gMat.emissiveColor = draggedPiece.type === CellType.BOMB
+                                            ? BABYLON.Color3.FromHexString('#f59e0b').scale(0.3) // Orange glow for BOMB
+                                            : BABYLON.Color3.FromHexString(ghostColor).scale(0.6);
                                         gMat.alpha = 0.5; // Slightly more opaque for better visibility
                                         
                                         // Disable edges for ghost preview (no borders)
@@ -976,10 +1055,10 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         let frameCount = 0; // Frame counter for throttling animations
         let hoverUpdateCounter = 0; // Counter for throttling hover updates on weak devices
         
-        // Adaptive throttling based on device tier - ULTRA AGGRESSIVE for GM510
-        const animationThrottle = deviceCapabilities.tier === 'low' ? 15 : deviceCapabilities.tier === 'mid' ? 6 : 2;
-        const hoverThrottle = deviceCapabilities.tier === 'low' ? 12 : deviceCapabilities.tier === 'mid' ? 6 : 1;
-        const gridSyncThrottle = deviceCapabilities.tier === 'low' ? 8 : deviceCapabilities.tier === 'mid' ? 3 : 1;
+        // Adaptive throttling based on device tier - MORE AGGRESSIVE
+        const animationThrottle = deviceCapabilities.tier === 'low' ? 10 : deviceCapabilities.tier === 'mid' ? 4 : 2;
+        const hoverThrottle = deviceCapabilities.tier === 'low' ? 8 : deviceCapabilities.tier === 'mid' ? 4 : 1;
+        const gridSyncThrottle = deviceCapabilities.tier === 'low' ? 4 : deviceCapabilities.tier === 'mid' ? 2 : 1;
         
         console.log(`[Grid] Throttling config:`, {
             animation: `every ${animationThrottle} frames`,
@@ -1359,9 +1438,11 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 lastScoreRef.current = stateRef.current.score;
             }
 
-            // Update hover - throttled on weak devices (every 3 frames = ~20fps)
+            // Update hover — drag sırasında her frame, aksi hâlde throttle
             hoverUpdateCounter++;
-            const shouldUpdateHover = hoverUpdateCounter % hoverThrottle === 0;
+            const shouldUpdateHover = draggedPiece
+                ? true                                          // A1: drag varsa her frame
+                : hoverUpdateCounter % hoverThrottle === 0;    // drag yoksa throttle
             if (shouldUpdateHover) {
                 updateHover();
             }
@@ -1396,7 +1477,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                         if (!mesh) {
                             mesh = createBlockMeshLocal(cell.color, cell.id, cell.type, cell.health);
                             mesh.position = targetPos.clone();
-                            mesh.position.y = skipLerp ? 0 : 2; // Instant placement on LOW devices
+                            mesh.position.y = skipLerp ? 0 : 2; // Instant placement on LOW devices, normal drop on others
                             meshMap.set(cell.id, mesh);
                             
                             // Track newly created block for placement animation
@@ -1472,23 +1553,36 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 });
             });
 
-            // Cleanup - Simplified for LOW devices
+            // Cleanup - Return meshes to pool instead of disposing
             if (isLowEndDevice) {
-                // LOW: Instant disposal without animation
+                // LOW: Instant return to pool
                 for (const [id, mesh] of meshMap.entries()) {
                     if (!activeIds.has(id)) {
-                        mesh.dispose();
+                        // Get cell info to return to correct pool
+                        const cellInfo = getCellInfoFromMesh(mesh, grid);
+                        if (cellInfo) {
+                            meshPoolRef.current!.returnMesh(mesh, cellInfo.color, cellInfo.type, cellInfo.health);
+                        } else {
+                            // Fallback: dispose if we can't determine cell info
+                            mesh.dispose();
+                        }
                         meshMap.delete(id);
                     }
                 }
             } else {
-                // MID/HIGH: Animated disposal
+                // MID/HIGH: Animated disposal then return to pool
                 for (const [id, mesh] of meshMap.entries()) {
                     if (!activeIds.has(id)) {
                         mesh.scaling.scaleInPlace(0.7);
                         mesh.rotation.y += 0.3;
                         if (mesh.scaling.x < 0.05) {
-                            mesh.dispose();
+                            // Animation complete, return to pool
+                            const cellInfo = getCellInfoFromMesh(mesh, grid);
+                            if (cellInfo) {
+                                meshPoolRef.current!.returnMesh(mesh, cellInfo.color, cellInfo.type, cellInfo.health);
+                            } else {
+                                mesh.dispose();
+                            }
                             meshMap.delete(id);
                         }
                     }
@@ -1567,18 +1661,32 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             if (e.pointerType === 'touch') {
                 lastTouchTimeRef.current = Date.now();
             }
+            // Velocity tracking (A — hızlı swipe için)
+            if (stateRef.current.draggedPiece) {
+                recordPointerSample(e.clientX, e.clientY);
+            }
         };
 
         const handleWindowPointerUp = () => {
             const { draggedPiece } = stateRef.current;
             
+            // A3: Ghost'u anında gizle — placement animasyonu başlamadan önce
+            ghostMeshesRef.current.forEach(m => { m.isVisible = false; });
+            guidedHighlightMeshesRef.current.forEach(m => { m.isVisible = false; });
+
+            // Velocity ölç (hızlı swipe tespiti için)
+            const velocity = getDragVelocity();
+            const isFastSwipe = velocity > FAST_SWIPE_THRESHOLD;
+            resetVelocityTracking();
+            
             // Handle piece placement
             if (draggedPiece) {
                 if (hoverCoordRef.current) {
-                    // If we have a valid hover coordinate, place the piece
+                    // Geçerli hover koordinatına yerleştir
+                    // Hızlı swipe'ta da snap uygula
                     placePiece(draggedPiece, hoverCoordRef.current.x, hoverCoordRef.current.y);
                 } else if (globalMouseRef.current && canvasRef.current) {
-                    // Fallback: Try to calculate position from mouse coordinates
+                    // Fallback: fare koordinatlarından konum hesapla
                     const rect = canvasRef.current.getBoundingClientRect();
                     const x = globalMouseRef.current.x - rect.left;
                     const y = globalMouseRef.current.y - rect.top;
@@ -1596,8 +1704,13 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                         
                         const shapeW = draggedPiece.shape[0].length;
                         const shapeH = draggedPiece.shape.length;
-                        const fx = rx - Math.floor((shapeW - 1) / 2);
-                        const fy = ry - Math.floor((shapeH - 1) / 2);
+                        const cx = rx - Math.floor((shapeW - 1) / 2);
+                        const cy = ry - Math.floor((shapeH - 1) / 2);
+
+                        // A2: Fallback path'de de snap uygula
+                        const snapped = findBestPlacement(stateRef.current.grid, draggedPiece, cx, cy, 1);
+                        const fx = snapped ? snapped.x : cx;
+                        const fy = snapped ? snapped.y : cy;
                         
                         placePiece(draggedPiece, fx, fy);
                     }
@@ -1961,7 +2074,10 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             }
             
             // Task 24.7: Dispose battery saver manager
-            batterySaverManager.dispose();
+            if (batterySaverManagerRef.current) {
+                batterySaverManagerRef.current.dispose();
+                batterySaverManagerRef.current = null;
+            }
             
             // Dispose all grid meshes BEFORE scene disposal
             meshMapRef.current.forEach(mesh => {
@@ -1970,6 +2086,12 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 }
             });
             meshMapRef.current.clear();
+            
+            // Dispose mesh pool (all pooled meshes)
+            if (meshPoolRef.current) {
+                meshPoolRef.current.dispose();
+                meshPoolRef.current = null;
+            }
             
             // Dispose ambient particles
             ambientParticlesRef.current.forEach(m => m?.dispose());

@@ -142,12 +142,8 @@ export const PerformanceMetricsDisplay: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Always allow in development, and in production if explicitly enabled
-  // To enable in production: localStorage.setItem('enablePerformanceOverlay', 'true')
-  const isProductionEnabled = typeof window !== 'undefined' && 
-                               localStorage.getItem('enablePerformanceOverlay') === 'true';
-  
-  const isEnabled = process.env.NODE_ENV !== 'production' || isProductionEnabled;
+  // Always allow - monitoring is always running now
+  const isEnabled = true;
   
   // Debug log for troubleshooting
   useEffect(() => {

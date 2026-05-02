@@ -50,6 +50,9 @@ export interface GameStore {
   bonusRerolls: number;
   bonusShatter: number;
   bonusBomb: number;
+
+  // Flux Energy System (combo-driven, 0–100)
+  fluxEnergy: number;
   
 
   
@@ -187,6 +190,9 @@ export const useGameStore = create<GameStore>((set, get) => {
   bonusRerolls: 0,
   bonusShatter: 0,
   bonusBomb: 0,
+
+  // Flux Energy System Initial State
+  fluxEnergy: 0,
   
   // Achievements Initial State - ensure it's always an array
   achievements: (() => {
@@ -324,7 +330,9 @@ export const useGameStore = create<GameStore>((set, get) => {
           isPiecesLoading: false,
           // Combo Timer initialization
           comboTimerStartTime: null,
-          comboTimeLeft: 0
+          comboTimeLeft: 0,
+          // Flux Energy initialization
+          fluxEnergy: 0,
         });
         
         // Increment games played (global and mode-specific)
@@ -655,7 +663,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       sprintBonusGained = Math.floor(basePoints * 0.5 * quakeMultiplier * passiveScoreMultiplier);
     }
     
-    const newScore = score + pointsGained;
+    let newScore = score + pointsGained;
 
     // Check milestones (Endless mode only)
     if (gameMode === GameMode.ENDLESS) {
@@ -829,16 +837,77 @@ export const useGameStore = create<GameStore>((set, get) => {
     const tierUpdates = tierResult ?? {};
     let finalGrid = (eventUpdates as any)?.grid ?? (tierUpdates as any)?.grid ?? newGrid;
     
-    // BUG FIX: Event effects artık kendi içlerinde processGrid çağırmıyor
-    // Bu yüzden burada tekrar processGrid çağırmaya gerek yok
-    // Double processing score jump ve freeze'e neden oluyordu
+    // BUG FIX: If an event modified the grid, we must process it to clear resulting full lines.
+    // We accumulate the results so the player gets points for event-induced chain reactions.
+    let eventLinesCleared = 0;
+    let totalPointsGained = pointsGained;
+    let totalLinesCleared = linesCleared;
+    let totalBombsExploded = bombsExploded;
+    let totalIceBroken = iceBroken;
+    
+    if ((eventUpdates as any)?.grid || (tierUpdates as any)?.grid) {
+      const processResult = processGrid(finalGrid);
+      finalGrid = processResult.grid;
+      eventLinesCleared = processResult.totalLinesCleared;
+      
+      if (eventLinesCleared > 0) {
+        newCombo += eventLinesCleared;
+        JuiceTriggers.onLinesCleared(processResult.actions as any, newCombo);
+        
+        // Calculate points for these extra lines
+        const eventBasePoints = (eventLinesCleared * POINTS.LINE_CLEARED) + (newCombo * POINTS.COMBO_MULTIPLIER);
+        const { score: eventScore } = calculateScore(
+          eventBasePoints,
+          processResult.colorBonus,
+          1.0, // No flux multiplier
+          gameMode === GameMode.ENDLESS ? get().difficultyTier : 0,
+          gameMode === GameMode.ENDLESS ? get().activeEvent : null,
+          updatedMiniEventState,
+          eventLinesCleared,
+          passiveScoreMultiplier,
+          streakMultiplier
+        );
+        
+        totalPointsGained += eventScore;
+        newScore += eventScore;
+        totalLinesCleared += eventLinesCleared;
+        totalBombsExploded += processResult.bombsExploded;
+        totalIceBroken += processResult.iceBroken;
+        
+        // Add chrono bonus if any
+        processResult.actions.forEach(action => {
+          if (action.type === 'CHRONO_BONUS') {
+            chronoBonusSeconds += action.seconds;
+          }
+        });
+        
+        // Update lastAction to show the clear
+        if (eventUpdates) {
+          eventUpdates.lastAction = {
+            type: 'CLEAR',
+            lines: eventLinesCleared,
+            chainCount: processResult.chainCount,
+            colorBonus: processResult.colorBonus,
+            surgeBonus: false,
+            chronoBonus: chronoBonusSeconds
+          };
+        }
+      }
+    }
     
     // Tick mini-events after score calculation (only for ENDLESS mode)
     if (gameMode === GameMode.ENDLESS) {
       // Calculate if combo would break (no lines cleared and no COMBO_SHIELD)
-      const comboWouldBreak = linesCleared === 0 && combo > 0;
-      updatedMiniEventState = tickMiniEvents(updatedMiniEventState, linesCleared, comboWouldBreak);
+      const comboWouldBreak = totalLinesCleared === 0 && combo > 0;
+      updatedMiniEventState = tickMiniEvents(updatedMiniEventState, totalLinesCleared, comboWouldBreak);
     }
+
+    // Flux Energy: charge from line clears (combo × 5 + lines × 15), capped at 100
+    const currentFlux = get().fluxEnergy;
+    const fluxGain = totalLinesCleared > 0
+      ? Math.round(totalLinesCleared * 15 + Math.min(newCombo, 10) * 5)
+      : 0;
+    const newFlux = Math.min(100, currentFlux + fluxGain);
 
     set({
       ...tierUpdates,
@@ -860,6 +929,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       comboTimerStartTime: newComboTimerStart,
       comboTimeLeft: newComboTimeLeft,
       lastMultiplierBreakdown: breakdown,
+      fluxEnergy: newFlux,
     });
 
     // Update Global Stats
@@ -867,16 +937,16 @@ export const useGameStore = create<GameStore>((set, get) => {
     const nextStats: GameStats = {
       ...currentStats,
       blocksPlaced: currentStats.blocksPlaced + blocksPlaced,
-      linesCleared: currentStats.linesCleared + linesCleared,
-      totalScore: currentStats.totalScore + pointsGained,
-      bombsExploded: currentStats.bombsExploded + bombsExploded,
-      iceBroken: currentStats.iceBroken + iceBroken,
+      linesCleared: currentStats.linesCleared + totalLinesCleared,
+      totalScore: currentStats.totalScore + totalPointsGained,
+      bombsExploded: currentStats.bombsExploded + totalBombsExploded,
+      iceBroken: currentStats.iceBroken + totalIceBroken,
     };
     
     // Update mode-specific stats
     if (gameMode === GameMode.ENDLESS) {
       // Endless mode stats
-      nextStats.endlessTotalLines = (currentStats.endlessTotalLines || 0) + linesCleared;
+      nextStats.endlessTotalLines = (currentStats.endlessTotalLines || 0) + totalLinesCleared;
       nextStats.endlessMaxCombo = Math.max(currentStats.endlessMaxCombo || 0, newCombo);
       nextStats.endlessMaxTier = Math.max(currentStats.endlessMaxTier || 0, get().difficultyTier);
       

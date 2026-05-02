@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { GridCell as CellType } from '../types';
 
@@ -11,11 +11,13 @@ interface Props {
   isValidGhost?: boolean;
   onClick?: () => void;
   isShatterTarget?: boolean;
+  comboColor?: string; // aktif combo rengi → hücre aura'sına yansır
 }
 
-export const GridCell: React.FC<Props> = ({ cell, isGhost, isValidGhost, onClick, isShatterTarget }) => {
+export const GridCell: React.FC<Props> = ({ cell, isGhost, isValidGhost, onClick, isShatterTarget, comboColor }) => {
   const [isClearing, setIsClearing] = React.useState(false);
   const [justPlaced, setJustPlaced] = React.useState(false);
+  const [showFlash, setShowFlash] = React.useState(false);
 
   React.useEffect(() => {
     if (!cell.filled && isClearing) {
@@ -27,82 +29,123 @@ export const GridCell: React.FC<Props> = ({ cell, isGhost, isValidGhost, onClick
   React.useEffect(() => {
     if (cell.filled && !isGhost) {
       setJustPlaced(true);
-      const timer = setTimeout(() => setJustPlaced(false), 300);
-      return () => clearTimeout(timer);
+      setShowFlash(true);
+      const flashTimer = setTimeout(() => setShowFlash(false), 250);
+      const bounceTimer = setTimeout(() => setJustPlaced(false), 400);
+      return () => {
+        clearTimeout(flashTimer);
+        clearTimeout(bounceTimer);
+      };
     }
   }, [cell.filled, isGhost]);
 
+  // Ghost preview border color
+  const ghostBorderColor = isValidGhost
+    ? 'rgba(52, 211, 153, 0.7)'  // yeşil — valid
+    : 'rgba(248, 113, 113, 0.7)'; // kırmızı — invalid
+
+  // Ghost background
+  const ghostBg = isValidGhost
+    ? 'rgba(52, 211, 153, 0.15)'
+    : 'rgba(248, 113, 113, 0.15)';
+
   return (
     <motion.div
-      layout // Enables automatic layout animation for gravity
-      layoutId={cell.id} // Tracks the specific block ID as it moves
-      transition={{ 
-        type: "spring", 
-        stiffness: 400, // Daha hızlı
-        damping: 30, // Daha kontrollü
-        layout: { duration: 0.2 } // Daha hızlı layout animasyonu
+      layout
+      layoutId={cell.id}
+      transition={{
+        type: 'spring',
+        stiffness: 400,
+        damping: 30,
+        layout: { duration: 0.2 },
       }}
       onClick={onClick}
       className={clsx(
-        "relative w-full h-full rounded-md border border-white/5 transition-colors duration-150",
+        'relative w-full h-full rounded-md transition-colors duration-150',
         {
-          "bg-white/5": !cell.filled && !isGhost,
-          "cursor-pointer hover:bg-red-500/20 hover:border-red-500/50": isShatterTarget && cell.filled,
-          "opacity-50": isGhost,
+          'cursor-pointer': isShatterTarget && cell.filled,
         }
       )}
       style={{
-        backgroundColor: cell.filled 
-          ? cell.color 
-          : isGhost && isValidGhost 
-            ? 'rgba(255, 255, 255, 0.2)' 
-            : isGhost && !isValidGhost
-              ? 'rgba(239, 68, 68, 0.2)'
-              : undefined,
-        boxShadow: cell.filled 
-          ? `0 0 12px ${cell.color}80, inset 0 0 12px rgba(255,255,255,0.3)` 
+        border: isGhost
+          ? `1px solid ${ghostBorderColor}`
+          : cell.filled
+          ? `1px solid rgba(255,255,255,0.12)`
+          : '1px solid rgba(255,255,255,0.04)',
+        backgroundColor: cell.filled
+          ? cell.color
+          : isGhost
+          ? ghostBg
+          : 'rgba(255,255,255,0.03)',
+        boxShadow: cell.filled
+          ? `0 0 14px ${cell.color}70, 0 0 4px ${cell.color}40, inset 0 0 10px rgba(255,255,255,0.2)${comboColor ? `, 0 0 20px ${comboColor}30` : ''}`
+          : isGhost
+          ? `0 0 10px ${isValidGhost ? 'rgba(52,211,153,0.35)' : 'rgba(248,113,113,0.35)'}, inset 0 0 8px ${isValidGhost ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)'}`
           : 'none',
         zIndex: cell.filled ? 10 : 0,
+        opacity: isGhost ? 0.75 : 1,
       }}
       animate={
-        isClearing ? {
-          scale: [1, 1.2, 0],
-          opacity: [1, 0.8, 0],
-          rotate: [0, 5, -5, 0]
-        } : justPlaced ? {
-          scale: [0.8, 1.15, 0.95, 1.05, 1],
-          rotate: [0, -2, 2, -1, 0]
-        } : {}
+        isClearing
+          ? { scale: [1, 1.2, 0], opacity: [1, 0.8, 0], rotate: [0, 5, -5, 0] }
+          : justPlaced
+          ? { scale: [0.75, 1.2, 0.9, 1.05, 1], rotate: [0, -3, 3, -1, 0] }
+          : {}
       }
       transition={
-        isClearing ? { duration: 0.3 } : 
-        justPlaced ? { 
-          duration: 0.4,
-          ease: [0.34, 1.56, 0.64, 1] // Bounce easing
-        } : {}
+        isClearing
+          ? { duration: 0.3 }
+          : justPlaced
+          ? { duration: 0.45, ease: [0.34, 1.56, 0.64, 1] }
+          : {}
       }
     >
-      {/* Inner glass shine effect */}
+      {/* Inner glass shine — dolu hücreler için */}
       {cell.filled && (
         <>
-          <div className="absolute inset-0 rounded-md bg-gradient-to-tr from-white/30 to-transparent pointer-events-none" />
-          {/* Sparkle effect */}
+          {/* Top-left gradient shine */}
+          <div
+            className="absolute inset-0 rounded-md pointer-events-none"
+            style={{
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.35) 0%, transparent 55%)',
+            }}
+          />
+          {/* Breathe pulse — hafif hayat hissi */}
           <motion.div
             className="absolute inset-0 rounded-md pointer-events-none"
-            animate={{
-              opacity: [0.3, 0.6, 0.3],
-            }}
-            transition={{
-              duration: 1.5,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
+            animate={{ opacity: [0.15, 0.35, 0.15] }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
             style={{
-              background: `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4) 0%, transparent 60%)`
+              background: `radial-gradient(circle at 35% 35%, rgba(255,255,255,0.5) 0%, transparent 65%)`,
             }}
           />
         </>
       )}
+
+      {/* Shatter target hover */}
+      {isShatterTarget && cell.filled && (
+        <motion.div
+          className="absolute inset-0 rounded-md pointer-events-none"
+          animate={{ opacity: [0, 0.3, 0] }}
+          transition={{ duration: 0.8, repeat: Infinity }}
+          style={{ background: 'rgba(239,68,68,0.4)' }}
+        />
+      )}
+
+      {/* Placement white flash */}
+      <AnimatePresence>
+        {showFlash && (
+          <motion.div
+            key="flash"
+            initial={{ opacity: 0.8 }}
+            animate={{ opacity: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22 }}
+            className="absolute inset-0 rounded-md pointer-events-none"
+            style={{ background: 'rgba(255,255,255,0.7)', zIndex: 20 }}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

@@ -14,13 +14,14 @@ export const AchievementNotification = React.memo(() => {
   
   // Motion values for drag
   const x = useMotionValue(0);
+  const y = useMotionValue(0);
   const opacity = useTransform(x, [-200, 0, 200], [0, 1, 0]);
 
   if (!recentUnlock) return null;
 
   const handleDragEnd = (_: any, info: any) => {
-    // If dragged more than 100px, dismiss
-    if (Math.abs(info.offset.x) > 100) {
+    // If dragged more than 100px horizontally or 50px upwards, dismiss
+    if (Math.abs(info.offset.x) > 100 || info.offset.y < -50) {
       clearRecentUnlock();
     }
   };
@@ -42,11 +43,11 @@ export const AchievementNotification = React.memo(() => {
           stiffness: 300,
           damping: 25,
         }}
-        drag="x"
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.7}
+        drag={true}
+        dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
+        dragElastic={{ top: 0.7, bottom: 0, left: 0.7, right: 0.7 }}
         onDragEnd={handleDragEnd}
-        style={{ x, opacity }}
+        style={{ x, y, opacity }}
         onClick={clearRecentUnlock}
       >
         {/* Glow effect */}
@@ -113,7 +114,7 @@ export const AchievementNotification = React.memo(() => {
         
         {/* Swipe indicator */}
         <div className={styles.swipeIndicator}>
-          ← Kaydır →
+          ↑ Üste veya Yana Kaydır ←→
         </div>
       </motion.div>
     </AnimatePresence>
