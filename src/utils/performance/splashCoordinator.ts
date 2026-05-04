@@ -31,8 +31,7 @@ function detectAndSaveDeviceQuality(): void {
   
   console.log('[SplashCoordinator] Device info:', { cores, deviceMemory, ua: ua.substring(0, 100) });
   
-  // Show device info in alert for debugging
-  alert(`Device: cores=${cores}, RAM=${deviceMemory}GB, UA=${ua.substring(0, 80)}`);
+  // Device info alert removed - now available in Settings screen
   
   let qualityPreset: 'low' | 'medium' | 'high' = 'medium';
   let deviceClassification = 'medium';
@@ -69,17 +68,14 @@ function detectAndSaveDeviceQuality(): void {
     qualityPreset = 'low';
     deviceClassification = 'low';
     console.log('[SplashCoordinator] Weak device detected:', { cores, deviceMemory });
-    alert(`WEAK DEVICE! Quality: LOW`);
   } else if (isStrongDevice) {
     qualityPreset = 'high';
     deviceClassification = 'high';
     console.log('[SplashCoordinator] Strong device detected:', { cores, deviceMemory });
-    alert(`Strong device! Quality: HIGH`);
   } else {
     qualityPreset = 'medium';
     deviceClassification = 'medium';
     console.log('[SplashCoordinator] Medium device detected:', { cores, deviceMemory });
-    alert(`Medium device! Quality: MEDIUM`);
   }
   
   // Save to localStorage

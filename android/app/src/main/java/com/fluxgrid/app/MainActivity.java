@@ -18,6 +18,8 @@ import android.graphics.Color;
 import com.getcapacitor.BridgeActivity;
 import com.fluxgrid.app.widget.StatsWidgetProvider;
 import com.google.firebase.crashlytics.FirebaseCrashlytics;
+import android.app.ActivityManager;
+import android.content.Context;
 
 public class MainActivity extends BridgeActivity {
     
@@ -164,6 +166,32 @@ public class MainActivity extends BridgeActivity {
                     enterPipMode();
                 });
             }
+        }
+        
+        /**
+         * Get total device RAM in GB
+         * Returns the actual total RAM, not the browser-limited value
+         */
+        @JavascriptInterface
+        public int getTotalRAM() {
+            try {
+                ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+                if (activityManager != null) {
+                    ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
+                    activityManager.getMemoryInfo(memoryInfo);
+                    
+                    // Convert bytes to GB (rounded)
+                    long totalMemoryGB = memoryInfo.totalMem / (1024 * 1024 * 1024);
+                    
+                    // Return as int (GB)
+                    return (int) totalMemoryGB;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            
+            // Fallback: return 4GB if detection fails
+            return 4;
         }
     }
     

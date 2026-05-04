@@ -93,11 +93,49 @@ const AnimatedScore: React.FC<{ value: number; color: string }> = ({ value, colo
     );
 };
 
+/* ─── Animated Timer (Milisaniye Gösterimi) ─── */
+const AnimatedTimer: React.FC<{ expectedEnd: number | null; timeLeft: number }> = ({ expectedEnd, timeLeft }) => {
+    const spanRef = useRef<HTMLSpanElement>(null);
+
+    useEffect(() => {
+        if (!expectedEnd || timeLeft > TIMED_MODE.FINAL_SECONDS_THRESHOLD || timeLeft <= 0) return;
+        
+        let frameId: number;
+        const update = () => {
+            if (!spanRef.current) return;
+            const now = Date.now();
+            const remaining = Math.max(0, expectedEnd - now);
+            if (remaining <= 0) {
+                spanRef.current.innerText = '0.0';
+                return;
+            }
+            const seconds = remaining / 1000;
+            spanRef.current.innerText = seconds.toFixed(1);
+            frameId = requestAnimationFrame(update);
+        };
+        frameId = requestAnimationFrame(update);
+        return () => cancelAnimationFrame(frameId);
+    }, [expectedEnd, timeLeft]);
+
+    const isCritical = timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD;
+    const isWarning = timeLeft <= TIMED_MODE.WARNING_THRESHOLD;
+
+    return (
+        <span ref={spanRef} style={{
+            fontSize: 14, fontWeight: 700, lineHeight: 1,
+            color: isCritical ? '#ef4444' : isWarning ? '#f97316' : '#3b82f6',
+            minWidth: 24, display: 'inline-block', textAlign: 'center'
+        }}>
+            {isCritical && expectedEnd && timeLeft > 0 ? Math.max(0, expectedEnd - Date.now()) / 1000 : timeLeft}
+        </span>
+    );
+};
+
 /* ══════════════════════════════════════════════════════════════ */
 export const HUD: React.FC = React.memo(() => {
     const {
         score, highScore, combo,
-        gameMode, timeLeft, setAppState,
+        gameMode, timeLeft, timerExpectedEnd, setAppState,
         activeEvent, eventMovesRemaining, timedBoostMovesLeft,
         progressionState, difficultyTier, isGameOver,
     } = useGameStore();
@@ -143,13 +181,16 @@ export const HUD: React.FC = React.memo(() => {
     return (
         <>
             {/* Red tint overlay */}
-            {gameMode === GameMode.TIMED && timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD && (
-                <div style={{
-                    position: 'fixed', inset: 0,
-                    background: 'rgba(239,68,68,0.05)',
-                    pointerEvents: 'none', zIndex: 5,
-                    transition: 'opacity 0.5s',
-                }} />
+            {gameMode === GameMode.TIMED && timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD && timeLeft > 0 && (
+                <motion.div
+                    animate={{ opacity: [0.1, 0.4, 0.1] }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+                    style={{
+                        position: 'fixed', inset: 0,
+                        background: 'radial-gradient(circle, transparent 40%, rgba(239,68,68,0.5) 100%)',
+                        pointerEvents: 'none', zIndex: 5,
+                    }}
+                />
             )}
 
             {/* ══ MOBILE LAYOUT ══ */}
@@ -302,11 +343,7 @@ export const HUD: React.FC = React.memo(() => {
                             animation: timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD
                                 ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none',
                         }}>
-                            <span style={{
-                                fontSize: 14, fontWeight: 700, lineHeight: 1,
-                                color: timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD ? '#ef4444'
-                                    : timeLeft <= TIMED_MODE.WARNING_THRESHOLD ? '#f97316' : '#3b82f6',
-                            }}>{timeLeft}</span>
+                            <AnimatedTimer expectedEnd={timerExpectedEnd} timeLeft={timeLeft} />
                             <span style={{ fontSize: 8, marginTop: 1, opacity: 0.7, color: '#9ca3af' }}>SN</span>
                         </div>
                     )}

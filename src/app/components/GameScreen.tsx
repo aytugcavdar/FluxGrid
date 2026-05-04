@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { GameMode } from '@shared/types';
 import { Grid } from '../../features/game/components/Grid';
 import { Piece } from '../../features/game/components/Piece';
-import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual, ComboMilestone, LineCountDisplay, FloatingScoreText, PerfectClearPopup, LineClearFlash } from '@features/hud';
+import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual, ComboMilestone, LineCountDisplay, FloatingScoreText, FloatingTimeText, PerfectClearPopup, LineClearFlash } from '@features/hud';
 import { useThemeStore } from '@shared/store/themeStore';
 import { useTutorialStore } from '../../features/tutorial/store/tutorialStore';
 import { playClick } from '@utils/audio';
@@ -273,6 +273,7 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
       {/* ComboDisplay DISABLED - causes freeze at 10x combo */}
       {/* <ComboDisplay /> */}
       <FloatingScoreText />
+      <FloatingTimeText />
       {/* ScorePopups DISABLED - replaced with FloatingScoreText */}
       {/* <ScorePopups popups={scorePopups} /> */}
       {/* Combo edge glow — re-enabled */}

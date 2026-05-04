@@ -10,11 +10,153 @@ import { useJuiceStore } from '../features/visual-effects/store/juiceStore';
 import { GameMode } from '@shared/types';
 import { ToggleSwitch, SectionHeader } from '../shared/components';
 import { isAndroid } from '../utils/platform/platform';
+import { detectDeviceCapabilities } from '../utils/platform/deviceCapability';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
+
+// Device Info Component
+const DeviceInfoSection: React.FC<{ colors: any }> = ({ colors }) => {
+  const [deviceInfo, setDeviceInfo] = useState<any>(null);
+
+  useEffect(() => {
+    const loadDeviceInfo = async () => {
+      const info = await detectDeviceCapabilities();
+      setDeviceInfo(info);
+    };
+    loadDeviceInfo();
+  }, []);
+
+  if (!deviceInfo) return null;
+
+  const tierColors = {
+    low: '#ef4444',
+    mid: '#f59e0b',
+    high: '#22c55e'
+  };
+
+  const tierLabels = {
+    low: 'LOW',
+    mid: 'MID',
+    high: 'HIGH'
+  };
+
+  // Determine MID sub-tier based on score (30-point scale)
+  const getMidSubTier = (tier: string, score: number): string => {
+    if (tier !== 'mid') return tierLabels[tier as keyof typeof tierLabels];
+    
+    if (score >= 20) {
+      return 'MID-HIGH';
+    } else if (score >= 17) {
+      return 'MID';
+    } else {
+      return 'MID-LOW';
+    }
+  };
+
+  return (
+    <div className="mb-8">
+      <SectionHeader title="Cihaz Bilgileri" />
+      
+      <div
+        className="p-5 rounded-2xl"
+        style={{
+          background: colors.cardBackgroundTransparent,
+          border: `2px solid ${colors.cardBorderTransparent}`,
+        }}
+      >
+        <div className="space-y-3">
+          {/* Tier Badge */}
+          <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: colors.cardBorderTransparent }}>
+            <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+              Performans Seviyesi
+            </p>
+            <div
+              className="px-3 py-1 rounded-full font-bold text-xs"
+              style={{
+                background: `${tierColors[deviceInfo.tier]}20`,
+                color: tierColors[deviceInfo.tier],
+                border: `2px solid ${tierColors[deviceInfo.tier]}40`
+              }}
+            >
+              {getMidSubTier(deviceInfo.tier, deviceInfo.score)} TIER
+            </div>
+          </div>
+
+          {/* MID Sub-Tier Explanation */}
+          {deviceInfo.tier === 'mid' && (
+            <div className="flex items-start gap-2 pb-3 border-b" style={{ borderColor: colors.cardBorderTransparent }}>
+              <span className="text-xs">ℹ️</span>
+              <p className="text-xs" style={{ color: colors.textSecondary }}>
+                {deviceInfo.score >= 20 && 'Üst seviye orta segment - En iyi MID performans'}
+                {deviceInfo.score >= 17 && deviceInfo.score < 20 && 'Standart orta segment - Dengeli performans'}
+                {deviceInfo.score < 17 && 'Alt seviye orta segment - Optimize edilmiş performans'}
+              </p>
+            </div>
+          )}
+
+          {/* Score */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs" style={{ color: colors.textSecondary }}>Toplam Puan</p>
+            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+              {deviceInfo.score}/30
+            </p>
+          </div>
+
+          {/* Score Breakdown */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs" style={{ color: colors.textSecondary }}>Puan Dağılımı</p>
+            <p className="text-xs font-mono" style={{ color: colors.textTertiary }}>
+              {deviceInfo.scoreBreakdown}
+            </p>
+          </div>
+
+          {/* GPU */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs" style={{ color: colors.textSecondary }}>Ekran Kartı</p>
+            <p className="text-xs font-mono text-right" style={{ color: colors.textPrimary, maxWidth: '60%' }}>
+              {deviceInfo.gpuRenderer || 'Bilinmiyor'}
+            </p>
+          </div>
+
+          {/* RAM */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs" style={{ color: colors.textSecondary }}>RAM</p>
+            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+              {deviceInfo.memory}GB
+            </p>
+          </div>
+
+          {/* CPU Cores */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs" style={{ color: colors.textSecondary }}>İşlemci Çekirdek</p>
+            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+              {deviceInfo.cores} Core
+            </p>
+          </div>
+
+          {/* Screen Refresh Rate */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs" style={{ color: colors.textSecondary }}>Ekran Yenileme Hızı</p>
+            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+              {deviceInfo.refreshRate}Hz
+            </p>
+          </div>
+
+          {/* DPI */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs" style={{ color: colors.textSecondary }}>Ekran Yoğunluğu</p>
+            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+              {deviceInfo.dpi.toFixed(2)}x
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const SettingsScreen: React.FC = () => {
   const { i18n, t } = useTranslation();
@@ -874,6 +1016,9 @@ export const SettingsScreen: React.FC = () => {
           <div className="text-center py-6">
             <p className="text-xs" style={{ color: colors.textTertiary }}>{t('settingsScreen.version')}</p>
           </div>
+
+          {/* Device Info Section */}
+          <DeviceInfoSection colors={colors} />
         </div>
       </div>
 

@@ -65,10 +65,19 @@ export const HomeScreen: React.FC = () => {
   const [hasSave, setHasSave] = useState(false);
   const hasReward = canClaimToday;
 
-  const deviceCapabilities = useMemo(() => detectDeviceCapabilities(), []);
-  const isLowEndDevice = deviceCapabilities.tier === 'low';
+  const [deviceCapabilities, setDeviceCapabilities] = useState<any>(null);
+  const isLowEndDevice = deviceCapabilities?.tier === 'low';
+
+  useEffect(() => {
+    const loadDeviceCapabilities = async () => {
+      const caps = await detectDeviceCapabilities();
+      setDeviceCapabilities(caps);
+    };
+    loadDeviceCapabilities();
+  }, []);
 
   const meetsMinimumRequirements = useMemo(() => {
+    if (!deviceCapabilities) return true; // Default to true while loading
     const { memory, cores, gpuRenderer } = deviceCapabilities;
     if (memory < 3 || cores < 6) return false;
     if (gpuRenderer) {

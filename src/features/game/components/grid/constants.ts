@@ -20,10 +20,27 @@ export const SKILL_OVERLAY_POOL_SIZE = 10;
 export const GUIDED_HIGHLIGHT_POOL_SIZE = 25;
 
 // Fragment pool sizing based on device tier
+// Note: This is a synchronous function that may use cached or estimated values
+// For accurate detection, use detectDeviceCapabilities() directly (async)
 export function getFragmentPoolSize(): number {
-  const deviceCapabilities = detectDeviceCapabilities();
-  const perfConfig = getPerformanceConfig(deviceCapabilities.tier);
-  return perfConfig.fragmentPoolSize;
+  // Try to get from cached value or use fallback
+  try {
+    // Use web API as fallback (synchronous but limited)
+    const memory = (navigator as any).deviceMemory || 4;
+    const cores = navigator.hardwareConcurrency || 4;
+    
+    // Simple tier estimation for fragment pool
+    if (memory >= 8 && cores >= 8) {
+      return 20; // HIGH tier
+    } else if (memory >= 6 || cores >= 6) {
+      return 10; // MID tier
+    } else {
+      return 3; // LOW tier
+    }
+  } catch (error) {
+    console.warn('[Constants] Fragment pool size detection failed, using default');
+    return 10; // Safe default
+  }
 }
 
 // Legacy constant for backward compatibility (will be replaced by getFragmentPoolSize())

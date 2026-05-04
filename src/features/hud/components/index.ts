@@ -18,6 +18,7 @@ export { ComboMilestone } from './ComboMilestone';
 export { LineCountDisplay } from './LineCountDisplay';
 export { ComboDisplay } from './ComboDisplay';
 export { FloatingScoreText } from './FloatingScoreText';
+export { FloatingTimeText } from './FloatingTimeText';
 export { PerfectClearPopup } from './PerfectClearPopup';
 export { FluxBar } from './FluxBar';
 export { LineClearFlash } from './LineClearFlash';

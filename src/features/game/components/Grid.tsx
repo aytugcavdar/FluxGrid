@@ -376,25 +376,26 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
     useEffect(() => {
         if (!canvasRef.current) return;
 
-        // Device capability detection with performance config
-        const deviceCapabilities = detectDeviceCapabilities();
-        const perfConfig = getPerformanceConfig(deviceCapabilities.tier);
-        
-        console.log('[Grid] Performance config:', perfConfig);
-        
-        // Platform detection for Android-specific optimizations
-        const androidPlatform = isAndroidPlatform();
-        console.log('[Grid] Android platform:', androidPlatform);
-        
-        // Reduced motion preference
-        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        
-        // Low-end device flag for compatibility with existing code
-        const isLowEndDevice = deviceCapabilities.tier === 'low';
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || deviceCapabilities.isNative;
-        
-        // Disable animations on low-end devices, native apps, or when reduced motion is preferred
-        const disableAnimations = prefersReducedMotion || isLowEndDevice || deviceCapabilities.isNative;
+        // Device capability detection with performance config (async)
+        const initializeScene = async () => {
+            const deviceCapabilities = await detectDeviceCapabilities();
+            const perfConfig = getPerformanceConfig(deviceCapabilities.tier, deviceCapabilities.score);
+            
+            console.log('[Grid] Performance config:', perfConfig);
+            
+            // Platform detection for Android-specific optimizations
+            const androidPlatform = isAndroidPlatform();
+            console.log('[Grid] Android platform:', androidPlatform);
+            
+            // Reduced motion preference
+            const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            
+            // Low-end device flag for compatibility with existing code
+            const isLowEndDevice = deviceCapabilities.tier === 'low';
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || deviceCapabilities.isNative;
+            
+            // Disable animations on low-end devices, native apps, or when reduced motion is preferred
+            const disableAnimations = prefersReducedMotion || isLowEndDevice || deviceCapabilities.isNative;
 
         // Engine configuration based on device capability
         let engine: BABYLON.Engine;
@@ -402,7 +403,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
           // Weak device optimizations
           const devicePixelRatioLimit = isLowEndDevice ? 1.0 : Math.min(window.devicePixelRatio, 2);
           
-          engine = new BABYLON.Engine(canvasRef.current, true, {
+          engine = new BABYLON.Engine(canvasRef.current!, true, {
               preserveDrawingBuffer: true,
               stencil: true,
               antialias: perfConfig.antialias,
@@ -437,6 +438,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             tier: deviceCapabilities.tier,
             memory: deviceCapabilities.memory,
             cores: deviceCapabilities.cores,
+            refreshRate: deviceCapabilities.refreshRate,
             gpu: deviceCapabilities.gpuRenderer,
             isNative: deviceCapabilities.isNative,
             isAndroid: deviceCapabilities.isAndroid
@@ -766,28 +768,39 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             
             // Initialize line clear animation system with SPS particle manager
             // SPS capacity based on device tier: LOW=500, MID=1200, HIGH=2000
-            spsParticleManager = new SPSParticlePoolManager({
-                scene,
-                capacity: deviceCapabilities.tier === 'high' ? 2000 : 
-                         deviceCapabilities.tier === 'mid' ? 1200 : 500,
-                particleSize: 0.1,
-            });
-            spsParticleManagerRef.current = spsParticleManager;
-            
-            lineClearSystem = new LineClearAnimationSystem(scene, spsParticleManager);
-            if (prefersReducedMotion) {
-                lineClearSystem.setReducedMotion(true);
+            // Initialize SPS Particle Pool Manager (disabled on LOW tier)
+            if (!isLowEndDevice) {
+                spsParticleManager = new SPSParticlePoolManager({
+                    scene,
+                    capacity: deviceCapabilities.tier === 'high' ? 2000 : 1200, // MID or HIGH only
+                    particleSize: 0.1,
+                });
+                spsParticleManagerRef.current = spsParticleManager;
+                
+                lineClearSystem = new LineClearAnimationSystem(scene, spsParticleManager);
+                if (prefersReducedMotion) {
+                    lineClearSystem.setReducedMotion(true);
+                }
+                lineClearSystemRef.current = lineClearSystem;
+            } else {
+                // LOW tier: No particle systems at all
+                spsParticleManagerRef.current = null;
+                lineClearSystemRef.current = null;
+                console.log('[Grid] Particle systems disabled for LOW tier device');
             }
-            lineClearSystemRef.current = lineClearSystem;
             
             // Initialize UI3D Manager
             const ui3dManager = new UI3DManager(scene);
             ui3dManager.initializeComboMeter(new BABYLON.Vector3(8, 15, 0));
             ui3dManagerRef.current = ui3dManager;
             
-            // Initialize Special Block Effects Manager
-            const specialBlockManager = new SpecialBlockEffectsManager(scene, spsParticleManager);
-            specialBlockManagerRef.current = specialBlockManager;
+            // Initialize Special Block Effects Manager (disabled on LOW tier)
+            if (!isLowEndDevice && spsParticleManager) {
+                const specialBlockManager = new SpecialBlockEffectsManager(scene, spsParticleManager);
+                specialBlockManagerRef.current = specialBlockManager;
+            } else {
+                specialBlockManagerRef.current = null;
+            }
             
             // Initialize kinetic animation controller and trail manager
             trailManager = new TrailMeshManager(scene);
@@ -2101,6 +2114,10 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             scene.dispose();
             engine.dispose();
         };
+        }; // End of initializeScene async function
+        
+        // Call the async initialization function
+        initializeScene();
     }, []);
 
     // Cache canvas rect for responsive calculations

@@ -95,32 +95,36 @@ export function useFPSLimiter(
   useEffect(() => {
     if (!shouldEnable) return;
 
-    try {
-      const capabilities = detectDeviceCapabilities();
-      // FIXED: Set 30 FPS for LOW and MID tier devices for better performance
-      const initialFPS = capabilities.tier === DeviceTier.HIGH ? 60 : 30;
+    const initializeFPS = async () => {
+      try {
+        const capabilities = await detectDeviceCapabilities();
+        // FIXED: Set 30 FPS for LOW and MID tier devices for better performance
+        const initialFPS = capabilities.tier === DeviceTier.HIGH ? 60 : 30;
 
-      setState(prev => ({
-        ...prev,
-        deviceTier: capabilities.tier,
-        targetFPS: initialFPS
-      }));
+        setState(prev => ({
+          ...prev,
+          deviceTier: capabilities.tier,
+          targetFPS: initialFPS
+        }));
 
-      // Check for manual FPS setting (platform-specific)
-      const manualFPS = getPlatformItem('fps-limit');
-      if (manualFPS && manualFPS !== 'auto') {
-        const fps = parseInt(manualFPS);
-        if (fps === 30 || fps === 60) {
-          setState(prev => ({ ...prev, targetFPS: fps }));
+        // Check for manual FPS setting (platform-specific)
+        const manualFPS = getPlatformItem('fps-limit');
+        if (manualFPS && manualFPS !== 'auto') {
+          const fps = parseInt(manualFPS);
+          if (fps === 30 || fps === 60) {
+            setState(prev => ({ ...prev, targetFPS: fps }));
+          }
         }
-      }
 
-      console.log('[FPSLimiter] Device tier detected:', capabilities.tier, 'Initial FPS:', initialFPS);
-    } catch (error) {
-      console.warn('[FPSLimiter] Device tier detection failed, defaulting to mid-tier', error);
-      setState(prev => ({ ...prev, deviceTier: DeviceTier.MID, targetFPS: 30 }));
-      usePerformanceStore.getState().logError(error);
-    }
+        console.log('[FPSLimiter] Device tier detected:', capabilities.tier, 'Initial FPS:', initialFPS);
+      } catch (error) {
+        console.warn('[FPSLimiter] Device tier detection failed, defaulting to mid-tier', error);
+        setState(prev => ({ ...prev, deviceTier: DeviceTier.MID, targetFPS: 30 }));
+        usePerformanceStore.getState().logError(error);
+      }
+    };
+    
+    initializeFPS();
   }, [shouldEnable]);
 
   // Task 4.1: Initialize FPS limiter

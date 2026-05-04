@@ -81,7 +81,7 @@ export function createBlockMesh(
 
     // Dark metal body
     mat.diffuseColor = BABYLON.Color3.FromHexString("#1c1917");
-    mat.emissiveColor = BABYLON.Color3.FromHexString("#f59e0b").scale(0.1);
+    mat.emissiveColor = BABYLON.Color3.FromHexString("#f59e0b").scale(0.3); // Increased from 0.1 to 0.3 for LOW tier visibility
     mat.specularColor = BABYLON.Color3.Black();
     mat.specularPower = 0;
     mat.alpha = 1.0;
