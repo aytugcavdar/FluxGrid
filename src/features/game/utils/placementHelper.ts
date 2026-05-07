@@ -122,3 +122,20 @@ export function resetVelocityTracking(): void {
  * px/ms cinsinden — 0.8 px/ms ≈ 800 px/s
  */
 export const FAST_SWIPE_THRESHOLD = 0.8;
+
+/* ──────────────────────────────────────────────────────────── */
+/* Shared Hover Coord                                           */
+/* Grid.tsx'in render loop'u bu değeri yazar,                  */
+/* Piece.tsx'in handlePointerUp'ı buradan okur.                */
+/* Bu sayede window.pointerup listener'a gerek kalmaz.         */
+/* ──────────────────────────────────────────────────────────── */
+
+let _sharedHoverCoord: { x: number; y: number } | null = null;
+
+export function setSharedHoverCoord(coord: { x: number; y: number } | null): void {
+  _sharedHoverCoord = coord;
+}
+
+export function getSharedHoverCoord(): { x: number; y: number } | null {
+  return _sharedHoverCoord;
+}

@@ -324,62 +324,76 @@ export const playChronoBonus = () => {
 
 // ─── Haptic Feedback ───
 
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 
-type HapticPattern = 'hover' | 'place' | 'clear' | 'clear_single' | 'clear_multi' | 'combo' | 'combo_milestone' | 'surge' | 'game_over' | 'skill';
+export type HapticPattern =
+  | 'hover'           // very light, drag hover on grid
+  | 'place'           // block placed
+  | 'clear_single'    // 1 line cleared
+  | 'clear_multi'     // 2+ lines cleared (more intense)
+  | 'combo'           // combo increment
+  | 'combo_milestone' // 5x / 10x / 15x milestone
+  | 'surge'           // surge mode activated
+  | 'game_over'       // game ended
+  | 'skill'           // skill used
+  | 'achievement'     // achievement unlocked
+  | 'success';        // generic success
 
-const HAPTIC_PATTERNS: Record<HapticPattern, number | number[]> = {
-  hover: 4,
-  place: [15, 5, 15],
-  clear: [20, 10, 20],
-  clear_single: [30, 20, 60],
-  clear_multi: [50, 30, 100, 30, 150],
-  combo: [30, 20, 60, 20, 80],
-  combo_milestone: [30, 20, 60, 20, 80, 20, 120],
-  surge: [100, 50, 100],
-  game_over: [200, 100, 200, 100, 300],
-  skill: [80, 50, 80]
+// Web Vibration API fallback patterns (ms on/off alternating)
+const WEB_PATTERNS: Record<HapticPattern, number | number[]> = {
+  hover:           4,
+  place:           [12, 8, 18],
+  clear_single:    [30, 15, 50],
+  clear_multi:     [40, 20, 80, 20, 120],
+  combo:           [20, 10, 40],
+  combo_milestone: [30, 15, 60, 15, 100, 15, 140],
+  surge:           [80, 40, 80, 40, 120],
+  game_over:       [100, 60, 180, 60, 250],
+  skill:           [50, 30, 80],
+  achievement:     [20, 10, 20, 10, 80, 40, 120],
+  success:         [30, 20, 60],
 };
 
-/** Map haptic patterns to Capacitor ImpactStyle with Android API level adaptation */
-const mapPatternToImpactStyle = async (pattern: HapticPattern): Promise<ImpactStyle> => {
-  // For Android, use Medium instead of Heavy for better compatibility
-  // Heavy impact requires API 29+ and may not work on all devices
-  const isAndroid = /Android/i.test(navigator.userAgent);
-  
-  switch (pattern) {
-    case 'surge':
-    case 'game_over':
-    case 'skill':
-      // Use Medium on Android for better compatibility, Heavy on iOS
-      return isAndroid ? ImpactStyle.Medium : ImpactStyle.Heavy;
-    case 'clear_multi':
-    case 'combo_milestone':
-    case 'clear':
-      return ImpactStyle.Medium;
-    default:
-      return ImpactStyle.Light;
+// Helper: sequential Capacitor impacts to simulate patterns
+const nativePattern = async (
+  impacts: Array<{ style: ImpactStyle; delay?: number }>
+): Promise<void> => {
+  for (const { style, delay = 0 } of impacts) {
+    if (delay > 0) await new Promise(r => setTimeout(r, delay));
+    await Haptics.impact({ style });
   }
 };
 
-/** Centralized haptic feedback with Capacitor Haptics and web fallback */
+const L = ImpactStyle.Light;
+const M = ImpactStyle.Medium;
+const H = ImpactStyle.Heavy;
+
+// Native Capacitor pattern definitions
+const NATIVE_PATTERNS: Record<HapticPattern, Array<{ style: ImpactStyle; delay?: number }>> = {
+  hover:           [{ style: L }],
+  place:           [{ style: L }, { style: M, delay: 40 }],
+  clear_single:    [{ style: M }, { style: H, delay: 60 }],
+  clear_multi:     [{ style: M }, { style: H, delay: 50 }, { style: H, delay: 80 }],
+  combo:           [{ style: L }, { style: M, delay: 50 }],
+  combo_milestone: [{ style: M }, { style: H, delay: 60 }, { style: H, delay: 80 }],
+  surge:           [{ style: H }, { style: H, delay: 100 }, { style: H, delay: 100 }],
+  game_over:       [{ style: H }, { style: M, delay: 120 }, { style: H, delay: 180 }],
+  skill:           [{ style: M }, { style: H, delay: 80 }],
+  achievement:     [{ style: L }, { style: L, delay: 60 }, { style: H, delay: 80 }],
+  success:         [{ style: M }, { style: H, delay: 100 }],
+};
+
+/** Centralized haptic feedback — Capacitor native or web vibration fallback */
 export const playHaptic = async (pattern: HapticPattern): Promise<void> => {
-  // Check if native Capacitor platform
   const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
-  
+
   try {
     if (isNative) {
-      // Use Capacitor Haptics on native platform
-      const style = await mapPatternToImpactStyle(pattern);
-      await Haptics.impact({ style });
-    } else {
-      // Fallback to web vibration API
-      if (navigator.vibrate) {
-        const vibrationPattern = HAPTIC_PATTERNS[pattern];
-        navigator.vibrate(vibrationPattern);
-      }
+      await nativePattern(NATIVE_PATTERNS[pattern]);
+    } else if (navigator.vibrate) {
+      navigator.vibrate(WEB_PATTERNS[pattern]);
     }
-  } catch (e) {
-    // Silently fail if haptics not available
+  } catch {
+    // Silently fail — haptics are non-critical
   }
 };

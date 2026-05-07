@@ -12,6 +12,7 @@ export interface FragmentData {
   rotationVelocity: BABYLON.Vector3;
   startTime: number;
   startAlpha: number;
+  lifetime?: number; // ms — tier-specific, falls back to FRAGMENT_LIFETIME
 }
 
 export interface FragmentPool {

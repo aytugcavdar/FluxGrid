@@ -23,23 +23,23 @@ export const GUIDED_HIGHLIGHT_POOL_SIZE = 25;
 // Note: This is a synchronous function that may use cached or estimated values
 // For accurate detection, use detectDeviceCapabilities() directly (async)
 export function getFragmentPoolSize(): number {
-  // Try to get from cached value or use fallback
   try {
-    // Use web API as fallback (synchronous but limited)
     const memory = (navigator as any).deviceMemory || 4;
     const cores = navigator.hardwareConcurrency || 4;
-    
-    // Simple tier estimation for fragment pool
+
     if (memory >= 8 && cores >= 8) {
-      return 20; // HIGH tier
+      return 25; // high: 5 frags × 5 cells simultaneous
     } else if (memory >= 6 || cores >= 6) {
-      return 10; // MID tier
+      return 20; // mid-high
+    } else if (memory >= 4 || cores >= 4) {
+      return 15; // mid: 3 frags × 5 cells
+    } else if (memory >= 3 || cores >= 3) {
+      return 6;  // mid-low: 2 frags × 3 cells
     } else {
-      return 3; // LOW tier
+      return 0;  // low / low-mid: no fragments
     }
-  } catch (error) {
-    console.warn('[Constants] Fragment pool size detection failed, using default');
-    return 10; // Safe default
+  } catch {
+    return 10;
   }
 }
 

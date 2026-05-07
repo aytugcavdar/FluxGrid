@@ -32,11 +32,20 @@ export class LineClearAnimationSystem {
   private flashMeshes: Map<number, BABYLON.Mesh> = new Map();
   private particleManager: SPSParticlePoolManager;
   private juiceEffectsManager: any = null;
+  private deviceTier: string = 'mid'; // Default to mid tier
   
   constructor(scene: BABYLON.Scene, particleManager: SPSParticlePoolManager) {
     this.scene = scene;
     this.particleManager = particleManager;
     this.prefersReducedMotion = detectReducedMotion();
+  }
+  
+  /**
+   * Set device tier for particle optimization
+   */
+  public setDeviceTier(tier: string): void {
+    this.deviceTier = tier;
+    console.log('[LineClearAnimationSystem] Device tier set to:', tier);
   }
 
   /**
@@ -51,18 +60,56 @@ export class LineClearAnimationSystem {
     const intensityBoost = lineCount >= 3 ? 1.2 : 1.0;
     const flashIntensity = baseIntensity * intensityBoost;
     
-    // Emit juice effects
+    // 🎯 PARTICLE OPTIMIZATION: Reduce particle count for large line clears
+    // Calculate particle multiplier based on line count and device tier
+    let particleMultiplier = 1.0;
+    
+    // For 5+ line clears, reduce particles significantly
+    if (lineCount >= 5) {
+      // Tier-based reduction for large clears
+      if (this.deviceTier === 'low' || this.deviceTier === 'low-mid') {
+        particleMultiplier = 0.2; // 80% reduction
+      } else if (this.deviceTier === 'mid-low' || this.deviceTier === 'mid') {
+        particleMultiplier = 0.4; // 60% reduction
+      } else if (this.deviceTier === 'mid-high') {
+        particleMultiplier = 0.6; // 40% reduction
+      } else {
+        particleMultiplier = 0.8; // 20% reduction for HIGH tier
+      }
+    } else if (lineCount >= 3) {
+      // For 3-4 line clears, moderate reduction
+      if (this.deviceTier === 'low' || this.deviceTier === 'low-mid') {
+        particleMultiplier = 0.4; // 60% reduction
+      } else if (this.deviceTier === 'mid-low' || this.deviceTier === 'mid') {
+        particleMultiplier = 0.6; // 40% reduction
+      } else if (this.deviceTier === 'mid-high') {
+        particleMultiplier = 0.8; // 20% reduction
+      } else {
+        particleMultiplier = 1.0; // No reduction for HIGH tier
+      }
+    }
+    
+    console.log(`[LineClearAnimationSystem] Line clear: ${lineCount} lines, tier: ${this.deviceTier}, particle multiplier: ${particleMultiplier}`);
+    
+    // Emit juice effects with particle multiplier
     if (this.juiceEffectsManager && params.cellPositions.length > 0) {
       // Explosion particles for multi-line clears
       if (lineCount >= 2) {
         // Create colors array (use white for now, can be customized later)
         const colors = params.cellPositions.map(() => new BABYLON.Color3(1, 1, 1));
-        this.juiceEffectsManager.emitExplosionParticles(params.cellPositions, colors, lineCount);
+        
+        // Apply particle multiplier to explosion particles
+        const reducedPositions = params.cellPositions.slice(0, Math.ceil(params.cellPositions.length * particleMultiplier));
+        const reducedColors = colors.slice(0, Math.ceil(colors.length * particleMultiplier));
+        
+        this.juiceEffectsManager.emitExplosionParticles(reducedPositions, reducedColors, lineCount);
       }
       
       // Icy particles for ice blocks
       if (params.iceBlockPositions && params.iceBlockPositions.length > 0) {
-        this.juiceEffectsManager.emitIcyParticles(params.iceBlockPositions);
+        // Apply particle multiplier to ice particles
+        const reducedIcePositions = params.iceBlockPositions.slice(0, Math.ceil(params.iceBlockPositions.length * particleMultiplier));
+        this.juiceEffectsManager.emitIcyParticles(reducedIcePositions);
       }
       
       // Implode animation for cleared cells
@@ -267,7 +314,26 @@ export class LineClearAnimationSystem {
    * Trigger perfect clear celebration
    */
   public triggerPerfectClear(): void {
-    const confettiCount = this.prefersReducedMotion ? 15 : 50;
+    // 🎯 PARTICLE OPTIMIZATION: Tier-based confetti count
+    let confettiCount: number;
+    
+    if (this.prefersReducedMotion) {
+      // Reduced motion: minimal particles
+      confettiCount = 10;
+    } else {
+      // Tier-based confetti count
+      if (this.deviceTier === 'low' || this.deviceTier === 'low-mid') {
+        confettiCount = 15; // Minimal
+      } else if (this.deviceTier === 'mid-low' || this.deviceTier === 'mid') {
+        confettiCount = 25; // Moderate
+      } else if (this.deviceTier === 'mid-high') {
+        confettiCount = 35; // Good
+      } else {
+        confettiCount = 50; // Full effect for HIGH tier
+      }
+    }
+    
+    console.log(`[LineClearAnimationSystem] Perfect clear: ${confettiCount} confetti particles (tier: ${this.deviceTier})`);
     
     // Emit confetti particles from grid center using SPS
     const centerPosition = new BABYLON.Vector3(0, 0, 0);

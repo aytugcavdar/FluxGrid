@@ -1,9 +1,9 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Piece as PieceType, CellType } from '../types';
 import { useGameStore } from '../store/gameStore';
 import clsx from 'clsx';
-import { resetVelocityTracking } from '../utils/placementHelper';
+import { resetVelocityTracking, getSharedHoverCoord, setSharedHoverCoord } from '../utils/placementHelper';
 
 interface Props {
   piece: PieceType;
@@ -11,7 +11,7 @@ interface Props {
 }
 
 export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
-  const { setDraggedPiece, draggedPiece, pieces, activeEvent } = useGameStore();
+  const { setDraggedPiece, draggedPiece, placePiece, pieces, activeEvent } = useGameStore();
   const ref = useRef<HTMLDivElement>(null);
   const [windowWidth, setWindowWidth] = React.useState(window.innerWidth);
 
@@ -30,6 +30,8 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
                      !!(window as any).Capacitor || 
                      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
+  const [flashDown, setFlashDown] = useState(false);
+
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.preventDefault();
@@ -38,6 +40,9 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
     // Add scroll prevention
     document.body.classList.add('dragging');
     
+    setFlashDown(true);
+    setTimeout(() => setFlashDown(false), 120);
+
     // Velocity sıfırla — yeni drag başlıyor
     resetVelocityTracking();
     
@@ -52,17 +57,28 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
 
   const handlePointerUp = (e: React.PointerEvent) => {
     e.currentTarget.releasePointerCapture(e.pointerId);
-    
-    // Remove scroll prevention
     document.body.classList.remove('dragging');
+
+    // PRIMARY placement path — runs reliably on Capacitor because
+    // setPointerCapture guarantees this element receives pointerup.
+    // Grid's render loop writes the hover coord to shared state.
+    const hoverCoord = getSharedHoverCoord();
+    if (hoverCoord) {
+      placePiece(piece, hoverCoord.x, hoverCoord.y);
+    }
+
+    // Clear shared hover coord and drag state
+    setSharedHoverCoord(null);
+    setDraggedPiece(null);
   };
 
   const handlePointerCancel = (e: React.PointerEvent) => {
     e.currentTarget.releasePointerCapture(e.pointerId);
-    
-    // Remove scroll prevention on cancel
     document.body.classList.remove('dragging');
+    setSharedHoverCoord(null);
+    setDraggedPiece(null);
   };
+
 
   const renderShape = (p: PieceType) => {
     // Normal render
@@ -121,18 +137,9 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
   const isDragging = draggedPiece?.instanceId === piece.instanceId;
 
   return (
-    <motion.div 
+    <motion.div
       data-piece-slot={index}
       style={{ position: 'relative', width: '100%', height: '100%' }}
-      initial={{ scale: 0.8, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ 
-        type: "spring", 
-        stiffness: 450, // Daha hızlı spring
-        damping: 28, // Daha kontrollü
-        mass: 0.5, // Daha hafif
-        delay: index * 0.04 // Daha hızlı stagger
-      }}
     >
       <motion.div
         ref={ref}
@@ -153,11 +160,14 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
           damping: 35, // Daha az bounce
           mass: 0.4 // Daha hafif
         }}
-        // Ensure minimum tap target
         style={{ 
           minWidth: 44, 
           minHeight: 44,
-          willChange: isDragging ? 'transform' : 'auto' // GPU acceleration hint
+          willChange: isDragging ? 'transform' : 'auto',
+          borderRadius: 8,
+          // Flash on pointer down for instant tactile feedback
+          boxShadow: flashDown ? `0 0 16px ${piece.color}80` : 'none',
+          transition: 'box-shadow 0.1s ease',
         }}
       >
         {/* Special Icon Badge */}

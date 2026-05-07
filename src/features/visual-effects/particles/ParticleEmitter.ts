@@ -393,6 +393,9 @@ export class ParticleEmitter {
       particlesPerBlock = EXPLOSION_PARTICLE_CONFIG.countPerLine.single;
     } else if (config.lineCount === 2) {
       particlesPerBlock = EXPLOSION_PARTICLE_CONFIG.countPerLine.double;
+    } else if (config.lineCount >= 5) {
+      // 🎯 OPTIMIZATION: Use reduced particle count for large clears (5+ lines)
+      particlesPerBlock = EXPLOSION_PARTICLE_CONFIG.countPerLine.large;
     } else {
       particlesPerBlock = EXPLOSION_PARTICLE_CONFIG.countPerLine.triple;
     }

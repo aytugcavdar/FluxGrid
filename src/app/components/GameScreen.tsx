@@ -39,8 +39,6 @@ interface GameScreenProps {
   gridSize: number;
   scorePopups: ScorePopup[];
   showSurgeFlash: boolean;
-  showRushStart: boolean;
-  showRushEnd: boolean;
   timedBoostMovesLeft: number;
   timePopups: TimePopup[];
   setTimePopups: React.Dispatch<React.SetStateAction<TimePopup[]>>;
@@ -66,8 +64,6 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
   gridSize,
   scorePopups,
   showSurgeFlash,
-  showRushStart,
-  showRushEnd,
   timedBoostMovesLeft,
   timePopups,
   setTimePopups,
@@ -85,7 +81,27 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
   const colors = getThemeColors();
   const isTutorialActive = useTutorialStore(state => state.isActive);
 
-  // Perfect clear state
+  // Track piece set refreshes (all 3 pieces replaced at once = reroll/new round)
+  const prevPieceIdsRef = React.useRef<string>('');
+  const [trayGeneration, setTrayGeneration] = React.useState(0);
+  const [trayFlash, setTrayFlash] = React.useState(false);
+
+  React.useEffect(() => {
+    const currentIds = pieces.map((p: any) => p.instanceId).join(',');
+    if (prevPieceIdsRef.current !== '' && currentIds !== prevPieceIdsRef.current) {
+      // Check if it's a full refresh (all pieces changed)
+      const prevIds = prevPieceIdsRef.current.split(',');
+      const newIds  = currentIds.split(',');
+      const allNew  = newIds.every((id: string) => !prevIds.includes(id));
+      if (allNew && pieces.length === 3) {
+        setTrayGeneration(g => g + 1);
+        setTrayFlash(true);
+        setTimeout(() => setTrayFlash(false), 500);
+      }
+    }
+    prevPieceIdsRef.current = currentIds;
+  }, [pieces]);
+
   const [showPerfectClear, setShowPerfectClear] = useState(false);
   const [prevPerfectClear, setPrevPerfectClear] = useState(false);
 
@@ -206,11 +222,18 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
         flexShrink: 0,
         position: 'relative',
       }}>
-        {/* Top gradient accent line */}
-        <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0, height: 1,
-          background: 'linear-gradient(90deg, transparent 0%, rgba(129,140,248,0.4) 30%, rgba(168,85,247,0.5) 50%, rgba(244,114,182,0.4) 70%, transparent 100%)',
-        }} />
+        {/* Top gradient accent line — pulses on refresh */}
+        <motion.div
+          animate={trayFlash
+            ? { opacity: [0.4, 1, 0.4], scaleX: [0.6, 1, 0.6] }
+            : { opacity: 1, scaleX: 1 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          style={{
+            position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+            background: 'linear-gradient(90deg, transparent 0%, rgba(129,140,248,0.4) 30%, rgba(168,85,247,0.5) 50%, rgba(244,114,182,0.4) 70%, transparent 100%)',
+            transformOrigin: 'center',
+          }}
+        />
         {/* Tray background */}
         <div style={{
           position: 'absolute', inset: 0,
@@ -221,33 +244,56 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
         <div className="max-w-2xl mx-auto h-full flex flex-col" style={{ padding: '6px 8px 0', position: 'relative' }}>
           <div className="grid grid-cols-3 flex-1 min-h-0" style={{ gap: '6px' }}>
             <AnimatePresence mode="popLayout">
-              {pieces.map((piece, index) => {
-                const isIce  = piece.type === 'ICE';
-                const isBomb = piece.type === 'BOMB';
+              {pieces.map((piece: any, index: number) => {
+                const isIce   = piece.type === 'ICE';
+                const isBomb  = piece.type === 'BOMB';
+                const isChrono = piece.type === 'CHRONO';
                 const borderColor = isIce
                   ? 'rgba(56,189,248,0.45)'
                   : isBomb
                   ? 'rgba(239,68,68,0.45)'
+                  : isChrono
+                  ? 'rgba(251,191,36,0.45)'
                   : 'rgba(255,255,255,0.07)';
                 const bgColor = isIce
                   ? 'rgba(56,189,248,0.06)'
                   : isBomb
                   ? 'rgba(239,68,68,0.06)'
+                  : isChrono
+                  ? 'rgba(251,191,36,0.05)'
                   : 'rgba(255,255,255,0.03)';
                 const glowColor = isIce
                   ? '0 0 12px rgba(56,189,248,0.2)'
                   : isBomb
                   ? '0 0 12px rgba(239,68,68,0.2)'
+                  : isChrono
+                  ? '0 0 12px rgba(251,191,36,0.18)'
                   : 'none';
+
+                // Stagger direction: full refresh → slide from right
+                // Single removal → pop upward
+                const enterX = 28 + index * 10;  // slight cascade from right
+                const enterDelay = index * 0.055;
 
                 return (
                   <motion.div
                     key={piece.instanceId}
                     layout
-                    initial={{ scale: 0.65, opacity: 0, y: 16 }}
-                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.55, opacity: 0, y: 8 }}
-                    transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+                    initial={{ x: enterX, opacity: 0, scale: 0.82, filter: 'blur(4px)' }}
+                    animate={{ x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                    exit={{
+                      y: -18,
+                      opacity: 0,
+                      scale: 0.7,
+                      filter: 'blur(6px)',
+                      transition: { duration: 0.18, ease: 'easeIn' }
+                    }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 320,
+                      damping: 24,
+                      delay: enterDelay,
+                    }}
                     className="piece-slot h-full"
                     style={{
                       borderRadius: 10,
@@ -281,8 +327,6 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
       {/* Line clear horizontal sweep flash */}
       <LineClearFlash />
       <SurgeFlash active={showSurgeFlash} />
-      <ComboRushFlash active={showRushStart} movesLeft={timedBoostMovesLeft} onStart={true} />
-      <ComboRushFlash active={showRushEnd} movesLeft={0} onStart={false} />
       <ComboBar />
       {/* ComboMilestone DISABLED - causes crash at 10x combo */}
       {/* <ComboMilestone combo={combo} show={showComboMilestone} /> */}

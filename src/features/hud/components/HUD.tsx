@@ -12,6 +12,7 @@ import { StreakShieldModal } from '../../../app/components/StreakShieldModal';
 import { AdManager } from '../../../utils/managers/adManager';
 import { TierProgressBar } from './TierProgressBar';
 import { MilestonePopup } from './MilestonePopup';
+import { TimedHUD } from './TimedHUD';
 
 /* ─── Event config ─── */
 const EVENT_CONFIG: Record<
@@ -178,6 +179,11 @@ export const HUD: React.FC = React.memo(() => {
         ? '#fbbf24'
         : colors.textPrimary;
 
+    /* ── Timed mode'da özel HUD ── */
+    if (gameMode === GameMode.TIMED) {
+        return <TimedHUD />;
+    }
+
     return (
         <>
             {/* Red tint overlay */}
@@ -207,6 +213,8 @@ export const HUD: React.FC = React.memo(() => {
                         id="hud-home-btn"
                         onClick={() => {
                             playClick();
+                            document.body.classList.remove('dragging');
+                            useGameStore.getState().setDraggedPiece(null);
                             if (!isGameOver) useGameStore.getState().saveCurrentGame();
                             setAppState(AppState.HOME);
                         }}
@@ -279,22 +287,6 @@ export const HUD: React.FC = React.memo(() => {
                                         </motion.span>
                                     )}
                                 </AnimatePresence>
-
-                                {/* Timed Rush */}
-                                {gameMode === GameMode.TIMED && timedBoostMovesLeft > 0 && (
-                                    <motion.span
-                                        initial={{ scale: 0.8, opacity: 0 }}
-                                        animate={{ scale: 1, opacity: 1 }}
-                                        style={{
-                                            fontSize: 9, fontWeight: 700, color: '#10b981',
-                                            background: 'rgba(16,185,129,0.15)',
-                                            border: '1px solid rgba(16,185,129,0.35)',
-                                            padding: '2px 5px', borderRadius: 6,
-                                        }}
-                                    >
-                                        RUSH ×{timedBoostMovesLeft}
-                                    </motion.span>
-                                )}
 
                                 {/* Final seconds */}
                                 {gameMode === GameMode.TIMED && timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD && timeLeft > 0 && (

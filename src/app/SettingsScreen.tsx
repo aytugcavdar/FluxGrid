@@ -32,28 +32,21 @@ const DeviceInfoSection: React.FC<{ colors: any }> = ({ colors }) => {
   if (!deviceInfo) return null;
 
   const tierColors = {
-    low: '#ef4444',
-    mid: '#f59e0b',
-    high: '#22c55e'
+    'low': '#ef4444',
+    'low-mid': '#f97316',
+    'mid-low': '#f59e0b',
+    'mid': '#eab308',
+    'mid-high': '#84cc16',
+    'high': '#22c55e'
   };
 
   const tierLabels = {
-    low: 'LOW',
-    mid: 'MID',
-    high: 'HIGH'
-  };
-
-  // Determine MID sub-tier based on score (30-point scale)
-  const getMidSubTier = (tier: string, score: number): string => {
-    if (tier !== 'mid') return tierLabels[tier as keyof typeof tierLabels];
-    
-    if (score >= 20) {
-      return 'MID-HIGH';
-    } else if (score >= 17) {
-      return 'MID';
-    } else {
-      return 'MID-LOW';
-    }
+    'low': 'LOW',
+    'low-mid': 'LOW-MID',
+    'mid-low': 'MID-LOW',
+    'mid': 'MID',
+    'mid-high': 'MID-HIGH',
+    'high': 'HIGH'
   };
 
   return (
@@ -81,18 +74,26 @@ const DeviceInfoSection: React.FC<{ colors: any }> = ({ colors }) => {
                 border: `2px solid ${tierColors[deviceInfo.tier]}40`
               }}
             >
-              {getMidSubTier(deviceInfo.tier, deviceInfo.score)} TIER
+              {tierLabels[deviceInfo.tier]} TIER
             </div>
           </div>
 
-          {/* MID Sub-Tier Explanation */}
-          {deviceInfo.tier === 'mid' && (
-            <div className="flex items-start gap-2 pb-3 border-b" style={{ borderColor: colors.cardBorderTransparent }}>
-              <span className="text-xs">ℹ️</span>
-              <p className="text-xs" style={{ color: colors.textSecondary }}>
-                {deviceInfo.score >= 20 && 'Üst seviye orta segment - En iyi MID performans'}
-                {deviceInfo.score >= 17 && deviceInfo.score < 20 && 'Standart orta segment - Dengeli performans'}
-                {deviceInfo.score < 17 && 'Alt seviye orta segment - Optimize edilmiş performans'}
+          {/* VIP Badge */}
+          {deviceInfo.isVIP && (
+            <div className="flex items-center gap-2 pb-3 border-b" style={{ borderColor: colors.cardBorderTransparent }}>
+              <span className="text-lg">🌟</span>
+              <p className="text-xs font-bold" style={{ color: '#fbbf24' }}>
+                VIP Flagship Device (Auto HIGH Tier)
+              </p>
+            </div>
+          )}
+
+          {/* Device Model */}
+          {deviceInfo.deviceModel && deviceInfo.deviceModel !== 'Unknown' && (
+            <div className="flex items-center justify-between">
+              <p className="text-xs" style={{ color: colors.textSecondary }}>Model</p>
+              <p className="text-xs font-mono" style={{ color: colors.textPrimary }}>
+                {deviceInfo.deviceModel}
               </p>
             </div>
           )}
@@ -101,15 +102,22 @@ const DeviceInfoSection: React.FC<{ colors: any }> = ({ colors }) => {
           <div className="flex items-center justify-between">
             <p className="text-xs" style={{ color: colors.textSecondary }}>Toplam Puan</p>
             <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-              {deviceInfo.score}/30
+              {deviceInfo.score}/100
             </p>
           </div>
 
           {/* Score Breakdown */}
-          <div className="flex items-center justify-between">
-            <p className="text-xs" style={{ color: colors.textSecondary }}>Puan Dağılımı</p>
-            <p className="text-xs font-mono" style={{ color: colors.textTertiary }}>
+          <div className="flex items-start justify-between">
+            <p className="text-xs" style={{ color: colors.textSecondary }}>Puan Detayı</p>
+            <p className="text-xs font-mono text-right" style={{ color: colors.textTertiary, maxWidth: '60%' }}>
               {deviceInfo.scoreBreakdown}
+            </p>
+          </div>
+
+          {/* Hardware Specs */}
+          <div className="pt-3 border-t" style={{ borderColor: colors.cardBorderTransparent }}>
+            <p className="text-xs font-semibold mb-2" style={{ color: colors.textPrimary }}>
+              💻 Donanım Özellikleri
             </p>
           </div>
 

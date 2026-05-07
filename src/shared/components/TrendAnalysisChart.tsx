@@ -41,31 +41,30 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({
   if (!data || data.length === 0) {
     return (
       <div
-        className="rounded-2xl p-8 text-center backdrop-blur-xl"
         style={{
-          background: 'rgba(255, 255, 255, 0.03)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
           height: height,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          padding: '24px',
         }}
       >
-        <div>
-          <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{
-            background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.1) 0%, rgba(249, 115, 22, 0.1) 100%)',
+        <div style={{ textAlign: 'center' }}>
+          <div className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center" style={{
+            background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%)',
+            border: '1px solid rgba(168, 85, 247, 0.2)',
           }}>
-            <TrendingUp className="w-8 h-8" style={{ color: colors.textSecondary }} />
+            <TrendingUp className="w-6 h-6" style={{ color: '#a855f7' }} />
           </div>
           <p
-            className="text-sm font-semibold mb-1"
-            style={{ color: colors.textPrimary }}
+            className="text-xs font-bold mb-0.5"
+            style={{ color: 'rgba(196,181,253,0.7)' }}
           >
             Henüz yeterli veri yok
           </p>
           <p
-            className="text-xs"
-            style={{ color: colors.textSecondary }}
+            className="text-[10px]"
+            style={{ color: 'rgba(196,181,253,0.35)' }}
           >
             Daha fazla oyun oyna ve trendini gör!
           </p>
@@ -87,31 +86,30 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({
   if (chartData.length === 0) {
     return (
       <div
-        className="rounded-2xl p-8 text-center backdrop-blur-xl"
         style={{
-          background: 'rgba(255, 255, 255, 0.03)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
           height: height,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          padding: '24px',
         }}
       >
-        <div>
-          <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{
-            background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.1) 0%, rgba(249, 115, 22, 0.1) 100%)',
+        <div style={{ textAlign: 'center' }}>
+          <div className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center" style={{
+            background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%)',
+            border: '1px solid rgba(168, 85, 247, 0.2)',
           }}>
-            <TrendingUp className="w-8 h-8" style={{ color: colors.textSecondary }} />
+            <TrendingUp className="w-6 h-6" style={{ color: '#a855f7' }} />
           </div>
           <p
-            className="text-sm font-semibold mb-1"
-            style={{ color: colors.textPrimary }}
+            className="text-xs font-bold mb-0.5"
+            style={{ color: 'rgba(196,181,253,0.7)' }}
           >
             Henüz yeterli veri yok
           </p>
           <p
-            className="text-xs"
-            style={{ color: colors.textSecondary }}
+            className="text-[10px]"
+            style={{ color: 'rgba(196,181,253,0.35)' }}
           >
             Daha fazla oyun oyna ve trendini gör!
           </p>
@@ -171,16 +169,9 @@ export const TrendAnalysisChart: React.FC<TrendAnalysisChartProps> = ({
   };
   
   return (
-    <div
-      className="rounded-2xl p-5 backdrop-blur-xl"
-      style={{
-        background: 'rgba(255, 255, 255, 0.03)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-      }}
-    >
+    <div style={{ padding: '4px 0' }}>
       <ResponsiveContainer width="100%" height={height}>
-        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+        <AreaChart data={chartData} margin={{ top: 10, right: 16, left: -10, bottom: 5 }}>
           <defs>
             {/* Score gradient */}
             <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">

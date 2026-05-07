@@ -302,5 +302,19 @@
     "button": "Şimdi Güncelle",
     "later": "Belki Sonra",
     "required": "Bu güncelleme uygulamayı kullanmaya devam etmek için gereklidir"
+  },
+  "continueModal": {
+    "title": "DEVAM ET?",
+    "subtitle": "Oyunun bitmedi!",
+    "benefit1": "Grid kısmen temizlenecek",
+    "benefit2": "3 yeni parça verilecek",
+    "benefit3": "Mevcut skorun korunacak",
+    "watchAd": "📺 Reklam İzle & Devam Et",
+    "loading": "Reklam yükleniyor...",
+    "limitReached": "Günlük limit doldu",
+    "remaining_one": "Bugün {{count}} hakkın kaldı",
+    "remaining_other": "Bugün {{count}} hakkın kaldı",
+    "noThanks": "Hayır, çıkış yap",
+    "adNote": "Ücretsiz devam etmek için kısa bir reklam izle"
   }
 }

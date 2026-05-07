@@ -56,12 +56,14 @@ export const TRAIL_PARTICLE_CONFIG = {
  * Explosion Particle Configuration
  * Requirements: 3.1-3.10
  * OPTIMIZED: Reduced particle counts and disabled secondary burst
+ * FURTHER OPTIMIZED: Reduced counts for large line clears (5+ lines)
  */
 export const EXPLOSION_PARTICLE_CONFIG = {
   countPerLine: {
     single: 4,             // Reduced from 8 to 4
     double: 6,             // Reduced from 12 to 6
     triple: 8,             // Reduced from 16 to 8
+    large: 6,              // NEW: For 5+ line clears (reduced from triple)
   },
   velocityMin: 400,        // units per second
   velocityMax: 600,        // units per second

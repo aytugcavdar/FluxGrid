@@ -6,7 +6,7 @@ import { useThemeStore } from '../shared/store/themeStore';
 import { GameMode } from '@shared/types';
 import { PerformanceCard, ProgressBar, StatCard, SectionHeader, RecentLogsTimeline, TrendAnalysisChart } from '../shared/components';
 import { useCountUp } from '../shared/hooks/useCountUp';
-import { ScoreDistributionChart } from '../shared/components/ScoreDistributionChart';
+
 import { Achievement } from '../shared/types/ui';
 import { usePerformanceMetrics } from '../shared/hooks/usePerformanceMetrics';
 import { useTrendData } from '../shared/hooks/useTrendData';
@@ -159,24 +159,7 @@ export const StatisticsScreen: React.FC = () => {
     ? gameLogs.sort((a, b) => b.timestamp - a.timestamp).slice(0, 5)
     : [];
 
-  const scoreDistribution = useMemo(() => {
-    if (!Array.isArray(gameLogs) || gameLogs.length === 0) {
-      return [
-        { range: '0-500', count: 0, color: '#6366f1' },
-        { range: '500-1K', count: 0, color: '#8b5cf6' },
-        { range: '1K-2K', count: 0, color: '#a855f7' },
-        { range: '2K-5K', count: 0, color: '#d946ef' },
-        { range: '5K+',  count: 0, color: '#f97316' },
-      ];
-    }
-    return [
-      { range: '0-500',   color: '#6366f1', count: gameLogs.filter(l => l.score < 500).length },
-      { range: '500-1K',  color: '#8b5cf6', count: gameLogs.filter(l => l.score >= 500  && l.score < 1000).length },
-      { range: '1K-2K',   color: '#a855f7', count: gameLogs.filter(l => l.score >= 1000 && l.score < 2000).length },
-      { range: '2K-5K',   color: '#d946ef', count: gameLogs.filter(l => l.score >= 2000 && l.score < 5000).length },
-      { range: '5K+',     color: '#f97316', count: gameLogs.filter(l => l.score >= 5000).length },
-    ];
-  }, [gameLogs]);
+
 
   const sonsuzBestScore = highScores?.[GameMode.ENDLESS] || 0;
   const timedBestScore  = highScores?.[GameMode.TIMED]   || 0;
@@ -312,29 +295,53 @@ export const StatisticsScreen: React.FC = () => {
                 </div>
 
                 {/* ─ Trend section ─ */}
-                <div>
-                  <SectionHeader title={t('stats.trendAnalysis', 'Trend Analizi')} />
-                  <div className="flex gap-2 mb-3">
-                    {(['daily', 'weekly', 'monthly'] as TrendPeriod[]).map(p => (
-                      <button key={p} onClick={() => setTrendPeriod(p)}
-                        className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
-                        style={{
-                          background: trendPeriod === p ? 'rgba(168,85,247,0.2)' : 'rgba(255,255,255,0.03)',
-                          color: trendPeriod === p ? '#c084fc' : 'rgba(255,255,255,0.35)',
-                          border: `1px solid ${trendPeriod === p ? 'rgba(168,85,247,0.4)' : 'rgba(255,255,255,0.07)'}`,
-                          cursor: 'pointer',
-                        }}>
-                        {p === 'daily' ? '📅 Günlük' : p === 'weekly' ? '📊 Haftalık' : '📈 Aylık'}
-                      </button>
-                    ))}
+                <div className="rounded-2xl overflow-hidden"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(168,85,247,0.06) 0%, rgba(99,102,241,0.04) 100%)',
+                    border: '1px solid rgba(168,85,247,0.15)',
+                    boxShadow: '0 4px 24px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.04)',
+                  }}>
+                  {/* Section header inside card */}
+                  <div className="px-4 pt-4 pb-2">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-4 rounded-full" style={{ background: 'linear-gradient(180deg, #a855f7, #6366f1)' }} />
+                        <span className="text-xs font-black uppercase tracking-wider" style={{ color: '#c4b5fd' }}>
+                          {t('stats.trendAnalysis', 'Trend Analizi')}
+                        </span>
+                      </div>
+                      {trendData.length > 0 && (
+                        <span className="text-[10px] font-semibold" style={{ color: 'rgba(196,181,253,0.5)' }}>
+                          {trendData.reduce((sum, d) => sum + d.gamesPlayed, 0)} oyun
+                        </span>
+                      )}
+                    </div>
+                    {/* Period pills */}
+                    <div className="flex gap-1.5">
+                      {(['daily', 'weekly', 'monthly'] as TrendPeriod[]).map(p => (
+                        <button key={p} onClick={() => setTrendPeriod(p)}
+                          className="flex-1 py-2 rounded-lg text-[10px] font-bold transition-all relative overflow-hidden"
+                          style={{
+                            background: trendPeriod === p
+                              ? 'linear-gradient(135deg, rgba(168,85,247,0.25), rgba(99,102,241,0.2))'
+                              : 'rgba(255,255,255,0.03)',
+                            color: trendPeriod === p ? '#e9d5ff' : 'rgba(255,255,255,0.3)',
+                            border: `1px solid ${trendPeriod === p ? 'rgba(168,85,247,0.45)' : 'rgba(255,255,255,0.06)'}`,
+                            cursor: 'pointer',
+                            boxShadow: trendPeriod === p ? '0 0 12px rgba(168,85,247,0.15)' : 'none',
+                          }}>
+                          {p === 'daily' ? 'Günlük' : p === 'weekly' ? 'Haftalık' : 'Aylık'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <TrendAnalysisChart data={trendData}
-                    lines={[{ dataKey: 'score', color: '#a855f7', label: 'SKOR' }, { dataKey: 'combo', color: '#f59e0b', label: 'KOMBO' }]}
-                    height={180} showGrid showLegend />
+                  {/* Chart */}
+                  <div className="px-1 pb-2">
+                    <TrendAnalysisChart data={trendData}
+                      lines={[{ dataKey: 'score', color: '#a855f7', label: 'SKOR' }, { dataKey: 'combo', color: '#f59e0b', label: 'KOMBO' }]}
+                      height={200} showGrid showLegend />
+                  </div>
                 </div>
-
-                {/* ─ Score distribution ─ */}
-                <ScoreDistributionChart data={scoreDistribution} height={160} />
 
                 {/* ─ Mode performance ─ */}
                 <div>

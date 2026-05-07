@@ -302,5 +302,19 @@
     "button": "Update Now",
     "later": "Maybe Later",
     "required": "This update is required to continue using the app"
+  },
+  "continueModal": {
+    "title": "CONTINUE?",
+    "subtitle": "Your game isn't over!",
+    "benefit1": "Grid will be partially cleared",
+    "benefit2": "You'll get 3 new pieces",
+    "benefit3": "Your current score is kept",
+    "watchAd": "📺 Watch Ad & Continue",
+    "loading": "Loading ad...",
+    "limitReached": "Daily limit reached",
+    "remaining_one": "{{count}} use remaining today",
+    "remaining_other": "{{count}} uses remaining today",
+    "noThanks": "No thanks, exit",
+    "adNote": "Watch a short ad to continue for free"
   }
 }

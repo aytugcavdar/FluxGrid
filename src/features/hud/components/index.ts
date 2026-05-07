@@ -1,4 +1,6 @@
 export { HUD } from './HUD';
+export { TimedHUD } from './TimedHUD';
+
 export { ScorePopups } from './ScorePopups';
 export { ChainCounter } from './ChainCounter';
 export { PerfectBonus } from './PerfectBonus';

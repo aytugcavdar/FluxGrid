@@ -84,11 +84,6 @@ const App: React.FC = () => {
   const [lineCountToShow, setLineCountToShow] = useState(0);
   const [showLineCount, setShowLineCount] = useState(false);
   
-  // COMBO RUSH state'leri
-  const [showRushStart, setShowRushStart] = useState(false);
-  const [showRushEnd, setShowRushEnd] = useState(false);
-  const prevRushMovesRef = useRef(timedBoostMovesLeft);
-  
   // Event start visual state
   const activeEvent = useGameStore(state => state.activeEvent);
   const [eventStartVisual, setEventStartVisual] = useState<typeof activeEvent>(null);
@@ -148,6 +143,7 @@ const App: React.FC = () => {
   const handlePlayAgain = useCallback(() => {
     initGame(gameOverMode);
   }, [gameOverMode, initGame]);
+
 
   const handleClose = useCallback(() => {
     resetGame();
@@ -331,13 +327,12 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [gameMode, appState, isGameOver, tickTimer]);
 
-  // Play game over sound
+  // Play game over sound + haptic
   useEffect(() => {
     if (isGameOver && !prevGameOver) {
       playGameOver();
-      // Save the current gameMode when game over happens
+      playHaptic('game_over');
       setGameOverMode(gameMode);
-      // Handle game end for tutorial system
       handleGameEnd();
     }
     setPrevGameOver(isGameOver);
@@ -441,13 +436,17 @@ const App: React.FC = () => {
     
     // Tutorial validation events
     if (lastAction.type === 'PLACE') {
-      // Dispatch piece placed event for tutorial
+      playHaptic('place');
       window.dispatchEvent(new CustomEvent('tutorial-validation', {
         detail: { type: 'piece_placed' }
       }));
     }
     
     if (lastAction.type !== 'CLEAR') return;
+
+    // Haptic for line clear
+    const linesNow = lastAction.lines || 0;
+    playHaptic(linesNow >= 2 ? 'clear_multi' : 'clear_single');
 
     // Dispatch line cleared event for tutorial
     if (lastAction.lines && lastAction.lines > 0) {
@@ -516,6 +515,7 @@ const App: React.FC = () => {
     // Combo milestone detection (5, 10, 15, 20)
     if ([5, 10, 15, 20].includes(combo) && combo > prevComboRef.current) {
       setShowComboMilestone(true);
+      playHaptic('combo_milestone');
       const timer = setTimeout(() => setShowComboMilestone(false), 800);
       return () => clearTimeout(timer);
     }
@@ -523,27 +523,6 @@ const App: React.FC = () => {
     prevComboRef.current = combo;
   }, [combo, gameMode]);
 
-  // COMBO RUSH başlangıç ve bitiş efektleri
-  useEffect(() => {
-    if (gameMode !== GameMode.TIMED) return;
-    
-    // RUSH başladı (0'dan > 0'a geçti)
-    if (prevRushMovesRef.current === 0 && timedBoostMovesLeft > 0) {
-      setShowRushStart(true);
-      const timer = setTimeout(() => setShowRushStart(false), 1500);
-      return () => clearTimeout(timer);
-    }
-    
-    // RUSH bitti (1'den 0'a düştü)
-    if (prevRushMovesRef.current === 1 && timedBoostMovesLeft === 0) {
-      setShowRushEnd(true);
-      const timer = setTimeout(() => setShowRushEnd(false), 300);
-      return () => clearTimeout(timer);
-    }
-    
-    prevRushMovesRef.current = timedBoostMovesLeft;
-  }, [timedBoostMovesLeft, gameMode]);
-  
   // Event start visual trigger
   useEffect(() => {
     if (activeEvent && activeEvent !== prevActiveEventRef.current) {
@@ -578,9 +557,7 @@ const App: React.FC = () => {
   const { clearAchievementNotification } = useGameStore();
   useEffect(() => {
     if (unlockedAchievementId) {
-      // Play achievement sound
-      // @ts-ignore - 'success' pattern exists but TypeScript cache issue
-      playHaptic('success');
+      playHaptic('achievement');
       
       // Show native notification
       const achievement = achievements.find(a => a.id === unlockedAchievementId);
@@ -645,8 +622,6 @@ const App: React.FC = () => {
             gridSize={gridSize}
             scorePopups={scorePopups}
             showSurgeFlash={showSurgeFlash}
-            showRushStart={showRushStart}
-            showRushEnd={showRushEnd}
             timedBoostMovesLeft={timedBoostMovesLeft}
             timePopups={timePopups}
             setTimePopups={setTimePopups}

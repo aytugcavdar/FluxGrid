@@ -385,12 +385,37 @@ export class StorageService extends BaseService {
   loadHighScores(): Record<string, number> {
     try {
       const serialized = this.storage.getItem(StorageKeys.HIGH_SCORES);
-      if (!serialized) {
-        return {};
+      if (serialized) {
+        const storageValue: StorageValue<Record<string, number>> = JSON.parse(serialized);
+        
+        // If data field exists, use it regardless of checksum (checksum mismatch ≠ data loss)
+        if (storageValue && storageValue.data && typeof storageValue.data === 'object') {
+          return storageValue.data;
+        }
+        
+        // Also check legacy format (plain object without wrapper)
+        if (!storageValue.version && typeof storageValue === 'object') {
+          return storageValue as Record<string, number>;
+        }
       }
       
-      const storageValue: StorageValue<Record<string, number>> = JSON.parse(serialized);
-      return storageValue.data || {};
+      // Fallback: check legacy key 'flux_high_scores' from older code
+      const legacySerialized = this.storage.getItem('flux_high_scores');
+      if (legacySerialized) {
+        const legacy = JSON.parse(legacySerialized);
+        if (legacy && typeof legacy === 'object') {
+          // Migrate to new key
+          const data = (legacy.data && typeof legacy.data === 'object') ? legacy.data : legacy;
+          this.storage.setItem(StorageKeys.HIGH_SCORES, JSON.stringify({
+            version: 1,
+            timestamp: Date.now(),
+            data,
+          }));
+          return data;
+        }
+      }
+      
+      return {};
     } catch (error) {
       this.error('Failed to load high scores', error as Error);
       return {};
@@ -410,12 +435,16 @@ export class StorageService extends BaseService {
   loadStats(): GameStats | null {
     try {
       const serialized = this.storage.getItem(StorageKeys.STATS);
-      if (!serialized) {
-        return null;
-      }
+      if (!serialized) return null;
       
       const storageValue: StorageValue<GameStats> = JSON.parse(serialized);
-      return storageValue.data || null;
+      
+      // Use data regardless of checksum — checksum mismatch doesn't mean data is bad
+      if (storageValue && storageValue.data && typeof storageValue.data === 'object') {
+        return storageValue.data;
+      }
+      
+      return null;
     } catch (error) {
       this.error('Failed to load stats', error as Error);
       return null;

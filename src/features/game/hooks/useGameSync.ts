@@ -35,8 +35,18 @@ export function useGameSync() {
       try {
         // Save to localStorage
         try {
-          localStorage.setItem('flux_highscores', JSON.stringify(useGameStore.getState().highScores));
-          localStorage.setItem('flux_stats', JSON.stringify(stats));
+          const highScores = useGameStore.getState().highScores;
+          // Write in StorageValue format to the correct key
+          localStorage.setItem('fluxgrid_high_scores', JSON.stringify({
+            version: 1,
+            timestamp: Date.now(),
+            data: highScores,
+          }));
+          localStorage.setItem('fluxgrid_stats', JSON.stringify({
+            version: 1,
+            timestamp: Date.now(),
+            data: stats,
+          }));
         } catch (error) {
           console.error('useGameSync: Failed to save to localStorage:', error);
         }

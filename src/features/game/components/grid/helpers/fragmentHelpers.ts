@@ -21,7 +21,7 @@ export function updateFragments(
   fragmentPool.activeFragments.forEach((data, key) => {
     const elapsed = currentTime - data.startTime;
     
-    if (elapsed > FRAGMENT_LIFETIME) {
+    if (elapsed > (data.lifetime ?? FRAGMENT_LIFETIME)) {
       // Fade out complete, return fragment to pool
       data.mesh.isVisible = false;
       fragmentPool.activeFragments.delete(key);
@@ -34,7 +34,7 @@ export function updateFragments(
     data.mesh.rotation.addInPlace(data.rotationVelocity);
     
     // Fade out
-    const fadeProgress = elapsed / FRAGMENT_LIFETIME;
+    const fadeProgress = elapsed / (data.lifetime ?? FRAGMENT_LIFETIME);
     if (data.mesh.material) {
       const mat = data.mesh.material as BABYLON.StandardMaterial;
       mat.alpha = data.startAlpha * (1 - fadeProgress);
@@ -54,11 +54,23 @@ export function createBreakApartFragments(
   isMobile: boolean,
   isNativeApp: boolean,
   isLowEndDevice: boolean,
-  prefersReducedMotion: boolean
+  prefersReducedMotion: boolean,
+  deviceTier: 'low' | 'low-mid' | 'mid-low' | 'mid' | 'mid-high' | 'high' = 'mid'
 ): void {
-  if (isNativeApp || isLowEndDevice || prefersReducedMotion) return;
-  
-  const fragmentCount = isMobile ? 3 : 5;
+  // Skip entirely for low / low-mid tiers and native apps on low-end
+  if (prefersReducedMotion) return;
+  if (isLowEndDevice) return; // low tier
+  if (deviceTier === 'low-mid') return; // low-mid: no fragments
+  // Fragment count by tier: mid-low=2, mid=3, mid-high/high=5
+  const fragmentCount = deviceTier === 'mid-low' ? 2
+    : deviceTier === 'mid' ? 3
+    : isMobile ? 4 : 5;
+
+  // Lifetime by tier: shorter on weaker devices saves GPU time
+  const lifetime = deviceTier === 'mid-low' ? 220
+    : deviceTier === 'mid' ? 300
+    : FRAGMENT_LIFETIME; // 400ms for high tiers
+
   const worldPos = getVectorPos(cellX, cellY);
   
   // Get fragments from pool
@@ -100,7 +112,8 @@ export function createBreakApartFragments(
         velocity,
         rotationVelocity,
         startTime: Date.now(),
-        startAlpha: 1.0
+        startAlpha: 1.0,
+        lifetime,
       });
       
       fragmentsCreated++;

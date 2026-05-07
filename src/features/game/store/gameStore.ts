@@ -24,6 +24,23 @@ import { useVisualEffectStore } from '../../visual-effects/store/visualEffectSto
 import { useAchievementStore } from '../../achievements/achievementStore';
 import { saveGameState, loadGameState, clearGameSave, hasSavedGame } from './helpers/gameSaveSystem';
 
+/**
+ * Synchronous stats save — ensures stats persist even when async
+ * StorageService calls are interrupted by app exit/navigation.
+ * Writes in StorageValue format so loadStats() can read it.
+ */
+function syncSaveStats(stats: GameStats): void {
+  try {
+    localStorage.setItem('fluxgrid_stats', JSON.stringify({
+      version: 1,
+      timestamp: Date.now(),
+      data: stats,
+    }));
+  } catch {}
+  // Also fire async for Capacitor Preferences
+  LocalStorageService.saveStats(stats).catch(() => {});
+}
+
 export interface GameStore {
   grid: GridState;
   pieces: Piece[];
@@ -174,13 +191,12 @@ export const useGameStore = create<GameStore>((set, get) => {
   const savedHighScores = LocalStorageService.loadHighScores();
   const savedStats = LocalStorageService.loadStats() || INITIAL_STATS;
   const savedMaxLevel = 0;
-  const savedHighScore = 0;
   
   return {
   grid: createEmptyGrid(),
   pieces: [],
   score: 0,
-  highScore: savedHighScore,
+  highScore: 0, // Will be set when game starts based on mode
   combo: 0,
   isGameOver: false,
   draggedPiece: null,
@@ -290,6 +306,10 @@ export const useGameStore = create<GameStore>((set, get) => {
         const loadedMiniEventState = migratedData?.miniEventState ?? createMiniEventState();
         const loadedTotalMovesPlayed = migratedData?.totalMovesPlayed ?? 0;
         
+        // Get current high score for this mode
+        const currentHighScores = get().highScores;
+        const modeHighScore = currentHighScores[mode] || 0;
+        
         set({
           grid: initialGrid,
           pieces: getRandomPiecesSync(
@@ -302,15 +322,19 @@ export const useGameStore = create<GameStore>((set, get) => {
             loadedMiniEventState
           ),
           score: loadedScore,
+          highScore: modeHighScore, // Set high score for current mode
           combo: 0,
           isGameOver: false,
+          // CRITICAL FIX: Always clear drag state on new game
+          // This prevents the "preview shows but can't place" bug after Play Again
+          draggedPiece: null,
           lastAction: null,
           unlockedAchievementId: null,
           appState: AppState.GAME,
           gameMode: mode,
           timeLeft: isTimed ? 60 : 0,
-          timerStartTime: isTimed ? now : null,
-          timerExpectedEnd: isTimed ? now + 60000 : null,
+          timerStartTime: null, // Timer will start on first piece placement
+          timerExpectedEnd: null, // Timer will start on first piece placement
           difficultyTier: loadedTier,
           // Daily Challenge initialization
           dailyClearHistory: [],
@@ -348,7 +372,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         set({ stats: newStats });
         
         // Save stats to localStorage
-        LocalStorageService.saveStats(newStats);
+        syncSaveStats(newStats);
         
         // Initialize tutorial system if this is a new game (not loading saved)
         if (!savedData) {
@@ -409,7 +433,7 @@ export const useGameStore = create<GameStore>((set, get) => {
   },
 
   placePiece: (piece, startX, startY) => {
-    const { grid, score, combo, highScore, gameMode } = get();
+    const { grid, score, combo, highScore, gameMode, timerStartTime } = get();
     
     // Grid validation
     if (!grid || grid.length !== GRID_SIZE) {
@@ -426,6 +450,17 @@ export const useGameStore = create<GameStore>((set, get) => {
     
     // Trigger valid placement feedback
     JuiceTriggers.onValidPlacement();
+    
+    // 🎯 TIMED MODE: Start timer on first piece placement
+    if (gameMode === GameMode.TIMED && timerStartTime === null) {
+      const now = Date.now();
+      set({
+        timerStartTime: now,
+        timerExpectedEnd: now + 60000, // 60 seconds
+        timeLeft: 60
+      });
+      console.log('[TIMED] Timer started on first piece placement');
+    }
     
     // Store the placed piece for boss mechanics (before it's removed from pieces array)
     const justPlacedPiece = piece;
@@ -692,11 +727,20 @@ export const useGameStore = create<GameStore>((set, get) => {
       currentLevelIndex: 0,
     });
 
-    // Sync newly unlocked achievement to localStorage
+    // Sync newly unlocked achievement to localStorage AND achievementStore
     syncNewAchievement(previousAchievements, updatedAchievements);
     
-    // Handle just unlocked achievement
+    // CRITICAL: Also update achievementStore so unlock state persists across sessions
     const newUnlock = updatedAchievements.find((ach, i) => ach.unlocked && !previousAchievements[i].unlocked);
+    if (newUnlock) {
+      // Import dynamically to avoid circular deps
+      import('@features/achievements/achievementStore').then(({ useAchievementStore }) => {
+        useAchievementStore.getState().checkAchievement(
+          newUnlock.id as any,
+          newUnlock.currentValue
+        );
+      }).catch(() => {});
+    }
 
     // lastAction güncelle
 
@@ -754,11 +798,12 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({ isPiecesLoading: false });
     }
 
-    // Ses + Titresim
+    // Ses (ses zaten GameApp.tsx'te de tetikleniyor, sadece gameStore'dan remove ettik)
+    // Haptic: gameStore seviyesinde de fire edelim (GameApp.tsx ayrıca da tetikler)
     if (linesCleared > 0) {
         playClear(linesCleared);
         if (comboMultiplier > 1) playCombo(comboMultiplier);
-        playHaptic(linesCleared > 1 ? 'clear_multi' : 'clear');
+        playHaptic(linesCleared > 1 ? 'clear_multi' : 'clear_single');
     } else {
         playPlace();
         playHaptic('place');
@@ -772,8 +817,29 @@ export const useGameStore = create<GameStore>((set, get) => {
       const newHighs = { ...currentHighs, [modeKey]: newScore };
       set({ highScores: newHighs, highScore: newScore });
       
-      // Save high score to localStorage
-      LocalStorageService.saveHighScore(modeKey, newScore);
+      // CRITICAL FIX: Write synchronously FIRST to prevent data loss on quick exit
+      // Use the same key format that loadHighScores() reads: fluxgrid_high_scores
+      try {
+        const storageKey = 'fluxgrid_high_scores';
+        const existing = localStorage.getItem(storageKey);
+        let parsed: any = {};
+        if (existing) {
+          try {
+            const sv = JSON.parse(existing);
+            parsed = (sv && sv.data && typeof sv.data === 'object') ? sv.data : (typeof sv === 'object' ? sv : {});
+          } catch { parsed = {}; }
+        }
+        parsed[modeKey] = newScore;
+        // Write in StorageValue format so loadHighScores can read it
+        localStorage.setItem(storageKey, JSON.stringify({
+          version: 1,
+          timestamp: Date.now(),
+          data: parsed,
+        }));
+      } catch {}
+      
+      // Also fire async save for Capacitor Preferences sync
+      LocalStorageService.saveHighScore(modeKey, newScore).catch(() => {});
     }
 
     // Time Reward logic
@@ -965,7 +1031,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     set({ stats: nextStats });
     
     // Save stats to localStorage
-    LocalStorageService.saveStats(nextStats);
+    syncSaveStats(nextStats);
 
     get().checkGameOver();
     
@@ -1053,7 +1119,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
       
       set({ stats: updatedStats });
-      LocalStorageService.saveStats(updatedStats);
+      syncSaveStats(updatedStats);
       
       // Save game log for analytics
       const gameStartTime = get().timerStartTime || Date.now() - 60000; // Fallback to 1 min ago

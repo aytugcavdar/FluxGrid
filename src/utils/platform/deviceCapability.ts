@@ -1,8 +1,12 @@
 import { Capacitor } from '@capacitor/core';
+import { Device } from '@capacitor/device';
 
 export enum DeviceTier {
   LOW = 'low',
+  LOW_MID = 'low-mid',
+  MID_LOW = 'mid-low',
   MID = 'mid',
+  MID_HIGH = 'mid-high',
   HIGH = 'high'
 }
 
@@ -15,8 +19,10 @@ export interface DeviceCapabilities {
   gpuRenderer: string | null;
   isNative: boolean;
   isAndroid: boolean;
-  score?: number; // Total score (1-30)
+  score?: number; // Total score (0-100)
   scoreBreakdown?: string; // Score breakdown for debugging
+  isVIP?: boolean; // VIP flagship device
+  deviceModel?: string; // Device model name
 }
 
 export interface PerformanceConfig {
@@ -26,6 +32,95 @@ export interface PerformanceConfig {
   enableParticles: boolean;
   antialias: boolean;
   maxTextureSize: number;
+}
+
+/**
+ * VIP Device List - Flagship models that are automatically HIGH tier
+ * These devices are recognized by model name/number regardless of specs
+ */
+const VIP_FLAGSHIP_MODELS = [
+  // Samsung Galaxy S Series (2023-2025)
+  'SM-S911', 'SM-S916', 'SM-S918', // S23, S23+, S23 Ultra
+  'SM-S921', 'SM-S926', 'SM-S928', // S24, S24+, S24 Ultra
+  'SM-S931', 'SM-S936', 'SM-S938', // S25, S25+, S25 Ultra
+  
+  // Samsung Galaxy Z Fold/Flip (2023-2025)
+  'SM-F946', 'SM-F731', // Z Fold 5, Z Flip 5
+  'SM-F956', 'SM-F741', // Z Fold 6, Z Flip 6
+  
+  // Samsung Galaxy Tab S9/S10 Series
+  'SM-X910', 'SM-X916', // Tab S9, S9+
+  'SM-X110', 'SM-X116', // Tab S10, S10+
+  
+  // Xiaomi Flagship (2023-2025)
+  '23127PN0C', '2312DRA50C', // Xiaomi 14, 14 Pro
+  '24031PN0DC', '2405CPX3DG', // Xiaomi 14 Ultra, 15
+  '2407FPN8EG', // Xiaomi 15 Pro
+  
+  // POCO Flagship
+  '23124PC75G', '23113RKC6G', // POCO F6, F6 Pro
+  '24069PC21G', // POCO X7 Pro
+  
+  // OnePlus Flagship (2023-2025)
+  'CPH2581', 'CPH2609', // OnePlus 12, 12R
+  'CPH2617', 'CPH2619', // OnePlus 13, 13 Pro
+  
+  // Google Pixel (2023-2025)
+  'Pixel 8', 'Pixel 8 Pro', 'Pixel 8a',
+  'Pixel 9', 'Pixel 9 Pro', 'Pixel 9 Pro XL',
+  
+  // iPhone (2023-2025)
+  'iPhone15', 'iPhone16', 'iPhone17', // All variants
+  
+  // Oppo Find X Series
+  'CPH2525', 'CPH2581', // Find X7, X7 Pro
+  'CPH2609', // Find X8
+  
+  // Vivo X Series
+  'V2309A', 'V2324A', // X100, X100 Pro
+  'V2352A', // X200
+  
+  // Realme GT Series
+  'RMX3700', 'RMX3708', // GT 5, GT 5 Pro
+  'RMX3800', // GT 6
+  
+  // ASUS ROG Phone
+  'ASUS_AI2401', 'ASUS_AI2501', // ROG Phone 8, 9
+  
+  // Nothing Phone
+  'A065', 'A142', // Nothing Phone (2), (2a)
+];
+
+/**
+ * Check if device model is in VIP flagship list
+ * Returns true if device should be automatically classified as HIGH tier
+ */
+async function isVIPFlagship(): Promise<boolean> {
+  try {
+    if (!Capacitor.isNativePlatform()) {
+      return false; // Web doesn't have device model info
+    }
+    
+    const deviceInfo = await Device.getInfo();
+    const model = deviceInfo.model || '';
+    
+    console.log('[DeviceCapability] Device model:', model);
+    
+    // Check if model matches any VIP pattern
+    const isVIP = VIP_FLAGSHIP_MODELS.some(vipModel => 
+      model.includes(vipModel) || model.startsWith(vipModel)
+    );
+    
+    if (isVIP) {
+      console.log('[DeviceCapability] 🌟 VIP FLAGSHIP DETECTED:', model, '→ AUTO HIGH TIER');
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.warn('[DeviceCapability] VIP check failed:', error);
+    return false;
+  }
 }
 
 /**
@@ -221,11 +316,11 @@ function classifyGPUTier(gpuRenderer: string | null): { tier: DeviceTier | null;
 }
 
 /**
- * Advanced scoring system (1-30 points)
- * Focused on core performance: GPU, RAM, CPU only
- * Screen refresh rate and DPI removed as they don't affect game performance significantly
+ * Specs-based scoring system (0-100 points)
+ * Used as fallback or combined with benchmark results
+ * GPU: 0-50, RAM: 0-30, CPU: 0-20
  */
-function calculateDeviceScore(
+function calculateSpecsScore(
   gpuScore: number,
   memory: number,
   cores: number
@@ -233,45 +328,47 @@ function calculateDeviceScore(
   let totalScore = 0;
   const breakdown: string[] = [];
   
-  // 1. GPU Score (0-15 points) - MOST IMPORTANT (50% weight)
-  // Triple the GPU score importance
-  const finalGpuScore = gpuScore * 3;
+  // 1. GPU Score (0-50 points) - MOST IMPORTANT (50% weight)
+  // Map GPU tier (0-5) to 0-50 scale
+  const finalGpuScore = gpuScore * 10; // 0→0, 1→10, 2→20, 3→30, 4→40, 5→50
   totalScore += finalGpuScore;
-  breakdown.push(`GPU:+${finalGpuScore}`);
+  breakdown.push(`GPU:${finalGpuScore}`);
   
-  // 2. RAM Score (0-10 points) - SECOND MOST IMPORTANT (33% weight)
+  // 2. RAM Score (0-30 points) - SECOND MOST IMPORTANT (30% weight)
   let ramScore = 0;
   if (memory >= 16) {
-    ramScore = 10; // Extreme flagship
+    ramScore = 30; // Extreme flagship
   } else if (memory >= 12) {
-    ramScore = 8; // Flagship
+    ramScore = 25; // Flagship
   } else if (memory >= 8) {
-    ramScore = 6; // Premium
+    ramScore = 20; // Premium
   } else if (memory >= 6) {
-    ramScore = 4; // Mid
+    ramScore = 15; // Mid
   } else if (memory >= 4) {
-    ramScore = 2; // Low
+    ramScore = 10; // Low
+  } else if (memory >= 3) {
+    ramScore = 5; // Very low
   } else {
-    ramScore = 0; // Very low
+    ramScore = 0; // Extremely low
   }
   totalScore += ramScore;
-  breakdown.push(`RAM:+${ramScore}`);
+  breakdown.push(`RAM:${ramScore}`);
   
-  // 3. CPU Cores Score (0-5 points) - THIRD (17% weight)
+  // 3. CPU Cores Score (0-20 points) - THIRD (20% weight)
   let coresScore = 0;
   if (cores >= 10) {
-    coresScore = 5; // Flagship (Snapdragon 8 Gen 3, 8 Elite - 10 cores)
+    coresScore = 20; // Flagship (Snapdragon 8 Gen 3, 8 Elite - 10 cores)
   } else if (cores >= 8) {
-    coresScore = 4; // Modern (8 cores)
+    coresScore = 15; // Modern (8 cores)
   } else if (cores >= 6) {
-    coresScore = 2; // Mid (6 cores)
+    coresScore = 10; // Mid (6 cores)
   } else if (cores >= 4) {
-    coresScore = 1; // Old (4 cores)
+    coresScore = 5; // Old (4 cores)
   } else {
     coresScore = 0; // Very old (2 cores)
   }
   totalScore += coresScore;
-  breakdown.push(`CPU:+${coresScore}`);
+  breakdown.push(`CPU:${coresScore}`);
   
   return {
     score: totalScore,
@@ -280,66 +377,34 @@ function calculateDeviceScore(
 }
 
 /**
- * Determine tier from score with hard limits
- * Updated for 30-point scale
+ * Determine tier from score (0-100 scale)
+ * 6-tier system: LOW, LOW_MID, MID_LOW, MID, MID_HIGH, HIGH
  */
-function determineTierFromScore(
-  score: number,
-  gpuScore: number,
-  memory: number
-): DeviceTier {
-  // 🚨 HARD LIMIT 1: RAM ≤3GB → Automatic LOW
-  if (memory <= 3) {
-    console.warn('[DeviceCapability] 🚨 Hard limit: RAM ≤3GB → LOW tier');
-    return DeviceTier.LOW;
-  }
-  
-  // 🚨 HARD LIMIT 2: GPU LOW (1 point) + RAM ≤6GB → Automatic LOW
-  if (gpuScore === 1 && memory <= 6) {
-    console.warn('[DeviceCapability] 🚨 Hard limit: GPU LOW + RAM ≤6GB → LOW tier');
-    return DeviceTier.LOW;
-  }
-  
-  // 🚨 HARD LIMIT 3: GPU LOW-MID (2 points) + RAM ≤6GB → Automatic LOW
-  // This catches Honor 9X (Mali-G52, 6GB)
-  if (gpuScore === 2 && memory <= 6) {
-    console.warn('[DeviceCapability] 🚨 Hard limit: GPU LOW-MID + RAM ≤6GB → LOW tier (Honor 9X)');
-    return DeviceTier.LOW;
-  }
-  
-  // 🚨 HARD LIMIT 4: GPU LOW/LOW-MID (1-2 points) + RAM 4GB → Automatic LOW
-  if (gpuScore <= 2 && memory === 4) {
-    console.warn('[DeviceCapability] 🚨 Hard limit: GPU LOW + RAM 4GB → LOW tier');
-    return DeviceTier.LOW;
-  }
-  
-  // 🚨 HARD LIMIT 5: GPU MID (3 points) + RAM ≤8GB → Force MID (Oppo A60)
-  // Prevents mid-range devices from being classified as HIGH
-  if (gpuScore === 3 && memory <= 8) {
-    console.warn('[DeviceCapability] 🚨 Hard limit: GPU MID + RAM ≤8GB → MID tier (Oppo A60)');
-    return DeviceTier.MID;
-  }
-  
-  // Score-based tier determination (updated for 30-point scale)
-  if (score >= 22) {
-    return DeviceTier.HIGH; // 22-30 points (top ~27%)
-  } else if (score >= 14) {
-    return DeviceTier.MID; // 14-21 points (middle ~47%)
+function determineTierFromScore(score: number): DeviceTier {
+  if (score >= 81) {
+    return DeviceTier.HIGH; // 81-100: Flagship devices
+  } else if (score >= 71) {
+    return DeviceTier.MID_HIGH; // 71-80: Upper mid-range
+  } else if (score >= 61) {
+    return DeviceTier.MID; // 61-70: Mid-range
+  } else if (score >= 46) {
+    return DeviceTier.MID_LOW; // 46-60: Lower mid-range
+  } else if (score >= 31) {
+    return DeviceTier.LOW_MID; // 31-45: Entry mid-range
   } else {
-    return DeviceTier.LOW; // 1-13 points (bottom ~26%)
+    return DeviceTier.LOW; // 0-30: Low-end devices
   }
 }
 
 /**
- * Get total device RAM from native Android bridge
- * Returns actual RAM value, not browser-limited value
+ * Get total device RAM from native sources
+ * Priority: 1) Android Native Bridge, 2) Capacitor Device API, 3) Web API
  */
 async function getNativeRAM(): Promise<number | null> {
   try {
-    console.log('[DeviceCapability] Checking for native bridge...');
-    console.log('[DeviceCapability] window.FluxGridNative:', typeof (window as any).FluxGridNative);
+    console.log('[DeviceCapability] Checking for native RAM sources...');
     
-    // Check if native bridge is available (Android only)
+    // Method 1: Android Native Bridge (most accurate for total RAM)
     if (typeof (window as any).FluxGridNative !== 'undefined') {
       console.log('[DeviceCapability] Native bridge found! Calling getTotalRAM()...');
       const ramGB = (window as any).FluxGridNative.getTotalRAM();
@@ -352,8 +417,23 @@ async function getNativeRAM(): Promise<number | null> {
         console.warn('[DeviceCapability] Native bridge returned invalid value:', ramGB);
       }
     } else {
-      console.log('[DeviceCapability] Native bridge not available (web or iOS)');
+      console.log('[DeviceCapability] Native bridge not available');
     }
+    
+    // Method 2: Capacitor Device API (available memory, not total)
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const deviceInfo = await Device.getInfo();
+        console.log('[DeviceCapability] Capacitor Device info:', deviceInfo);
+        
+        // Note: Device.getInfo() doesn't provide total RAM directly
+        // It only provides memUsed (used memory) which is not useful for our purpose
+        // But we log it for debugging
+      } catch (error) {
+        console.warn('[DeviceCapability] Capacitor Device.getInfo() failed:', error);
+      }
+    }
+    
   } catch (error) {
     console.error('[DeviceCapability] Failed to get native RAM:', error);
   }
@@ -362,9 +442,39 @@ async function getNativeRAM(): Promise<number | null> {
 
 /**
  * Detect device hardware capabilities
- * Uses advanced scoring system (1-30 points)
+ * Uses specs-based scoring only (GPU, RAM, CPU)
+ * Priority: VIP List → Specs
  */
+
+// Module-level cache — detectDeviceCapabilities is called multiple times (Grid mount,
+// remount after Play Again, etc.). Cache ensures subsequent calls resolve instantly
+// instead of re-running native Capacitor APIs each time.
+let _deviceCapabilitiesCache: Promise<DeviceCapabilities> | null = null;
+
 export async function detectDeviceCapabilities(): Promise<DeviceCapabilities> {
+  if (_deviceCapabilitiesCache) {
+    return _deviceCapabilitiesCache;
+  }
+  _deviceCapabilitiesCache = _detectDeviceCapabilitiesImpl();
+  return _deviceCapabilitiesCache;
+}
+
+async function _detectDeviceCapabilitiesImpl(): Promise<DeviceCapabilities> {
+
+  // 🌟 STEP 1: VIP FLAGSHIP CHECK (Highest Priority)
+  const isVIP = await isVIPFlagship();
+  
+  // Get device model for display
+  let deviceModel = 'Unknown';
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const deviceInfo = await Device.getInfo();
+      deviceModel = deviceInfo.model || 'Unknown';
+    }
+  } catch (error) {
+    console.warn('[DeviceCapability] Failed to get device model:', error);
+  }
+  
   // Try to get real memory from native bridge first (Android only)
   let memory = 4; // Default fallback
   
@@ -410,16 +520,29 @@ export async function detectDeviceCapabilities(): Promise<DeviceCapabilities> {
   const isNative = Capacitor.isNativePlatform();
   const isAndroid = Capacitor.getPlatform() === 'android';
   
-  // Calculate total device score (1-30 points)
-  const scoreResult = calculateDeviceScore(gpuScore, memory, cores);
+  // Calculate specs-based score (0-100 scale)
+  const specsResult = calculateSpecsScore(gpuScore, memory, cores);
+  const finalScore = specsResult.score;
+  const scoreBreakdown = specsResult.breakdown;
   
-  // Determine tier with hard limits
-  const tier = determineTierFromScore(scoreResult.score, gpuScore, memory);
+  // 🌟 STEP 2: Determine tier (VIP overrides everything)
+  let tier: DeviceTier;
+  
+  if (isVIP) {
+    // VIP flagship → Always HIGH tier with 100 points
+    tier = DeviceTier.HIGH;
+    console.log('[DeviceCapability] 🌟 VIP OVERRIDE: Tier set to HIGH, Score = 100');
+  } else {
+    // Normal tier determination from score
+    tier = determineTierFromScore(finalScore);
+  }
   
   console.log('[DeviceCapability] 🎯 Device Analysis:', {
+    isVIP,
+    deviceModel,
     tier,
-    score: `${scoreResult.score}/30`,
-    breakdown: scoreResult.breakdown,
+    score: `${finalScore}/100`,
+    breakdown: scoreBreakdown,
     memory: `${memory}GB`,
     cores,
     dpi,
@@ -438,71 +561,83 @@ export async function detectDeviceCapabilities(): Promise<DeviceCapabilities> {
     gpuRenderer,
     isNative,
     isAndroid,
-    score: scoreResult.score,
-    scoreBreakdown: scoreResult.breakdown
+    score: isVIP ? 100 : finalScore,
+    scoreBreakdown: isVIP ? 'VIP Flagship (Auto HIGH)' : scoreBreakdown,
+    isVIP,
+    deviceModel
   };
 }
 
 /**
- * Get performance configuration based on device tier and score
+ * Get performance configuration based on device tier
  * All tiers use full resolution (hardwareScaling: 1.0)
- * Only effects and features differ
- * MID tier is split into three sub-tiers: MID-LOW (14-16), MID (17-19), MID-HIGH (20-21)
+ * 6-tier system with progressive feature enablement
  */
-export function getPerformanceConfig(tier: DeviceTier, score?: number): PerformanceConfig {
+export function getPerformanceConfig(tier: DeviceTier): PerformanceConfig {
   switch (tier) {
     case DeviceTier.LOW:
+      // 0-30 points: Minimal features, no particles
       return {
         fragmentPoolSize: 3,
-        hardwareScaling: 1.0, // Full resolution - NO DOWNSCALING!
+        hardwareScaling: 1.0,
         enableGlow: false,
         enableParticles: false,
         antialias: false,
         maxTextureSize: 512
       };
     
+    case DeviceTier.LOW_MID:
+      // 31-45 points: Entry mid-range, basic particles
+      return {
+        fragmentPoolSize: 6,
+        hardwareScaling: 1.0,
+        enableGlow: false,
+        enableParticles: true,
+        antialias: false,
+        maxTextureSize: 768
+      };
+    
+    case DeviceTier.MID_LOW:
+      // 46-60 points: Lower mid-range, more particles
+      return {
+        fragmentPoolSize: 10,
+        hardwareScaling: 1.0,
+        enableGlow: false,
+        enableParticles: true,
+        antialias: false,
+        maxTextureSize: 1024
+      };
+    
     case DeviceTier.MID:
-      // Split MID into three sub-tiers based on score (30-point scale)
-      if (score && score >= 20) {
-        // MID-HIGH: Best MID performance (20-21 points)
-        return {
-          fragmentPoolSize: 15,
-          hardwareScaling: 1.0,
-          enableGlow: false,
-          enableParticles: true,
-          antialias: false,
-          maxTextureSize: 1536
-        };
-      } else if (score && score >= 17) {
-        // MID: Standard MID performance (17-19 points)
-        return {
-          fragmentPoolSize: 12,
-          hardwareScaling: 1.0,
-          enableGlow: false,
-          enableParticles: true,
-          antialias: false,
-          maxTextureSize: 1280
-        };
-      } else {
-        // MID-LOW: Conservative MID settings (14-16 points)
-        return {
-          fragmentPoolSize: 8,
-          hardwareScaling: 1.0,
-          enableGlow: false,
-          enableParticles: true,
-          antialias: false,
-          maxTextureSize: 1024
-        };
-      }
+      // 61-70 points: Standard mid-range
+      return {
+        fragmentPoolSize: 14,
+        hardwareScaling: 1.0,
+        enableGlow: false,
+        enableParticles: true,
+        antialias: false,
+        maxTextureSize: 1280
+      };
+    
+    case DeviceTier.MID_HIGH:
+      // 71-80 points: Upper mid-range, enable antialias
+      return {
+        fragmentPoolSize: 18,
+        hardwareScaling: 1.0,
+        enableGlow: false,
+        enableParticles: true,
+        antialias: true,
+        maxTextureSize: 1536
+      };
     
     case DeviceTier.HIGH:
-      // Premium visuals for flagship devices
+      // 81-100 points: Flagship, all features enabled
       return {
-        fragmentPoolSize: 20,
-        hardwareScaling: 1.0, // Full resolution
-        enableGlow: true, // ENABLED for premium look
+        fragmentPoolSize: 22,
+        hardwareScaling: 1.0,
+        enableGlow: true,
         enableParticles: true,
-        antialias: true, // ENABLED for smooth edges
+        antialias: true,
         maxTextureSize: 2048
       };
   }

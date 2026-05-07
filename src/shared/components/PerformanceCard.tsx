@@ -20,59 +20,79 @@ export const PerformanceCard: React.FC<PerformanceCardProps> = ({
   
   return (
     <div
-      className="rounded-xl"
+      className="rounded-2xl relative overflow-hidden"
       style={{
-        background: colors.cardBackgroundTransparent,
-        border: `1px solid ${color}30`,
-        borderRadius: '12px',
-        padding: '10px 12px',
+        background: `linear-gradient(135deg, ${color}08 0%, rgba(255,255,255,0.02) 100%)`,
+        border: `1px solid ${color}20`,
+        padding: '14px 16px',
+        boxShadow: `0 4px 20px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.04)`,
       }}
     >
-      <div className="flex items-center gap-2 mb-4">
+      {/* Subtle color orb */}
+      <div
+        className="absolute -top-6 -right-6 w-20 h-20 rounded-full pointer-events-none"
+        style={{ background: color, opacity: 0.06, filter: 'blur(20px)' }}
+      />
+      
+      <div className="flex items-center gap-2.5 mb-4">
         <div
-          className="text-xl flex items-center justify-center w-8 h-8 rounded-lg"
+          className="text-lg flex items-center justify-center w-9 h-9 rounded-xl"
           style={{
-            background: `${color}20`,
+            background: `linear-gradient(135deg, ${color}20, ${color}10)`,
             color: color,
+            border: `1px solid ${color}25`,
+            fontWeight: 700,
           }}
         >
           {modeIcon}
         </div>
-        <h3
-          className="text-sm font-bold"
-          style={{ color: color }}
-        >
-          {modeLabel}
-        </h3>
+        <div>
+          <h3
+            className="text-xs font-black tracking-wide"
+            style={{ color: color }}
+          >
+            {modeLabel}
+          </h3>
+          {bestScore > 0 && (
+            <span className="text-[9px] font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>
+              Rekor: {bestScore.toLocaleString('tr-TR')}
+            </span>
+          )}
+        </div>
       </div>
       
-      <div className="grid grid-cols-3 gap-4">
-        <div>
-          <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>En İyi Skor</p>
-          <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="text-center">
+          <p className="text-[10px] mb-1 font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>En İyi Skor</p>
+          <p className="text-base font-black tabular-nums" style={{
+            background: `linear-gradient(135deg, ${color}, white)`,
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}>
             {bestScore.toLocaleString('tr-TR')}
           </p>
         </div>
         
-        <div>
-          <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>Max Kombo</p>
-          <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+        <div className="text-center">
+          <p className="text-[10px] mb-1 font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>Max Kombo</p>
+          <p className="text-base font-black tabular-nums" style={{ color: colors.textPrimary }}>
             x{maxCombo}
           </p>
         </div>
         
-        <div>
+        <div className="text-center">
           {isEndless ? (
             <>
-              <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>Max Tier</p>
-              <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+              <p className="text-[10px] mb-1 font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>Max Tier</p>
+              <p className="text-base font-black tabular-nums" style={{ color: colors.textPrimary }}>
                 T{maxTier || 0}
               </p>
             </>
           ) : (
             <>
-              <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>Chrono Bonus</p>
-              <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+              <p className="text-[10px] mb-1 font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>Chrono</p>
+              <p className="text-base font-black tabular-nums" style={{ color: colors.textPrimary }}>
                 +{chronoBonus || 0}s
               </p>
             </>

@@ -15,7 +15,7 @@ import { useBackgroundPause } from '../hooks/useBackgroundPause';
 import { usePerformanceStore } from '../store/performanceStore';
 import { injectAndroidTouchCSS, addOptimizedTouchListener } from '../../../utils/device/touchOptimizer';
 import clsx from 'clsx';
-import { findBestPlacement, recordPointerSample, getDragVelocity, resetVelocityTracking, FAST_SWIPE_THRESHOLD } from '../utils/placementHelper';
+import { findBestPlacement, recordPointerSample, getDragVelocity, resetVelocityTracking, FAST_SWIPE_THRESHOLD, setSharedHoverCoord } from '../utils/placementHelper';
 
 // Import constants and helpers
 import {
@@ -376,10 +376,57 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
     useEffect(() => {
         if (!canvasRef.current) return;
 
+        // ─── CRITICAL: Register pointer event listeners IMMEDIATELY ───
+        // Do NOT put these inside the async initializeScene — they must be
+        // registered synchronously on mount, otherwise pointerup fires before
+        // Babylon init completes and placement is lost (the "preview but can't place" bug)
+        const handleGlobalPointerMove = (e: PointerEvent) => {
+            globalMouseRef.current = { x: e.clientX, y: e.clientY };
+            if (e.pointerType === 'touch') {
+                lastTouchTimeRef.current = Date.now();
+            }
+            if (stateRef.current.draggedPiece) {
+                recordPointerSample(e.clientX, e.clientY);
+            }
+        };
+
+        const handleWindowPointerUp = () => {
+            // Placement is handled by Piece.tsx handlePointerUp via shared hover coord.
+            // This handler only does cleanup: hide ghost meshes, clear state.
+            console.log('[Grid] window pointerup cleanup. draggedPiece:', stateRef.current.draggedPiece?.instanceId ?? 'null');
+
+            ghostMeshesRef.current.forEach(m => { m.isVisible = false; });
+            guidedHighlightMeshesRef.current.forEach(m => { m.isVisible = false; });
+
+            resetVelocityTracking();
+
+            // Belt-and-suspenders: if Piece.tsx didn't clear these, do it here
+            document.body.classList.remove('dragging');
+            if (stateRef.current.draggedPiece) {
+                setDraggedPiece(null);
+            }
+            hoverCoordRef.current = null;
+            globalMouseRef.current = null;
+        };
+
+        const handleCanvasPointerUp = (e: PointerEvent) => {
+            if (e.pointerType === 'touch') {
+                lastTouchTimeRef.current = Date.now();
+            }
+        };
+
+        // Register listeners immediately (synchronously) before any async work
+        window.addEventListener('pointerup', handleWindowPointerUp);
+        window.addEventListener('pointermove', handleGlobalPointerMove);
+        if (canvasRef.current) {
+            canvasRef.current.addEventListener('pointerup', handleCanvasPointerUp);
+        }
+
         // Device capability detection with performance config (async)
         const initializeScene = async () => {
             const deviceCapabilities = await detectDeviceCapabilities();
-            const perfConfig = getPerformanceConfig(deviceCapabilities.tier, deviceCapabilities.score);
+
+            const perfConfig = getPerformanceConfig(deviceCapabilities.tier);
             
             console.log('[Grid] Performance config:', perfConfig);
             
@@ -584,6 +631,16 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         gridBaseRef.current = gridBase;
 
         // Grid Slots - themed
+        // LOW tier: use brighter slot color since we skip edge rendering (no grid lines)
+        // Without edges the slots look like one flat dark surface — we add contrast via emissive
+        const lowTierSlotColors: Record<string, { slot: string; emissiveScale: number; alpha: number }> = {
+            dark:  { slot: '#1a2540', emissiveScale: 1.4, alpha: 0.95 },
+            light: { slot: '#fef9e7', emissiveScale: 1.0, alpha: 0.95 },
+            neon:  { slot: '#1e1050', emissiveScale: 1.5, alpha: 0.95 },
+        };
+        const currentThemeName = useThemeStore.getState().currentTheme;
+        const lowSlot = lowTierSlotColors[currentThemeName] ?? lowTierSlotColors['dark'];
+
         for (let y = 0; y < GRID_SIZE; y++) {
             for (let x = 0; x < GRID_SIZE; x++) {
                 const slot = BABYLON.MeshBuilder.CreateBox(`slot-${x}-${y}`, { width: 0.95, depth: 0.95, height: 0.05 }, scene);
@@ -593,13 +650,22 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 slot.isPickable = false;
 
                 const slotMat = new BABYLON.StandardMaterial(`slotMat-${x}-${y}`, scene);
-                slotMat.diffuseColor = BABYLON.Color3.FromHexString(themeColors.gridSlot);
-                slotMat.emissiveColor = BABYLON.Color3.FromHexString(themeColors.gridSlot).scale(0.8);
+
+                if (isLowEndDevice) {
+                    // Brighter color so cells are distinguishable without edges
+                    slotMat.diffuseColor = BABYLON.Color3.FromHexString(lowSlot.slot);
+                    slotMat.emissiveColor = BABYLON.Color3.FromHexString(lowSlot.slot).scale(lowSlot.emissiveScale);
+                    slotMat.alpha = lowSlot.alpha;
+                } else {
+                    slotMat.diffuseColor = BABYLON.Color3.FromHexString(themeColors.gridSlot);
+                    slotMat.emissiveColor = BABYLON.Color3.FromHexString(themeColors.gridSlot).scale(0.8);
+                    slotMat.alpha = 0.92;
+                }
+
                 slotMat.specularColor = BABYLON.Color3.Black();
-                slotMat.alpha = 0.92;
                 slot.material = slotMat;
 
-                // Grid lines — themed and more visible
+                // Grid lines — themed
                 // CRITICAL: Skip edges on LOW devices - 100 slots * edges = MASSIVE performance hit
                 if (!isLowEndDevice) {
                     slot.enableEdgesRendering();
@@ -781,6 +847,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 if (prefersReducedMotion) {
                     lineClearSystem.setReducedMotion(true);
                 }
+                // Set device tier for particle optimization
+                lineClearSystem.setDeviceTier(deviceCapabilities.tier);
                 lineClearSystemRef.current = lineClearSystem;
             } else {
                 // LOW tier: No particle systems at all
@@ -992,6 +1060,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                     const newCoord = { x: fx, y: fy };
                     if (!hoverCoordRef.current || hoverCoordRef.current.x !== fx || hoverCoordRef.current.y !== fy) {
                         hoverCoordRef.current = newCoord;
+                        setSharedHoverCoord(newCoord); // Piece.tsx reads this on pointerup
                         // REMOVED: setHoverCoord(newCoord); - Avoid React re-render
 
                         // Magnetic Haptic Feedback on mobile
@@ -1052,10 +1121,9 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 }
             } else {
                 // Only clear hover if not dragging a piece
-                // This allows ghost to persist when dragging from outside canvas
                 if (!stateRef.current.draggedPiece) {
                     hoverCoordRef.current = null;
-                    // REMOVED: setHoverCoord(null); - Avoid React re-render
+                    setSharedHoverCoord(null);
                     ghostMeshesRef.current.forEach(m => { m.isVisible = false; });
                 }
             }
@@ -1265,7 +1333,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                                 isMobile,
                                 isNativeApp,
                                 isLowEndDevice,
-                                prefersReducedMotion
+                                prefersReducedMotion,
+                                deviceCapabilities.tier
                             );
                             
                             // Task 20.3: Emit enhanced line clear particles
@@ -1668,86 +1737,12 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             // This ensures updateFrameTime() is only called when frame is actually rendered
         });
 
-        const handleGlobalPointerMove = (e: PointerEvent) => {
-            globalMouseRef.current = { x: e.clientX, y: e.clientY };
-            // Task 3.2: Update last touch time for idle detection
-            if (e.pointerType === 'touch') {
-                lastTouchTimeRef.current = Date.now();
-            }
-            // Velocity tracking (A — hızlı swipe için)
-            if (stateRef.current.draggedPiece) {
-                recordPointerSample(e.clientX, e.clientY);
-            }
-        };
-
-        const handleWindowPointerUp = () => {
-            const { draggedPiece } = stateRef.current;
-            
-            // A3: Ghost'u anında gizle — placement animasyonu başlamadan önce
-            ghostMeshesRef.current.forEach(m => { m.isVisible = false; });
-            guidedHighlightMeshesRef.current.forEach(m => { m.isVisible = false; });
-
-            // Velocity ölç (hızlı swipe tespiti için)
-            const velocity = getDragVelocity();
-            const isFastSwipe = velocity > FAST_SWIPE_THRESHOLD;
-            resetVelocityTracking();
-            
-            // Handle piece placement
-            if (draggedPiece) {
-                if (hoverCoordRef.current) {
-                    // Geçerli hover koordinatına yerleştir
-                    // Hızlı swipe'ta da snap uygula
-                    placePiece(draggedPiece, hoverCoordRef.current.x, hoverCoordRef.current.y);
-                } else if (globalMouseRef.current && canvasRef.current) {
-                    // Fallback: fare koordinatlarından konum hesapla
-                    const rect = canvasRef.current.getBoundingClientRect();
-                    const x = globalMouseRef.current.x - rect.left;
-                    const y = globalMouseRef.current.y - rect.top;
-                    const DRAG_Y_OFFSET = getDragYOffset();
-                    
-                    const pickInfo = sceneRef.current?.pick(x, y + DRAG_Y_OFFSET, (mesh) => mesh.name === 'ground');
-                    
-                    if (pickInfo && pickInfo.hit && pickInfo.pickedPoint) {
-                        const p = pickInfo.pickedPoint;
-                        const GRID_OFFSET = (GRID_SIZE * TOTAL_CELL_SIZE) / 2;
-                        const rawX = (p.x + GRID_OFFSET) / TOTAL_CELL_SIZE;
-                        const rawY = (-p.z + GRID_OFFSET) / TOTAL_CELL_SIZE;
-                        const rx = Math.round(rawX);
-                        const ry = Math.round(rawY);
-                        
-                        const shapeW = draggedPiece.shape[0].length;
-                        const shapeH = draggedPiece.shape.length;
-                        const cx = rx - Math.floor((shapeW - 1) / 2);
-                        const cy = ry - Math.floor((shapeH - 1) / 2);
-
-                        // A2: Fallback path'de de snap uygula
-                        const snapped = findBestPlacement(stateRef.current.grid, draggedPiece, cx, cy, 1);
-                        const fx = snapped ? snapped.x : cx;
-                        const fy = snapped ? snapped.y : cy;
-                        
-                        placePiece(draggedPiece, fx, fy);
-                    }
-                }
-            }
-            
-            // Reset state
-            setDraggedPiece(null);
-            hoverCoordRef.current = null;
-            // REMOVED: setHoverCoord(null); - Avoid React re-render
-            globalMouseRef.current = null;
-        };
-
-        const handleCanvasPointerUp = (e: PointerEvent) => {
-            // Note: Piece placement is handled by window handler
+        const handleCanvasPointerUpTouch = (e: PointerEvent) => {
             // Task 3.2: Update last touch time for idle detection
             if (e.pointerType === 'touch') {
                 lastTouchTimeRef.current = Date.now();
             }
         };
-
-        window.addEventListener('pointerup', handleWindowPointerUp);
-        window.addEventListener('pointermove', handleGlobalPointerMove);
-        canvasRef.current.addEventListener('pointerup', handleCanvasPointerUp);
 
         // Task 9.4: Add touch event optimization to canvas
         // Task 9.5: Measure and record touch response times
@@ -2118,6 +2113,28 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         
         // Call the async initialization function
         initializeScene();
+
+        // CRITICAL: Return synchronous cleanup from useEffect.
+        // The cleanup inside initializeScene was never called by React
+        // because async functions can't return React cleanup functions.
+        // We use refs (engineRef, sceneRef) set during async init to clean up.
+        return () => {
+            console.log('[Grid] useEffect cleanup — disposing engine via ref');
+            setSharedHoverCoord(null); // Clear shared state immediately
+            window.removeEventListener('pointerup', handleWindowPointerUp);
+            window.removeEventListener('pointermove', handleGlobalPointerMove);
+            if (canvasRef.current) {
+                canvasRef.current.removeEventListener('pointerup', handleCanvasPointerUp);
+            }
+            if (sceneRef.current) {
+                sceneRef.current.dispose();
+                sceneRef.current = null;
+            }
+            if (engineRef.current) {
+                engineRef.current.dispose();
+                engineRef.current = null;
+            }
+        };
     }, []);
 
     // Cache canvas rect for responsive calculations

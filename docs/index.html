@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FluxGrid - Performans Tier Sistemi</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 0;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .scoring-section {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+
+        .scoring-section h2 {
+            font-size: 2rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .score-breakdown {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .score-card {
+            background: rgba(255,255,255,0.15);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .score-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .score-card .points {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #fbbf24;
+            margin: 10px 0;
+        }
+
+        .score-card ul {
+            list-style: none;
+            margin-top: 10px;
+        }
+
+        .score-card li {
+            padding: 5px 0;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .tier-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .tier-card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 3px solid;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .tier-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .tier-card.low {
+            border-color: #ef4444;
+            background: linear-gradient(135deg, rgba(239,68,68,0.2) 0%, rgba(239,68,68,0.05) 100%);
+        }
+
+        .tier-card.low-mid {
+            border-color: #f97316;
+            background: linear-gradient(135deg, rgba(249,115,22,0.2) 0%, rgba(249,115,22,0.05) 100%);
+        }
+
+        .tier-card.mid-low {
+            border-color: #f59e0b;
+            background: linear-gradient(135deg, rgba(245,158,11,0.2) 0%, rgba(245,158,11,0.05) 100%);
+        }
+
+        .tier-card.mid {
+            border-color: #eab308;
+            background: linear-gradient(135deg, rgba(234,179,8,0.2) 0%, rgba(234,179,8,0.05) 100%);
+        }
+
+        .tier-card.mid-high {
+            border-color: #84cc16;
+            background: linear-gradient(135deg, rgba(132,204,22,0.2) 0%, rgba(132,204,22,0.05) 100%);
+        }
+
+        .tier-card.high {
+            border-color: #22c55e;
+            background: linear-gradient(135deg, rgba(34,197,94,0.2) 0%, rgba(34,197,94,0.05) 100%);
+        }
+
+        .tier-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .tier-name {
+            font-size: 1.8rem;
+            font-weight: bold;
+        }
+
+        .tier-score {
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+
+        .tier-description {
+            font-size: 0.95rem;
+            opacity: 0.9;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .feature-list {
+            list-style: none;
+        }
+
+        .feature-item {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .feature-item:last-child {
+            border-bottom: none;
+        }
+
+        .feature-name {
+            font-weight: 500;
+        }
+
+        .feature-value {
+            font-weight: bold;
+            padding: 4px 12px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .feature-value.enabled {
+            background: rgba(34,197,94,0.3);
+            color: #22c55e;
+        }
+
+        .feature-value.disabled {
+            background: rgba(239,68,68,0.3);
+            color: #ef4444;
+        }
+
+        .feature-value.number {
+            background: rgba(59,130,246,0.3);
+            color: #3b82f6;
+        }
+
+        .vip-section {
+            background: linear-gradient(135deg, rgba(251,191,36,0.3) 0%, rgba(245,158,11,0.3) 100%);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 3px solid #fbbf24;
+        }
+
+        .vip-section h2 {
+            font-size: 2rem;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .vip-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .vip-device {
+            background: rgba(255,255,255,0.15);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 0.9rem;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px 0;
+            opacity: 0.8;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            .tier-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .score-breakdown {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 FluxGrid</h1>
+            <p class="subtitle">Performans Tier Sistemi & Özellikler</p>
+        </header>
+
+        <!-- Scoring System -->
+        <div class="scoring-section">
+            <h2>📊 Puanlama Sistemi (0-100)</h2>
+            <p style="opacity: 0.9; margin-bottom: 20px;">
+                Cihazlar donanım özelliklerine göre otomatik olarak puanlanır ve tier'lara ayrılır.
+            </p>
+            
+            <div class="score-breakdown">
+                <div class="score-card">
+                    <h3>🎨 GPU (Ekran Kartı)</h3>
+                    <div class="points">0-50 Puan</div>
+                    <p style="opacity: 0.8; font-size: 0.9rem;">En önemli faktör (50% ağırlık)</p>
+                    <ul>
+                        <li>• Tier 5 (Flagship): 50 puan</li>
+                        <li>• Tier 4 (Upper Mid): 40 puan</li>
+                        <li>• Tier 3 (Mid): 30 puan</li>
+                        <li>• Tier 2 (Entry): 20 puan</li>
+                        <li>• Tier 1 (Low): 10 puan</li>
+                    </ul>
+                </div>
+
+                <div class="score-card">
+                    <h3>💾 RAM (Bellek)</h3>
+                    <div class="points">0-30 Puan</div>
+                    <p style="opacity: 0.8; font-size: 0.9rem;">İkinci önemli faktör (30% ağırlık)</p>
+                    <ul>
+                        <li>• 16GB+: 30 puan</li>
+                        <li>• 12GB: 25 puan</li>
+                        <li>• 8GB: 20 puan</li>
+                        <li>• 6GB: 15 puan</li>
+                        <li>• 4GB: 10 puan</li>
+                        <li>• 3GB: 5 puan</li>
+                    </ul>
+                </div>
+
+                <div class="score-card">
+                    <h3>⚙️ CPU (İşlemci)</h3>
+                    <div class="points">0-20 Puan</div>
+                    <p style="opacity: 0.8; font-size: 0.9rem;">Üçüncü faktör (20% ağırlık)</p>
+                    <ul>
+                        <li>• 10+ Core: 20 puan</li>
+                        <li>• 8 Core: 15 puan</li>
+                        <li>• 6 Core: 10 puan</li>
+                        <li>• 4 Core: 5 puan</li>
+                        <li>• 2 Core: 0 puan</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIP Devices -->
+        <div class="vip-section">
+            <h2>🌟 VIP Amiral Gemisi Cihazlar</h2>
+            <p style="opacity: 0.9; margin-bottom: 10px;">
+                Bu cihazlar otomatik olarak HIGH tier alır (100 puan) ve tüm özellikler açıktır.
+            </p>
+            <div class="vip-grid">
+                <div class="vip-device">Samsung S23/S24/S25 Serisi</div>
+                <div class="vip-device">Samsung Z Fold/Flip 5/6</div>
+                <div class="vip-device">Xiaomi 14/15 Serisi</div>
+                <div class="vip-device">POCO F6/X7 Pro</div>
+                <div class="vip-device">OnePlus 12/13</div>
+                <div class="vip-device">Google Pixel 8/9</div>
+                <div class="vip-device">iPhone 15/16/17</div>
+                <div class="vip-device">ASUS ROG Phone 8/9</div>
+                <div class="vip-device">Nothing Phone (2)</div>
+            </div>
+        </div>
+
+        <!-- Tier Cards -->
+        <div class="tier-grid">
+            <!-- LOW TIER -->
+            <div class="tier-card low">
+                <div class="tier-header">
+                    <div class="tier-name">LOW TIER</div>
+                    <div class="tier-score">0-30 Puan</div>
+                </div>
+                <div class="tier-description">
+                    Düşük performanslı cihazlar için optimize edilmiş ayarlar. Minimum özelliklerle akıcı oyun deneyimi.
+                </div>
+                <ul class="feature-list">
+                    <li class="feature-item">
+                        <span class="feature-name">Fragment Pool</span>
+                        <span class="feature-value number">3</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Çözünürlük</span>
+                        <span class="feature-value number">1.0x (Full)</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Parçacık Efektleri</span>
+                        <span class="feature-value disabled">❌ Kapalı</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Glow Efekti</span>
+                        <span class="feature-value disabled">❌ Kapalı</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Antialiasing</span>
+                        <span class="feature-value disabled">❌ Kapalı</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Max Texture</span>
+                        <span class="feature-value number">512px</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- LOW-MID TIER -->
+            <div class="tier-card low-mid">
+                <div class="tier-header">
+                    <div class="tier-name">LOW-MID TIER</div>
+                    <div class="tier-score">31-45 Puan</div>
+                </div>
+                <div class="tier-description">
+                    Giriş seviyesi orta segment cihazlar. Temel parçacık efektleri aktif.
+                </div>
+                <ul class="feature-list">
+                    <li class="feature-item">
+                        <span class="feature-name">Fragment Pool</span>
+                        <span class="feature-value number">6</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Çözünürlük</span>
+                        <span class="feature-value number">1.0x (Full)</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Parçacık Efektleri</span>
+                        <span class="feature-value enabled">✅ Açık</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Glow Efekti</span>
+                        <span class="feature-value disabled">❌ Kapalı</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Antialiasing</span>
+                        <span class="feature-value disabled">❌ Kapalı</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Max Texture</span>
+                        <span class="feature-value number">768px</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- MID-LOW TIER -->
+            <div class="tier-card mid-low">
+                <div class="tier-header">
+                    <div class="tier-name">MID-LOW TIER</div>
+                    <div class="tier-score">46-60 Puan</div>
+                </div>
+                <div class="tier-description">
+                    Alt seviye orta segment. Daha fazla parçacık efekti ve daha büyük texture desteği.
+                </div>
+                <ul class="feature-list">
+                    <li class="feature-item">
+                        <span class="feature-name">Fragment Pool</span>
+                        <span class="feature-value number">10</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Çözünürlük</span>
+                        <span class="feature-value number">1.0x (Full)</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Parçacık Efektleri</span>
+                        <span class="feature-value enabled">✅ Açık</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Glow Efekti</span>
+                        <span class="feature-value disabled">❌ Kapalı</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Antialiasing</span>
+                        <span class="feature-value disabled">❌ Kapalı</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Max Texture</span>
+                        <span class="feature-value number">1024px</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- MID TIER -->
+            <div class="tier-card mid">
+                <div class="tier-header">
+                    <div class="tier-name">MID TIER</div>
+                    <div class="tier-score">61-70 Puan</div>
+                </div>
+                <div class="tier-description">
+                    Standart orta segment cihazlar. Dengeli performans ve görsel kalite.
+                </div>
+                <ul class="feature-list">
+                    <li class="feature-item">
+                        <span class="feature-name">Fragment Pool</span>
+                        <span class="feature-value number">14</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Çözünürlük</span>
+                        <span class="feature-value number">1.0x (Full)</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Parçacık Efektleri</span>
+                        <span class="feature-value enabled">✅ Açık</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Glow Efekti</span>
+                        <span class="feature-value disabled">❌ Kapalı</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Antialiasing</span>
+                        <span class="feature-value disabled">❌ Kapalı</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Max Texture</span>
+                        <span class="feature-value number">1280px</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- MID-HIGH TIER -->
+            <div class="tier-card mid-high">
+                <div class="tier-header">
+                    <div class="tier-name">MID-HIGH TIER</div>
+                    <div class="tier-score">71-80 Puan</div>
+                </div>
+                <div class="tier-description">
+                    Üst seviye orta segment. Antialiasing aktif, premium görsel kalite.
+                </div>
+                <ul class="feature-list">
+                    <li class="feature-item">
+                        <span class="feature-name">Fragment Pool</span>
+                        <span class="feature-value number">18</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Çözünürlük</span>
+                        <span class="feature-value number">1.0x (Full)</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Parçacık Efektleri</span>
+                        <span class="feature-value enabled">✅ Açık</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Glow Efekti</span>
+                        <span class="feature-value disabled">❌ Kapalı</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Antialiasing</span>
+                        <span class="feature-value enabled">✅ Açık</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Max Texture</span>
+                        <span class="feature-value number">1536px</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- HIGH TIER -->
+            <div class="tier-card high">
+                <div class="tier-header">
+                    <div class="tier-name">HIGH TIER</div>
+                    <div class="tier-score">81-100 Puan</div>
+                </div>
+                <div class="tier-description">
+                    Amiral gemisi cihazlar. Tüm özellikler maksimum seviyede aktif.
+                </div>
+                <ul class="feature-list">
+                    <li class="feature-item">
+                        <span class="feature-name">Fragment Pool</span>
+                        <span class="feature-value number">22</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Çözünürlük</span>
+                        <span class="feature-value number">1.0x (Full)</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Parçacık Efektleri</span>
+                        <span class="feature-value enabled">✅ Açık</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Glow Efekti</span>
+                        <span class="feature-value enabled">✅ Açık</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Antialiasing</span>
+                        <span class="feature-value enabled">✅ Açık</span>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-name">Max Texture</span>
+                        <span class="feature-value number">2048px</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <footer>
+            <p>FluxGrid © 2025 - Otomatik Performans Optimizasyonu</p>
+            <p style="margin-top: 10px; font-size: 0.9rem;">
+                Tüm cihazlar otomatik olarak tespit edilir ve en uygun ayarlar uygulanır.
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
