@@ -12,6 +12,8 @@ import com.fluxgrid.app.R;
 
 /**
  * Quick Play Widget - Quick access to game modes
+ * Supports: Endless and Timed modes only
+ * Deep link format: fluxgrid://mode/{endless|timed}
  */
 public class QuickPlayWidgetProvider extends AppWidgetProvider {
     
@@ -37,18 +39,13 @@ public class QuickPlayWidgetProvider extends AppWidgetProvider {
             createGameModePendingIntent(context, "timed", 2)
         );
         
-        // Daily challenge button
-        views.setOnClickPendingIntent(
-            R.id.widget_btn_daily,
-            createGameModePendingIntent(context, "daily", 3)
-        );
-        
         appWidgetManager.updateAppWidget(appWidgetId, views);
     }
     
     private static PendingIntent createGameModePendingIntent(Context context, String mode, int requestCode) {
         Intent intent = new Intent(Intent.ACTION_VIEW);
-        intent.setData(Uri.parse("fluxgrid://mode?mode=" + mode));
+        // Use consistent deep link format: fluxgrid://mode/{mode}
+        intent.setData(Uri.parse("fluxgrid://mode/" + mode));
         intent.setClass(context, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         

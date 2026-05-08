@@ -715,48 +715,48 @@ SecurityManager.prototype.verifyChecksum = async function(data: string, expected
   return calculated === expectedChecksum;
 };
 
-  /**
-   * Store device fingerprint securely
-   * Encrypts and stores fingerprint in localStorage
-   * 
-   * @param fingerprint - Device fingerprint to store
-   */
-  public async storeDeviceFingerprint(fingerprint: any): Promise<void> {
-    try {
-      const encrypted = await this.encryptObject(fingerprint);
-      localStorage.setItem('device:fingerprint', encrypted);
-      logger.info('[SecurityManager] Device fingerprint stored', undefined, LogCategory.GENERAL);
-    } catch (error) {
-      logger.error('[SecurityManager] Failed to store device fingerprint', error, LogCategory.GENERAL);
-      throw error;
-    }
+/**
+ * Store device fingerprint securely
+ * Encrypts and stores fingerprint in localStorage
+ * 
+ * @param fingerprint - Device fingerprint to store
+ */
+SecurityManager.prototype.storeDeviceFingerprint = async function(fingerprint: any): Promise<void> {
+  try {
+    const encrypted = await this.encryptObject(fingerprint);
+    localStorage.setItem('device:fingerprint', encrypted);
+    logger.info('[SecurityManager] Device fingerprint stored', undefined, LogCategory.GENERAL);
+  } catch (error) {
+    logger.error('[SecurityManager] Failed to store device fingerprint', error, LogCategory.GENERAL);
+    throw error;
   }
+};
 
-  /**
-   * Retrieve device fingerprint
-   * Decrypts and returns stored fingerprint
-   * 
-   * @returns Device fingerprint or null if not found
-   */
-  public async getDeviceFingerprint(): Promise<any | null> {
-    try {
-      const encrypted = localStorage.getItem('device:fingerprint');
-      if (!encrypted) {
-        return null;
-      }
-      
-      const fingerprint = await this.decryptObject(encrypted);
-      return fingerprint;
-    } catch (error) {
-      logger.error('[SecurityManager] Failed to retrieve device fingerprint', error, LogCategory.GENERAL);
+/**
+ * Retrieve device fingerprint
+ * Decrypts and returns stored fingerprint
+ * 
+ * @returns Device fingerprint or null if not found
+ */
+SecurityManager.prototype.getDeviceFingerprint = async function(): Promise<any | null> {
+  try {
+    const encrypted = localStorage.getItem('device:fingerprint');
+    if (!encrypted) {
       return null;
     }
+    
+    const fingerprint = await this.decryptObject(encrypted);
+    return fingerprint;
+  } catch (error) {
+    logger.error('[SecurityManager] Failed to retrieve device fingerprint', error, LogCategory.GENERAL);
+    return null;
   }
+};
 
-  /**
-   * Clear stored device fingerprint
-   */
-  public clearDeviceFingerprint(): void {
-    localStorage.removeItem('device:fingerprint');
-    logger.info('[SecurityManager] Device fingerprint cleared', undefined, LogCategory.GENERAL);
-  }
+/**
+ * Clear stored device fingerprint
+ */
+SecurityManager.prototype.clearDeviceFingerprint = function(): void {
+  localStorage.removeItem('device:fingerprint');
+  logger.info('[SecurityManager] Device fingerprint cleared', undefined, LogCategory.GENERAL);
+};

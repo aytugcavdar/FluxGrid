@@ -1,5 +1,11 @@
 /**
  * Widget Helper - Syncs game data to native SharedPreferences for widgets
+ * 
+ * Widget Data Contract:
+ * - widget_high_score_endless: High score for endless mode
+ * - widget_high_score_timed: High score for timed mode
+ * - widget_daily_streak: Current daily streak
+ * - widget_last_updated: Last update timestamp
  */
 
 import { Capacitor } from '@capacitor/core';
@@ -34,7 +40,8 @@ export async function syncHighScoreToWidget(gameMode: string, score: number): Pr
       return;
     }
     
-    const key = `flux_high_score_${gameMode}`;
+    // Use new widget projection key
+    const key = `widget_high_score_${gameMode}`;
     const value = score.toString();
     
     // Save to native SharedPreferences with the key that widget expects
@@ -44,6 +51,13 @@ export async function syncHighScoreToWidget(gameMode: string, score: number): Pr
     });
     
     console.log(`[Widget] ✅ Synced high score - Key: ${key}, Value: ${value}`);
+    
+    // Also save with legacy key for backward compatibility
+    const legacyKey = `flux_high_score_${gameMode}`;
+    await prefs.set({
+      key: legacyKey,
+      value: value,
+    });
     
     // Verify it was saved
     const result = await prefs.get({ key: key });
@@ -69,7 +83,8 @@ export async function syncStreakToWidget(streak: number): Promise<void> {
       return;
     }
     
-    const key = 'flux_daily_streak';
+    // Use new widget projection key
+    const key = 'widget_daily_streak';
     const value = streak.toString();
     
     await prefs.set({
@@ -78,6 +93,13 @@ export async function syncStreakToWidget(streak: number): Promise<void> {
     });
     
     console.log(`[Widget] ✅ Synced streak - Key: ${key}, Value: ${value}`);
+    
+    // Also save with legacy key for backward compatibility
+    const legacyKey = 'flux_daily_streak';
+    await prefs.set({
+      key: legacyKey,
+      value: value,
+    });
     
     // Verify it was saved
     const result = await prefs.get({ key: key });
@@ -108,6 +130,15 @@ export async function syncAllWidgetData(highScores: Record<string, number>, stre
     
     // Sync streak
     await syncStreakToWidget(streak);
+    
+    // Save last updated timestamp
+    const prefs = await getPreferences();
+    if (prefs) {
+      await prefs.set({
+        key: 'widget_last_updated',
+        value: Date.now().toString(),
+      });
+    }
     
     console.log('[Widget] ✅ Full sync completed');
     

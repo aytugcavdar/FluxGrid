@@ -8,6 +8,7 @@ import { App } from '@capacitor/app';
 
 export interface DeepLinkData {
   mode?: GameMode;
+  screen?: 'statistics' | 'settings';
 }
 
 /**
@@ -40,7 +41,11 @@ export function initializeDeepLinkHandler(
 
 /**
  * Parse deep link URL
- * Format: fluxgrid://mode/{endless|timed|zen}
+ * Supported formats:
+ * - fluxgrid://mode/endless
+ * - fluxgrid://mode/timed
+ * - fluxgrid://screen/statistics
+ * - fluxgrid://screen/settings
  */
 function parseDeepLink(url: string): DeepLinkData | null {
   try {
@@ -51,21 +56,36 @@ function parseDeepLink(url: string): DeepLinkData | null {
       return null;
     }
     
-    // Parse mode from path
-    if (urlObj.host === 'mode') {
-      const modePath = urlObj.pathname.replace('/', '');
-      
-      switch (modePath) {
+    const host = urlObj.host;
+    const path = urlObj.pathname.replace('/', '');
+    
+    // Parse mode deep links
+    if (host === 'mode') {
+      switch (path) {
         case 'endless':
           return { mode: GameMode.ENDLESS };
         case 'timed':
           return { mode: GameMode.TIMED };
         default:
-          console.warn('[DeepLink] Unknown mode:', modePath);
+          console.warn('[DeepLink] Unknown mode:', path);
           return null;
       }
     }
     
+    // Parse screen deep links
+    if (host === 'screen') {
+      switch (path) {
+        case 'statistics':
+          return { screen: 'statistics' };
+        case 'settings':
+          return { screen: 'settings' };
+        default:
+          console.warn('[DeepLink] Unknown screen:', path);
+          return null;
+      }
+    }
+    
+    console.warn('[DeepLink] Unknown host:', host);
     return null;
   } catch (error) {
     console.error('[DeepLink] Failed to parse URL:', error);

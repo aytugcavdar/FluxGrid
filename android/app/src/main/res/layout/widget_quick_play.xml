@@ -17,13 +17,12 @@
         android:textStyle="bold"
         android:layout_marginBottom="12dp"/>
     
-    <!-- Game Mode Buttons -->
+    <!-- Game Mode Buttons (Endless and Timed only) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginBottom="8dp">
+        android:gravity="center">
         
         <!-- Endless Mode -->
         <LinearLayout
@@ -33,24 +32,24 @@
             android:layout_weight="1"
             android:orientation="vertical"
             android:gravity="center"
-            android:padding="8dp"
-            android:layout_marginEnd="4dp"
+            android:padding="12dp"
+            android:layout_marginEnd="6dp"
             android:background="@drawable/widget_button_background">
             
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="♾️"
-                android:textSize="24sp"/>
+                android:textSize="28sp"/>
             
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Sonsuz"
-                android:textSize="10sp"
+                android:textSize="11sp"
                 android:textColor="#FFFFFF"
                 android:textStyle="bold"
-                android:layout_marginTop="4dp"/>
+                android:layout_marginTop="6dp"/>
         </LinearLayout>
         
         <!-- Timed Mode -->
@@ -61,57 +60,24 @@
             android:layout_weight="1"
             android:orientation="vertical"
             android:gravity="center"
-            android:padding="8dp"
-            android:layout_marginStart="4dp"
+            android:padding="12dp"
+            android:layout_marginStart="6dp"
             android:background="@drawable/widget_button_background">
             
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="⏱️"
-                android:textSize="24sp"/>
+                android:textSize="28sp"/>
             
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Zamanlı"
-                android:textSize="10sp"
+                android:textSize="11sp"
                 android:textColor="#FFFFFF"
                 android:textStyle="bold"
-                android:layout_marginTop="4dp"/>
-        </LinearLayout>
-    </LinearLayout>
-    
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center">
-        
-        <!-- Daily Challenge -->
-        <LinearLayout
-            android:id="@+id/widget_btn_daily"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="8dp"
-            android:background="@drawable/widget_button_background">
-            
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="📅"
-                android:textSize="24sp"/>
-            
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Günlük"
-                android:textSize="10sp"
-                android:textColor="#FFFFFF"
-                android:textStyle="bold"
-                android:layout_marginTop="4dp"/>
+                android:layout_marginTop="6dp"/>
         </LinearLayout>
     </LinearLayout>
     

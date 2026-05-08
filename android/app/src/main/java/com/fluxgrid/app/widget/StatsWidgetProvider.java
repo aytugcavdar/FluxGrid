@@ -11,7 +11,18 @@ import com.fluxgrid.app.MainActivity;
 import com.fluxgrid.app.R;
 
 /**
- * Stats Widget - Shows daily high score and streak
+ * Stats Widget - Shows high scores and streak
+ * 
+ * Widget Data Contract:
+ * - widget_high_score_endless: High score for endless mode (primary)
+ * - widget_high_score_timed: High score for timed mode
+ * - widget_daily_streak: Current daily streak
+ * - widget_last_updated: Last update timestamp
+ * 
+ * Legacy keys (fallback for backward compatibility):
+ * - flux_high_score_endless
+ * - flux_high_score_timed
+ * - flux_daily_streak
  */
 public class StatsWidgetProvider extends AppWidgetProvider {
     
@@ -29,18 +40,26 @@ public class StatsWidgetProvider extends AppWidgetProvider {
         // Get stats from Capacitor SharedPreferences
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         
-        // Get high score (try endless mode first, fallback to 0)
+        // Get high score (try new key first, fallback to legacy key)
         int highScore = 0;
-        String highScoreStr = prefs.getString("flux_high_score_endless", "0");
+        String highScoreStr = prefs.getString("widget_high_score_endless", null);
+        if (highScoreStr == null) {
+            // Fallback to legacy key
+            highScoreStr = prefs.getString("flux_high_score_endless", "0");
+        }
         try {
             highScore = Integer.parseInt(highScoreStr);
         } catch (NumberFormatException e) {
             highScore = 0;
         }
         
-        // Get streak
+        // Get streak (try new key first, fallback to legacy key)
         int streak = 0;
-        String streakStr = prefs.getString("flux_daily_streak", "0");
+        String streakStr = prefs.getString("widget_daily_streak", null);
+        if (streakStr == null) {
+            // Fallback to legacy key
+            streakStr = prefs.getString("flux_daily_streak", "0");
+        }
         try {
             streak = Integer.parseInt(streakStr);
         } catch (NumberFormatException e) {

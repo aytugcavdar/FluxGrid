@@ -159,6 +159,11 @@ public class MainActivity extends BridgeActivity {
             }
         }
         
+        /**
+         * Enter Picture-in-Picture mode
+         * Note: PiP is not actively used for gameplay in this puzzle game.
+         * It's available for passive/pause scenarios if needed in the future.
+         */
         @JavascriptInterface
         public void enterPictureInPicture() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -197,6 +202,8 @@ public class MainActivity extends BridgeActivity {
     
     /**
      * Enter Picture-in-Picture mode
+     * Note: PiP is not actively used for gameplay. This is available for
+     * passive scenarios (e.g., paused state) if needed in the future.
      */
     private void enterPipMode() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -231,8 +238,9 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onUserLeaveHint() {
         super.onUserLeaveHint();
-        // Optionally auto-enter PiP when user presses home button
-        // Uncomment to enable:
+        // PiP is not actively used for gameplay in this puzzle game.
+        // Auto-enter PiP is disabled. If needed for passive scenarios,
+        // uncomment the code below:
         // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         //     enterPipMode();
         // }

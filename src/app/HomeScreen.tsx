@@ -318,21 +318,30 @@ export const HomeScreen: React.FC = () => {
                   backgroundSize: '20px 20px',
                 }} />
 
-                <div className="relative flex items-center justify-between h-full px-6 py-5">
-                  <div className="flex-1">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50 mb-1">Sonsuz</div>
-                    <h3 className="text-2xl font-black text-white tracking-tight leading-none mb-2">{t('home.infinite', 'Sonsuz')}</h3>
-                    <p className="text-xs text-white/60 leading-relaxed max-w-[190px]">
-                      {t('home.infiniteDesc', 'Tier\'ları aş, skoru kır. Sınır yok.')}
-                    </p>
+                <div className="relative flex flex-col h-full px-6 py-5">
+                  <div className="flex items-start justify-between mb-auto">
+                    <div className="flex-1">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50 mb-1">Sonsuz</div>
+                      <h3 className="text-2xl font-black text-white tracking-tight leading-none mb-2">{t('home.infinite', 'Sonsuz')}</h3>
+                      <p className="text-xs text-white/70 leading-relaxed max-w-[190px]">
+                        Rahat oyna, rekor kas
+                      </p>
+                    </div>
+                    <motion.div
+                      animate={{ rotate: [0, 5, -5, 0], scale: [1, 1.05, 1] }}
+                      transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                      className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                      <span className="text-3xl font-black text-white">∞</span>
+                    </motion.div>
                   </div>
-                  <motion.div
-                    animate={{ rotate: [0, 5, -5, 0], scale: [1, 1.05, 1] }}
-                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.15)' }}>
-                    <span className="text-3xl font-black text-white">∞</span>
-                  </motion.div>
+                  {/* High Score */}
+                  {sonsuzBestScore > 0 && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="text-[9px] font-bold uppercase tracking-wider text-white/40">En İyi</div>
+                      <div className="text-lg font-black text-white">{sonsuzBestScore.toLocaleString()}</div>
+                    </div>
+                  )}
                 </div>
               </motion.button>
 
@@ -361,21 +370,30 @@ export const HomeScreen: React.FC = () => {
                   backgroundSize: '20px 20px',
                 }} />
 
-                <div className="relative flex items-center justify-between h-full px-6 py-5">
-                  <div className="flex-1">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50 mb-1">Zamanlı</div>
-                    <h3 className="text-2xl font-black text-white tracking-tight leading-none mb-2">{t('home.timed', 'Zamanlı')}</h3>
-                    <p className="text-xs text-white/60 leading-relaxed max-w-[190px]">
-                      {t('home.timedDesc', 'Chrono bloklar topla, süreyi uzat!')}
-                    </p>
+                <div className="relative flex flex-col h-full px-6 py-5">
+                  <div className="flex items-start justify-between mb-auto">
+                    <div className="flex-1">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50 mb-1">Zamanlı</div>
+                      <h3 className="text-2xl font-black text-white tracking-tight leading-none mb-2">{t('home.timed', 'Zamanlı')}</h3>
+                      <p className="text-xs text-white/70 leading-relaxed max-w-[190px]">
+                        60 saniye, hızlı combo
+                      </p>
+                    </div>
+                    <motion.div
+                      animate={{ rotate: [0, 15, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                      className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                      <span className="text-3xl">⏱</span>
+                    </motion.div>
                   </div>
-                  <motion.div
-                    animate={{ rotate: [0, 15, 0] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.15)' }}>
-                    <span className="text-3xl">⏱</span>
-                  </motion.div>
+                  {/* High Score */}
+                  {timedBestScore > 0 && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="text-[9px] font-bold uppercase tracking-wider text-white/40">En İyi</div>
+                      <div className="text-lg font-black text-white">{timedBestScore.toLocaleString()}</div>
+                    </div>
+                  )}
                 </div>
               </motion.button>
             </div>

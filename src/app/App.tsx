@@ -80,6 +80,9 @@ export const App: React.FC = () => {
         // Set game mode and navigate to home
         setGameMode(data.mode);
         navigateTo('home');
+      } else if (data.screen) {
+        // Navigate to specific screen
+        navigateTo(data.screen);
       }
     });
     
