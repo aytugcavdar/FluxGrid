@@ -2,6 +2,7 @@ import { GameMode, AppState } from '@shared/types';
 import { playGameOver, playTick } from '../../../../utils/audio';
 import { safeExecute, ErrorCategory } from '../../../../utils/managers/errorHandler';
 import { TIMED_MODE } from '../../constants';
+import { shouldApplyPassiveDecay, getPassiveDecayRate, getPassiveDecayInterval } from './difficultyScaling';
 
 /**
  * Timer tick logic for TIMED game mode
@@ -11,7 +12,7 @@ export const tickTimerImpl = (
   get: () => any,
   set: (partial: any) => void
 ): void => {
-  const { timeLeft, isGameOver, gameMode, appState, timerExpectedEnd, comboTimerStartTime, comboTimerDuration, combo } = get();
+  const { timeLeft, isGameOver, gameMode, appState, timerExpectedEnd, comboTimerStartTime, comboTimerDuration, combo, score, lastPassiveDecayTime } = get();
   
   // Guard: Oyun bittiyse veya oyun ekranında değilse işlem yapma
   if (isGameOver || appState !== AppState.GAME) return;
@@ -40,9 +41,27 @@ export const tickTimerImpl = (
       if (gameMode === GameMode.TIMED) {
         if (!timerExpectedEnd) return; // Guard: timer başlatılmamış
         
-        // Gerçek kalan süreyi hesapla
         const now = Date.now();
-        const remainingMs = timerExpectedEnd - now;
+        let currentExpectedEnd = timerExpectedEnd;
+        
+        // Apply passive decay if active
+        if (shouldApplyPassiveDecay(score)) {
+          const lastDecay = lastPassiveDecayTime || now;
+          const elapsed = now - lastDecay;
+          
+          if (elapsed >= getPassiveDecayInterval()) {
+            const decayAmount = getPassiveDecayRate();
+            currentExpectedEnd = currentExpectedEnd - (decayAmount * 1000);
+            
+            set({
+              timerExpectedEnd: currentExpectedEnd,
+              lastPassiveDecayTime: now,
+            });
+          }
+        }
+        
+        // Gerçek kalan süreyi hesapla
+        const remainingMs = currentExpectedEnd - now;
         const newTimeLeft = Math.max(0, Math.ceil(remainingMs / 1000));
         
         // Play tick sound for last 10 seconds

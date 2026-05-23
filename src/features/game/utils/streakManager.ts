@@ -49,7 +49,7 @@ export const checkAndUpdateStreak = (): number => {
     const currentStreak = getStreak();
     
     // Sync streak to widget
-    import('../native/widgetHelper').then(({ syncStreakToWidget }) => {
+    import('../../../utils/native/widgetHelper').then(({ syncStreakToWidget }) => {
       syncStreakToWidget(currentStreak);
     });
     

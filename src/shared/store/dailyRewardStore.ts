@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-// Types (flux removed)
+// Types
 export type RewardType = 'reroll' | 'shatter' | 'bomb';
 
 export interface RewardDefinition {
@@ -134,7 +134,7 @@ function computeCurrentReward(currentStreak: number): RewardDefinition {
   return WEEKLY_REWARDS[rewardIndex];
 }
 
-// Apply reward to game store (flux removed)
+// Apply reward to game store
 function applyReward(reward: RewardDefinition): void {
   try {
     // Import gameStore dynamically to avoid circular dependency

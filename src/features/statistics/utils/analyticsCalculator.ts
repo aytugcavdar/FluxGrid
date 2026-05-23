@@ -29,7 +29,6 @@ interface GameLog {
   badge?: 'new-record' | 'perfect' | 'comeback' | 'speedrun';
   metadata?: {
     tier?: number;
-    chronoBonus?: number;
     skillsUsed?: string[];
   };
 }
@@ -455,13 +454,6 @@ function calculateSpecialBlockStats(stats: GameStats): SpecialBlockStats {
       totalBroken: stats.iceBroken || 0,
       averageBreakTime: 2, // Estimate
       iceChains: 0, // TODO: Track this
-    },
-    chronoStats: {
-      totalCollected: stats.timedChronoBonus || 0,
-      averageBonus: stats.timedChronoBonus && stats.timedGamesPlayed 
-        ? stats.timedChronoBonus / stats.timedGamesPlayed 
-        : 0,
-      efficiency: 0, // TODO: Track this
     },
     specialBlockEfficiency: 70, // Estimate
   };

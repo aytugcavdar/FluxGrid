@@ -3,14 +3,10 @@ import { motion, MotionConfig, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useSettingsStore } from '@core/state/settingsStore';
-import { useThemeStore } from '../shared/store/themeStore';
-import { useDailyRewardStore } from '../shared/store/dailyRewardStore';
-import { useStreakStore } from '../shared/store/streakStore';
 import { GameMode } from '@shared/types';
 import { playClick } from '@utils/audio';
-import { DailyRewardModal } from './components/DailyRewardModal';
-import { Gift } from 'lucide-react';
 import { detectDeviceCapabilities } from '../utils/platform/deviceCapability';
+import { Clock3, Infinity as InfinityIcon, Timer } from 'lucide-react';
 
 
 
@@ -18,9 +14,12 @@ import { detectDeviceCapabilities } from '../utils/platform/deviceCapability';
 /* Mini grid logo animation                        */
 /* ─────────────────────────────────────────────── */
 const GRID_COLORS = ['#6366f1', '#a855f7', '#3b82f6', '#10b981'];
-const GridLogo: React.FC = () => {
+const GridLogo: React.FC<{ isLowEnd: boolean }> = ({ isLowEnd }) => {
   const [lit, setLit] = useState([true, false, false, true]);
   useEffect(() => {
+    // Disable animation on low-end devices to save battery
+    if (isLowEnd) return;
+    
     const t = setInterval(() => {
       setLit([
         Math.random() > 0.3,
@@ -28,23 +27,28 @@ const GridLogo: React.FC = () => {
         Math.random() > 0.3,
         Math.random() > 0.3,
       ]);
-    }, 900);
+    }, 1500); // Slower interval: 900ms → 1500ms
     return () => clearInterval(t);
-  }, []);
+  }, [isLowEnd]);
+  
   return (
     <div style={{
-      width: 44, height: 44, borderRadius: 14,
+      width: 38, height: 38, borderRadius: 12,
       background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
       display: 'grid', gridTemplateColumns: '1fr 1fr',
-      gap: 3, padding: 8,
-      boxShadow: '0 0 28px rgba(139,92,246,0.55), 0 4px 16px rgba(0,0,0,0.3)',
+      gap: 3, padding: 7,
+      boxShadow: '0 0 20px rgba(139,92,246,0.46), 0 4px 12px rgba(0,0,0,0.26)',
     }}>
       {[0,1,2,3].map(i => (
         <motion.div
           key={i}
-          animate={{ opacity: lit[i] ? 1 : 0.25, scale: lit[i] ? 1 : 0.8 }}
+          animate={isLowEnd ? {} : { opacity: lit[i] ? 1 : 0.25, scale: lit[i] ? 1 : 0.8 }}
           transition={{ duration: 0.45 }}
-          style={{ borderRadius: 3, background: GRID_COLORS[i] }}
+          style={{ 
+            borderRadius: 3, 
+            background: GRID_COLORS[i],
+            opacity: isLowEnd ? 1 : undefined // Static on low-end
+          }}
         />
       ))}
     </div>
@@ -55,15 +59,11 @@ const GridLogo: React.FC = () => {
 /* ─────────────────────────────────────────────── */
 export const HomeScreen: React.FC = () => {
   const { t } = useTranslation();
-  const { initGame, highScores, hasSavedGame, loadSavedGame } = useGameStore();
+  const { initGame, hasSavedGame, loadSavedGame, highScores, stats } = useGameStore();
   const { soundEnabled } = useSettingsStore();
-  const { initializeRewards, canClaimToday } = useDailyRewardStore();
-  const { getThemeColors } = useThemeStore();
-  const colors = getThemeColors();
 
-  const [showRewardModal, setShowRewardModal] = useState(false);
   const [hasSave, setHasSave] = useState(false);
-  const hasReward = canClaimToday;
+  const [savedGameData, setSavedGameData] = useState<any>(null);
 
   const [deviceCapabilities, setDeviceCapabilities] = useState<any>(null);
   const isLowEndDevice = deviceCapabilities?.tier === 'low';
@@ -91,21 +91,22 @@ export const HomeScreen: React.FC = () => {
     return true;
   }, [deviceCapabilities]);
 
-  useEffect(() => { initializeRewards(); }, [initializeRewards]);
-  useEffect(() => { setHasSave(hasSavedGame()); }, [hasSavedGame]);
-
-  // Auto-start tutorial for first-time users
-  useEffect(() => {
-    const tutorialData = localStorage.getItem('flux_tutorial_v2');
-    if (!tutorialData) {
-      initGame(GameMode.ENDLESS);
+  useEffect(() => { 
+    const savedExists = hasSavedGame();
+    setHasSave(savedExists); 
+    // Load saved game data to get mode info
+    if (savedExists) {
+      try {
+        const saved = localStorage.getItem('flux_game_save');
+        if (saved) {
+          setSavedGameData(JSON.parse(saved));
+        }
+      } catch (e) {
+        console.error('Failed to load saved game data:', e);
+      }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const sonsuzBestScore = highScores?.[GameMode.ENDLESS] || 0;
-  const timedBestScore  = highScores?.[GameMode.TIMED]   || 0;
-  const overallBestScore = useMemo(() => Math.max(sonsuzBestScore, timedBestScore), [sonsuzBestScore, timedBestScore]);
-  const { currentStreak: dailyStreak } = useStreakStore();
 
   const stagger = (i: number) => ({ duration: 0.5, delay: 0.08 * i, ease: [0.25, 0.46, 0.45, 0.94] });
 
@@ -114,7 +115,7 @@ export const HomeScreen: React.FC = () => {
       <div
         className="fixed inset-0 flex flex-col overflow-hidden"
         style={{
-          background: 'linear-gradient(160deg, #0a0812 0%, #110d22 45%, #0c0918 100%)',
+          background: 'linear-gradient(160deg, #0d1117 0%, #110d22 45%, #0c0918 100%)',
           paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
@@ -139,15 +140,15 @@ export const HomeScreen: React.FC = () => {
         )}
 
         {/* ── Background gradient orbs + falling blocks ── */}
-        {!isLowEndDevice && (
+        {!isLowEndDevice && deviceCapabilities?.tier !== 'low-mid' && (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <motion.div animate={{ x: [0, 80, 0], y: [0, -60, 0], scale: [1, 1.3, 1] }}
-              transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
-              className="absolute -top-32 -left-32 w-[400px] h-[400px] rounded-full blur-[80px] opacity-[0.18]"
+              transition={{ duration: 30, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute -top-32 -left-32 w-[400px] h-[400px] rounded-full blur-[80px] opacity-[0.12]"
               style={{ background: 'radial-gradient(circle, #7c3aed 0%, transparent 70%)' }} />
             <motion.div animate={{ x: [0, -60, 0], y: [0, 80, 0], scale: [1, 1.2, 1] }}
-              transition={{ duration: 28, repeat: Infinity, ease: 'easeInOut' }}
-              className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full blur-[80px] opacity-[0.14]"
+              transition={{ duration: 40, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full blur-[80px] opacity-[0.10]"
               style={{ background: 'radial-gradient(circle, #2563eb 0%, transparent 70%)' }} />
             {/* Subtle grid lines */}
             <div className="absolute inset-0 opacity-[0.025]" style={{
@@ -159,18 +160,18 @@ export const HomeScreen: React.FC = () => {
 
 
         {/* ── Main content ── */}
-        <div className="relative flex-1 flex flex-col px-5 pt-3 pb-4 overflow-hidden">
-          <div className="w-full max-w-[400px] mx-auto flex flex-col h-full" style={{ paddingBottom: '76px' }}>
+        <div className="relative flex-1 flex flex-col px-5 pb-4 overflow-hidden" style={{ paddingTop: '6px' }}>
+          <div className="w-full max-w-[400px] mx-auto flex flex-col" style={{ paddingBottom: '76px' }}>
 
             {/* ─── HEADER ─── */}
             <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={stagger(0)}
-              className="flex items-center justify-between mb-5">
+              className="flex items-center justify-center mb-3">
 
               {/* Logo */}
-              <div className="flex items-center gap-3">
-                <GridLogo />
+              <div className="flex items-center gap-2.5">
+                <GridLogo isLowEnd={isLowEndDevice} />
                 <div>
-                  <h1 className="text-2xl font-black tracking-tight leading-none">
+                  <h1 className="text-[22px] font-black tracking-tight leading-none">
                     <span style={{
                       background: 'linear-gradient(90deg, #818cf8 0%, #c084fc 60%, #f472b6 100%)',
                       WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
@@ -180,227 +181,389 @@ export const HomeScreen: React.FC = () => {
                       WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
                     }}>GRID</span>
                   </h1>
-                  <p className="text-[10px] font-semibold tracking-[0.15em] opacity-40 mt-0.5" style={{ color: '#a0a0c0' }}>
+                  <p className="text-[9px] font-semibold tracking-[0.14em] opacity-40 mt-0.5" style={{ color: '#a0a0c0' }}>
                     QUANTUM PUZZLE
                   </p>
-                </div>
-              </div>
-
-              {/* Daily Reward */}
-              {hasReward && (
-                <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }}
-                  whileTap={{ scale: 0.9 }} onClick={() => setShowRewardModal(true)}
-                  className="relative">
-                  <motion.div
-                    animate={{ rotate: [0, 8, -8, 0] }}
-                    transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 2.5 }}
-                    className="w-11 h-11 rounded-2xl flex items-center justify-center"
-                    style={{ background: 'linear-gradient(135deg, #f59e0b, #f97316)', boxShadow: '0 6px 20px rgba(249,115,22,0.45)' }}>
-                    <Gift className="w-5 h-5 text-white" />
-                  </motion.div>
-                  <motion.div animate={{ scale: [1, 1.3, 1] }} transition={{ duration: 1, repeat: Infinity }}
-                    className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0a0812]" />
-                </motion.button>
-              )}
-            </motion.div>
-
-            {/* ─── STATS ROW ─── */}
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={stagger(1)}
-              className="grid grid-cols-2 gap-3 mb-5">
-              {/* Streak */}
-              <div className="rounded-2xl p-4 relative overflow-hidden"
-                style={{
-                  background: 'rgba(99,102,241,0.08)',
-                  border: '1px solid rgba(99,102,241,0.2)',
-                  boxShadow: '0 4px 20px rgba(99,102,241,0.08)',
-                }}>
-                <div className="absolute top-3 right-3 text-xl opacity-30">🔥</div>
-                <p className="text-[9px] font-bold uppercase tracking-[0.12em] opacity-50 mb-1" style={{ color: '#a0a0c0' }}>
-                  Günlük Seri
-                </p>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-black" style={{
-                    background: 'linear-gradient(135deg, #818cf8, #c084fc)',
-                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-                  }}>{dailyStreak}</span>
-                  <span className="text-xs font-semibold opacity-50" style={{ color: '#a0a0c0' }}>gün</span>
-                </div>
-              </div>
-              {/* Best Score */}
-              <div className="rounded-2xl p-4 relative overflow-hidden"
-                style={{
-                  background: 'rgba(168,85,247,0.08)',
-                  border: '1px solid rgba(168,85,247,0.2)',
-                  boxShadow: '0 4px 20px rgba(168,85,247,0.08)',
-                }}>
-                <div className="absolute top-3 right-3 text-xl opacity-30">🏆</div>
-                <p className="text-[9px] font-bold uppercase tracking-[0.12em] opacity-50 mb-1" style={{ color: '#a0a0c0' }}>
-                  En Yüksek Skor
-                </p>
-                <div className="text-2xl font-black" style={{
-                  background: 'linear-gradient(135deg, #c084fc, #f472b6)',
-                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-                }}>
-                  {overallBestScore.toLocaleString()}
                 </div>
               </div>
             </motion.div>
 
             {/* ─── CONTINUE BUTTON ─── */}
             <AnimatePresence>
-              {hasSave && (
+              {hasSave && savedGameData && (
                 <motion.button
                   initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.94 }} transition={{ duration: 0.3 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => { if (soundEnabled) playClick(); loadSavedGame(); }}
-                  className="relative rounded-2xl p-4 mb-4 overflow-hidden flex items-center gap-3"
+                  className="relative rounded-[18px] p-3.5 mb-3 overflow-hidden"
                   style={{
-                    background: 'linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(168,85,247,0.2) 100%)',
-                    border: '1px solid rgba(99,102,241,0.4)',
-                    boxShadow: '0 8px 28px rgba(99,102,241,0.2)',
+                    background: savedGameData.gameMode === GameMode.TIMED
+                      ? 'linear-gradient(135deg, rgba(245,158,11,0.24) 0%, rgba(217,119,6,0.12) 100%)'
+                      : 'linear-gradient(135deg, rgba(99,102,241,0.24) 0%, rgba(168,85,247,0.13) 100%)',
+                    border: savedGameData.gameMode === GameMode.TIMED
+                      ? '1px solid rgba(245,158,11,0.46)'
+                      : '1px solid rgba(129,140,248,0.46)',
+                    boxShadow: savedGameData.gameMode === GameMode.TIMED
+                      ? '0 10px 28px rgba(245,158,11,0.22), inset 0 1px 0 rgba(255,255,255,0.08)'
+                      : '0 10px 28px rgba(99,102,241,0.24), inset 0 1px 0 rgba(255,255,255,0.08)',
                   }}
                 >
-                  {/* Shimmer */}
-                  <motion.div animate={{ x: ['-150%', '250%'] }}
-                    transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 3, ease: 'easeInOut' }}
-                    className="absolute top-0 left-0 w-1/3 h-full"
-                    style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)', pointerEvents: 'none' }} />
+                  {/* Shimmer - Disabled on low/mid devices */}
+                  {!isLowEndDevice && deviceCapabilities?.tier !== 'low-mid' && (
+                    <motion.div animate={{ x: ['-150%', '250%'] }}
+                      transition={{ duration: 3, repeat: Infinity, repeatDelay: 5, ease: 'easeInOut' }}
+                      className="absolute top-0 left-0 w-1/3 h-full"
+                      style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)', pointerEvents: 'none' }} />
+                  )}
 
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: 'rgba(99,102,241,0.3)' }}>
-                    <span className="text-xl">▶️</span>
+                  {/* Top: Title and Time */}
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-3">
+                      <div 
+                        className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ 
+                          background: savedGameData.gameMode === GameMode.TIMED
+                            ? 'linear-gradient(135deg, rgba(245,158,11,0.38), rgba(217,119,6,0.18))'
+                            : 'linear-gradient(135deg, rgba(99,102,241,0.44), rgba(168,85,247,0.2))',
+                          boxShadow: savedGameData.gameMode === GameMode.TIMED
+                            ? '0 0 18px rgba(245,158,11,0.24)'
+                            : '0 0 18px rgba(129,140,248,0.26)',
+                        }}
+                      >
+                        <span className="text-xl">▶️</span>
+                      </div>
+                      <div>
+                        <div 
+                          className="text-[17px] font-black"
+                          style={{ 
+                            color: 'white',
+                          }}
+                        >
+                          Devam Et
+                        </div>
+                        <div 
+                          className="text-xs font-medium"
+                          style={{ 
+                            color: 'rgba(255,255,255,0.5)',
+                          }}
+                        >
+                          Kaldığın yerden devam et.
+                        </div>
+                      </div>
+                    </div>
+                    <div 
+                      className="text-[10px] font-semibold px-2 py-1 rounded-lg"
+                      style={{
+                        background: savedGameData.gameMode === GameMode.TIMED
+                          ? 'rgba(245,158,11,0.16)'
+                          : 'rgba(129,140,248,0.16)',
+                        color: 'rgba(255,255,255,0.72)',
+                      }}
+                    >
+                      {(() => {
+                        const savedAt = savedGameData.savedAt || Date.now();
+                        const now = Date.now();
+                        const diffMs = now - savedAt;
+                        const diffMins = Math.floor(diffMs / 60000);
+                        const diffHours = Math.floor(diffMs / 3600000);
+                        const diffDays = Math.floor(diffMs / 86400000);
+                        
+                        if (diffDays > 0) return `${diffDays} gün önce`;
+                        if (diffHours > 0) return `${diffHours} saat önce`;
+                        if (diffMins > 0) return `${diffMins} dk önce`;
+                        return 'Az önce';
+                      })()}
+                    </div>
                   </div>
-                  <div className="flex-1 text-left">
-                    <div className="text-sm font-bold text-white">Devam Et</div>
-                    <div className="text-xs opacity-50" style={{ color: '#a0a0c0' }}>Kaldığın yerden devam et</div>
+
+                  {/* Bottom: Stats */}
+                  <div className="flex items-stretch gap-0">
+
+                    {/* Score */}
+                    <div className="flex items-center gap-2 px-3 py-1.5">
+                      <div
+                        className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ background: 'rgba(255,255,255,0.08)' }}
+                      >
+                        <span className="text-xs leading-none">🏆</span>
+                      </div>
+                      <div className="flex flex-col justify-center">
+                        <div className="text-[9px] font-semibold uppercase leading-none mb-0.5"
+                          style={{ color: 'rgba(255,255,255,0.45)', letterSpacing: '0.5px' }}>
+                          Skor
+                        </div>
+                        <div className="text-sm font-black leading-none" style={{ color: 'white' }}>
+                          {(savedGameData.score || 0).toLocaleString('tr-TR')}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="w-px self-stretch my-1" style={{ background: 'rgba(255,255,255,0.08)' }} />
+
+                    {/* Time (Timed mode only) */}
+                    {savedGameData.gameMode === GameMode.TIMED && (
+                      <>
+                        <div className="flex items-center gap-2 px-3 py-1.5">
+                          <div
+                            className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                            style={{ background: 'rgba(255,255,255,0.08)' }}
+                          >
+                            <span className="text-xs leading-none">⏱</span>
+                          </div>
+                          <div className="flex flex-col justify-center">
+                            <div className="text-[9px] font-semibold uppercase leading-none mb-0.5"
+                              style={{ color: 'rgba(255,255,255,0.45)', letterSpacing: '0.5px' }}>
+                              Süre
+                            </div>
+                            <div className="text-sm font-black leading-none" style={{ color: 'white' }}>
+                              {Math.floor(savedGameData.timeLeft || 0)}s
+                            </div>
+                          </div>
+                        </div>
+                        <div className="w-px self-stretch my-1" style={{ background: 'rgba(255,255,255,0.08)' }} />
+                      </>
+                    )}
+
+                    {/* Status */}
+                    <div className="flex items-center gap-2 px-3 py-1.5">
+                      <div
+                        className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ background: 'rgba(255,255,255,0.08)' }}
+                      >
+                        <span className="text-xs leading-none">
+                          {savedGameData.gameMode === GameMode.TIMED ? '⚡' : '◆'}
+                        </span>
+                      </div>
+                      <div className="flex flex-col justify-center">
+                        <div className="text-[9px] font-semibold uppercase leading-none mb-0.5"
+                          style={{ color: 'rgba(255,255,255,0.45)', letterSpacing: '0.5px' }}>
+                          Durum
+                        </div>
+                        <div className="text-sm font-black leading-none"
+                          style={{
+                            color: savedGameData.gameMode === GameMode.TIMED ? '#fbbf24' : '#c084fc',
+                          }}>
+                          {savedGameData.gameMode === GameMode.TIMED
+                            ? 'Sprint'
+                            : `Tier ${savedGameData.difficultyTier || 0}`}
+                        </div>
+                      </div>
+                    </div>
+
                   </div>
-                  <span className="text-white opacity-40 text-lg">›</span>
+
                 </motion.button>
               )}
             </AnimatePresence>
 
             {/* ─── MODE SECTION LABEL ─── */}
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={stagger(2)}
-              className="text-center text-[10px] font-bold uppercase tracking-[0.2em] mb-4"
-              style={{ color: 'rgba(160,160,192,0.5)' }}>
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={stagger(1)}
+              className="text-center text-[9px] font-bold uppercase tracking-[0.18em] mb-2"
+              style={{ color: 'rgba(160,160,192,0.48)' }}>
               {t('home.chooseYourMode', 'Mod Seç')}
             </motion.p>
 
             {/* ─── MODE CARDS ─── */}
-            <div className="flex-1 flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
 
               {/* ── ENDLESS MODE ── */}
               <motion.button
-                initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={stagger(3)}
-                whileTap={{ scale: 0.97 }}
+                initial={{ opacity: 0, y: 20 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                transition={stagger(2)}
+                whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => { if (soundEnabled) playClick(); initGame(GameMode.ENDLESS); }}
-                className="relative rounded-3xl overflow-hidden flex-1"
+                className="relative overflow-hidden w-full rounded-[20px] flex items-center justify-between text-left"
                 style={{
-                  minHeight: 120, maxHeight: 140,
-                  background: 'linear-gradient(135deg, #3730a3 0%, #6d28d9 50%, #7c3aed 100%)',
-                  boxShadow: '0 16px 48px rgba(109,40,217,0.45), 0 0 0 1px rgba(255,255,255,0.08) inset',
+                  minHeight: 132,
+                  padding: '19px 20px 17px 24px',
+                  background: 'linear-gradient(145deg, rgba(22,22,38,0.96) 0%, rgba(16,16,30,0.98) 56%, rgba(25,18,43,0.94) 100%)',
+                  border: '1px solid rgba(139,92,246,0.34)',
+                  boxShadow: '0 18px 34px rgba(4,3,12,0.34), inset 0 1px 0 rgba(255,255,255,0.055), 0 0 26px rgba(139,92,246,0.1)',
                 }}
               >
-                {/* Inner glow top */}
-                <div className="absolute top-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)' }} />
-                {/* Animated shimmer */}
-                {!isLowEndDevice && (
-                  <motion.div
-                    animate={{ x: ['-100%', '200%'] }}
-                    transition={{ duration: 3, repeat: Infinity, repeatDelay: 4, ease: 'easeInOut' }}
-                    className="absolute top-0 left-0 w-1/2 h-full"
-                    style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)', pointerEvents: 'none' }} />
-                )}
-                {/* Grid pattern overlay */}
-                <div className="absolute inset-0 opacity-[0.06]" style={{
-                  backgroundImage: 'linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)',
-                  backgroundSize: '20px 20px',
-                }} />
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    inset: 1,
+                    borderRadius: 19,
+                    background: 'radial-gradient(circle at 92% 52%, rgba(139,92,246,0.2) 0%, rgba(139,92,246,0.075) 24%, transparent 56%)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 28,
+                    bottom: 28,
+                    width: 3,
+                    borderRadius: '0 6px 6px 0',
+                    background: 'linear-gradient(180deg, #818cf8 0%, #a855f7 100%)',
+                    boxShadow: '0 0 18px rgba(168,85,247,0.58)',
+                  }}
+                />
 
-                <div className="relative flex flex-col h-full px-6 py-5">
-                  <div className="flex items-start justify-between mb-auto">
-                    <div className="flex-1">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50 mb-1">Sonsuz</div>
-                      <h3 className="text-2xl font-black text-white tracking-tight leading-none mb-2">{t('home.infinite', 'Sonsuz')}</h3>
-                      <p className="text-xs text-white/70 leading-relaxed max-w-[190px]">
-                        Rahat oyna, rekor kas
-                      </p>
-                    </div>
-                    <motion.div
-                      animate={{ rotate: [0, 5, -5, 0], scale: [1, 1.05, 1] }}
-                      transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                      className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.15)' }}>
-                      <span className="text-3xl font-black text-white">∞</span>
-                    </motion.div>
+                {/* Left Content */}
+                <div className="relative z-10 flex-1">
+                  {/* Small Top Label */}
+                  <div className="text-[11px] uppercase mb-2.5 font-black tracking-[0.18em] text-purple-300/75 flex items-center gap-1.5 justify-start">
+                    <InfinityIcon size={13} strokeWidth={2.5} />
+                    SINIRSIZ MOD
                   </div>
-                  {/* High Score */}
-                  {sonsuzBestScore > 0 && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <div className="text-[9px] font-bold uppercase tracking-wider text-white/40">En İyi</div>
-                      <div className="text-lg font-black text-white">{sonsuzBestScore.toLocaleString()}</div>
+
+                  {/* Title */}
+                  <h3
+                    className="text-[33px] leading-none font-black uppercase mb-3 text-white text-left"
+                    style={{ textShadow: '0 0 16px rgba(168,85,247,0.34)' }}
+                  >
+                    SONSUZ
+                  </h3>
+
+                  {/* Divider */}
+                  <div className="w-7 h-px bg-gradient-to-r from-purple-300/80 to-transparent mb-3" />
+
+                  {/* Description */}
+                  <p className="text-[13px] leading-snug mb-3.5 max-w-[240px] text-white/60 text-left">
+                    Sınırsız bir akışta kendini kaybet.
+                  </p>
+
+                  {/* Bottom Tags */}
+                  <div className="flex gap-2 flex-wrap">
+                    <div className="px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.075] text-purple-200/90">
+                      <span>∞</span>
+                      <span>Sınırsız</span>
                     </div>
-                  )}
+                    <div className="px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.075] text-purple-200/90">
+                      <span>📊</span>
+                      <span>Basit</span>
+                    </div>
+                    <div className="px-3 py-1.5 rounded-full text-[11px] font-black flex items-center gap-1.5 bg-purple-300/[0.08] border border-purple-200/[0.12] text-purple-50/95">
+                      <span>⭐</span>
+                      <span>{(highScores?.[GameMode.ENDLESS] || 0).toLocaleString('tr-TR')}</span>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Right Icon */}
+                <div
+                  className="absolute -right-1 top-1/2 z-[1] flex h-[112px] w-[112px] -translate-y-1/2 items-center justify-center"
+                  style={{
+                    color: 'rgba(139,92,246,0.40)',
+                    filter: 'drop-shadow(0 0 24px rgba(139,92,246,0.28))',
+                    fontSize: 0,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <InfinityIcon size={104} strokeWidth={1.45} />
+                </div>
+
               </motion.button>
 
               {/* ── TIMED MODE ── */}
               <motion.button
-                initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={stagger(4)}
-                whileTap={{ scale: 0.97 }}
+                initial={{ opacity: 0, y: 20 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                transition={stagger(3)}
+                whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => { if (soundEnabled) playClick(); initGame(GameMode.TIMED); }}
-                className="relative rounded-3xl overflow-hidden flex-1"
+                className="relative overflow-hidden w-full rounded-[20px] flex items-center justify-between text-left"
                 style={{
-                  minHeight: 120, maxHeight: 140,
-                  background: 'linear-gradient(135deg, #b45309 0%, #d97706 50%, #f59e0b 100%)',
-                  boxShadow: '0 16px 48px rgba(217,119,6,0.45), 0 0 0 1px rgba(255,255,255,0.08) inset',
+                  minHeight: 132,
+                  padding: '19px 20px 17px 24px',
+                  background: 'linear-gradient(145deg, rgba(24,22,33,0.96) 0%, rgba(18,17,27,0.98) 56%, rgba(43,24,13,0.9) 100%)',
+                  border: '1px solid rgba(245,158,11,0.35)',
+                  boxShadow: '0 18px 34px rgba(4,3,12,0.34), inset 0 1px 0 rgba(255,255,255,0.055), 0 0 26px rgba(245,158,11,0.1)',
                 }}
               >
-                <div className="absolute top-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)' }} />
-                {!isLowEndDevice && (
-                  <motion.div
-                    animate={{ x: ['-100%', '200%'] }}
-                    transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 3.5, ease: 'easeInOut' }}
-                    className="absolute top-0 left-0 w-1/2 h-full"
-                    style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)', pointerEvents: 'none' }} />
-                )}
-                <div className="absolute inset-0 opacity-[0.06]" style={{
-                  backgroundImage: 'linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)',
-                  backgroundSize: '20px 20px',
-                }} />
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    inset: 1,
+                    borderRadius: 19,
+                    background: 'radial-gradient(circle at 92% 52%, rgba(245,158,11,0.2) 0%, rgba(245,158,11,0.075) 24%, transparent 56%)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 28,
+                    bottom: 28,
+                    width: 3,
+                    borderRadius: '0 6px 6px 0',
+                    background: 'linear-gradient(180deg, #fbbf24 0%, #f97316 100%)',
+                    boxShadow: '0 0 18px rgba(245,158,11,0.58)',
+                  }}
+                />
 
-                <div className="relative flex flex-col h-full px-6 py-5">
-                  <div className="flex items-start justify-between mb-auto">
-                    <div className="flex-1">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/50 mb-1">Zamanlı</div>
-                      <h3 className="text-2xl font-black text-white tracking-tight leading-none mb-2">{t('home.timed', 'Zamanlı')}</h3>
-                      <p className="text-xs text-white/70 leading-relaxed max-w-[190px]">
-                        60 saniye, hızlı combo
-                      </p>
-                    </div>
-                    <motion.div
-                      animate={{ rotate: [0, 15, 0] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                      className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.15)' }}>
-                      <span className="text-3xl">⏱</span>
-                    </motion.div>
+                {/* Left Content */}
+                <div className="relative z-10 flex-1">
+                  {/* Small Top Label */}
+                  <div className="text-[11px] uppercase mb-2.5 font-black tracking-[0.18em] text-amber-300/75 flex items-center gap-1.5 justify-start">
+                    <Timer size={13} strokeWidth={2.5} />
+                    ZAMAN MODU
                   </div>
-                  {/* High Score */}
-                  {timedBestScore > 0 && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <div className="text-[9px] font-bold uppercase tracking-wider text-white/40">En İyi</div>
-                      <div className="text-lg font-black text-white">{timedBestScore.toLocaleString()}</div>
+
+                  {/* Title */}
+                  <h3
+                    className="text-[33px] leading-none font-black uppercase mb-3 text-white text-left"
+                    style={{ textShadow: '0 0 16px rgba(245,158,11,0.34)' }}
+                  >
+                    ZAMANLI
+                  </h3>
+
+                  {/* Divider */}
+                  <div className="w-7 h-px bg-gradient-to-r from-orange-300/80 to-transparent mb-3" />
+
+                  {/* Description */}
+                  <p className="text-[13px] leading-snug mb-3.5 max-w-[240px] text-white/60 text-left">
+                    Saniyelerle yarış, zirveye tırman.
+                  </p>
+
+                  {/* Bottom Tags */}
+                  <div className="flex gap-2 flex-wrap">
+                    <div className="px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.075] text-amber-200/90">
+                      <span>⏱</span>
+                      <span>Süreli</span>
                     </div>
-                  )}
+                    <div className="px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.075] text-amber-200/90">
+                      <span>⚡</span>
+                      <span>Hızlı</span>
+                    </div>
+                    <div className="px-3 py-1.5 rounded-full text-[11px] font-black flex items-center gap-1.5 bg-amber-300/[0.08] border border-amber-200/[0.12] text-amber-50/95">
+                      <span>🏆</span>
+                      <span>En iyi {(stats?.timedHighScore || 0).toLocaleString('tr-TR')}</span>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Right Icon */}
+                <div
+                  className="absolute -right-1 top-1/2 z-[1] flex h-[112px] w-[112px] -translate-y-1/2 items-center justify-center"
+                  style={{
+                    color: 'rgba(245,158,11,0.40)',
+                    filter: 'drop-shadow(0 0 24px rgba(245,158,11,0.28))',
+                    fontSize: 0,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <Clock3 size={100} strokeWidth={1.35} />
+                </div>
+
               </motion.button>
             </div>
           </div>
         </div>
-
-        <DailyRewardModal isOpen={showRewardModal} onClose={() => setShowRewardModal(false)} />
       </div>
     </MotionConfig>
   );

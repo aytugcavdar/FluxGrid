@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Piece as PieceType, CellType } from '../types';
 import { useGameStore } from '../store/gameStore';
 import clsx from 'clsx';
-import { resetVelocityTracking, getSharedHoverCoord, setSharedHoverCoord } from '../utils/placementHelper';
+import { resetVelocityTracking, getSharedHoverCoord, setSharedHoverCoord, getDragVelocity, FAST_SWIPE_THRESHOLD, findBestPlacement } from '../utils/placementHelper';
 
 interface Props {
   piece: PieceType;
@@ -11,7 +11,7 @@ interface Props {
 }
 
 export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
-  const { setDraggedPiece, draggedPiece, placePiece, pieces, activeEvent } = useGameStore();
+  const { setDraggedPiece, draggedPiece, placePiece, pieces, activeEvent, grid, canPlacePiece } = useGameStore();
   const ref = useRef<HTMLDivElement>(null);
   const [windowWidth, setWindowWidth] = React.useState(window.innerWidth);
 
@@ -59,12 +59,26 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
     e.currentTarget.releasePointerCapture(e.pointerId);
     document.body.classList.remove('dragging');
 
-    // PRIMARY placement path — runs reliably on Capacitor because
+    // PRIMARY placement path - runs reliably on Capacitor because
     // setPointerCapture guarantees this element receives pointerup.
-    // Grid's render loop writes the hover coord to shared state.
+    // Grid render loop writes hover coord to shared state.
     const hoverCoord = getSharedHoverCoord();
     if (hoverCoord) {
-      placePiece(piece, hoverCoord.x, hoverCoord.y);
+      const velocity = getDragVelocity();
+      const isFastSwipe = velocity > FAST_SWIPE_THRESHOLD;
+
+      if (isFastSwipe) {
+        // Hizli kaydirma: 2 hucre yaricapinda en yakin gecerli konumu bul
+        const best = findBestPlacement(grid, piece, hoverCoord.x, hoverCoord.y, 2);
+        if (best) {
+          placePiece(piece, best.x, best.y);
+        } else {
+          placePiece(piece, hoverCoord.x, hoverCoord.y);
+        }
+      } else {
+        // Normal birakma: 1 hucre snap zaten Grid render loopda yapildi
+        placePiece(piece, hoverCoord.x, hoverCoord.y);
+      }
     }
 
     // Clear shared hover coord and drag state
@@ -100,8 +114,7 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
             className={clsx(
               "rounded-sm transition-all duration-200",
               filled && p.type === CellType.ICE && !isNativeApp && "animate-pulse",
-              filled && p.type === CellType.BOMB && !isNativeApp && "animate-pulse",
-              filled && p.type === CellType.CHRONO && !isNativeApp && "animate-pulse"
+              filled && p.type === CellType.BOMB && !isNativeApp && "animate-pulse"
             )}
             style={{
               width: blockSize,
@@ -111,9 +124,7 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
                     ? '#a5f3fc' 
                     : p.type === CellType.BOMB 
                       ? '#ef4444' 
-                      : p.type === CellType.CHRONO
-                        ? '#fde68a'
-                        : p.color)
+                      : p.color)
                 : 'transparent',
               boxShadow: filled && !isNativeApp
                 ? `0 0 ${isMobile ? 2 : 4}px ${
@@ -121,9 +132,7 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
                       ? '#93c5fd' 
                       : p.type === CellType.BOMB 
                         ? '#f87171' 
-                        : p.type === CellType.CHRONO
-                          ? '#fbbf24'
-                          : p.color
+                        : p.color
                   }40`
                 : 'none',
               opacity: filled ? 1 : 0,
@@ -173,30 +182,14 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
         {/* Special Icon Badge */}
         {piece.type === CellType.ICE && (
           <div className="absolute -top-0.5 -right-0.5 w-4 h-4 md:w-5 md:h-5 bg-blue-400 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white shadow z-10">
-            ❄️
+            {String.fromCodePoint(0x2744)}
           </div>
         )}
         {piece.type === CellType.BOMB && (
           <div className="absolute -top-0.5 -right-0.5 w-4 h-4 md:w-5 md:h-5 bg-red-500 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white shadow-lg z-10">
-            💣
+            {String.fromCodePoint(0x1F4A3)}
           </div>
         )}
-        {piece.type === CellType.CHRONO && (
-          <div 
-            className="absolute -top-0.5 -right-0.5 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shadow-lg z-10"
-            style={{
-              background: '#fbbf24',
-              fontSize: '9px',
-              fontWeight: 700,
-              color: '#78350f',
-              lineHeight: 1,
-            }}
-          >
-            <span>⏱</span>
-            <span>+5s</span>
-          </div>
-        )}
-
         {renderShape(piece)}
       </motion.div>
     </motion.div>
@@ -205,3 +198,4 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
   // Custom comparison: only re-render if piece reference or index changes
   return prevProps.piece === nextProps.piece && prevProps.index === nextProps.index;
 });
+

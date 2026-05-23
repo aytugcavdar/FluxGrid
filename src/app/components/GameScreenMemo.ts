@@ -17,11 +17,6 @@ interface TimePopup {
   value: number;
 }
 
-interface ChronoPopupData {
-  id: number;
-  seconds: number;
-}
-
 export interface GameScreenProps {
   grid: any;
   pieces: any[];
@@ -31,17 +26,13 @@ export interface GameScreenProps {
   gridSize: number;
   scorePopups: ScorePopup[];
   showSurgeFlash: boolean;
-  showRushStart: boolean;
-  showRushEnd: boolean;
   timedBoostMovesLeft: number;
   timePopups: TimePopup[];
   setTimePopups: React.Dispatch<React.SetStateAction<TimePopup[]>>;
-  chronoPopups: ChronoPopupData[];
-  setChronoPopups: React.Dispatch<React.SetStateAction<ChronoPopupData[]>>;
   shownChain: number;
   showPerfect: boolean;
-  eventStartVisual: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
-  setEventStartVisual: React.Dispatch<React.SetStateAction<'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null>>;
+  eventStartVisual: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
+  setEventStartVisual: React.Dispatch<React.SetStateAction<'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null>>;
   showComboMilestone: boolean;
   lineCountToShow: number;
   showLineCount: boolean;
@@ -62,15 +53,12 @@ export const areGameScreenPropsEqual = (
   if (prevProps.pieces !== nextProps.pieces) return false;
   if (prevProps.scorePopups !== nextProps.scorePopups) return false;
   if (prevProps.timePopups !== nextProps.timePopups) return false;
-  if (prevProps.chronoPopups !== nextProps.chronoPopups) return false;
   
   // Value equality for primitives
   if (prevProps.combo !== nextProps.combo) return false;
   if (prevProps.gameMode !== nextProps.gameMode) return false;
   if (prevProps.gridSize !== nextProps.gridSize) return false;
   if (prevProps.showSurgeFlash !== nextProps.showSurgeFlash) return false;
-  if (prevProps.showRushStart !== nextProps.showRushStart) return false;
-  if (prevProps.showRushEnd !== nextProps.showRushEnd) return false;
   if (prevProps.timedBoostMovesLeft !== nextProps.timedBoostMovesLeft) return false;
   if (prevProps.shownChain !== nextProps.shownChain) return false;
   if (prevProps.showPerfect !== nextProps.showPerfect) return false;

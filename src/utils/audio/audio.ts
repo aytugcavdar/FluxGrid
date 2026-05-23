@@ -82,6 +82,26 @@ export const playPlace = () => {
   oscHigh.stop(ctx.currentTime + 0.1);
 };
 
+/** Soft warning for invalid placement */
+export const playInvalid = () => {
+  if (isMuted()) return;
+  const ctx = getCtx();
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(220, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(160, ctx.currentTime + 0.09);
+  gain.gain.setValueAtTime(0.035, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.11);
+
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.12);
+};
+
 /** Three-part sound for line clear: sweep up, crystal ping, bass drop */
 export const playClear = (lines: number = 1) => {
   if (isMuted()) return;
@@ -161,6 +181,9 @@ export const playCombo = (level: number) => {
     noteCount = Math.min(level, 5);  // Low combo: up to 5 notes
   }
 
+  const toneType: OscillatorType = level >= 10 ? 'triangle' : 'sine';
+  const noteGain = level >= 10 ? 0.095 : level >= 5 ? 0.085 : 0.075;
+
   // Play melody using pentatonic scale
   for (let i = 0; i < noteCount; i++) {
     const osc = ctx.createOscillator();
@@ -168,12 +191,12 @@ export const playCombo = (level: number) => {
     osc.connect(gain);
     gain.connect(ctx.destination);
 
-    osc.type = 'sine';
+    osc.type = toneType;
     // Use pentatonic scale frequencies, wrapping around if needed
     const freq = PENTATONIC_SCALE[i % PENTATONIC_SCALE.length];
     const t = ctx.currentTime + (i * 0.06);
     osc.frequency.setValueAtTime(freq, t);
-    gain.gain.setValueAtTime(0.08, t);
+    gain.gain.setValueAtTime(noteGain, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
 
     osc.start(t);
@@ -303,31 +326,13 @@ export const playTick = () => {
   osc.stop(ctx.currentTime + 0.05);
 };
 
-/** CHRONO bonus sound - bright ping for time addition */
-export const playChronoBonus = () => {
-  if (isMuted()) return;
-  const ctx = getCtx();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(800, ctx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.08);
-  gain.gain.setValueAtTime(0.1, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-
-  osc.start(ctx.currentTime);
-  osc.stop(ctx.currentTime + 0.15);
-};
-
 // ─── Haptic Feedback ───
 
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 
 export type HapticPattern =
   | 'hover'           // very light, drag hover on grid
+  | 'invalid'         // soft warning for invalid placement
   | 'place'           // block placed
   | 'clear_single'    // 1 line cleared
   | 'clear_multi'     // 2+ lines cleared (more intense)
@@ -342,6 +347,7 @@ export type HapticPattern =
 // Web Vibration API fallback patterns (ms on/off alternating)
 const WEB_PATTERNS: Record<HapticPattern, number | number[]> = {
   hover:           4,
+  invalid:         12,
   place:           [12, 8, 18],
   clear_single:    [30, 15, 50],
   clear_multi:     [40, 20, 80, 20, 120],
@@ -371,6 +377,7 @@ const H = ImpactStyle.Heavy;
 // Native Capacitor pattern definitions
 const NATIVE_PATTERNS: Record<HapticPattern, Array<{ style: ImpactStyle; delay?: number }>> = {
   hover:           [{ style: L }],
+  invalid:         [{ style: L }],
   place:           [{ style: L }, { style: M, delay: 40 }],
   clear_single:    [{ style: M }, { style: H, delay: 60 }],
   clear_multi:     [{ style: M }, { style: H, delay: 50 }, { style: H, delay: 80 }],

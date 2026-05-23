@@ -21,6 +21,10 @@ interface TutorialStore {
   achievements: string[];
   startTime: number | null;
   
+  // Analytics state
+  stepStartTime: number | null;
+  interactionCount: number;
+  
   // Actions
   start: () => void;
   nextStep: () => void;
@@ -29,6 +33,7 @@ interface TutorialStore {
   incrementGamesCompleted: () => void;
   unlockFeature: (feature: FeatureType) => void;
   shouldShowFeature: (feature: FeatureType) => boolean;
+  shouldShow: () => boolean;
   trackStepTime: (step: number, duration: number) => void;
   markAsReturningPlayer: () => void;
   reset: () => void;
@@ -36,6 +41,12 @@ interface TutorialStore {
   // Interactive actions
   setHint: (hint: string | null) => void;
   addAchievement: (achievement: string) => void;
+  
+  // Analytics actions
+  trackStepStart: (step: number) => void;
+  trackStepComplete: (step: number) => void;
+  trackInteraction: (type: string) => void;
+  getAnalytics: () => TutorialMetrics & { interactionCount: number };
 }
 
 const STORAGE_KEY = 'flux_tutorial_v2';
@@ -125,6 +136,10 @@ export const useTutorialStore = create<TutorialStore>((set, get) => {
     currentHint: null,
     achievements: [],
     startTime: null,
+    
+    // Analytics state
+    stepStartTime: null,
+    interactionCount: 0,
     
     /**
      * Start tutorial
@@ -289,6 +304,15 @@ export const useTutorialStore = create<TutorialStore>((set, get) => {
     },
     
     /**
+     * Check if tutorial should be shown (first launch)
+     * Returns true if tutorial has never been completed
+     */
+    shouldShow: () => {
+      const state = get();
+      return !state.isCompleted && !state.isActive;
+    },
+    
+    /**
      * Track step duration
      */
     trackStepTime: (step: number, duration: number) => {
@@ -335,11 +359,53 @@ export const useTutorialStore = create<TutorialStore>((set, get) => {
         isCompleted: false,
         gamesCompleted: 0,
         featuresUnlocked: getInitialFeatureFlags(),
-        tutorialMetrics: getInitialMetrics()
+        tutorialMetrics: getInitialMetrics(),
+        stepStartTime: null,
+        interactionCount: 0
       });
       
       localStorage.removeItem(STORAGE_KEY);
       console.log('[TutorialStore] Tutorial reset');
+    },
+    
+    /**
+     * Track step start time
+     */
+    trackStepStart: (step: number) => {
+      set({ stepStartTime: Date.now() });
+      console.log(`[TutorialStore] Step ${step} started`);
+    },
+    
+    /**
+     * Track step completion
+     */
+    trackStepComplete: (step: number) => {
+      const state = get();
+      if (state.stepStartTime) {
+        const duration = Date.now() - state.stepStartTime;
+        state.trackStepTime(step, duration);
+        console.log(`[TutorialStore] Step ${step} completed in ${duration}ms`);
+      }
+    },
+    
+    /**
+     * Track user interaction
+     */
+    trackInteraction: (type: string) => {
+      const state = get();
+      set({ interactionCount: state.interactionCount + 1 });
+      console.log(`[TutorialStore] Interaction: ${type} (total: ${state.interactionCount + 1})`);
+    },
+    
+    /**
+     * Get analytics data
+     */
+    getAnalytics: () => {
+      const state = get();
+      return {
+        ...state.tutorialMetrics,
+        interactionCount: state.interactionCount
+      };
     }
   };
 });

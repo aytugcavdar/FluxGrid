@@ -12,7 +12,7 @@ import { TutorialConfetti } from './TutorialConfetti';
 const STEP_SELECTORS: Record<number, string | null> = {
   1: '[data-piece-slot="0"]',     // İlk piece slot
   2: 'canvas',                    // 3D grid canvas
-  3: null,                        // No highlight (flux removed)
+  3: null,                        // No highlight
   4: null,                        // Highlight yok, sadece confetti
 };
 

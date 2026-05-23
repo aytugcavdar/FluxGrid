@@ -1,79 +1,111 @@
 import type { Achievement } from '../../types';
+import { GameMode, type GameStats } from '@shared/types';
 
 /**
- * Update achievements based on game progress
- * Handles SCORE, COMBO, SPECIAL_BLOCKS, and PROGRESSION categories
+ * Update achievements from the live game systems only.
  */
 export function updateAchievements(
   achievements: Achievement[],
   params: {
     newScore: number;
     newCombo: number;
-    totalBombsExploded: number;  // Toplam değer
-    totalIceBroken: number;       // Toplam değer
-    currentLevelIndex: number;
+    previousCombo: number;
+    totalBombsExploded: number;
+    totalIceBroken: number;
+    stats: GameStats;
+    gameMode: GameMode;
+    difficultyTier: number;
+    isPerfectClear: boolean;
+    colorBonus: boolean;
+    chainCount: number;
   }
 ): Achievement[] {
-  const { newScore, newCombo, totalBombsExploded, totalIceBroken, currentLevelIndex } = params;
-  
+  const {
+    newScore,
+    newCombo,
+    previousCombo,
+    totalBombsExploded,
+    totalIceBroken,
+    stats,
+    gameMode,
+    difficultyTier,
+    isPerfectClear,
+    colorBonus,
+    chainCount,
+  } = params;
+
   return achievements.map(ach => {
-    if (ach.unlocked) return ach;
     let val = ach.currentValue;
-    
-    // SCORE category - tek oyundaki en yüksek skor
+
     if (ach.category === 'SCORE') {
       val = Math.max(val, newScore);
     }
-    
-    // COMBO category - tek oyundaki en yüksek kombo
+
     if (ach.category === 'COMBO') {
-      val = Math.max(val, newCombo);
+      val = ach.id === 'combo_streak'
+        ? (previousCombo < 5 && newCombo >= 5 ? val + 1 : val)
+        : Math.max(val, newCombo);
     }
-    
-    // SPECIAL_BLOCKS category - toplam değerleri kullan
+
     if (ach.category === 'SPECIAL_BLOCKS') {
-      if (ach.id === 'bomb_10') val = totalBombsExploded;
-      if (ach.id === 'ice_50') val = totalIceBroken;
-      // Add other special block tracking as needed
+      if (ach.id.startsWith('bomb_')) val = totalBombsExploded;
+      if (ach.id.startsWith('ice_')) val = totalIceBroken;
     }
-    
-    // PROGRESSION category
+
     if (ach.category === 'PROGRESSION') {
-      if (ach.id === 'level_10' || ach.id === 'level_25' || ach.id === 'level_50') {
-        val = Math.max(val, currentLevelIndex);
+      if (ach.id.startsWith('games_')) val = stats.gamesPlayed || 0;
+      if (ach.id.startsWith('blocks_')) val = stats.blocksPlaced || 0;
+      if (ach.id.startsWith('lines_')) val = stats.linesCleared || 0;
+    }
+
+    if (ach.category === 'SPEED') {
+      if (ach.id.startsWith('timed_score_') && gameMode === GameMode.TIMED) val = Math.max(val, newScore);
+      if (ach.id.startsWith('timed_combo_') && gameMode === GameMode.TIMED) val = Math.max(val, newCombo);
+      if (ach.id === 'timed_lines_25') val = stats.timedTotalLines || 0;
+      if (ach.id === 'sprint_boost_1k' || ach.id === 'sprint_master') {
+        val = stats.timedSprintBonusTotal || 0;
       }
     }
-    
-    // Legacy achievement IDs (for backward compatibility)
-    if (ach.id === 'score_10k' || ach.id === 'score_50k' || ach.id === 'score_100k') {
-      val = Math.max(val, newScore);
+
+    if (ach.category === 'MASTERY') {
+      if (ach.id.startsWith('tier_') || ach.id === 'tier_master') {
+        val = stats.endlessMaxTier || difficultyTier || 0;
+      }
+      if (ach.id.startsWith('event_') || ach.id === 'event_master') {
+        val = stats.endlessEventCount || 0;
+      }
+      if (ach.id.startsWith('perfect_clear')) {
+        val = stats.perfectClears || (isPerfectClear ? Math.max(val, 1) : val);
+      }
+      if (ach.id === 'color_bonus_10') {
+        val = colorBonus ? val + 1 : val;
+      }
+      if (ach.id === 'record_breaker') {
+        val = stats.recordsBroken || 0;
+      }
     }
-    if (ach.id === 'combo_5' || ach.id === 'combo_10' || ach.id === 'combo_15') {
-      val = Math.max(val, newCombo);
-    }
+
     if (ach.id === 'bomb_expert') {
       val = totalBombsExploded;
     }
-    
-    return { ...ach, currentValue: val, unlocked: val >= ach.targetValue };
+
+    return { ...ach, currentValue: val, unlocked: ach.unlocked || val >= ach.targetValue };
   });
 }
 
 /**
- * Sync newly unlocked achievement to localStorage
+ * Sync achievement progress to localStorage.
  */
 export function syncNewAchievement(
   previousAchievements: Achievement[],
   updatedAchievements: Achievement[]
 ): void {
-  // Save updated achievements to localStorage
   try {
     localStorage.setItem('flux_achievements', JSON.stringify(updatedAchievements));
-    
-    // Log newly unlocked achievements
+
     updatedAchievements.forEach((ach, i) => {
       if (ach.unlocked && !previousAchievements[i]?.unlocked) {
-        console.log(`[Achievement] Unlocked: ${ach.name} - ${ach.description}`);
+        console.log(`[Achievement] Unlocked: ${ach.name}`);
       }
     });
   } catch (error) {

@@ -15,7 +15,6 @@ export interface GameLog {
   badge?: 'new-record' | 'perfect' | 'comeback' | 'speedrun';
   metadata?: {
     tier?: number;
-    chronoBonus?: number;
     skillsUsed?: string[];
   };
 }

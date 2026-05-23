@@ -116,8 +116,8 @@
       "description": "Vervollständige eine Reihe oder Spalte, um sie zu räumen und Punkte zu verdienen!"
     },
     "step4": {
-      "title": "Beobachte deinen Flux",
-      "description": "Der Flux-Meter füllt sich, während du Teile platzierst. Bei 100% aktivierst du den Surge-Modus für 2× Punkte!"
+      "title": "Kombos aufbauen",
+      "description": "R?ume Linien nacheinander ab, um deinen Kombo zu halten und mehr Punkte zu erzielen."
     },
     "step5": {
       "title": "Verwende eine Fähigkeit",
@@ -182,7 +182,7 @@
   "guided": {
     "step1": "Ziehe das Teil unten und lege es auf dem Raster ab",
     "step2": "Fülle eine vollständige Reihe",
-    "step3": "Verwende Fähigkeiten, wenn Flux voll ist",
+    "step3": "R?ume schnell Linien ab, um den Kombo zu halten",
     "step4": "Perfekt! Du bist jetzt bereit",
     "skip": "ÜBERSPRINGEN"
   },

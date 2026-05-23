@@ -116,8 +116,8 @@
       "description": "Complète une ligne ou une colonne pour l'effacer et gagner des points!"
     },
     "step4": {
-      "title": "Surveille ton Flux",
-      "description": "Le compteur de flux se remplit lorsque tu places des pièces. À 100%, tu actives le mode Surge pour 2× points!"
+      "title": "Construis des combos",
+      "description": "Efface des lignes ? la suite pour garder ton combo et augmenter ton score."
     },
     "step5": {
       "title": "Utilise une compétence",
@@ -182,7 +182,7 @@
   "guided": {
     "step1": "Fais glisser la pièce ci-dessous et dépose-la sur la grille",
     "step2": "Remplis une ligne complète",
-    "step3": "Utilise les capacités quand le Flux est plein",
+    "step3": "Efface vite des lignes pour garder ton combo",
     "step4": "Parfait! Tu es prêt maintenant",
     "skip": "PASSER"
   },

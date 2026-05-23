@@ -211,32 +211,4 @@ describe.skip('Game Flow Integration', () => {
     });
   });
 
-  it('parça yerleştirme flux günceller', async () => {
-    const initialPieces = useGameStore.getState().pieces;
-    if (initialPieces.length === 0) {
-      // Skip test if pieces not loaded yet
-      return;
-    }
-    
-    const initial = useGameStore.getState().flux;
-    const { pieces, placePiece } = useGameStore.getState();
-    placePiece(pieces[0], 0, 0);
-    expect(useGameStore.getState().flux).toBeGreaterThanOrEqual(initial);
-  });
-
-  it('flux 100\'e ulaşınca surge aktive olur', async () => {
-    const initialPieces = useGameStore.getState().pieces;
-    if (initialPieces.length === 0) {
-      // Skip test if pieces not loaded yet
-      return;
-    }
-    
-    useGameStore.setState({ flux: 98 });
-    const { pieces, placePiece } = useGameStore.getState();
-    placePiece(pieces[0], 0, 0);
-    const { flux, isSurgeActive } = useGameStore.getState();
-    if (flux >= 100) {
-      expect(isSurgeActive).toBe(true);
-    }
-  });
 });

@@ -2,7 +2,6 @@
  * Safe localStorage operations with error handling
  */
 import { safeExecute, ErrorCategory } from '../../../../utils/managers/errorHandler';
-import { MiniEventState, MiniEventType } from '../../types';
 import { createMiniEventState } from './miniEventSystem';
 
 // Debounce timers
@@ -13,23 +12,11 @@ const ALLOWED_KEYS = [
   'flux_theme',
   'flux_language',
   'flux_muted',
-  'flux_onboard_v1',
-  'flux_daily_played',
-  'flux_daily_streak_date',
-  'pwa_installed',
-  'flux_highscore', // offline cache only
-  'flux_survival_highscore',
   'flux_mode_stats',
   // Firebase cache keys (read-only, updated by Firebase sync)
   'flux_stats',
   'flux_achievements',
-  'flux_max_level',
-  'flux_daily_streak',
   'flux_highscores',
-  'flux_player_profile',
-  'flux_level_progress',
-  'flux_passive_unlocks',
-  'flux_passive_equipped',
 ];
 
 /**
@@ -110,21 +97,9 @@ export const safeJSONParse = <T>(value: string, defaultValue: T): T => {
  * Converts Set to array for JSON serialization
  */
 interface SerializableMiniEventState {
-  activeEvents: MiniEventType[];
-  moveCounters: {
-    [MiniEventType.FLUX_SURGE]: number;
-    [MiniEventType.SCORE_RUSH]: number;
-    [MiniEventType.CLEAR_BONUS]: number;
-    [MiniEventType.COMBO_SHIELD]: number;
-    [MiniEventType.PIECE_BLESSING]: number;
-  };
-  lastActivation: {
-    [MiniEventType.FLUX_SURGE]: number;
-    [MiniEventType.SCORE_RUSH]: number;
-    [MiniEventType.CLEAR_BONUS]: number;
-    [MiniEventType.COMBO_SHIELD]: number;
-    [MiniEventType.PIECE_BLESSING]: number;
-  };
+  activeEvents: string[];
+  moveCounters: Record<string, number>;
+  lastActivation: Record<string, number>;
   comboShieldActive: boolean;
 }
 
@@ -135,7 +110,7 @@ interface SerializableMiniEventState {
  * @param miniEventState - The mini-event state to serialize
  * @returns Serializable version with Set converted to array
  */
-export function serializeMiniEventState(miniEventState: MiniEventState): SerializableMiniEventState {
+export function serializeMiniEventState(miniEventState: any): SerializableMiniEventState {
   return {
     activeEvents: Array.from(miniEventState.activeEvents),
     moveCounters: { ...miniEventState.moveCounters },
@@ -151,7 +126,7 @@ export function serializeMiniEventState(miniEventState: MiniEventState): Seriali
  * @param serialized - The serialized mini-event state (or undefined if missing)
  * @returns MiniEventState with Set restored, or default state if missing
  */
-export function deserializeMiniEventState(serialized?: SerializableMiniEventState): MiniEventState {
+export function deserializeMiniEventState(serialized?: SerializableMiniEventState): any {
   if (!serialized) {
     return createMiniEventState();
   }
@@ -172,8 +147,9 @@ export function deserializeMiniEventState(serialized?: SerializableMiniEventStat
  * @returns Serialized game state ready for localStorage
  */
 export function serializeGameState(gameState: {
-  miniEventState?: MiniEventState;
+  miniEventState?: any;
   totalMovesPlayed?: number;
+  tierStartMove?: number;
   [key: string]: any;
 }): any {
   const serialized: any = { ...gameState };
@@ -187,6 +163,9 @@ export function serializeGameState(gameState: {
   if (gameState.totalMovesPlayed !== undefined) {
     serialized.totalMovesPlayed = gameState.totalMovesPlayed;
   }
+  if (gameState.tierStartMove !== undefined) {
+    serialized.tierStartMove = gameState.tierStartMove;
+  }
   
   return serialized;
 }
@@ -199,8 +178,9 @@ export function serializeGameState(gameState: {
  * @returns Game state with miniEventState Set restored and defaults applied
  */
 export function deserializeGameState(serialized: any): {
-  miniEventState: MiniEventState;
+  miniEventState: ReturnType<typeof createMiniEventState>;
   totalMovesPlayed: number;
+  tierStartMove: number;
   [key: string]: any;
 } {
   const deserialized = { ...serialized };
@@ -211,6 +191,9 @@ export function deserializeGameState(serialized: any): {
   // Initialize totalMovesPlayed with default if missing
   if (deserialized.totalMovesPlayed === undefined) {
     deserialized.totalMovesPlayed = 0;
+  }
+  if (deserialized.tierStartMove === undefined) {
+    deserialized.tierStartMove = deserialized.totalMovesPlayed;
   }
   
   return deserialized;

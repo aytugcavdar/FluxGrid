@@ -2,11 +2,12 @@
  * Piece generation utilities with smart RNG
  */
 import { v4 as uuidv4 } from 'uuid';
-import { Piece, PieceShape, GridState, GRID_SIZE, CellType, MiniEventState } from '../../types';
+import { Piece, PieceShape, GridState, GRID_SIZE, CellType } from '../../types';
 import { SHAPES } from '../../constants';
 import { SeededRNG, getDailySeed } from '@features/game/utils/game/seededRng';
 import { GameMode } from '@shared/types';
 import { isPieceBlessingActive } from './miniEventSystem';
+import { calculateEasyPieceRate } from './difficultyScaling';
 
 function weightedPick(
   shapes: PieceShape[],
@@ -23,6 +24,203 @@ function weightedPick(
 }
 
 let currentDailyRNG: SeededRNG | null = null;
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const normalized = hex.replace('#', '');
+  if (normalized.length !== 6) return null;
+
+  const value = Number.parseInt(normalized, 16);
+  if (Number.isNaN(value)) return null;
+
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255,
+  };
+}
+
+function colorDistance(a: string, b: string): number {
+  const rgbA = hexToRgb(a);
+  const rgbB = hexToRgb(b);
+  if (!rgbA || !rgbB) return Number.POSITIVE_INFINITY;
+
+  const dr = rgbA.r - rgbB.r;
+  const dg = rgbA.g - rgbB.g;
+  const db = rgbA.b - rgbB.b;
+
+  return Math.sqrt(dr * dr + dg * dg + db * db);
+}
+
+function colorSeed(text: string): number {
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) {
+    hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function pickDistinctTrayColor(
+  colors: string[] | undefined,
+  pieceIndex: number,
+  selectedShape: PieceShape,
+  usedNormalColors: string[]
+): string {
+  if (!colors?.length) return selectedShape.color;
+
+  const minimumDistance = 95;
+  const startIndex = (colorSeed(selectedShape.id) + pieceIndex * 3) % colors.length;
+  const orderedColors = colors.map((_, offset) => colors[(startIndex + offset) % colors.length]);
+  const distinctColor = orderedColors.find(color =>
+    usedNormalColors.every(usedColor => colorDistance(color, usedColor) >= minimumDistance)
+  );
+
+  if (distinctColor) return distinctColor;
+
+  return orderedColors.reduce(
+    (best, color) => {
+      const score = usedNormalColors.reduce(
+        (lowestDistance, usedColor) => Math.min(lowestDistance, colorDistance(color, usedColor)),
+        Number.POSITIVE_INFINITY
+      );
+      return score > best.score ? { color, score } : best;
+    },
+    { color: orderedColors[0], score: -1 }
+  ).color;
+}
+
+function getBlockCount(shape: PieceShape): number {
+  return shape.shape.flat().filter(value => value === 1).length;
+}
+
+function isEasyShape(shape: PieceShape): boolean {
+  return getBlockCount(shape) <= 3;
+}
+
+function isLargeShape(shape: PieceShape): boolean {
+  return getBlockCount(shape) >= 4;
+}
+
+function isValidGrid(grid: GridState | undefined): grid is GridState {
+  return Array.isArray(grid) &&
+    grid.length === GRID_SIZE &&
+    grid.every(row => Array.isArray(row) && row.length === GRID_SIZE);
+}
+
+function canPlaceShape(grid: GridState, shape: PieceShape, startX: number, startY: number): boolean {
+  if (!isValidGrid(grid) || !shape.shape.length || !shape.shape[0]?.length) return false;
+
+  for (let y = 0; y < shape.shape.length; y++) {
+    for (let x = 0; x < shape.shape[y].length; x++) {
+      if (shape.shape[y][x] !== 1) continue;
+
+      const gridX = startX + x;
+      const gridY = startY + y;
+
+      if (
+        gridX < 0 ||
+        gridX >= GRID_SIZE ||
+        gridY < 0 ||
+        gridY >= GRID_SIZE ||
+        grid[gridY][gridX]?.filled
+      ) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function shapeFitsAnywhere(grid: GridState, shape: PieceShape): boolean {
+  if (!isValidGrid(grid) || !shape.shape.length || !shape.shape[0]?.length) return false;
+
+  for (let y = 0; y <= GRID_SIZE - shape.shape.length; y++) {
+    for (let x = 0; x <= GRID_SIZE - shape.shape[0].length; x++) {
+      if (canPlaceShape(grid, shape, x, y)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function findEasyRescueShape(grid?: GridState): PieceShape {
+  const easyShapes = SHAPES.filter(isEasyShape);
+  if (!isValidGrid(grid)) return easyShapes[0] || SHAPES[0];
+
+  return easyShapes.find(shape => shapeFitsAnywhere(grid, shape)) || SHAPES[0];
+}
+
+function replacePieceShape(piece: Piece, shape: PieceShape): Piece {
+  return {
+    ...shape,
+    instanceId: piece.instanceId,
+    type: piece.type,
+    color: piece.color,
+  };
+}
+
+function recolorTrayPieces(pieces: Piece[], colors?: string[]): Piece[] {
+  const usedNormalColors: string[] = [];
+
+  return pieces.map((piece, index) => {
+    if (piece.type === CellType.ICE) {
+      return { ...piece, color: '#7dd3fc' };
+    }
+
+    if (piece.type === CellType.BOMB) {
+      return { ...piece, color: '#ef4444' };
+    }
+
+    const color = pickDistinctTrayColor(colors, index, piece, usedNormalColors);
+    usedNormalColors.push(color);
+    return { ...piece, color };
+  });
+}
+
+function improveTrayQuality(pieces: Piece[], grid?: GridState, colors?: string[]): Piece[] {
+  if (pieces.length < 2) return recolorTrayPieces(pieces, colors);
+
+  const improved = [...pieces];
+  const validGrid = isValidGrid(grid) ? grid : undefined;
+  const easyRescueShape = findEasyRescueShape(validGrid);
+  const replaceLargestPiece = () => {
+    const largestIndex = improved.reduce((bestIndex, piece, index) => (
+      getBlockCount(piece) > getBlockCount(improved[bestIndex]) ? index : bestIndex
+    ), 0);
+
+    improved[largestIndex] = replacePieceShape(improved[largestIndex], easyRescueShape);
+  };
+
+  const fittingPieces = validGrid
+    ? improved.filter(piece => shapeFitsAnywhere(validGrid, piece))
+    : improved;
+
+  const hasEasyPlayablePiece = fittingPieces.some(isEasyShape);
+  if (!hasEasyPlayablePiece) {
+    replaceLargestPiece();
+  }
+
+  if (improved.length >= 3 && improved.every(isLargeShape)) {
+    replaceLargestPiece();
+  }
+
+  const seenLargeShapeIds = new Set<string>();
+  for (let i = 0; i < improved.length; i++) {
+    const piece = improved[i];
+    if (!isLargeShape(piece)) continue;
+
+    if (seenLargeShapeIds.has(piece.id)) {
+      improved[i] = replacePieceShape(piece, easyRescueShape);
+      break;
+    }
+
+    seenLargeShapeIds.add(piece.id);
+  }
+
+  return recolorTrayPieces(improved, colors);
+}
 
 /**
  * Initialize daily RNG with local seed
@@ -48,9 +246,11 @@ export const getRandomPiecesSync = (
   colors?: string[],
   difficultyTier?: number,
   gameMode?: GameMode,
-  miniEventState?: MiniEventState
+  miniEventState?: any,
+  score?: number  // Add score parameter for difficulty scaling
 ): Piece[] => {
   const newPieces: Piece[] = [];
+  const usedNormalColors: string[] = [];
   const tier = difficultyTier ?? 0;
   
   // PIECE_BLESSING: Sadece küçük parçalar (dot, h2, v2)
@@ -73,7 +273,7 @@ export const getRandomPiecesSync = (
 
   // Calculate grid density if grid is provided
   let density = 0;
-  if (grid) {
+  if (isValidGrid(grid)) {
     let filledCells = 0;
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
@@ -93,11 +293,40 @@ export const getRandomPiecesSync = (
     let selectedShape: PieceShape = SHAPES[0]; // Initialize with fallback
     let attempts = 0;
 
-    const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+    // Special block type selection - MUST happen before shape selection
+    let type: CellType = CellType.NORMAL;
+    
+    // TIMED MODE: No special blocks (ICE, BOMB) - keep it simple and fast-paced
+    if (gameMode !== GameMode.TIMED) {
+      const specialRand = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+      
+      // Special blocks: BOMB 8%, ICE 7%, NORMAL 85%
+      if (specialRand > 0.92) {
+        type = CellType.BOMB;
+      } else if (specialRand > 0.85) {
+        type = CellType.ICE;
+      }
+    }
 
     // PIECE_BLESSING: Override all logic and use only blessed shapes
     if (blessingActive && blessedShapes) {
+      const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
       selectedShape = blessedShapes[Math.floor(randVal * blessedShapes.length)] || SHAPES[0];
+    }
+    // TIMED MODE: Easy piece rate scaling (only for non-blessed, non-rescue scenarios)
+    else if (gameMode === GameMode.TIMED && !isDaily) {
+      const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+      const easyRate = calculateEasyPieceRate(score || 0);
+      const easyShapes = SHAPES.filter(s => ['dot', 'h2', 'v2'].includes(s.id));
+      const hardShapes = SHAPES.filter(s => !['dot', 'h2', 'v2'].includes(s.id));
+      
+      if (randVal < easyRate) {
+        // Select from easy pieces only
+        selectedShape = easyShapes[Math.floor((useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * easyShapes.length)] || SHAPES[0];
+      } else {
+        // Select from hard pieces only (excluding easy pieces)
+        selectedShape = hardShapes[Math.floor((useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * hardShapes.length)] || SHAPES[0];
+      }
     }
     // RESCUE MECHANISM: Tier-based density thresholds
     // Higher tiers get rescue earlier to prevent unfair game overs
@@ -108,26 +337,12 @@ export const getRandomPiecesSync = (
         const count = s.shape.flat().filter(v => v === 1).length;
         return count <= maxBlocks;
       });
+      const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
       selectedShape = smallShapes[Math.floor(randVal * smallShapes.length)] || SHAPES[0];
     }
     // Difficulty tier logic (only for Endless mode, tier > 0)
     else if (tier >= 6) {
-      // Tier 6 (70k+): Sadece büyük asimetrik parçalar ve cross
-      const rng = useSeededRNG && currentDailyRNG
-        ? () => currentDailyRNG!.next()
-        : Math.random;
-      
-      selectedShape = weightedPick(
-        [...S_ASYM4, ...S_SYM4, ...S_CROSS],
-        [
-          ...S_ASYM4.map(() => 55 / S_ASYM4.length),
-          ...S_SYM4.map(() => 30 / S_SYM4.length),
-          ...S_CROSS.map(() => 15),
-        ],
-        rng
-      );
-    } else if (tier >= 5) {
-      // Tier 5 (40k-70k): Tier 4'e benzer ama daha az tiny
+      // Tier 6: VOID+ pressure, but rare small pieces keep the tray fair.
       const rng = useSeededRNG && currentDailyRNG
         ? () => currentDailyRNG!.next()
         : Math.random;
@@ -135,11 +350,28 @@ export const getRandomPiecesSync = (
       selectedShape = weightedPick(
         [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
         [
-          ...S_TINY.map(() => 1 / S_TINY.length),   // Neredeyse yok
-          ...S_SMALL.map(() => 3 / S_SMALL.length),
-          ...S_ASYM4.map(() => 50 / S_ASYM4.length),
+          ...S_TINY.map(() => 4 / S_TINY.length),
+          ...S_SMALL.map(() => 7 / S_SMALL.length),
+          ...S_ASYM4.map(() => 44 / S_ASYM4.length),
           ...S_SYM4.map(() => 30 / S_SYM4.length),
-          ...S_CROSS.map(() => 16),
+          ...S_CROSS.map(() => 15),
+        ],
+        rng
+      );
+    } else if (tier >= 5) {
+      // Tier 5: high pressure, softened so rescue is not the only relief.
+      const rng = useSeededRNG && currentDailyRNG
+        ? () => currentDailyRNG!.next()
+        : Math.random;
+      
+      selectedShape = weightedPick(
+        [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
+        [
+          ...S_TINY.map(() => 5 / S_TINY.length),
+          ...S_SMALL.map(() => 10 / S_SMALL.length),
+          ...S_ASYM4.map(() => 42 / S_ASYM4.length),
+          ...S_SYM4.map(() => 28 / S_SYM4.length),
+          ...S_CROSS.map(() => 15),
         ],
         rng
       );
@@ -179,6 +411,7 @@ export const getRandomPiecesSync = (
       );
     } else if (tier >= 2) {
       // Tier 2 (5000-10000): 4+ block pieces more common, small pieces reduced
+      const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
       if (randVal > 0.4) {
         const mediumLargeShapes = SHAPES.filter(s => {
           const blockCount = s.shape.flat().filter(v => v === 1).length;
@@ -190,6 +423,7 @@ export const getRandomPiecesSync = (
       }
     } else if (tier >= 1) {
       // Tier 1 (2000-5000): Large pieces 20% more common
+      const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
       if (randVal > 0.3) {
         const mediumShapes = SHAPES.filter(s => {
           const blockCount = s.shape.flat().filter(v => v === 1).length;
@@ -202,6 +436,7 @@ export const getRandomPiecesSync = (
     } else {
       // Tier 0 (0-2000): Normal density-based logic
       // Smart RNG: Adjust probabilities based on density
+      const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
       if (density > 0.7 && !isDaily) {
         // High density: Favor smaller pieces (1x1, 1x2, 2x1) to prevent unfair losses (Disabled in daily for consistency)
         const smallShapes = SHAPES.filter(s => s.shape.length * s.shape[0].length <= 2);
@@ -233,44 +468,16 @@ export const getRandomPiecesSync = (
       }
     }
     
-    // Special block type selection
-    let type: CellType = CellType.NORMAL;
-    const specialRand = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
-    
-    // TIMED MODE: 15% chance for CHRONO blocks (replaces normal special blocks)
-    if (gameMode === GameMode.TIMED) {
-      if (specialRand > 0.85) {
-        type = CellType.CHRONO;  // 15% chance
-      }
-    } else {
-      // OTHER MODES: Original special block logic (ICE and BOMB only)
-      // Total special blocks: 15% (NORMAL: 85%)
-      // Distribution: BOMB 8%, ICE 7%
-      if (specialRand > 0.92) {
-        type = CellType.BOMB;           // 8% chance (0.92-1.00)
-      } else if (specialRand > 0.85) {
-        type = CellType.ICE;            // 7% chance (0.85-0.92)
-      }
-      // else: NORMAL (85% chance, 0.00-0.85)
-    }
-
-    // CHRONO blocks are always single dots for easy placement
-    if (type === CellType.CHRONO) {
-      const dotShape = SHAPES.find(s => s.id === 'dot');
-      if (dotShape) selectedShape = dotShape;
-    }
-
     // Determine piece color based on type
     let pieceColor: string;
-    if (type === CellType.CHRONO) {
-      pieceColor = '#fbbf24'; // Gold
-    } else if (type === CellType.ICE) {
+    if (type === CellType.ICE) {
       pieceColor = '#7dd3fc'; // Light blue
     } else if (type === CellType.BOMB) {
       pieceColor = '#ef4444'; // Bright red for visibility
     } else {
       // Use custom colors if provided, otherwise use the shape's default color
-      pieceColor = colors ? colors[i % colors.length] : selectedShape.color;
+      pieceColor = pickDistinctTrayColor(colors, i, selectedShape, usedNormalColors);
+      usedNormalColors.push(pieceColor);
     }
 
     newPieces.push({ 
@@ -280,7 +487,7 @@ export const getRandomPiecesSync = (
         type: type
     });
   }
-  return newPieces;
+  return improveTrayQuality(newPieces, grid, colors);
 };
 
 /**
@@ -301,6 +508,7 @@ export const getRandomPieces = (
   gameMode?: GameMode
 ): Piece[] => {
   const newPieces: Piece[] = [];
+  const usedNormalColors: string[] = [];
   const tier = difficultyTier ?? 0;
   
   if (isDaily) {
@@ -310,7 +518,7 @@ export const getRandomPieces = (
 
   // Calculate grid density if grid is provided
   let density = 0;
-  if (grid) {
+  if (isValidGrid(grid)) {
     let filledCells = 0;
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
@@ -334,22 +542,7 @@ export const getRandomPieces = (
 
     // Difficulty tier logic (only for Endless mode, tier > 0)
     if (tier >= 6) {
-      // Tier 6 (70k+): Sadece büyük asimetrik parçalar ve cross
-      const rng = isDaily && currentDailyRNG
-        ? () => currentDailyRNG!.next()
-        : Math.random;
-      
-      selectedShape = weightedPick(
-        [...S_ASYM4, ...S_SYM4, ...S_CROSS],
-        [
-          ...S_ASYM4.map(() => 55 / S_ASYM4.length),
-          ...S_SYM4.map(() => 30 / S_SYM4.length),
-          ...S_CROSS.map(() => 15),
-        ],
-        rng
-      );
-    } else if (tier >= 5) {
-      // Tier 5 (40k-70k): Tier 4'e benzer ama daha az tiny
+      // Tier 6: VOID+ pressure, but rare small pieces keep the tray fair.
       const rng = isDaily && currentDailyRNG
         ? () => currentDailyRNG!.next()
         : Math.random;
@@ -357,11 +550,28 @@ export const getRandomPieces = (
       selectedShape = weightedPick(
         [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
         [
-          ...S_TINY.map(() => 1 / S_TINY.length),   // Neredeyse yok
-          ...S_SMALL.map(() => 3 / S_SMALL.length),
-          ...S_ASYM4.map(() => 50 / S_ASYM4.length),
+          ...S_TINY.map(() => 4 / S_TINY.length),
+          ...S_SMALL.map(() => 7 / S_SMALL.length),
+          ...S_ASYM4.map(() => 44 / S_ASYM4.length),
           ...S_SYM4.map(() => 30 / S_SYM4.length),
-          ...S_CROSS.map(() => 16),
+          ...S_CROSS.map(() => 15),
+        ],
+        rng
+      );
+    } else if (tier >= 5) {
+      // Tier 5: high pressure, softened so rescue is not the only relief.
+      const rng = isDaily && currentDailyRNG
+        ? () => currentDailyRNG!.next()
+        : Math.random;
+      
+      selectedShape = weightedPick(
+        [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
+        [
+          ...S_TINY.map(() => 5 / S_TINY.length),
+          ...S_SMALL.map(() => 10 / S_SMALL.length),
+          ...S_ASYM4.map(() => 42 / S_ASYM4.length),
+          ...S_SYM4.map(() => 28 / S_SYM4.length),
+          ...S_CROSS.map(() => 15),
         ],
         rng
       );
@@ -459,40 +669,23 @@ export const getRandomPieces = (
     let type: CellType = CellType.NORMAL;
     const specialRand = isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
     
-    // TIMED MODE: 15% chance for CHRONO blocks (replaces normal special blocks)
-    if (gameMode === GameMode.TIMED) {
-      if (specialRand > 0.85) {
-        type = CellType.CHRONO;  // 15% chance
-      }
-    } else {
-      // OTHER MODES: Original special block logic (ICE and BOMB only)
-      // Total special blocks: 15% (NORMAL: 85%)
-      // Distribution: BOMB 8%, ICE 7%
-      if (specialRand > 0.92) {
-        type = CellType.BOMB;           // 8% chance (0.92-1.00)
-      } else if (specialRand > 0.85) {
-        type = CellType.ICE;            // 7% chance (0.85-0.92)
-      }
-      // else: NORMAL (85% chance, 0.00-0.85)
-    }
-
-    // CHRONO blocks are always single dots for easy placement
-    if (type === CellType.CHRONO) {
-      const dotShape = SHAPES.find(s => s.id === 'dot');
-      if (dotShape) selectedShape = dotShape;
+    // Special blocks: BOMB 8%, ICE 7%, NORMAL 85%
+    if (specialRand > 0.92) {
+      type = CellType.BOMB;
+    } else if (specialRand > 0.85) {
+      type = CellType.ICE;
     }
 
     // Determine piece color based on type
     let pieceColor: string;
-    if (type === CellType.CHRONO) {
-      pieceColor = '#fbbf24'; // Gold
-    } else if (type === CellType.ICE) {
+    if (type === CellType.ICE) {
       pieceColor = '#7dd3fc'; // Light blue
     } else if (type === CellType.BOMB) {
       pieceColor = '#ef4444'; // Bright red for visibility
     } else {
       // Use custom colors if provided, otherwise use the shape's default color
-      pieceColor = colors ? colors[i % colors.length] : selectedShape.color;
+      pieceColor = pickDistinctTrayColor(colors, i, selectedShape, usedNormalColors);
+      usedNormalColors.push(pieceColor);
     }
 
     newPieces.push({ 
@@ -502,7 +695,7 @@ export const getRandomPieces = (
         type: type
     });
   }
-  return newPieces;
+  return improveTrayQuality(newPieces, grid, colors);
 };
 
 /**

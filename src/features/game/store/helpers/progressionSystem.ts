@@ -1,5 +1,5 @@
 import { Milestone, ProgressionState } from '../../types';
-import { MILESTONES, STREAK_MULTIPLIERS, TIER_THRESHOLDS } from '../../constants';
+import { MILESTONES, STREAK_MULTIPLIERS, TIER_THRESHOLDS, TIMED_MODE_MILESTONES } from '../../constants';
 
 /**
  * Initialize progression state
@@ -106,4 +106,55 @@ export function getTierProgress(score: number, tier: number): number {
   const progress = ((score - currentThreshold) / (nextThreshold - currentThreshold)) * 100;
   
   return Math.min(100, Math.max(0, progress));
+}
+
+/**
+ * Check for Timed Mode milestone achievements
+ * Returns newly reached milestone if any, otherwise null
+ * 
+ * @param currentScore - Current game score
+ * @param reachedMilestones - Set of milestone IDs already reached this session
+ * @returns Newly reached milestone object or null
+ * 
+ * @remarks
+ * **Validates: Requirements 8.1, 8.2, 8.3, 8.4, 8.5, 8.6**
+ * 
+ * This function checks if the player has reached a new milestone threshold
+ * and returns it for display. Each milestone is only returned once per game session.
+ * 
+ * Error handling:
+ * - Invalid scores (negative, NaN, Infinity) return null
+ * - Invalid reachedMilestones (not a Set) creates a new Set
+ * - Errors during execution return null to avoid blocking gameplay
+ */
+export function checkTimedMilestones(
+  currentScore: number,
+  reachedMilestones: Set<string>
+): { id: string; label: string } | null {
+  try {
+    // Input validation: handle invalid scores
+    if (!Number.isFinite(currentScore) || currentScore < 0) {
+      console.warn('[checkTimedMilestones] Invalid score:', currentScore);
+      return null;
+    }
+    
+    // Input validation: handle invalid Set
+    if (!(reachedMilestones instanceof Set)) {
+      console.warn('[checkTimedMilestones] Invalid reachedMilestones, creating new Set');
+      reachedMilestones = new Set();
+    }
+    
+    // Check each milestone in order
+    for (const milestone of TIMED_MODE_MILESTONES) {
+      if (currentScore >= milestone.threshold && !reachedMilestones.has(milestone.id)) {
+        return { id: milestone.id, label: milestone.label };
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    // Error handling: return null on errors, don't block gameplay
+    console.error('[checkTimedMilestones] Error checking milestones:', error);
+    return null;
+  }
 }

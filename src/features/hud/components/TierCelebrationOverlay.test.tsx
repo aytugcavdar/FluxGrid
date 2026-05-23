@@ -28,7 +28,7 @@ describe('TierCelebrationOverlay - Minimal Mobile-First Design', () => {
     // Check for tier text
     expect(container.textContent).toContain('TİER 5');
     expect(container.textContent).toContain('EFSANE');
-    expect(container.textContent).toContain('2.50× Çarpan');
+    expect(container.textContent).toContain('Skor 2.50×');
   });
 
   it('should use correct tier colors', () => {

@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { PlayerProfile, PlayerStats, ProgressionState } from '../types';
-import { ActiveAbilityType, PassiveAbilityType } from '@features/abilities/types';
 import { Achievement } from '@features/game/types';
 
 interface ProfileStore {
@@ -10,7 +9,7 @@ interface ProfileStore {
   initializeProfile: (username?: string) => void;
   updateStats: (updates: Partial<PlayerStats>) => void;
   incrementStat: (stat: keyof PlayerStats, amount: number) => void;
-  incrementSkillUse: (skill: ActiveAbilityType) => void;
+  incrementSkillUse: (skill: string) => void;
   updatePlaytime: (sessionDuration: number) => void;
   saveProfile: () => void;
   exportProfile: () => string;
@@ -118,7 +117,7 @@ export const useProfileStore = create<ProfileStore>((set, get) => ({
     }
   },
 
-  incrementSkillUse: (skill: ActiveAbilityType) => {
+  incrementSkillUse: (skill: string) => {
     const { profile } = get();
     if (!profile) return;
     

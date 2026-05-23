@@ -20,6 +20,7 @@ import com.fluxgrid.app.widget.StatsWidgetProvider;
 import com.google.firebase.crashlytics.FirebaseCrashlytics;
 import android.app.ActivityManager;
 import android.content.Context;
+import android.content.SharedPreferences;
 
 public class MainActivity extends BridgeActivity {
     
@@ -138,6 +139,28 @@ public class MainActivity extends BridgeActivity {
      * JavaScript bridge for widget updates
      */
     public class WidgetBridge {
+        private static final String PREFS_NAME = "CapacitorStorage";
+
+        @JavascriptInterface
+        public void syncStats(int endlessScore, int timedScore, int streak) {
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+
+            editor.putString("widget_high_score_endless", String.valueOf(Math.max(0, endlessScore)));
+            editor.putString("widget_high_score_timed", String.valueOf(Math.max(0, timedScore)));
+            editor.putString("widget_daily_streak", String.valueOf(Math.max(0, streak)));
+            editor.putString("widget_last_updated", String.valueOf(System.currentTimeMillis()));
+
+            editor.putString("flux_high_score_endless", String.valueOf(Math.max(0, endlessScore)));
+            editor.putString("flux_high_score_timed", String.valueOf(Math.max(0, timedScore)));
+            editor.putString("flux_daily_streak", String.valueOf(Math.max(0, streak)));
+            editor.apply();
+
+            runOnUiThread(() -> {
+                StatsWidgetProvider.updateAllWidgets(MainActivity.this);
+            });
+        }
+
         @JavascriptInterface
         public void update() {
             runOnUiThread(() -> {

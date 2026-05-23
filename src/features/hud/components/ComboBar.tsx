@@ -57,10 +57,10 @@ export const ComboBar: React.FC = React.memo(() => {
   if (combo <= 0) return null;
 
   // Combo seviyesine göre renk:
-  const barColor = combo >= 8 ? '#ef4444'
+  const barColor = combo >= 8 ? '#f472b6'
     : combo >= 5 ? '#f59e0b'
-    : combo >= 3 ? '#a78bfa'
-    : '#3b82f6';
+    : combo >= 3 ? '#34d399'
+    : '#22c55e';
 
   return (
     <AnimatePresence>

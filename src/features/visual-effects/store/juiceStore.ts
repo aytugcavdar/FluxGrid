@@ -160,19 +160,8 @@ interface JuiceState {
 export const useJuiceStore = create<JuiceState>((set) => ({
   // Screen shake
   screenShake: null,
-  triggerScreenShake: (intensity, duration) => {
-    set({
-      screenShake: {
-        intensity,
-        duration,
-        timestamp: Date.now(),
-      },
-    });
-    
-    // Auto-clear after duration
-    setTimeout(() => {
-      set({ screenShake: null });
-    }, duration);
+  triggerScreenShake: () => {
+    set({ screenShake: null });
   },
   
   // Line clear animations

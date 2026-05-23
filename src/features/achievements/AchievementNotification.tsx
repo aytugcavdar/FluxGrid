@@ -6,25 +6,23 @@
  */
 
 import React, { useEffect } from 'react';
-import { useAchievementStore } from './achievementStore';
-import { useThemeStore } from '@shared/store/themeStore';
+import { useGameStore } from '@features/game/store/gameStore';
 
 export const AchievementNotification: React.FC = () => {
-  const { recentUnlock, clearRecentUnlock } = useAchievementStore();
-  const { getThemeColors } = useThemeStore();
-  const colors = getThemeColors();
+  const { achievements, unlockedAchievementId, clearAchievementNotification } = useGameStore();
+  const recentUnlock = achievements.find(achievement => achievement.id === unlockedAchievementId);
 
   useEffect(() => {
     if (recentUnlock) {
       // Auto-dismiss after 5 seconds (handled by store)
       // But also allow manual dismiss
       const timer = setTimeout(() => {
-        clearRecentUnlock();
+        clearAchievementNotification();
       }, 5000);
 
       return () => clearTimeout(timer);
     }
-  }, [recentUnlock, clearRecentUnlock]);
+  }, [recentUnlock, clearAchievementNotification]);
 
   if (!recentUnlock) return null;
 
@@ -34,6 +32,7 @@ export const AchievementNotification: React.FC = () => {
       style={{
         maxWidth: '90%',
         width: '320px',
+        fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
       }}
     >
       <div
@@ -42,16 +41,16 @@ export const AchievementNotification: React.FC = () => {
           background: 'rgba(16, 185, 129, 0.95)',
           border: '2px solid rgba(255, 255, 255, 0.3)',
         }}
-        onClick={clearRecentUnlock}
+        onClick={clearAchievementNotification}
       >
         <div className="flex items-center gap-3">
-          <div className="text-4xl">{recentUnlock.icon}</div>
+          <div className="text-4xl">🏆</div>
           <div className="flex-1">
             <div className="text-xs font-semibold text-white/80 mb-1">
-              BAŞARIM AÇILDI
+              BAŞARIM KAZANILDI!
             </div>
             <div className="text-sm font-bold text-white mb-1">
-              {recentUnlock.title}
+              {recentUnlock.name}
             </div>
             <div className="text-xs text-white/90">
               {recentUnlock.description}

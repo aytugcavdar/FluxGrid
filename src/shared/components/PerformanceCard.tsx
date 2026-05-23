@@ -8,8 +8,7 @@ export const PerformanceCard: React.FC<PerformanceCardProps> = ({
   bestScore,
   maxCombo,
   maxTier,
-  maxDuration: _maxDuration,
-  chronoBonus,
+  maxDuration,
   color,
 }) => {
   const { getThemeColors } = useThemeStore();
@@ -91,9 +90,9 @@ export const PerformanceCard: React.FC<PerformanceCardProps> = ({
             </>
           ) : (
             <>
-              <p className="text-[10px] mb-1 font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>Chrono</p>
+              <p className="text-[10px] mb-1 font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>Süre</p>
               <p className="text-base font-black tabular-nums" style={{ color: colors.textPrimary }}>
-                +{chronoBonus || 0}s
+                {maxDuration || 0}s
               </p>
             </>
           )}

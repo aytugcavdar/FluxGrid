@@ -4,7 +4,7 @@ import { AdBanner } from '../AdBanner';
 import { AdManager } from '@core/services/ads/AdManager';
 
 // Mock AdManager
-vi.mock('@utils/adManager', () => ({
+vi.mock('@core/services/ads/AdManager', () => ({
   AdManager: {
     showBanner: vi.fn(),
     hideBanner: vi.fn(),
@@ -106,7 +106,7 @@ describe('AdBanner - Timing and Safe Area', () => {
   });
 
   describe('Conditional Rendering', () => {
-    it('should not render on small screens', () => {
+    it('should render on small native screens with reserved space', () => {
       // Mock small screen
       Object.defineProperty(window, 'innerWidth', { 
         value: 380, 
@@ -116,7 +116,7 @@ describe('AdBanner - Timing and Safe Area', () => {
       
       const { container } = render(<AdBanner position="bottom" />);
       
-      expect(container.firstChild).toBeNull();
+      expect(container.firstChild).not.toBeNull();
     });
 
     it('should not render when no-ads is active', () => {

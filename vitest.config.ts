@@ -33,6 +33,7 @@ export default defineConfig({
       '@shared':   path.resolve(__dirname, './src/shared'),
       '@utils':    path.resolve(__dirname, './src/utils'),
       '@services': path.resolve(__dirname, './src/services'),
+      '@core':     path.resolve(__dirname, './src/core'),
     },
   },
 });

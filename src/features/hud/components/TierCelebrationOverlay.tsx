@@ -5,6 +5,8 @@ interface TierCelebrationOverlayProps {
   tier: number;
   tierName: string;
   multiplier: number;
+  eventLabel?: string;
+  nextGoal?: number | null;
 }
 
 const TIER_COLORS: Record<number, string> = {
@@ -20,6 +22,8 @@ export const TierCelebrationOverlay: React.FC<TierCelebrationOverlayProps> = Rea
   tier,
   tierName,
   multiplier,
+  eventLabel,
+  nextGoal,
 }) => {
   const tierColor = TIER_COLORS[tier] ?? '#3b82f6';
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -81,7 +85,15 @@ export const TierCelebrationOverlay: React.FC<TierCelebrationOverlayProps> = Rea
           {tierName}
         </div>
         <div style={{ fontSize: 13, fontWeight: 700, color: tierColor, opacity: 0.9 }}>
-          {multiplier.toFixed(2)}× Çarpan
+          Skor {multiplier.toFixed(2)}×
+        </div>
+        {eventLabel && (
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.78)', lineHeight: 1 }}>
+            Event: {eventLabel}
+          </div>
+        )}
+        <div style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.52)', lineHeight: 1 }}>
+          {nextGoal ? `Sonraki hedef ${nextGoal.toLocaleString('tr-TR')}` : 'Final tier baskısı'}
         </div>
       </motion.div>
     </>

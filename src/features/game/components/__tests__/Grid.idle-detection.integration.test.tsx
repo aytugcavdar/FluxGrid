@@ -94,7 +94,6 @@ vi.mock('../store/gameStore', () => ({
     setDraggedPiece: vi.fn(),
     score: 0,
     combo: 0,
-    isSurgeActive: false,
     lastAction: null,
     pieces: [],
     activeEvent: null,

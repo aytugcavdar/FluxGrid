@@ -33,33 +33,22 @@ export const LineClearFlash: React.FC = React.memo(() => {
     <AnimatePresence>
       {show && (
         <>
-          {/* Full-width horizontal light sweep */}
+          {/* Short confirmation sweep; block fade happens on the board. */}
           <motion.div
             key={`sweep-${count}`}
-            initial={{ scaleX: 0, opacity: 0.9, x: '-50%' }}
-            animate={{ scaleX: 1, opacity: [0.9, 0.6, 0], x: '0%' }}
+            initial={{ scaleX: 0, opacity: 0.65, x: '-32%' }}
+            animate={{ scaleX: 1, opacity: [0.65, 0.42, 0], x: '0%' }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
             className="fixed pointer-events-none z-[35]"
             style={{
               left: 0, right: 0,
               top: '50%',
-              height: 3,
+              height: 2,
               transformOrigin: 'left center',
-              background: 'linear-gradient(90deg, transparent 0%, #818cf8 25%, #f472b6 50%, #34d399 75%, transparent 100%)',
-              boxShadow: '0 0 20px rgba(168,85,247,0.8), 0 0 8px rgba(244,114,182,0.6)',
+              background: 'linear-gradient(90deg, transparent 0%, rgba(129,140,248,0.4) 25%, rgba(244,114,182,0.65) 50%, rgba(52,211,153,0.45) 75%, transparent 100%)',
+              boxShadow: '0 0 14px rgba(168,85,247,0.45)',
               borderRadius: 2,
-            }}
-          />
-          {/* Subtle full-screen radial pulse */}
-          <motion.div
-            key={`pulse-${count}`}
-            initial={{ opacity: 0.18 }}
-            animate={{ opacity: 0 }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
-            className="fixed inset-0 pointer-events-none z-[34]"
-            style={{
-              background: 'radial-gradient(ellipse at center 50%, rgba(129,140,248,0.25) 0%, transparent 65%)',
             }}
           />
         </>

@@ -10,9 +10,9 @@ import { getEventScoreMultiplier } from './eventSystem';
 export function calculateScore(
   basePoints: number,
   colorBonus: boolean,
-  fluxMultiplier: number, // Deprecated, kept for compatibility
+  _deprecatedExternalMultiplier: number,
   tier: number,
-  activeEvent: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null,
+  activeEvent: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null,
   miniEventState: any, // Deprecated, kept for compatibility
   linesCleared: number,
   passiveScoreMultiplier: number,
@@ -35,4 +35,3 @@ export function calculateScore(
   return { score: finalScore, breakdown };
 }
 
-// calculateFluxGain removed - flux system deprecated

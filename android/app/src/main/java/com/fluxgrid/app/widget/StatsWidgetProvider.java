@@ -40,31 +40,23 @@ public class StatsWidgetProvider extends AppWidgetProvider {
         // Get stats from Capacitor SharedPreferences
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         
-        // Get high score (try new key first, fallback to legacy key)
-        int highScore = 0;
-        String highScoreStr = prefs.getString("widget_high_score_endless", null);
-        if (highScoreStr == null) {
-            // Fallback to legacy key
-            highScoreStr = prefs.getString("flux_high_score_endless", "0");
-        }
-        try {
-            highScore = Integer.parseInt(highScoreStr);
-        } catch (NumberFormatException e) {
-            highScore = 0;
-        }
+        int endlessHighScore = getIntPreference(
+            prefs,
+            "widget_high_score_endless",
+            "flux_high_score_endless"
+        );
+        int timedHighScore = getIntPreference(
+            prefs,
+            "widget_high_score_timed",
+            "flux_high_score_timed"
+        );
+        int highScore = Math.max(endlessHighScore, timedHighScore);
         
-        // Get streak (try new key first, fallback to legacy key)
-        int streak = 0;
-        String streakStr = prefs.getString("widget_daily_streak", null);
-        if (streakStr == null) {
-            // Fallback to legacy key
-            streakStr = prefs.getString("flux_daily_streak", "0");
-        }
-        try {
-            streak = Integer.parseInt(streakStr);
-        } catch (NumberFormatException e) {
-            streak = 0;
-        }
+        int streak = getIntPreference(
+            prefs,
+            "widget_daily_streak",
+            "flux_daily_streak"
+        );
         
         // Create RemoteViews
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_stats);
@@ -88,7 +80,26 @@ public class StatsWidgetProvider extends AppWidgetProvider {
         appWidgetManager.updateAppWidget(appWidgetId, views);
         
         // Log for debugging
-        android.util.Log.d("FluxGridWidget", "Updated widget - Score: " + highScore + ", Streak: " + streak);
+        android.util.Log.d(
+            "FluxGridWidget",
+            "Updated widget - Score: " + highScore +
+                ", Endless: " + endlessHighScore +
+                ", Timed: " + timedHighScore +
+                ", Streak: " + streak
+        );
+    }
+
+    private static int getIntPreference(SharedPreferences prefs, String primaryKey, String legacyKey) {
+        String value = prefs.getString(primaryKey, null);
+        if (value == null) {
+            value = prefs.getString(legacyKey, "0");
+        }
+
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
     
     private static String formatScore(int score) {

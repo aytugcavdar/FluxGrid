@@ -99,18 +99,6 @@ export const syncGridMeshes = (
               : BABYLON.Color3.FromHexString("#38bdf8");
             (mesh.material as BABYLON.StandardMaterial).emissiveColor = iceColor.scale(icePulse + 0.1);
           }
-          // CHRONO block animation
-          else if (cell.type === CellType.CHRONO && mesh.material) {
-            const chronoPulse = 0.15 + Math.abs(Math.sin(time * 2.5)) * 0.25;
-            (mesh.material as BABYLON.StandardMaterial).emissiveColor =
-              BABYLON.Color3.FromHexString("#f59e0b").scale(chronoPulse);
-          }
-          // LIGHTNING block animation
-          else if (cell.type === CellType.LIGHTNING && mesh.material) {
-            const lightningPulse = 0.2 + Math.abs(Math.sin(time * 3)) * 0.3;
-            (mesh.material as BABYLON.StandardMaterial).emissiveColor =
-              BABYLON.Color3.FromHexString("#fbbf24").scale(lightningPulse);
-          }
           // SHATTER skill: Show pulse on ALL filled cells
           else if (cell.type === CellType.NORMAL && activeSkill === 'SHATTER' && cell.filled) {
             const pulseAlpha = 0.15 + Math.abs(Math.sin(time * 3)) * 0.10;

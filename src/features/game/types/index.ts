@@ -12,7 +12,6 @@ export enum CellType {
   ICE = 'ICE',
   BOMB = 'BOMB',
   STONE = 'STONE',
-  CHRONO = 'CHRONO',
 }
 
 // Grid & Cells
@@ -55,8 +54,8 @@ export interface Achievement {
   targetValue: number;
   currentValue: number;
   hidden?: boolean;
-  category?: 'SCORE' | 'COMBO' | 'SPECIAL_BLOCKS' | 'ABILITIES' | 'PROGRESSION';
-  fluxReward?: number;
+  rarity?: 'BRONZE' | 'SILVER' | 'GOLD' | 'MYTHIC';
+  category?: 'SCORE' | 'COMBO' | 'SPECIAL_BLOCKS' | 'ABILITIES' | 'PROGRESSION' | 'SPEED' | 'MASTERY';
 }
 
 // Mini-event system removed - types deprecated

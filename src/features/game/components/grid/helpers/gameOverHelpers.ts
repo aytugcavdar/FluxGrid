@@ -46,10 +46,10 @@ export function updateGameOverAnimation(
   const elapsed = Date.now() - anim.startTime;
   
   if (anim.phase === 'shake') {
-    // Shake phase: 300ms
+    // Pre-collapse pause: 300ms. Camera shake is disabled.
     if (elapsed < 300) {
       anim.progress = elapsed / 300;
-      shakeIntensityRef.current = 0.5 * (1 - anim.progress); // Decay shake
+      shakeIntensityRef.current = 0;
     } else {
       // Transition to collapse phase
       anim.phase = 'collapse';

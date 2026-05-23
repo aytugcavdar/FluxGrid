@@ -906,7 +906,16 @@ export async function showRewardedContinue(): Promise<AdResult> {
  */
 export async function showRewardedStreakShield(): Promise<AdResult> {
   console.log('[AdManager] Showing rewarded ad: streak shield');
-  
+
+  // CRITICAL: Prevent concurrent ad displays
+  if (isShowingRewardedAd) {
+    console.log('[AdManager] Rewarded ad already showing, ignoring duplicate call');
+    return {
+      success: false,
+      error: 'Ad already showing',
+    };
+  }
+
   if (!isNative()) {
     console.log('[AdManager] Not on native platform, using mock delay');
     return new Promise((resolve) => {
@@ -922,19 +931,21 @@ export async function showRewardedStreakShield(): Promise<AdResult> {
       }, 1000);
     });
   }
-  
+
+  isShowingRewardedAd = true;
+
   try {
     // Remove any existing rewarded ad listener to prevent memory leaks
     if (rewardedAdListener) {
       rewardedAdListener.remove();
       rewardedAdListener = null;
     }
-    
-    // Log analytics event for ad shown
-    logAdEvent('ad_rewarded_complete', { 
-      reward_type: 'shield'
+
+    // Log ad shown event (not complete — ad hasn't been watched yet)
+    logAdEvent('ad_rewarded_show', {
+      reward_type: 'shield',
     });
-    
+
     await AdMob.prepareRewardVideoAd({
       adId: AD_IDS.rewarded,
     });
@@ -973,27 +984,31 @@ export async function showRewardedStreakShield(): Promise<AdResult> {
         },
       };
     } finally {
-      // Always clean up listener
+      // Always clean up listener and reset flag
       if (rewardedAdListener) {
         rewardedAdListener.remove();
         rewardedAdListener = null;
       }
+      isShowingRewardedAd = false;
     }
   } catch (error) {
     console.error('[AdManager] Failed to show rewarded ad (streak shield):', error);
-    
+
     // Clean up listener on error
     if (rewardedAdListener) {
       rewardedAdListener.remove();
       rewardedAdListener = null;
     }
-    
+
+    // Reset flag
+    isShowingRewardedAd = false;
+
     // Log analytics event for skip/failure
-    logAdEvent('ad_rewarded_skip', { 
+    logAdEvent('ad_rewarded_skip', {
       reward_type: 'shield',
-      error: String(error)
+      error: String(error),
     });
-    
+
     return {
       success: false,
       error: String(error),

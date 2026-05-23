@@ -216,7 +216,7 @@ function classifyGPUTier(gpuRenderer: string | null): { tier: DeviceTier | null;
   }
   
   // ═══════════════════════════════════════════════════════════
-  // � MID-HIGH GPUs (+4 points) - Upper mid-range
+  // MID-HIGH GPUs (+4 points) - Upper mid-range
   // ═══════════════════════════════════════════════════════════
   
   // Adreno 6xx upper (650-690)
@@ -257,11 +257,6 @@ function classifyGPUTier(gpuRenderer: string | null): { tier: DeviceTier | null;
     return { tier: DeviceTier.LOW, score: 2 };
   }
   
-  // Mali-G52, G51 (Honor 9X, Redmi Note 9)
-  if (gpu.match(/mali-g5[12]/)) {
-    return { tier: DeviceTier.LOW, score: 2 };
-  }
-  
   // Mali-G71
   if (gpu.includes('mali-g71')) {
     return { tier: DeviceTier.LOW, score: 2 };
@@ -275,6 +270,11 @@ function classifyGPUTier(gpuRenderer: string | null): { tier: DeviceTier | null;
   // ═══════════════════════════════════════════════════════════
   // 🔴 LOW GPUs (+1 point) - Old/weak
   // ═══════════════════════════════════════════════════════════
+  
+  // Mali-G52, G51 (Honor 9X, Redmi Note 9 - 2019-2020 budget)
+  if (gpu.match(/mali-g5[12]/)) {
+    return { tier: DeviceTier.LOW, score: 1 };
+  }
   
   // Adreno 5xx lower (500-520)
   if (gpu.match(/adreno.*(5[0-2]\d)/) || gpu.match(/adreno \(tm\) 5[0-2]/)) {
@@ -389,10 +389,10 @@ function determineTierFromScore(score: number): DeviceTier {
     return DeviceTier.MID; // 61-70: Mid-range
   } else if (score >= 46) {
     return DeviceTier.MID_LOW; // 46-60: Lower mid-range
-  } else if (score >= 31) {
-    return DeviceTier.LOW_MID; // 31-45: Entry mid-range
+  } else if (score >= 36) {
+    return DeviceTier.LOW_MID; // 36-45: Entry mid-range
   } else {
-    return DeviceTier.LOW; // 0-30: Low-end devices
+    return DeviceTier.LOW; // 0-35: Low-end devices (Honor 9X, old budget)
   }
 }
 

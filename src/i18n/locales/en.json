@@ -100,9 +100,49 @@
     "useBomb": "Bombs"
   },
   "tutorial": {
+    "welcome": {
+      "title": "👋 Welcome!",
+      "description": "Let's get started! Drag one of the pieces below and place it on the board"
+    },
+    "firstClear": {
+      "title": "🎯 Great Job!",
+      "description": "Now fill a complete row or column. Full lines are automatically cleared and you earn points!"
+    },
+    "combo": {
+      "title": "🔥 Combo Time!",
+      "description": "Perfect! Now clear consecutive lines to build a combo. Each combo brings more points!"
+    },
+    "comboTimer": {
+      "title": "⏰ Combo Timer",
+      "description": "Watch out! If you don't make a move within 5 seconds, your combo resets. Be quick!"
+    },
+    "gameModes": {
+      "title": "🎮 You're Ready!",
+      "description": "You are in Endless Mode. Play at your pace, clear lines, and build your best score."
+    },
+    "skip": "Skip",
+    "skipButton": "Skip Tutorial",
+    "progress": "{{current}} / {{total}}",
+    "handPointer": "Drag and drop",
+    "autoAdvance": {
+      "completing": "🎉 Completing...",
+      "continuing": "⏭ Auto-advancing..."
+    },
+    "achievements": {
+      "speed": "⚡ Fast Learner",
+      "perfect": "🎯 Perfect Start",
+      "combo": "🔥 Combo Master"
+    },
+    "hints": {
+      "perfectStart": "🎯 Perfect Start!",
+      "comboMaster": "🔥 Combo Master!",
+      "speedDemon": "⚡ Speed Demon!",
+      "tryDragging": "Try dragging a piece to the board",
+      "fillLine": "Fill a complete row or column",
+      "keepClearing": "Keep clearing lines quickly"
+    },
     "start": "Start Playing",
     "next": "Next",
-    "skip": "Skip",
     "step1": {
       "title": "Drag a Piece",
       "description": "Drag the blue piece to the highlighted area on the grid."
@@ -116,8 +156,8 @@
       "description": "Complete a row or column to clear it and earn points!"
     },
     "step4": {
-      "title": "Watch Your Flux",
-      "description": "The flux meter fills as you place pieces. At 100%, you activate Surge mode for 2× points!"
+      "title": "Build Combos",
+      "description": "Clear lines back-to-back to keep your combo alive and push your score higher."
     },
     "step5": {
       "title": "Use a Skill",
@@ -275,7 +315,7 @@
   "guided": {
     "step1": "Drag the piece below and drop it on the grid",
     "step2": "Fill a complete row",
-    "step3": "Use abilities when Flux is full",
+    "step3": "Clear lines quickly to keep your combo going",
     "step4": "Perfect! You're ready now",
     "skip": "SKIP"
   },

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { AdManager } from './adManager';
+import { AdManager } from './AdManager';
 
 describe('AdManager', () => {
   beforeEach(() => {

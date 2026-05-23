@@ -38,7 +38,6 @@ export class JuiceTriggers {
   static onLinesCleared(actions: ClearAction[], combo: number): void {
     const { 
       performanceMode,
-      triggerScreenShake, 
       addLineClearAnimation,
       addParticleExplosion,
       triggerComboGlow
@@ -63,14 +62,7 @@ export class JuiceTriggers {
     // 2. Particle effects
     this.addParticleEffects(actions, addParticleExplosion);
     
-    // 3. Screen shake
-    if (combo >= 2) {
-      const shakeIntensity = Math.min(2 + combo * 0.5, 5);
-      const shakeDuration = 100;
-      triggerScreenShake(shakeIntensity, shakeDuration);
-    }
-    
-    // 4. Combo glow
+    // 3. Combo glow
     if (combo >= 3) {
       const glowIntensity = Math.min(combo * 0.2, 1);
       const glowColor = this.getComboColor(combo);
@@ -193,20 +185,14 @@ export class JuiceTriggers {
    * Trigger effects for invalid placement
    */
   static onInvalidPlacement(): void {
-    const { performanceMode, triggerScreenShake, triggerPlacementFeedback } = useJuiceStore.getState();
+    const { performanceMode, triggerPlacementFeedback } = useJuiceStore.getState();
     
     // Skip all effects if performance mode is enabled
     if (performanceMode) {
       return;
     }
     
-    triggerScreenShake(3, 100);
     triggerPlacementFeedback('invalid');
-    
-    // Haptic feedback
-    if ('vibrate' in navigator) {
-      navigator.vibrate([50, 30, 50]); // Double vibration pattern
-    }
   }
   
   /**

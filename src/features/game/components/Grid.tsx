@@ -4,7 +4,7 @@ import { useGameStore } from '../store/gameStore';
 import { useThemeStore } from '../../../shared/store/themeStore';
 import { useSettingsStore } from '@core/state/settingsStore';
 import { useVisualEffectStore } from '../../visual-effects/store/visualEffectStore';
-import { GRID_SIZE, CellType, GridState } from '../types';
+import { GRID_SIZE, CellType, GridState, Piece } from '../types';
 import { GameMode } from '@shared/types';
 import { getDragYOffset, setCanvasRect } from '../../../utils/responsive/responsive';
 import { playHaptic } from '../../../utils/audio';
@@ -268,7 +268,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             placementAnimationRef.current = null;
             gameOverAnimationRef.current = null;
             tierFlashRef.current = null;
-            comboStateRef.current = null;
+            // comboStateRef removed — was never written with live data
             
             // Clear fragment pool
             fragmentPoolRef.current.activeFragments.forEach(({ mesh }) => {
@@ -298,10 +298,11 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
     
     const ghostMeshesRef = useRef<BABYLON.Mesh[]>([]);
     const guidedHighlightMeshesRef = useRef<BABYLON.Mesh[]>([]);
+    // ambientParticlesRef: always empty (ambient particles were removed)
     const ambientParticlesRef = useRef<BABYLON.Mesh[]>([]);
     const lastScoreRef = useRef(0);
     const glowLayerRef = useRef<BABYLON.GlowLayer | null>(null);
-    const placementHandledRef = useRef(false);
+    // placementHandledRef removed — was declared but never read
     const skillOverlayMeshesRef = useRef<BABYLON.Mesh[]>([]);
     
     // Fragment pool for break apart animation
@@ -347,13 +348,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         }>;
     } | null>(null);
     
-    // Combo celebration state (Juice System)
-    const comboStateRef = useRef<{
-        active: boolean;
-        level: number;
-        startTime: number;
-        flashProgress: number;
-    } | null>(null);
+    // comboStateRef removed — was declared but never written with live data
     
     // Game over animation state
     const gameOverAnimationRef = useRef<GameOverAnimation | null>(null);

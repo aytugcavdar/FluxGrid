@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateTier, getTierScoreMultiplier, getTierFluxMultiplier, migrateTierData } from './tierSystem';
+import { calculateTier, getTierScoreMultiplier, migrateTierData } from './tierSystem';
 
 describe('tierSystem', () => {
   describe('calculateTier', () => {
@@ -49,16 +49,6 @@ describe('tierSystem', () => {
 
     it('should return 1.0 for invalid tier above 6', () => {
       expect(getTierScoreMultiplier(7)).toBe(1.0);
-    });
-  });
-
-  describe('getTierFluxMultiplier (DEPRECATED)', () => {
-    it('should return 1.0 for all tiers (flux system removed)', () => {
-      expect(getTierFluxMultiplier(0)).toBe(1.0);
-      expect(getTierFluxMultiplier(1)).toBe(1.0);
-      expect(getTierFluxMultiplier(6)).toBe(1.0);
-      expect(getTierFluxMultiplier(-1)).toBe(1.0);
-      expect(getTierFluxMultiplier(7)).toBe(1.0);
     });
   });
 

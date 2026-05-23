@@ -7,22 +7,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useGameStore } from '@features/game/store/gameStore';
 import { GameMode } from '@shared/types';
-import { LocalStorageService } from '@services/local/localStorageService';
-
-// Mock LocalStorageService
-vi.mock('@services/local/localStorageService', () => ({
-  LocalStorageService: {
-    saveStats: vi.fn(),
-    loadStats: vi.fn(() => null),
-    saveHighScore: vi.fn(),
-    loadHighScores: vi.fn(() => ({
-      ENDLESS: 0,
-      TIMED: 0,
-      DAILY_CHALLENGE: 0,
-      ZEN: 0,
-    })),
-  },
-}));
 
 describe('Mode-Specific Statistics Tracking', () => {
   beforeEach(() => {
@@ -47,7 +31,6 @@ describe('Mode-Specific Statistics Tracking', () => {
         timedMaxCombo: 0,
         timedTotalLines: 0,
         timedMaxDuration: 0,
-        timedChronoBonus: 0,
         timedSprintBonusTotal: 0,
       },
     });
@@ -164,22 +147,6 @@ describe('Mode-Specific Statistics Tracking', () => {
       expect(stats.timedTotalLines).toBe(15);
     });
 
-    it('should track timedChronoBonus during gameplay', () => {
-      const store = useGameStore.getState();
-      store.initGame(GameMode.TIMED);
-      
-      // Simulate chrono bonus
-      store.setState({
-        stats: {
-          ...store.stats,
-          timedChronoBonus: 5,
-        },
-      });
-      
-      const stats = useGameStore.getState().stats;
-      expect(stats.timedChronoBonus).toBe(5);
-    });
-
     it('should track timedSprintBonusTotal during gameplay', () => {
       const store = useGameStore.getState();
       store.initGame(GameMode.TIMED);
@@ -238,33 +205,6 @@ describe('Mode-Specific Statistics Tracking', () => {
       expect(stats.endlessGamesPlayed).toBe(3); // Should not change
       expect(stats.endlessMaxCombo).toBe(8); // Should not change
       expect(stats.timedGamesPlayed).toBe(1); // Should increment
-    });
-  });
-
-  describe('LocalStorage Integration', () => {
-    it('should save stats to localStorage when game starts', () => {
-      const store = useGameStore.getState();
-      
-      store.initGame(GameMode.ENDLESS);
-      
-      expect(LocalStorageService.saveStats).toHaveBeenCalled();
-    });
-
-    it('should save mode-specific high scores on game end', () => {
-      const store = useGameStore.getState();
-      store.initGame(GameMode.ENDLESS);
-      
-      // Simulate game end with high score
-      store.setState({
-        score: 1000,
-        isGameOver: true,
-      });
-      
-      // Manually trigger checkGameOver logic
-      store.checkGameOver();
-      
-      // Stats should be saved
-      expect(LocalStorageService.saveStats).toHaveBeenCalled();
     });
   });
 });

@@ -33,6 +33,7 @@ export class MeshPool {
     // Try to get from pool
     if (poolArray && poolArray.length > 0) {
       const mesh = poolArray.pop()!;
+      this.resetMeshVisualState(mesh, colorHex, type, health);
       mesh.isVisible = true;
       return mesh;
     }
@@ -52,8 +53,13 @@ export class MeshPool {
   ): void {
     const key = this.getKey(colorHex, type, health);
     
+    this.resetMeshVisualState(mesh, colorHex, type, health);
+
     // Hide mesh
     mesh.isVisible = false;
+    mesh.getChildMeshes().forEach(child => {
+      child.isVisible = false;
+    });
     
     // Reset transform
     mesh.position.set(0, -100, 0); // Move far away
@@ -106,5 +112,68 @@ export class MeshPool {
    */
   private getKey(colorHex: string, type: CellType, health: number | undefined): string {
     return `${colorHex}-${type}-${health || 0}`;
+  }
+
+  /**
+   * Pooled meshes may have been faded, flashed, or outlined by animations.
+   * Restore the base appearance before they are reused by a board cell.
+   */
+  private resetMeshVisualState(
+    mesh: BABYLON.Mesh,
+    colorHex: string,
+    type: CellType,
+    health: number | undefined
+  ): void {
+    mesh.visibility = 1;
+    mesh.getChildMeshes().forEach(child => {
+      child.isVisible = true;
+      child.visibility = 1;
+    });
+
+    const mat = mesh.material as BABYLON.StandardMaterial | null;
+    if (!mat) {
+      return;
+    }
+
+    mat.wireframe = false;
+    mat.specularColor = BABYLON.Color3.Black();
+    mat.specularPower = 0;
+
+    if (type === CellType.ICE) {
+      if (health === 1) {
+        mat.diffuseColor = BABYLON.Color3.FromHexString("#bfdbfe");
+        mat.emissiveColor = BABYLON.Color3.FromHexString("#60a5fa").scale(0.1);
+        mat.alpha = 0.8;
+        mesh.enableEdgesRendering();
+        mesh.edgesWidth = 3.5;
+        mesh.edgesColor = new BABYLON.Color4(0.9, 0.6, 0.2, 0.9);
+      } else {
+        mat.diffuseColor = BABYLON.Color3.FromHexString("#7dd3fc");
+        mat.emissiveColor = BABYLON.Color3.FromHexString("#38bdf8").scale(0.15);
+        mat.alpha = 0.85;
+        mesh.enableEdgesRendering();
+        mesh.edgesWidth = 2.5;
+        mesh.edgesColor = new BABYLON.Color4(0.7, 0.92, 1.0, 0.85);
+      }
+      return;
+    }
+
+    if (type === CellType.BOMB) {
+      mat.diffuseColor = BABYLON.Color3.FromHexString("#1c1917");
+      mat.emissiveColor = BABYLON.Color3.FromHexString("#f59e0b").scale(0.3);
+      mat.alpha = 1;
+      mesh.enableEdgesRendering();
+      mesh.edgesWidth = 4;
+      mesh.edgesColor = new BABYLON.Color4(1, 0.6, 0, 1);
+      return;
+    }
+
+    const col = BABYLON.Color3.FromHexString(colorHex);
+    mat.diffuseColor = col;
+    mat.emissiveColor = col.scale(0.06);
+    mat.alpha = 0.95;
+    mesh.enableEdgesRendering();
+    mesh.edgesWidth = 1.5;
+    mesh.edgesColor = new BABYLON.Color4(1, 1, 1, 0.12);
   }
 }

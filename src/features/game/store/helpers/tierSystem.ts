@@ -73,17 +73,6 @@ export function getTierScoreMultiplier(tier: number): number {
 }
 
 /**
- * Get tier flux multiplier (DEPRECATED - Flux system removed)
- * 
- * @deprecated Flux system has been removed. This function now returns 1.0 for all tiers.
- * @param tier - The tier level (0-6)
- * @returns Always returns 1.0
- */
-export function getTierFluxMultiplier(tier: number): number {
-  return 1.0;
-}
-
-/**
  * Migrate old save data to new tier system
  * 
  * Recalculates the player's tier based on their current score and the new

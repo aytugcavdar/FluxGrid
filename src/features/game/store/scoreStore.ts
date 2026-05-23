@@ -26,7 +26,6 @@ export interface ScoreStore {
   comboTimeLeft: number;
   
   // Timed Mode State
-  chronoBonus: number;
   finalSprintBonus: number;
   
   // Actions
@@ -40,7 +39,6 @@ export interface ScoreStore {
   setCombo: (combo: number) => void;
   setMaxCombo: (maxCombo: number) => void;
   setComboTimer: (startTime: number | null, timeLeft: number) => void;
-  addChronoBonus: (seconds: number) => void;
   addSprintBonus: (points: number) => void;
   resetScoreState: () => void;
   loadHighScores: () => void;
@@ -58,7 +56,6 @@ export const useScoreStore = create<ScoreStore>((set, get) => {
     comboTimerStartTime: null,
     comboTimerDuration: COMBO_TIMER.DURATION,
     comboTimeLeft: 0,
-    chronoBonus: 0,
     finalSprintBonus: 0,
   };
   
@@ -174,13 +171,6 @@ export const useScoreStore = create<ScoreStore>((set, get) => {
     },
     
     /**
-     * Add chrono bonus seconds
-     */
-    addChronoBonus: (seconds) => {
-      set({ chronoBonus: get().chronoBonus + seconds });
-    },
-    
-    /**
      * Add sprint bonus points
      */
     addSprintBonus: (points) => {
@@ -198,7 +188,6 @@ export const useScoreStore = create<ScoreStore>((set, get) => {
         lastMultiplierBreakdown: null,
         comboTimerStartTime: null,
         comboTimeLeft: 0,
-        chronoBonus: 0,
         finalSprintBonus: 0,
       });
     },

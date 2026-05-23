@@ -7,22 +7,15 @@ vi.mock('@features/game/store/gameStore', () => ({
   useGameStore: vi.fn(() => ({
     score: 1000,
     highScore: 5000,
-    flux: 50,
     combo: 0,
-    activateSkill: vi.fn(),
-    activeSkill: null,
-    isSurgeActive: false,
     currentLevelIndex: 1,
     movesLeft: 10,
     levelObjectives: [],
     gameMode: 'ENDLESS',
     timeLeft: 60,
     setAppState: vi.fn(),
-    zenSessionTime: 0,
-    zenBlocksPlaced: 0,
     survivalNextPush: 10,
     survivalPushInterval: 10,
-    zenPaletteIndex: 0,
     survivalTime: 0,
     activeEvent: null,
     eventMovesRemaining: 0,
@@ -175,37 +168,18 @@ describe('HUD - Responsive Behavior and Safe Area Handling', () => {
       expect(mobileLayout).toBeInTheDocument();
     });
 
-    it('skill buttons maintain consistent spacing', () => {
-      render(<HUD />);
-      
-      // Skill buttons now have specific testids like mobile-skill-button-reroll
-      const rerollButton = screen.getByTestId('mobile-skill-button-reroll');
-      const bombButton = screen.getByTestId('mobile-skill-button-bomb');
-      
-      const skillButtons = [rerollButton, bombButton];
-      
-      // Should have at least 2 skill buttons
-      expect(skillButtons.length).toBeGreaterThanOrEqual(2);
-      
-      // Parent divs should have flex: 1 for equal width distribution
-      skillButtons.forEach(button => {
-        const parentDiv = button.parentElement;
-        const style = parentDiv?.getAttribute('style');
-        expect(style).toContain('flex: 1');
-      });
-    });
   });
 
   describe('Integration: Responsive layout structure', () => {
-    it('mobile HUD has 2-3 rows (with optional flux hint)', () => {
+    it('mobile HUD has the current compact row structure', () => {
       const { container } = render(<HUD />);
       
       const mobileLayout = container.querySelector('.md\\:hidden');
       const rows = mobileLayout?.children;
       
-      // Should have 2-3 row divs (Row1, Row2, optional flux hint)
+      // Row 1, Row 2, and optional event/tier content.
       expect(rows?.length).toBeGreaterThanOrEqual(2);
-      expect(rows?.length).toBeLessThanOrEqual(4); // Row1, Row2, flux hint, surge banner
+      expect(rows?.length).toBeLessThanOrEqual(4);
     });
 
     it('Row 1 has fixed height of 52px', () => {

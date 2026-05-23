@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface EventStartVisualProps {
-  eventType: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
+  eventType: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
   onComplete?: () => void;
 }
 

@@ -77,17 +77,10 @@ describe('Event Duration Display', () => {
   const createMockGameState = (overrides: any = {}) => ({
     score: 1000,
     highScore: 2000,
-    flux: 50,
     combo: 0,
-    activateSkill: vi.fn(),
-    activeSkill: null,
-    isSurgeActive: false,
     gameMode: GameMode.ENDLESS,
     timeLeft: 0,
     setAppState: vi.fn(),
-    zenSessionTime: 0,
-    zenBlocksPlaced: 0,
-    zenPaletteIndex: 0,
     activeEvent: null,
     eventMovesRemaining: 0,
     timedBoostMovesLeft: 0,
@@ -100,6 +93,7 @@ describe('Event Duration Display', () => {
     vi.mocked(useThemeStore).mockReturnValue({
       getThemeColors: () => mockThemeColors,
     } as any);
+    vi.mocked(useGameStore).mockReturnValue(createMockGameState() as any);
   });
 
   it('should not display event banner when no event is active', () => {
@@ -108,7 +102,6 @@ describe('Event Duration Display', () => {
     render(<HUD />);
     
     expect(screen.queryByText(/Buz Fırtınası/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Gravity Rush/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Deprem/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Ayna Modu/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Kaos Modu/i)).not.toBeInTheDocument();
@@ -128,22 +121,6 @@ describe('Event Duration Display', () => {
     const eventNames = screen.getAllByText(/Buz Fırtınası/i);
     expect(eventNames.length).toBeGreaterThan(0);
     expect(screen.getAllByText(/8 hamle/i).length).toBeGreaterThan(0);
-  });
-
-  it('should display GRAVITY_RUSH event with remaining moves', () => {
-    vi.mocked(useGameStore).mockReturnValue(createMockGameState({
-      score: 4000,
-      highScore: 5000,
-      activeEvent: 'GRAVITY_RUSH',
-      eventMovesRemaining: 10,
-      difficultyTier: 2,
-    }) as any);
-
-    render(<HUD />);
-    
-    const eventNames = screen.getAllByText(/Gravity Rush/i);
-    expect(eventNames.length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/10 hamle/i).length).toBeGreaterThan(0);
   });
 
   it('should display QUAKE event with remaining moves', () => {
@@ -189,7 +166,7 @@ describe('Event Duration Display', () => {
 
     render(<HUD />);
     
-    const eventNames = screen.getAllByText(/Kaos Modu/i);
+    const eventNames = screen.getAllByText(/Kaos!/i);
     expect(eventNames.length).toBeGreaterThan(0);
     expect(screen.getAllByText(/12 hamle/i).length).toBeGreaterThan(0);
   });
@@ -211,54 +188,54 @@ describe('Event Duration Display', () => {
   });
 
   it('should update display when event moves remaining changes', () => {
-    const { rerender } = render(<HUD />);
-    
     // Initial state with 10 moves
-    vi.mocked(useGameStore).mockReturnValue(createMockGameState({
+    let gameState = createMockGameState({
       score: 1500,
       activeEvent: 'ICE_STORM',
       eventMovesRemaining: 10,
       difficultyTier: 1,
-    }) as any);
+    });
+    vi.mocked(useGameStore).mockImplementation(() => gameState as any);
     
-    rerender(<HUD />);
+    const { unmount } = render(<HUD />);
     expect(screen.getAllByText(/10 hamle/i).length).toBeGreaterThan(0);
     
     // After one move
-    vi.mocked(useGameStore).mockReturnValue(createMockGameState({
+    gameState = createMockGameState({
       score: 1500,
       activeEvent: 'ICE_STORM',
       eventMovesRemaining: 9,
       difficultyTier: 1,
-    }) as any);
+    });
     
-    rerender(<HUD />);
+    unmount();
+    render(<HUD />);
     expect(screen.getAllByText(/9 hamle/i).length).toBeGreaterThan(0);
   });
 
   it('should hide event banner when event expires', () => {
-    const { rerender } = render(<HUD />);
-    
     // Event active
-    vi.mocked(useGameStore).mockReturnValue(createMockGameState({
+    let gameState = createMockGameState({
       score: 1500,
       activeEvent: 'ICE_STORM',
       eventMovesRemaining: 1,
       difficultyTier: 1,
-    }) as any);
+    });
+    vi.mocked(useGameStore).mockImplementation(() => gameState as any);
     
-    rerender(<HUD />);
+    const { unmount } = render(<HUD />);
     expect(screen.getAllByText(/Buz Fırtınası/i).length).toBeGreaterThan(0);
     
     // Event expired
-    vi.mocked(useGameStore).mockReturnValue(createMockGameState({
+    gameState = createMockGameState({
       score: 1500,
       activeEvent: null,
       eventMovesRemaining: 0,
       difficultyTier: 1,
-    }) as any);
+    });
     
-    rerender(<HUD />);
+    unmount();
+    render(<HUD />);
     expect(screen.queryByText(/Buz Fırtınası/i)).not.toBeInTheDocument();
   });
 

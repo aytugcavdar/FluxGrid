@@ -1,4 +1,5 @@
-import { GridState, Piece, MiniEventState } from '../../types';
+import { GridState, Piece } from '../../types';
+import { createMiniEventState } from './miniEventSystem';
 
 export interface GameStateSnapshot {
   version: number;
@@ -7,13 +8,13 @@ export interface GameStateSnapshot {
   level: number;
   grid: GridState;
   pieces: Piece[];
-  flux: number;
   combo: number;
   difficultyTier: number;
   activeEvent: string | null;
   eventMovesRemaining: number;
-  miniEventState: MiniEventState;
+  miniEventState: ReturnType<typeof createMiniEventState>;
   totalMovesPlayed: number;
+  tierStartMove?: number;
 }
 
 export interface ParseResult<T> {

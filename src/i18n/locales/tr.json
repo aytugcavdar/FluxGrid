@@ -100,9 +100,49 @@
     "useBomb": "Bomba"
   },
   "tutorial": {
+    "welcome": {
+      "title": "👋 Hoş Geldin!",
+      "description": "Hadi başlayalım! Aşağıdaki parçalardan birini sürükle ve tahtaya yerleştir"
+    },
+    "firstClear": {
+      "title": "🎯 Harika İş!",
+      "description": "Şimdi tam bir satır veya sütun doldur. Dolu satırlar otomatik temizlenir ve puan kazanırsın!"
+    },
+    "combo": {
+      "title": "🔥 Kombo Zamanı!",
+      "description": "Mükemmel! Şimdi ardışık satır temizle ve kombo yap. Her kombo daha fazla puan getirir!"
+    },
+    "comboTimer": {
+      "title": "⏰ Combo Timer",
+      "description": "Dikkat! 5 saniye içinde yeni hamle yapmazsan kombon sıfırlanır. Hızlı ol!"
+    },
+    "gameModes": {
+      "title": "🎮 Hazırsın!",
+      "description": "Sonsuz moddasın. Rahat oyna, satırları temizle ve kendi rekorunu geliştir."
+    },
+    "skip": "Atla",
+    "skipButton": "Tutorial'ı Atla",
+    "progress": "{{current}} / {{total}}",
+    "handPointer": "Sürükle ve bırak",
+    "autoAdvance": {
+      "completing": "🎉 Tamamlanıyor...",
+      "continuing": "⏭ Otomatik devam..."
+    },
+    "achievements": {
+      "speed": "⚡ Hızlı Öğrenen",
+      "perfect": "🎯 Mükemmel Başlangıç",
+      "combo": "🔥 Kombo Ustası"
+    },
+    "hints": {
+      "perfectStart": "🎯 Mükemmel Başlangıç!",
+      "comboMaster": "🔥 Kombo Ustası!",
+      "speedDemon": "⚡ Hız Canavarı!",
+      "tryDragging": "Bir parçayı tahtaya sürüklemeyi dene",
+      "fillLine": "Tam bir satır veya sütun doldur",
+      "keepClearing": "Satırları hızlıca temizlemeye devam et"
+    },
     "start": "Oynamaya Başla",
     "next": "Devam",
-    "skip": "Atla",
     "step1": {
       "title": "Parçayı Sürükle",
       "description": "Mavi parçayı tutup ızgaradaki vurgulanan alana bırak."
@@ -116,8 +156,8 @@
       "description": "Bir satır veya sütunu tamamlayarak temizle ve puan kazan!"
     },
     "step4": {
-      "title": "Flux'unu İzle",
-      "description": "Parça yerleştirdikçe flux ölçer dolar. %100'de Surge modu aktif olur ve 2× puan kazanırsın!"
+      "title": "Kombo Kur",
+      "description": "Kombo zincirini canlı tutmak ve skorunu yükseltmek için arka arkaya satır temizle."
     },
     "step5": {
       "title": "Bir Yetenek Kullan",
@@ -275,7 +315,7 @@
   "guided": {
     "step1": "Alttaki parçayı sürükle ve ızgaraya bırak",
     "step2": "Bir satırı tamamen doldur",
-    "step3": "Flux dolunca yetenek kullanabilirsin",
+    "step3": "Kombonu sürdürmek için hızlıca satır temizle",
     "step4": "Mükemmel! Artık hazırsın",
     "skip": "ATLA"
   },

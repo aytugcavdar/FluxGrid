@@ -20,7 +20,6 @@ export type AchievementId =
   | 'streak_7'
   | 'streak_30'
   | 'ability_master'
-  | 'flux_master'
   | 'combo_master';
 
 export interface Achievement {
@@ -127,13 +126,6 @@ const ACHIEVEMENT_DEFINITIONS: Record<AchievementId, Omit<Achievement, 'unlocked
     icon: '🎯',
     target: 8,
   },
-  flux_master: {
-    id: 'flux_master',
-    title: 'Flux Ustası',
-    description: '10 kez SURGE moduna gir',
-    icon: '⚡',
-    target: 10,
-  },
   combo_master: {
     id: 'combo_master',
     title: 'Kombo Ustası',
@@ -143,7 +135,7 @@ const ACHIEVEMENT_DEFINITIONS: Record<AchievementId, Omit<Achievement, 'unlocked
   },
 };
 
-const STORAGE_KEY = 'flux_achievements';
+const STORAGE_KEY = 'flux_achievement_store';
 
 // localStorage helpers
 function loadAchievements(): Record<AchievementId, Achievement> | null {
@@ -152,7 +144,6 @@ function loadAchievements(): Record<AchievementId, Achievement> | null {
     if (!data) return null;
     return JSON.parse(data);
   } catch (error) {
-    console.error('Failed to load achievements:', error);
     return null;
   }
 }
@@ -161,7 +152,7 @@ function saveAchievements(achievements: Record<AchievementId, Achievement>): voi
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(achievements));
   } catch (error) {
-    console.error('Failed to save achievements:', error);
+    // Silent fail
   }
 }
 
@@ -170,25 +161,52 @@ function initializeAchievementData(): Record<AchievementId, Achievement> {
   const saved = loadAchievements();
   
   if (saved) {
-    // Merge with definitions (in case new achievements were added)
-    const merged: Record<AchievementId, Achievement> = {} as any;
+    // Check if saved data has corrupted encoding (contains mojibake characters)
+    let hasCorruptedData = false;
+    try {
+      hasCorruptedData = Object.values(saved).some(ach => {
+        if (!ach || typeof ach !== 'object') return false;
+        const title = String(ach.title || '');
+        const description = String(ach.description || '');
+        // Check for common mojibake characters from UTF-8 corruption
+        const mojibakePattern = /[ÃÄÅâ]/;
+        return mojibakePattern.test(title) || mojibakePattern.test(description);
+      });
+    } catch (error) {
+      hasCorruptedData = true; // If error, assume corrupted
+    }
     
-    Object.keys(ACHIEVEMENT_DEFINITIONS).forEach((key) => {
-      const id = key as AchievementId;
-      const def = ACHIEVEMENT_DEFINITIONS[id];
+    // If corrupted, clear and reinitialize
+    if (hasCorruptedData) {
+      localStorage.removeItem(STORAGE_KEY);
+      // Fall through to create fresh achievements
+    } else {
+      // Merge with definitions (in case new achievements were added)
+      const merged: Record<AchievementId, Achievement> = {} as any;
       
-      if (saved[id]) {
-        merged[id] = saved[id];
-      } else {
-        merged[id] = {
-          ...def,
-          unlocked: false,
-          progress: 0,
-        };
-      }
-    });
-    
-    return merged;
+      Object.keys(ACHIEVEMENT_DEFINITIONS).forEach((key) => {
+        const id = key as AchievementId;
+        const def = ACHIEVEMENT_DEFINITIONS[id];
+        
+        if (saved[id]) {
+          // Keep unlocked status but refresh title/description from definitions
+          merged[id] = {
+            ...def,
+            unlocked: saved[id].unlocked,
+            unlockedAt: saved[id].unlockedAt,
+            progress: saved[id].progress,
+          };
+        } else {
+          merged[id] = {
+            ...def,
+            unlocked: false,
+            progress: 0,
+          };
+        }
+      });
+      
+      return merged;
+    }
   }
   
   // Create fresh achievements
@@ -254,11 +272,8 @@ export const useAchievementStore = create<AchievementStore>((set, get) => ({
     
     // CRITICAL FIX: Double-check if already unlocked (race condition protection)
     if (!achievement || achievement.unlocked) {
-      console.log(`[Achievement] Skipping unlock for ${id} - already unlocked or not found`);
       return;
     }
-    
-    console.log(`[Achievement] Unlocking achievement: ${id}`);
     
     const unlocked = {
       ...achievement,
@@ -283,7 +298,6 @@ export const useAchievementStore = create<AchievementStore>((set, get) => ({
     setTimeout(() => {
       const currentState = get();
       if (currentState.recentUnlock?.id === id) {
-        console.log(`[Achievement] Auto-clearing notification for ${id}`);
         set({ recentUnlock: null });
       }
     }, 5000);

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+﻿import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 import * as fc from 'fast-check';
 import { GameScreen } from '../GameScreen';
@@ -105,21 +105,16 @@ describe('Mobile Responsive Layout - Bug Condition Exploration (Task 1)', () => 
         // Mock props for GameScreen
         const mockProps = {
           pieces: [],
+          grid: [],
           combo: 0,
           gameMode: GameMode.ENDLESS,
-          activeSkill: null,
-          activateSkill: vi.fn(),
           gridContainerRef: { current: null },
           gridSize: 400,
           scorePopups: [],
           showSurgeFlash: false,
-          showRushStart: false,
-          showRushEnd: false,
           timedBoostMovesLeft: 0,
           timePopups: [],
           setTimePopups: vi.fn(),
-          chronoPopups: [],
-          setChronoPopups: vi.fn(),
           shownChain: 0,
           showPerfect: false,
           eventStartVisual: null,
@@ -294,21 +289,16 @@ describe('Mobile Responsive Layout - Bug Condition Exploration (Task 1)', () => 
             // Mock props for GameScreen
             const mockProps = {
               pieces: [],
+              grid: [],
               combo: 0,
               gameMode: GameMode.ENDLESS,
-              activeSkill: null,
-              activateSkill: vi.fn(),
               gridContainerRef: { current: null },
               gridSize: 400,
               scorePopups: [],
               showSurgeFlash: false,
-              showRushStart: false,
-              showRushEnd: false,
               timedBoostMovesLeft: 0,
               timePopups: [],
               setTimePopups: vi.fn(),
-              chronoPopups: [],
-              setChronoPopups: vi.fn(),
               shownChain: 0,
               showPerfect: false,
               eventStartVisual: null,

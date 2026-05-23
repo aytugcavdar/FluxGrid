@@ -45,8 +45,9 @@ export interface GameStats {
   timedMaxCombo?: number;
   timedTotalLines?: number;
   timedMaxDuration?: number;
-  timedChronoBonus?: number;
   timedSprintBonusTotal?: number;
+  perfectClears?: number;
+  recordsBroken?: number;
 }
 
 // Touch & Gesture Types

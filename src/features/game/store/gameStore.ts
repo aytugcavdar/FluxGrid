@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { GridState, Piece, GRID_SIZE, GridCell, CellType, Achievement, MultiplierBreakdown, ProgressionState } from '../types';
 import { AppState, GameStats, GameMode } from '@shared/types';
 import { POINTS, EXPANDED_ACHIEVEMENTS, TIER_SCORE_MULTIPLIERS, TIMED_MODE, COMBO_TIMER } from '../constants';
-import { playPlace, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playHaptic } from '../../../utils/audio';
+import { playPlace, playInvalid, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playHaptic } from '../../../utils/audio';
 import { safeExecute, ErrorCategory } from '../../../utils/managers/errorHandler';
 import { safeLocalStorageGet, safeParseInt, safeJSONParse } from './helpers/localStorage';
 import { createEmptyGrid, processGrid } from './helpers/grid';
@@ -11,18 +11,23 @@ import { getRandomPiecesSync } from './helpers/pieces';
 import { useThemeStore } from '@shared/store/themeStore';
 import { useProfileStore } from '../../profile/store/profileStore';
 import { useTutorialStore } from '../../tutorial/store/tutorialStore';
+import { getTutorialGridState, getTutorialPieces } from '../../tutorial/data/tutorialPieces';
 import { tickTimerImpl } from './helpers/timerLogic';
 import { checkTierEvent, tickActiveEvent } from './helpers/eventSystem';
 import { updateAchievements, syncNewAchievement } from './helpers/achievementSystem';
 import { createMiniEventState, checkMiniEvents, shouldPreventComboBreak, getMiniEventMultiplier, isPieceBlessingActive, tickMiniEvents } from './helpers/miniEventSystem';
-import { createProgressionState, updateStreak, getStreakMultiplier, checkMilestones } from './helpers/progressionSystem';
+import { createProgressionState, updateStreak, getStreakMultiplier, checkMilestones, checkTimedMilestones } from './helpers/progressionSystem';
 import { JuiceTriggers } from '../../visual-effects/utils/juiceTriggers';
 import { calculateScore } from './helpers/scoreCalculator';
 import { migrateSaveData, SaveData } from './helpers/migration';
 import { storageService as LocalStorageService } from '@core/services/storage/StorageService';
 import { useVisualEffectStore } from '../../visual-effects/store/visualEffectStore';
-import { useAchievementStore } from '../../achievements/achievementStore';
 import { saveGameState, loadGameState, clearGameSave, hasSavedGame } from './helpers/gameSaveSystem';
+import { calculateTimeBonus, calculateComboBonus } from './helpers/difficultyScaling';
+
+// Re-export slice types for consumers
+export type { TimedModeSlice } from './slices/timedModeSlice';
+export type { ProgressionSlice } from './slices/progressionSlice';
 
 /**
  * Synchronous stats save — ensures stats persist even when async
@@ -41,7 +46,35 @@ function syncSaveStats(stats: GameStats): void {
   LocalStorageService.saveStats(stats).catch(() => {});
 }
 
+function normalizeStoredAchievements(stored: string | null): Achievement[] {
+  const parsed = safeJSONParse(stored || JSON.stringify(EXPANDED_ACHIEVEMENTS), EXPANDED_ACHIEVEMENTS);
+  const savedList = Array.isArray(parsed)
+    ? parsed
+    : Object.values(parsed || {}).map((legacy: any) => ({
+        id: legacy.id === 'score_1000' ? 'score_1k'
+          : legacy.id === 'score_5000' ? 'score_5k'
+          : legacy.id === 'score_10000' ? 'score_10k'
+          : legacy.id === 'combo_master' ? 'combo_5'
+          : legacy.id === 'first_game' ? 'games_1'
+          : legacy.id,
+        currentValue: legacy.currentValue ?? legacy.progress ?? 0,
+        unlocked: Boolean(legacy.unlocked),
+      }));
+
+  return EXPANDED_ACHIEVEMENTS.map(def => {
+    const saved = savedList.find((ach: any) => ach?.id === def.id);
+    if (!saved) return { ...def };
+
+    return {
+      ...def,
+      currentValue: Math.max(def.currentValue, Number(saved.currentValue) || 0),
+      unlocked: Boolean(saved.unlocked) || (Number(saved.currentValue) || 0) >= def.targetValue,
+    };
+  });
+}
+
 export interface GameStore {
+  // ── Core State ──────────────────────────────────────────────────────────────
   grid: GridState;
   pieces: Piece[];
   score: number;
@@ -55,75 +88,30 @@ export interface GameStore {
     combo?: number;
     chainCount?: number;
     colorBonus?: boolean;
-    surgeBonus?: boolean;
     tier?: number;
     tierName?: string;
-    chronoBonus?: number; // CHRONO bonus seconds
-    cellIds?: string[]; // Placed cell IDs for placement animations
-    dropHeight?: number; // Drop height for placement impact
+    cellIds?: string[];
+    dropHeight?: number;
   } | null;
-  
-  // Bonus Skills (Daily Reward System)
-  bonusRerolls: number;
-  bonusShatter: number;
-  bonusBomb: number;
 
-  // Flux Energy System (combo-driven, 0–100)
-  fluxEnergy: number;
-  
-
-  
-  // Achievements State
+  // ── Achievements ─────────────────────────────────────────────────────────────
   achievements: Achievement[];
   unlockedAchievementId: string | null;
 
-  // Navigation & Persistence
+  // ── Navigation & Persistence ─────────────────────────────────────────────────
   appState: AppState;
   gameMode: GameMode;
-  timeLeft: number;
-  timerStartTime: number | null;
-  timerExpectedEnd: number | null;
   highScores: { [key: string]: number };
   stats: GameStats;
-  maxLevelReached: number;
-  difficultyTier: number;
 
-  // ZEN Mode State removed - ZEN mode deprecated
-
-  // Daily Challenge State
+  // ── Daily Challenge ───────────────────────────────────────────────────────────
   dailyClearHistory: boolean[][];
 
-  // Event System State
-  activeEvent: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
-  eventMovesRemaining: number;
-
-  // Mini-Event System State
-  miniEventState: MiniEventState;
-  totalMovesPlayed: number;
-  lastMultiplierBreakdown: MultiplierBreakdown | null;
-
-  // Progression System State
-  progressionState: ProgressionState;
-  progression: ProgressionState; // Alias for progressionState
-
-  // Timed Mode State
-  timedBoostMovesLeft: number;
-  maxCombo: number;
-  chronoBonus: number;
-  finalSprintBonus: number;
-
-  // Piece Loading State
+  // ── Piece State ───────────────────────────────────────────────────────────────
   isPiecesLoading: boolean;
-  
-  // Perfect Clear State
   perfectClearDetected: boolean;
-  
-  // Combo Timer State
-  comboTimerStartTime: number | null;
-  comboTimerDuration: number; // milliseconds (default 5000 = 5 seconds)
-  comboTimeLeft: number; // remaining time in seconds for UI
-  
-  // Game Logs State (for analytics)
+
+  // ── Game Logs ─────────────────────────────────────────────────────────────────
   gameLogs: Array<{
     id: string;
     mode: GameMode;
@@ -135,12 +123,36 @@ export interface GameStore {
     badge?: 'new-record' | 'perfect' | 'comeback' | 'speedrun';
     metadata?: {
       tier?: number;
-      chronoBonus?: number;
       skillsUsed?: string[];
     };
   }>;
 
-  // Actions
+  // ── Progression Slice ─────────────────────────────────────────────────────────
+  difficultyTier: number;
+  totalMovesPlayed: number;
+  tierStartMove: number;
+  activeEvent: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
+  eventMovesRemaining: number;
+  miniEventState: ReturnType<typeof createMiniEventState>;
+  progressionState: ProgressionState;
+  lastMultiplierBreakdown: MultiplierBreakdown | null;
+
+  // ── Timed Mode Slice ──────────────────────────────────────────────────────────
+  timeLeft: number;
+  timerStartTime: number | null;
+  timerExpectedEnd: number | null;
+  timedBoostMovesLeft: number;
+  maxCombo: number;
+  finalSprintBonus: number;
+  timedMilestones: Set<string>;
+  lastMilestoneShown: { id: string; label: string } | null;
+  showNewRecordNotification: boolean;
+  newRecordDiff: number;
+  comboTimerStartTime: number | null;
+  comboTimerDuration: number;
+  comboTimeLeft: number;
+
+  // ── Actions ───────────────────────────────────────────────────────────────────
   initGame: (mode?: GameMode, savedData?: SaveData) => void;
   setAppState: (state: AppState) => void;
   setGameMode: (mode: GameMode) => void;
@@ -152,8 +164,8 @@ export interface GameStore {
   checkGameOver: () => void;
   resetGame: () => void;
   setState: (update: Partial<GameStore>) => void;
-  
-  // Save/Load system
+
+  // ── Save/Load ─────────────────────────────────────────────────────────────────
   saveCurrentGame: () => boolean;
   loadSavedGame: () => boolean;
   hasSavedGame: () => boolean;
@@ -167,1175 +179,890 @@ const INITIAL_STATS: GameStats = {
   iceBroken: 0,
   gamesPlayed: 0,
   skillUses: {},
-  
-  // Endless mode stats
   endlessGamesPlayed: 0,
   endlessHighScore: 0,
   endlessMaxCombo: 0,
   endlessTotalLines: 0,
   endlessMaxTier: 0,
   endlessEventCount: 0,
-  
-  // Timed mode stats
   timedGamesPlayed: 0,
   timedHighScore: 0,
   timedMaxCombo: 0,
   timedTotalLines: 0,
   timedMaxDuration: 0,
-  timedChronoBonus: 0,
   timedSprintBonusTotal: 0,
+  perfectClears: 0,
+  recordsBroken: 0,
 };
 
 export const useGameStore = create<GameStore>((set, get) => {
-  // Initial state: Load from localStorage via LocalStorageService
   const savedHighScores = LocalStorageService.loadHighScores();
   const savedStats = LocalStorageService.loadStats() || INITIAL_STATS;
-  const savedMaxLevel = 0;
-  
-  return {
-  grid: createEmptyGrid(),
-  pieces: [],
-  score: 0,
-  highScore: 0, // Will be set when game starts based on mode
-  combo: 0,
-  isGameOver: false,
-  draggedPiece: null,
-  lastAction: null,
-  
-  // Bonus Skills Initial State
-  bonusRerolls: 0,
-  bonusShatter: 0,
-  bonusBomb: 0,
 
-  // Flux Energy System Initial State
-  fluxEnergy: 0,
-  
-  // Achievements Initial State - ensure it's always an array
-  achievements: (() => {
-    const parsed = safeJSONParse(safeLocalStorageGet('flux_achievements', JSON.stringify(EXPANDED_ACHIEVEMENTS)), EXPANDED_ACHIEVEMENTS);
-    return Array.isArray(parsed) ? parsed : EXPANDED_ACHIEVEMENTS;
-  })(),
-  unlockedAchievementId: null,
-
-  // Navigation & Persistence
-  appState: AppState.HOME,
-  gameMode: GameMode.ENDLESS,
-  timeLeft: 0,
-  timerStartTime: null,
-  timerExpectedEnd: null,
-  highScores: savedHighScores,
-  stats: savedStats,
-  maxLevelReached: savedMaxLevel,
-  difficultyTier: 0,
-
-  // ZEN Mode Initial State removed - ZEN mode deprecated
-
-  // Daily Challenge Initial State
-  dailyClearHistory: [],
-
-  // Event System Initial State
-  activeEvent: null,
-  eventMovesRemaining: 0,
-
-  // Mini-Event System Initial State
-  miniEventState: createMiniEventState(),
-  totalMovesPlayed: 0,
-  lastMultiplierBreakdown: null,
-
-  // Progression System Initial State
-  progressionState: createProgressionState(),
-  get progression() { return this.progressionState; }, // Alias getter
-
-  // Timed Mode Initial State
-  timedBoostMovesLeft: 0,
-  maxCombo: 0,
-  chronoBonus: 0,
-  finalSprintBonus: 0,
-
-  // Piece Loading Initial State
-  isPiecesLoading: false,
-  
-  // Perfect Clear Initial State
-  perfectClearDetected: false,
-  
-  // Combo Timer Initial State
-  comboTimerStartTime: null,
-  comboTimerDuration: COMBO_TIMER.DURATION, // 5 seconds
-  comboTimeLeft: 0,
-  
-  // Game Logs Initial State
-  gameLogs: (() => {
-    if (typeof window === 'undefined') return [];
+  // ── Personal Best Helpers (Timed Mode) ────────────────────────────────────────
+  const loadPersonalBest = (): number => {
     try {
-      const stored = localStorage.getItem('flux_game_logs');
-      if (!stored) return [];
-      const parsed = JSON.parse(stored);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (error) {
-      console.error('[GameStore] Failed to load game logs:', error);
-      return [];
+      return LocalStorageService.loadStats()?.timedHighScore || 0;
+    } catch {
+      return 0;
     }
-  })(),
+  };
 
-  initGame: (mode = GameMode.ENDLESS, savedData?: SaveData) => {
-    const success = safeExecute(
-      () => {
-        // If starting a NEW game (not loading saved), clear any existing save
-        if (!savedData) {
-          console.log('[GameStore] Starting new game, clearing saved game...');
-          clearGameSave();
-        }
-        
-        const isTimed = mode === GameMode.TIMED;
-        const isDaily = mode === GameMode.DAILY_CHALLENGE;
-        const initialGrid = createEmptyGrid();
-        
-        const now = Date.now();
-        
-        // Run migration if saved data is provided
-        let migratedData: SaveData | undefined = savedData;
-        if (savedData) {
-          migratedData = migrateSaveData(savedData);
-        }
-        
-        // Use migrated data if available, otherwise use defaults
-        const loadedScore = migratedData?.score ?? 0;
-        const loadedTier = migratedData?.difficultyTier ?? 0;
-        const loadedActiveEvent = migratedData?.activeEvent ?? null;
-        const loadedEventMovesRemaining = migratedData?.eventMovesRemaining ?? 0;
-        const loadedMiniEventState = migratedData?.miniEventState ?? createMiniEventState();
-        const loadedTotalMovesPlayed = migratedData?.totalMovesPlayed ?? 0;
-        
-        // Get current high score for this mode
-        const currentHighScores = get().highScores;
-        const modeHighScore = currentHighScores[mode] || 0;
-        
-        set({
-          grid: initialGrid,
-          pieces: getRandomPiecesSync(
-            3, 
-            initialGrid, 
-            isDaily, 
-            useThemeStore.getState().getPieceColors(), 
-            loadedTier, 
-            mode,
-            loadedMiniEventState
-          ),
-          score: loadedScore,
-          highScore: modeHighScore, // Set high score for current mode
-          combo: 0,
-          isGameOver: false,
-          // CRITICAL FIX: Always clear drag state on new game
-          // This prevents the "preview shows but can't place" bug after Play Again
-          draggedPiece: null,
-          lastAction: null,
-          unlockedAchievementId: null,
-          appState: AppState.GAME,
-          gameMode: mode,
-          timeLeft: isTimed ? 60 : 0,
-          timerStartTime: null, // Timer will start on first piece placement
-          timerExpectedEnd: null, // Timer will start on first piece placement
-          difficultyTier: loadedTier,
-          // Daily Challenge initialization
-          dailyClearHistory: [],
-          // Event System initialization
-          activeEvent: loadedActiveEvent,
-          eventMovesRemaining: loadedEventMovesRemaining,
-          // Mini-Event System initialization
-          miniEventState: loadedMiniEventState,
-          totalMovesPlayed: loadedTotalMovesPlayed,
-          lastMultiplierBreakdown: null,
-          // Timed Mode initialization
-          timedBoostMovesLeft: 0,
-          maxCombo: 0,
-          chronoBonus: 0,
-          finalSprintBonus: 0,
-          // Piece Loading initialization
-          isPiecesLoading: false,
-          // Combo Timer initialization
-          comboTimerStartTime: null,
-          comboTimeLeft: 0,
-          // Flux Energy initialization
-          fluxEnergy: 0,
-        });
-        
-        // Increment games played (global and mode-specific)
-        const newStats = { ...get().stats, gamesPlayed: get().stats.gamesPlayed + 1 };
-        
-        // Increment mode-specific games played
-        if (mode === GameMode.ENDLESS) {
-          newStats.endlessGamesPlayed = (newStats.endlessGamesPlayed || 0) + 1;
-        } else if (mode === GameMode.TIMED) {
-          newStats.timedGamesPlayed = (newStats.timedGamesPlayed || 0) + 1;
-        }
-        
-        set({ stats: newStats });
-        
-        // Save stats to localStorage
-        syncSaveStats(newStats);
-        
-        // Initialize tutorial system if this is a new game (not loading saved)
-        if (!savedData) {
-          const tutorialStore = useTutorialStore.getState();
-          if (!tutorialStore.isCompleted) {
-            console.log('[GameStore] Starting tutorial for new player');
-            tutorialStore.start();
-          }
-        }
-        
-        return true;
-      },
-      false,
-      ErrorCategory.GAME_STATE,
-      { operation: 'initGame', mode }
-    );
-    
-    // Hata durumunda varsayılan duruma dön
-    if (!success) {
-      set({
-        grid: createEmptyGrid(),
-        pieces: [],
-        score: 0,
-        isGameOver: false,
-        appState: AppState.HOME
-      });
-    }
-  },
-
-  setAppState: (state) => set({ appState: state }),
-  setGameMode: (mode) => set({ gameMode: mode }),
-
-  tickTimer: () => tickTimerImpl(get, set),
-
-  clearAchievementNotification: () => set({ unlockedAchievementId: null }),
-
-  setDraggedPiece: (piece) => set({ draggedPiece: piece }),
-
-  canPlacePiece: (grid, piece, startX, startY) => {
-    for (let row = 0; row < piece.shape.length; row++) {
-      for (let col = 0; col < piece.shape[row].length; col++) {
-        if (piece.shape[row][col] === 1) {
-          const gridY = startY + row;
-          const gridX = startX + col;
-
-          // Out of bounds
-          if (gridY < 0 || gridY >= GRID_SIZE || gridX < 0 || gridX >= GRID_SIZE) {
-            return false;
-          }
-          // Collision
-          if (grid[gridY][gridX].filled) {
-            return false;
-          }
-        }
-      }
-    }
-    return true;
-  },
-
-  placePiece: (piece, startX, startY) => {
-    const { grid, score, combo, highScore, gameMode, timerStartTime } = get();
-    
-    // Grid validation
-    if (!grid || grid.length !== GRID_SIZE) {
-      console.error('placePiece: invalid grid state');
-      return false;
-    }
-    
-    // 1. Validate placement
-    if (!get().canPlacePiece(grid, piece, startX, startY)) {
-      // Trigger invalid placement feedback
-      JuiceTriggers.onInvalidPlacement();
-      return false;
-    }
-    
-    // Trigger valid placement feedback
-    JuiceTriggers.onValidPlacement();
-    
-    // 🎯 TIMED MODE: Start timer on first piece placement
-    if (gameMode === GameMode.TIMED && timerStartTime === null) {
-      const now = Date.now();
-      set({
-        timerStartTime: now,
-        timerExpectedEnd: now + 60000, // 60 seconds
-        timeLeft: 60
-      });
-      console.log('[TIMED] Timer started on first piece placement');
-    }
-    
-    // Store the placed piece for boss mechanics (before it's removed from pieces array)
-    const justPlacedPiece = piece;
-
-    // Increment totalMovesPlayed (only for ENDLESS mode)
-    if (gameMode === GameMode.ENDLESS) {
-      set({ totalMovesPlayed: get().totalMovesPlayed + 1 });
-    }
-
-    // 2. Update Grid
-    const tempGrid = grid.map(row => row.map(cell => ({ ...cell })));
-    let blocksPlaced = 0;
-    const placedBlockCoords: Array<{x: number, y: number, color: string}> = [];
-    const placedCellIds: string[] = []; // Track cell IDs for animation
-
-    for (let row = 0; row < piece.shape.length; row++) {
-      for (let col = 0; col < piece.shape[row].length; col++) {
-        if (piece.shape[row][col] === 1) {
-          const gridX = startX + col;
-          const gridY = startY + row;
-          
-          const cellId = uuidv4();
-          tempGrid[gridY][gridX] = {
-            filled: true,
-            color: piece.color,
-            id: cellId,
-            type: piece.type || CellType.NORMAL,
-            health: piece.type === CellType.ICE ? 2 : undefined
-          };
-          blocksPlaced++;
-          placedCellIds.push(cellId); // Track for animation
-          
-          // Track placed block coordinates for pulse effect
-          placedBlockCoords.push({ x: gridX, y: gridY, color: piece.color });
-        }
-      }
-    }
-    
-    // Calculate drop height (distance from top of grid to placement position)
-    const dropHeight = startY;
-    
-    
-    // Pulse effect disabled for performance
-    // const performanceMode = useVisualEffectStore.getState().performanceMode;
-    // if (performanceMode !== 'low') {
-    //   placedBlockCoords.forEach(block => {
-    //     useVisualEffectStore.getState().addEffect({
-    //       type: 'pulse',
-    //       duration: 300,
-    //       target: `cell-${block.x}-${block.y}`,
-    //       props: {
-    //         x: block.x,
-    //         y: block.y,
-    //         color: block.color
-    //       }
-    //     });
-    //   });
-    // }
-
-    // 3. Process Grid
-    const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken, actions } = processGrid(tempGrid);
-
-    // Trigger juice effects for line clears
-    if (linesCleared > 0) {
-      const newCombo = combo + linesCleared;
-      JuiceTriggers.onLinesCleared(actions as any, newCombo);
-    }
-
-    // Check for perfect clear (all cells empty after processing)
-    const isPerfectClear = newGrid.every(row => row.every(cell => !cell.filled));
-    if (isPerfectClear) {
-      set({ perfectClearDetected: true });
-    }
-
-    // Handle CELL_CLEAR actions - COMPLETELY DISABLED at combo >= 10 for performance
-    // At combo 5-9: max 2 explosions, at combo < 5: max 3 explosions
-    if (combo < 10) {
-      const maxExplosions = combo >= 5 ? 2 : 3;
-      
-      actions.forEach(action => {
-        if (action.type === 'CELL_CLEAR') {
-          const clearAction = action as any;
-          
-          // Limit explosions based on combo
-          const cellsToExplode = clearAction.cells.slice(0, maxExplosions);
-          
-          cellsToExplode.forEach((cell: any) => {
-            setTimeout(() => {
-              useVisualEffectStore.getState().addEffect({
-                type: 'explosion',
-                duration: 100,
-                target: `cell-${cell.x}-${cell.y}`,
-                props: {
-                  x: cell.x,
-                  y: cell.y,
-                  color: cell.color,
-                  blockSize: 20,
-                  cellType: cell.cellType
-                }
-              });
-            }, 50);
-          });
-        }
-      });
-    }
-
-    // Handle CHRONO_BONUS actions
-    let chronoBonusSeconds = 0;
-    actions.forEach(action => {
-      if (action.type === 'CHRONO_BONUS') {
-        chronoBonusSeconds += action.seconds;
-      }
-    });
-
-    // Check and activate mini-events (only for ENDLESS mode, before score calculation)
-    let updatedMiniEventState = get().miniEventState;
-    if (gameMode === GameMode.ENDLESS) {
-      updatedMiniEventState = checkMiniEvents(get().totalMovesPlayed, get().miniEventState, get().difficultyTier);
-    } else {
-      // For non-ENDLESS modes, use empty mini-event state to skip multipliers
-      updatedMiniEventState = createMiniEventState();
-    }
-
-    // 4. Puan hesaplama
-    // Combo Timer System: SADECE satır temizlendiğinde timer başlar/sıfırlanır
-    // Timer bitmeden yeni satır temizlenirse combo devam eder
-    // Timer biterse combo 0'a düşer
-    const comboShieldPrevented = gameMode === GameMode.ENDLESS && shouldPreventComboBreak(updatedMiniEventState, linesCleared);
-    
-    const now = Date.now();
-    const currentComboTimer = get().comboTimerStartTime;
-    const comboTimerDuration = get().comboTimerDuration;
-    
-    let newCombo: number;
-    let newComboTimerStart: number | null = null;
-    
-    if (linesCleared > 0) {
-      // Lines cleared: increase combo by number of lines cleared and reset/start timer
-      newCombo = combo + linesCleared;
-      newComboTimerStart = now; // Reset timer ONLY when lines are cleared
-    } else if (comboShieldPrevented) {
-      // COMBO_SHIELD active: preserve combo and timer
-      newCombo = combo;
-      newComboTimerStart = currentComboTimer;
-    } else {
-      // No lines cleared: check if timer expired (timer only runs if it was started)
-      if (currentComboTimer !== null && now - currentComboTimer >= comboTimerDuration) {
-        // Timer expired: reset combo
-        newCombo = 0;
-        newComboTimerStart = null;
-      } else {
-        // Timer still active OR no timer (no lines cleared yet): preserve combo
-        newCombo = combo;
-        newComboTimerStart = currentComboTimer; // Keep existing timer, don't reset
-      }
-    }
-    
-    // Calculate remaining time for UI ONLY when timer changes (lines cleared or expired)
-    // Don't recalculate on every block placement to avoid UI jitter
-    const shouldUpdateTimeLeft = linesCleared > 0 || newComboTimerStart === null || newComboTimerStart !== currentComboTimer;
-    const newComboTimeLeft = shouldUpdateTimeLeft
-      ? (newComboTimerStart !== null 
-          ? Math.max(0, (comboTimerDuration - (now - newComboTimerStart)) / 1000)
-          : 0)
-      : get().comboTimeLeft; // Keep existing value if timer didn't change
-    
-    // Update streak (Endless mode only)
-    let updatedProgressionState = get().progressionState;
-    let streakMultiplier = 1.0;
-    if (gameMode === GameMode.ENDLESS) {
-      const newStreak = updateStreak(
-        updatedProgressionState.currentStreak,
-        linesCleared,
-        comboShieldPrevented
-      );
-      streakMultiplier = getStreakMultiplier(newStreak);
-      updatedProgressionState = {
-        ...updatedProgressionState,
-        currentStreak: newStreak,
-      };
-    }
-    
-    // COMBO_RUSH logic for Timed mode
-    const isTimedMode = gameMode === GameMode.TIMED;
-    const prevTimedBoostMoves = get().timedBoostMovesLeft;
-    let newTimedBoostMoves = prevTimedBoostMoves;
-    
-    // Aktivasyon: combo 4'e ulaştı ve rush aktif değilse
-    if (isTimedMode && newCombo >= 4 && prevTimedBoostMoves === 0) {
-      newTimedBoostMoves = 3;
-    }
-    // Dekreman: rush aktif ve yeni aktivasyon olmadıysa
-    else if (isTimedMode && prevTimedBoostMoves > 0) {
-      newTimedBoostMoves = Math.max(0, prevTimedBoostMoves - 1);
-    }
-    
-    // Rush aktifken combo 0'a düşmesin
-    const isRushActive = isTimedMode && newTimedBoostMoves > 0;
-    if (isRushActive && linesCleared === 0) {
-      newCombo = Math.max(combo, 1); // Combo kırılmasını engelle
-    }
-    
-    // Combo multiplier: preserve previous combo when no lines cleared, use new combo when lines cleared
-    const comboMultiplier = linesCleared > 0 ? newCombo : combo;
-
-    // Renk bonusu: tek renk satır/sütun temizleme
-    const colorBonusMultiplier = (linesCleared > 0 && colorBonus) ? POINTS.COLOR_BONUS_MULTIPLIER : 1;
-    // Final seconds multiplier: Timed modda son 10 saniyede 1.5x
-    const isFinalSeconds = gameMode === GameMode.TIMED && get().timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD;
-
-    // Pasif yetenek çarpanları kaldırıldı (ZEN mode deprecated)
-    const passiveScoreMultiplier = 1.0;
-
-    const basePoints = (blocksPlaced * POINTS.BLOCK_PLACED) +
-                       (linesCleared * POINTS.LINE_CLEARED) +
-                       (comboMultiplier * POINTS.COMBO_MULTIPLIER);
-    
-    // Calculate score using score calculator (NO flux multiplier)
-    const { score: pointsGained, breakdown } = calculateScore(
-      basePoints,
-      colorBonus,
-      1.0, // No flux multiplier - removed completely
-      gameMode === GameMode.ENDLESS ? get().difficultyTier : 0,
-      gameMode === GameMode.ENDLESS ? get().activeEvent : null,
-      updatedMiniEventState,
-      linesCleared,
-      passiveScoreMultiplier,
-      streakMultiplier
-    );
-    
-    // Track final sprint bonus for Timed mode
-    let sprintBonusGained = 0;
-    if (isFinalSeconds && linesCleared > 0) {
-      const quakeMultiplier = get().activeEvent === 'QUAKE' && linesCleared > 0 ? 1.3 : 1.0;
-      sprintBonusGained = Math.floor(basePoints * 0.5 * quakeMultiplier * passiveScoreMultiplier);
-    }
-    
-    let newScore = score + pointsGained;
-
-    // Check milestones (Endless mode only)
-    if (gameMode === GameMode.ENDLESS) {
-      const { milestones, newMilestone } = checkMilestones(newScore, updatedProgressionState.milestones);
-      updatedProgressionState = {
-        ...updatedProgressionState,
-        milestones,
-        lastMilestoneShown: newMilestone?.id ?? updatedProgressionState.lastMilestoneShown,
-      };
-      
-      // Trigger milestone popup in HUD (will be handled by HUD component)
-      if (newMilestone) {
-        // Store milestone for HUD to display
-        // HUD will read from progressionState.lastMilestoneShown
-      }
-    }
-
-    // Update Achievements
-    const previousAchievements = get().achievements;
-    const statsForAchievements = get().stats;
-    const updatedAchievements = updateAchievements(previousAchievements, {
-      newScore,
-      newCombo,
-      totalBombsExploded: (statsForAchievements.bombsExploded || 0) + bombsExploded,
-      totalIceBroken: (statsForAchievements.iceBroken || 0) + iceBroken,
-      currentLevelIndex: 0,
-    });
-
-    // Sync newly unlocked achievement to localStorage AND achievementStore
-    syncNewAchievement(previousAchievements, updatedAchievements);
-    
-    // CRITICAL: Also update achievementStore so unlock state persists across sessions
-    const newUnlock = updatedAchievements.find((ach, i) => ach.unlocked && !previousAchievements[i].unlocked);
-    if (newUnlock) {
-      // Import dynamically to avoid circular deps
-      import('@features/achievements/achievementStore').then(({ useAchievementStore }) => {
-        useAchievementStore.getState().checkAchievement(
-          newUnlock.id as any,
-          newUnlock.currentValue
-        );
-      }).catch(() => {});
-    }
-
-    // lastAction güncelle
-
-    // Update Achievements
-    if (linesCleared > 0) {
-      set({ lastAction: {
-        type: 'CLEAR',
-        lines: linesCleared,
-        combo: comboMultiplier,
-        chainCount,
-        colorBonus,
-        surgeBonus: false, // Removed surge system
-        chronoBonus: chronoBonusSeconds, // Add CHRONO bonus to lastAction
-      }});
-      
-      // Daily Challenge: Track clear history for sharing
-      if (gameMode === GameMode.DAILY_CHALLENGE) {
-        const snapshot = new Array(linesCleared)
-          .fill(null)
-          .map(() => new Array(4).fill(null).map(() => Math.random() > 0.3));
-        set({ dailyClearHistory: [...get().dailyClearHistory, ...snapshot].slice(-6) });
-      }
-    } else {
-      set({ lastAction: { 
-        type: 'PLACE',
-        cellIds: placedCellIds,
-        dropHeight: dropHeight
-      }});
-    }
-
-    // 5. Tepsi güncelle
-    let currentPieces = get().pieces.filter(p => p.instanceId !== piece.instanceId);
-    if (currentPieces.length === 0) {
-      set({ isPiecesLoading: true });
-      
-      const pieceCount = 3;
-      
-      const isDaily = get().gameMode === GameMode.DAILY_CHALLENGE;
-      const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
-      
-      // Get tutorial step if tutorial is active
-      const tutorialState = useTutorialStore.getState();
-      const tutorialStep = tutorialState.isActive ? tutorialState.currentStep : undefined;
-      
-      currentPieces = getRandomPiecesSync(
-        pieceCount, 
-        newGrid, 
-        isDaily, 
-        useThemeStore.getState().getPieceColors(), 
-        currentTier, 
-        get().gameMode,
-        updatedMiniEventState
-      );
-      
-      set({ isPiecesLoading: false });
-    }
-
-    // Ses (ses zaten GameApp.tsx'te de tetikleniyor, sadece gameStore'dan remove ettik)
-    // Haptic: gameStore seviyesinde de fire edelim (GameApp.tsx ayrıca da tetikler)
-    if (linesCleared > 0) {
-        playClear(linesCleared);
-        if (comboMultiplier > 1) playCombo(comboMultiplier);
-        playHaptic(linesCleared > 1 ? 'clear_multi' : 'clear_single');
-    } else {
-        playPlace();
-        playHaptic('place');
-    }
-
-    const modeKey = get().gameMode;
-    const currentHighs = get().highScores;
-    const modeHighScore = currentHighs[modeKey] || 0;
-    
-    if (newScore > modeHighScore) {
-      const newHighs = { ...currentHighs, [modeKey]: newScore };
-      set({ highScores: newHighs, highScore: newScore });
-      
-      // CRITICAL FIX: Write synchronously FIRST to prevent data loss on quick exit
-      // Use the same key format that loadHighScores() reads: fluxgrid_high_scores
-      try {
-        const storageKey = 'fluxgrid_high_scores';
-        const existing = localStorage.getItem(storageKey);
-        let parsed: any = {};
-        if (existing) {
-          try {
-            const sv = JSON.parse(existing);
-            parsed = (sv && sv.data && typeof sv.data === 'object') ? sv.data : (typeof sv === 'object' ? sv : {});
-          } catch { parsed = {}; }
-        }
-        parsed[modeKey] = newScore;
-        // Write in StorageValue format so loadHighScores can read it
-        localStorage.setItem(storageKey, JSON.stringify({
-          version: 1,
-          timestamp: Date.now(),
-          data: parsed,
-        }));
-      } catch {}
-      
-      // Also fire async save for Capacitor Preferences sync
-      LocalStorageService.saveHighScore(modeKey, newScore).catch(() => {});
-    }
-
-    // Time Reward logic
-    let extraTime = 0;
-    const previousCombo = combo; // Önceki combo değerini sakla
-    
-    // TIMED mode time logic
-    // Time bonus formula: +2 seconds per line cleared, +0.5 seconds for combo > 1
-    // Combo break penalty: -1 second if previous combo > 0 but now 0 (only when rush is NOT active)
-    // CHRONO bonus: additional seconds from CHRONO blocks
-    // Cap at 60 seconds maximum
-    if (get().gameMode === GameMode.TIMED) {
-      if (linesCleared > 0) {
-        extraTime = linesCleared * 2; // +2 saniye per line
-        if (comboMultiplier > 1) extraTime += 0.5; // +0.5 saniye per combo
-      }
-      // Combo kırılma cezası: önceki combo > 0 ama şimdi 0 ise (rush aktif değilken)
-      if (!isRushActive && previousCombo > 0 && newCombo === 0) {
-        extraTime = -1; // -1 saniye ceza
-      }
-      // Add CHRONO bonus
-      extraTime += chronoBonusSeconds;
-      
-      // Timer'ı güncelle - CHRONO bonus için cap'i geçici olarak kaldır
-      const currentExpectedEnd = get().timerExpectedEnd;
-      if (currentExpectedEnd) {
-        // CHRONO bonus varsa, 60 saniye cap'ini geçici olarak yükselt
-        const maxTime = chronoBonusSeconds > 0 
-          ? get().timerStartTime! + 75000  // CHRONO bonus için 75 saniye cap
-          : get().timerStartTime! + 60000; // Normal 60 saniye cap
-          
-        const newExpectedEnd = Math.min(
-          maxTime,
-          currentExpectedEnd + (extraTime * 1000)
-        );
-        const newTimeLeft = Math.max(0, Math.ceil((newExpectedEnd - Date.now()) / 1000));
-        extraTime = newTimeLeft - get().timeLeft; // Gerçek değişimi hesapla
-        
-        set({ timerExpectedEnd: newExpectedEnd });
-      }
-    }
-
-    // Calculate new movesLeft - not used anymore
-
-    // Update maxCombo
-    const newMaxCombo = Math.max(get().maxCombo, newCombo);
-
-    // Check for tier events (Endless mode) - BEFORE main set() call
-    const prevDifficultyTier = get().difficultyTier;
-    let tierResult: ReturnType<typeof checkTierEvent> | null = null;
-    if (get().gameMode === GameMode.ENDLESS) {
-      tierResult = checkTierEvent(newScore, prevDifficultyTier, get, set);
-    }
-
-    // --- Aktif olay tick ---
-    // CRITICAL: Pass newGrid (with placed piece) instead of get().grid (old state)
-    // to prevent event effects from overwriting the just-placed piece
-    const eventUpdates = tickActiveEvent(newGrid, justPlacedPiece, get, set);
-    
-    // Merge grid updates: eventUpdates takes precedence over tierResult
-    const tierUpdates = tierResult ?? {};
-    let finalGrid = (eventUpdates as any)?.grid ?? (tierUpdates as any)?.grid ?? newGrid;
-    
-    // BUG FIX: If an event modified the grid, we must process it to clear resulting full lines.
-    // We accumulate the results so the player gets points for event-induced chain reactions.
-    let eventLinesCleared = 0;
-    let totalPointsGained = pointsGained;
-    let totalLinesCleared = linesCleared;
-    let totalBombsExploded = bombsExploded;
-    let totalIceBroken = iceBroken;
-    
-    if ((eventUpdates as any)?.grid || (tierUpdates as any)?.grid) {
-      const processResult = processGrid(finalGrid);
-      finalGrid = processResult.grid;
-      eventLinesCleared = processResult.totalLinesCleared;
-      
-      if (eventLinesCleared > 0) {
-        newCombo += eventLinesCleared;
-        JuiceTriggers.onLinesCleared(processResult.actions as any, newCombo);
-        
-        // Calculate points for these extra lines
-        const eventBasePoints = (eventLinesCleared * POINTS.LINE_CLEARED) + (newCombo * POINTS.COMBO_MULTIPLIER);
-        const { score: eventScore } = calculateScore(
-          eventBasePoints,
-          processResult.colorBonus,
-          1.0, // No flux multiplier
-          gameMode === GameMode.ENDLESS ? get().difficultyTier : 0,
-          gameMode === GameMode.ENDLESS ? get().activeEvent : null,
-          updatedMiniEventState,
-          eventLinesCleared,
-          passiveScoreMultiplier,
-          streakMultiplier
-        );
-        
-        totalPointsGained += eventScore;
-        newScore += eventScore;
-        totalLinesCleared += eventLinesCleared;
-        totalBombsExploded += processResult.bombsExploded;
-        totalIceBroken += processResult.iceBroken;
-        
-        // Add chrono bonus if any
-        processResult.actions.forEach(action => {
-          if (action.type === 'CHRONO_BONUS') {
-            chronoBonusSeconds += action.seconds;
-          }
-        });
-        
-        // Update lastAction to show the clear
-        if (eventUpdates) {
-          eventUpdates.lastAction = {
-            type: 'CLEAR',
-            lines: eventLinesCleared,
-            chainCount: processResult.chainCount,
-            colorBonus: processResult.colorBonus,
-            surgeBonus: false,
-            chronoBonus: chronoBonusSeconds
-          };
-        }
-      }
-    }
-    
-    // Tick mini-events after score calculation (only for ENDLESS mode)
-    if (gameMode === GameMode.ENDLESS) {
-      // Calculate if combo would break (no lines cleared and no COMBO_SHIELD)
-      const comboWouldBreak = totalLinesCleared === 0 && combo > 0;
-      updatedMiniEventState = tickMiniEvents(updatedMiniEventState, totalLinesCleared, comboWouldBreak);
-    }
-
-    // Flux Energy: charge from line clears (combo × 5 + lines × 15), capped at 100
-    const currentFlux = get().fluxEnergy;
-    const fluxGain = totalLinesCleared > 0
-      ? Math.round(totalLinesCleared * 15 + Math.min(newCombo, 10) * 5)
-      : 0;
-    const newFlux = Math.min(100, currentFlux + fluxGain);
-
-    set({
-      ...tierUpdates,
-      ...eventUpdates,
-      grid: finalGrid,
-      score: newScore,
-      highScore: Math.max(newScore, get().highScore),
-      combo: newCombo, // Use newCombo instead of comboMultiplier
-      pieces: currentPieces,
-      timeLeft: Math.min(99, get().timeLeft + extraTime),
-      achievements: updatedAchievements,
-      unlockedAchievementId: newUnlock ? newUnlock.id : get().unlockedAchievementId,
-      chronoBonus: get().chronoBonus + chronoBonusSeconds,
-      finalSprintBonus: get().finalSprintBonus + sprintBonusGained,
-      maxCombo: newMaxCombo,
-      timedBoostMovesLeft: newTimedBoostMoves,
-      miniEventState: updatedMiniEventState,
-      progressionState: updatedProgressionState,
-      comboTimerStartTime: newComboTimerStart,
-      comboTimeLeft: newComboTimeLeft,
-      lastMultiplierBreakdown: breakdown,
-      fluxEnergy: newFlux,
-    });
-
-    // Update Global Stats
-    const currentStats = get().stats;
-    const nextStats: GameStats = {
-      ...currentStats,
-      blocksPlaced: currentStats.blocksPlaced + blocksPlaced,
-      linesCleared: currentStats.linesCleared + totalLinesCleared,
-      totalScore: currentStats.totalScore + totalPointsGained,
-      bombsExploded: currentStats.bombsExploded + totalBombsExploded,
-      iceBroken: currentStats.iceBroken + totalIceBroken,
-    };
-    
-    // Update mode-specific stats
-    if (gameMode === GameMode.ENDLESS) {
-      // Endless mode stats
-      nextStats.endlessTotalLines = (currentStats.endlessTotalLines || 0) + totalLinesCleared;
-      nextStats.endlessMaxCombo = Math.max(currentStats.endlessMaxCombo || 0, newCombo);
-      nextStats.endlessMaxTier = Math.max(currentStats.endlessMaxTier || 0, get().difficultyTier);
-      
-      // Track event count (increment when a new tier event is activated)
-      if (tierResult && tierResult.activeEvent) {
-        nextStats.endlessEventCount = (currentStats.endlessEventCount || 0) + 1;
-      }
-    } else if (gameMode === GameMode.TIMED) {
-      // Timed mode stats
-      nextStats.timedTotalLines = (currentStats.timedTotalLines || 0) + linesCleared;
-      nextStats.timedMaxCombo = Math.max(currentStats.timedMaxCombo || 0, newCombo);
-      nextStats.timedChronoBonus = (currentStats.timedChronoBonus || 0) + chronoBonusSeconds;
-      nextStats.timedSprintBonusTotal = (currentStats.timedSprintBonusTotal || 0) + sprintBonusGained;
-    }
-    
-    set({ stats: nextStats });
-    
-    // Save stats to localStorage
-    syncSaveStats(nextStats);
-
-    get().checkGameOver();
-    
-    // Check achievements (new achievement system)
-    const achievementStore = useAchievementStore.getState();
-    
-    // Check score achievements
-    achievementStore.checkAchievement('score_1000', newScore);
-    achievementStore.checkAchievement('score_5000', newScore);
-    achievementStore.checkAchievement('score_10000', newScore);
-    
-    // Check line clear achievements
-    achievementStore.checkAchievement('lines_10', nextStats.linesCleared);
-    achievementStore.checkAchievement('lines_50', nextStats.linesCleared);
-    achievementStore.checkAchievement('lines_100', nextStats.linesCleared);
-    
-    // Check first game achievement
-    if (nextStats.gamesPlayed >= 1) {
-      achievementStore.checkAchievement('first_game', 1);
-    }
-    
-    // Check combo achievements
-    if (newCombo >= 5) {
-      achievementStore.checkAchievement('combo_master', newCombo);
-    }
-    
-    // Check streak achievements (from progression system)
-    if (gameMode === GameMode.ENDLESS) {
-      const currentStreak = updatedProgressionState.currentStreak;
-      achievementStore.checkAchievement('streak_3', currentStreak);
-      achievementStore.checkAchievement('streak_7', currentStreak);
-      achievementStore.checkAchievement('streak_30', currentStreak);
-    }
-    
-    // Check flux master achievement (removed - no flux system)
-    
-    return true;
-  },
-
-  checkGameOver: () => {
-    const { grid, pieces, gameMode } = get();
-    
-    // Don't check game over while pieces are loading
-    if (get().isPiecesLoading) return;
-    
-    if (pieces.length === 0) return; // Should not happen due to refill logic
-
-    // Check if ANY piece can fit ANYWHERE
-    let canFitAny = false;
-    for (const piece of pieces) {
-      for (let y = 0; y < GRID_SIZE; y++) {
-        for (let x = 0; x < GRID_SIZE; x++) {
-          if (get().canPlacePiece(grid, piece, x, y)) {
-            canFitAny = true;
-            break;
-          }
-        }
-        if (canFitAny) break;
-      }
-      if (canFitAny) break;
-    }
-
-    if (!canFitAny) {
-      // Daily Challenge tamamlandığında streak güncelle
-      if (gameMode === GameMode.DAILY_CHALLENGE) {
-        // Use streakStore instead of checkAndUpdateStreak
-        import('@/src/shared/store/streakStore').then(({ useStreakStore }) => {
-          useStreakStore.getState().recordGameCompleted();
-        });
-      }
-      
-      // Update mode-specific high scores and stats on game end
+  const savePersonalBest = (score: number): void => {
+    try {
       const currentStats = get().stats;
-      const finalScore = get().score;
-      const updatedStats = { ...currentStats };
-      
-      if (gameMode === GameMode.ENDLESS) {
-        updatedStats.endlessHighScore = Math.max(currentStats.endlessHighScore || 0, finalScore);
-      } else if (gameMode === GameMode.TIMED) {
-        updatedStats.timedHighScore = Math.max(currentStats.timedHighScore || 0, finalScore);
-        
-        // Calculate duration (60 seconds - timeLeft)
-        const duration = 60 - get().timeLeft;
-        updatedStats.timedMaxDuration = Math.max(currentStats.timedMaxDuration || 0, duration);
-      }
-      
+      const updatedStats = {
+        ...currentStats,
+        timedHighScore: Math.max(currentStats.timedHighScore || 0, score),
+      };
       set({ stats: updatedStats });
       syncSaveStats(updatedStats);
-      
-      // Save game log for analytics
-      const gameStartTime = get().timerStartTime || Date.now() - 60000; // Fallback to 1 min ago
-      const gameDuration = Math.floor((Date.now() - gameStartTime) / 1000); // seconds
-      const finalMaxCombo = get().maxCombo;
-      const finalLinesCleared = currentStats.linesCleared || 0;
-      
-      // Detect badges
-      let badge: 'new-record' | 'perfect' | 'comeback' | 'speedrun' | undefined;
-      const previousHighScore = gameMode === GameMode.ENDLESS 
-        ? (currentStats.endlessHighScore || 0)
-        : (currentStats.timedHighScore || 0);
-      
-      if (finalScore > previousHighScore && previousHighScore > 0) {
-        badge = 'new-record';
-      } else if (get().perfectClearDetected) {
-        badge = 'perfect';
-      } else if (gameMode === GameMode.TIMED && gameDuration < 30) {
-        badge = 'speedrun';
+    } catch (error) {
+      console.error('[PersonalBest] Failed to save:', error);
+    }
+  };
+
+  const isNewPersonalBest = (currentScore: number): boolean => {
+    return currentScore > (get().stats.timedHighScore || 0);
+  };
+
+  return {
+    // ── Core Initial State ─────────────────────────────────────────────────────
+    grid: createEmptyGrid(),
+    pieces: [],
+    score: 0,
+    highScore: 0,
+    combo: 0,
+    isGameOver: false,
+    draggedPiece: null,
+    lastAction: null,
+
+    achievements: normalizeStoredAchievements(safeLocalStorageGet('flux_achievements', JSON.stringify(EXPANDED_ACHIEVEMENTS))),
+    unlockedAchievementId: null,
+
+    appState: AppState.HOME,
+    gameMode: GameMode.ENDLESS,
+    highScores: savedHighScores,
+    stats: savedStats,
+
+    dailyClearHistory: [],
+    isPiecesLoading: false,
+    perfectClearDetected: false,
+
+    gameLogs: (() => {
+      if (typeof window === 'undefined') return [];
+      try {
+        const stored = localStorage.getItem('flux_game_logs');
+        if (!stored) return [];
+        const parsed = JSON.parse(stored);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
       }
-      
-      const newLog = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        mode: gameMode,
-        score: finalScore,
-        timestamp: Date.now(),
-        duration: gameDuration,
-        linesCleared: finalLinesCleared,
-        maxCombo: finalMaxCombo,
-        badge,
-        metadata: {
-          tier: gameMode === GameMode.ENDLESS ? get().difficultyTier : undefined,
-          chronoBonus: gameMode === GameMode.TIMED ? get().chronoBonus : undefined,
+    })(),
+
+    // ── Progression Slice Initial State ───────────────────────────────────────
+    difficultyTier: 0,
+    totalMovesPlayed: 0,
+    tierStartMove: 0,
+    activeEvent: null,
+    eventMovesRemaining: 0,
+    miniEventState: createMiniEventState(),
+    progressionState: createProgressionState(),
+    lastMultiplierBreakdown: null,
+
+    // ── Timed Mode Slice Initial State ────────────────────────────────────────
+    timeLeft: 0,
+    timerStartTime: null,
+    timerExpectedEnd: null,
+    timedBoostMovesLeft: 0,
+    maxCombo: 0,
+    finalSprintBonus: 0,
+    timedMilestones: new Set<string>(),
+    lastMilestoneShown: null,
+    showNewRecordNotification: false,
+    newRecordDiff: 0,
+    comboTimerStartTime: null,
+    comboTimerDuration: COMBO_TIMER.DURATION,
+    comboTimeLeft: 0,
+
+    // ── Actions ───────────────────────────────────────────────────────────────
+    initGame: (mode = GameMode.ENDLESS, savedData?: SaveData) => {
+      const success = safeExecute(
+        () => {
+          if (!savedData) {
+            clearGameSave();
+          }
+
+          const isTimed = mode === GameMode.TIMED;
+          const isDaily = mode === GameMode.DAILY_CHALLENGE;
+          const tutorialStore = useTutorialStore.getState();
+          const shouldStartTutorial = !savedData && !tutorialStore.isCompleted;
+          const tutorialGrid = shouldStartTutorial ? getTutorialGridState(0) : null;
+          const tutorialPieces = shouldStartTutorial ? getTutorialPieces(0) : [];
+          const initialGrid = tutorialGrid || createEmptyGrid();
+
+          let migratedData: SaveData | undefined = savedData;
+          if (savedData) {
+            migratedData = migrateSaveData(savedData);
+          }
+
+          const loadedScore = migratedData?.score ?? 0;
+          const loadedTier = migratedData?.difficultyTier ?? 0;
+          const savedActiveEvent = migratedData?.activeEvent;
+          const loadedActiveEvent =
+            savedActiveEvent === 'ICE_STORM' ||
+            savedActiveEvent === 'QUAKE' ||
+            savedActiveEvent === 'MIRROR' ||
+            savedActiveEvent === 'CHAOS' ||
+            savedActiveEvent === 'VOID'
+              ? savedActiveEvent
+              : null;
+          const loadedEventMovesRemaining = migratedData?.eventMovesRemaining ?? 0;
+          const loadedMiniEventState = migratedData?.miniEventState ?? createMiniEventState();
+          const loadedTotalMovesPlayed = migratedData?.totalMovesPlayed ?? 0;
+          const loadedTierStartMove = migratedData?.tierStartMove ?? loadedTotalMovesPlayed;
+
+          const currentHighScores = get().highScores;
+          let modeHighScore = currentHighScores[mode] || 0;
+          if (isTimed) {
+            modeHighScore = loadPersonalBest();
+          }
+
+          set({
+            grid: initialGrid,
+            pieces: tutorialPieces.length > 0
+              ? tutorialPieces
+              : getRandomPiecesSync(
+                  3,
+                  initialGrid,
+                  isDaily,
+                  useThemeStore.getState().getPieceColors(),
+                  loadedTier,
+                  mode,
+                  loadedMiniEventState,
+                  loadedScore
+                ),
+            score: loadedScore,
+            highScore: modeHighScore,
+            combo: 0,
+            isGameOver: false,
+            draggedPiece: null,
+            lastAction: null,
+            unlockedAchievementId: null,
+            appState: AppState.GAME,
+            gameMode: mode,
+            // Timed mode slice
+            timeLeft: isTimed ? 60 : 0,
+            timerStartTime: null,
+            timerExpectedEnd: null,
+            timedBoostMovesLeft: 0,
+            maxCombo: 0,
+            finalSprintBonus: 0,
+            timedMilestones: new Set<string>(),
+            lastMilestoneShown: null,
+            showNewRecordNotification: false,
+            newRecordDiff: 0,
+            comboTimerStartTime: null,
+            comboTimeLeft: 0,
+            // Progression slice
+            difficultyTier: loadedTier,
+            activeEvent: loadedActiveEvent,
+            eventMovesRemaining: loadedEventMovesRemaining,
+            miniEventState: loadedMiniEventState,
+            totalMovesPlayed: loadedTotalMovesPlayed,
+            tierStartMove: loadedTierStartMove,
+            lastMultiplierBreakdown: null,
+            // Daily challenge
+            dailyClearHistory: [],
+            // Piece state
+            isPiecesLoading: false,
+          });
+
+          const newStats = { ...get().stats, gamesPlayed: get().stats.gamesPlayed + 1 };
+          if (mode === GameMode.ENDLESS) {
+            newStats.endlessGamesPlayed = (newStats.endlessGamesPlayed || 0) + 1;
+          } else if (mode === GameMode.TIMED) {
+            newStats.timedGamesPlayed = (newStats.timedGamesPlayed || 0) + 1;
+          }
+          set({ stats: newStats });
+          syncSaveStats(newStats);
+
+          if (shouldStartTutorial) {
+            tutorialStore.start();
+          }
+
+          return true;
         },
+        false,
+        ErrorCategory.GAME_STATE,
+        { operation: 'initGame', mode }
+      );
+
+      if (!success) {
+        set({
+          grid: createEmptyGrid(),
+          pieces: [],
+          score: 0,
+          isGameOver: false,
+          appState: AppState.HOME
+        });
+      }
+    },
+
+    setAppState: (state) => {
+      // Save achievements when leaving game screen
+      if (get().appState === AppState.GAME && state !== AppState.GAME) {
+        try {
+          localStorage.setItem('flux_achievements', JSON.stringify(get().achievements));
+        } catch (error) {
+          console.error('[Achievement] Failed to save on app state change:', error);
+        }
+      }
+      set({ appState: state });
+    },
+
+    setGameMode: (mode) => set({ gameMode: mode }),
+
+    tickTimer: () => tickTimerImpl(get, set),
+
+    clearAchievementNotification: () => set({ unlockedAchievementId: null }),
+
+    setDraggedPiece: (piece) => set({ draggedPiece: piece }),
+
+    canPlacePiece: (grid, piece, startX, startY) => {
+      for (let row = 0; row < piece.shape.length; row++) {
+        for (let col = 0; col < piece.shape[row].length; col++) {
+          if (piece.shape[row][col] === 1) {
+            const gridY = startY + row;
+            const gridX = startX + col;
+            if (gridY < 0 || gridY >= GRID_SIZE || gridX < 0 || gridX >= GRID_SIZE) return false;
+            if (grid[gridY][gridX].filled) return false;
+          }
+        }
+      }
+      return true;
+    },
+
+    placePiece: (piece, startX, startY) => {
+      const { grid, score, combo, highScore, gameMode, timerStartTime } = get();
+
+      if (!grid || grid.length !== GRID_SIZE) {
+        console.error('placePiece: invalid grid state');
+        return false;
+      }
+
+      if (!get().canPlacePiece(grid, piece, startX, startY)) {
+        JuiceTriggers.onInvalidPlacement();
+        playInvalid();
+        playHaptic('invalid');
+        return false;
+      }
+
+      JuiceTriggers.onValidPlacement();
+
+      // Start timer on first piece placement (Timed mode)
+      if (gameMode === GameMode.TIMED && timerStartTime === null && !useTutorialStore.getState().isActive) {
+        const now = Date.now();
+        set({
+          timerStartTime: now,
+          timerExpectedEnd: now + 60000,
+          timeLeft: 60,
+        });
+      }
+
+      const justPlacedPiece = piece;
+
+      // Increment move counter (Endless only)
+      if (gameMode === GameMode.ENDLESS) {
+        set({ totalMovesPlayed: get().totalMovesPlayed + 1 });
+      }
+
+      // Update grid
+      const tempGrid = grid.map(row => row.map(cell => ({ ...cell })));
+      let blocksPlaced = 0;
+      const placedBlockCoords: Array<{x: number, y: number, color: string}> = [];
+      const placedCellIds: string[] = [];
+
+      for (let row = 0; row < piece.shape.length; row++) {
+        for (let col = 0; col < piece.shape[row].length; col++) {
+          if (piece.shape[row][col] === 1) {
+            const gridX = startX + col;
+            const gridY = startY + row;
+            const cellId = uuidv4();
+            tempGrid[gridY][gridX] = {
+              filled: true,
+              color: piece.color,
+              id: cellId,
+              type: piece.type || CellType.NORMAL,
+              health: piece.type === CellType.ICE ? 2 : undefined,
+            };
+            blocksPlaced++;
+            placedCellIds.push(cellId);
+            placedBlockCoords.push({ x: gridX, y: gridY, color: piece.color });
+          }
+        }
+      }
+
+      const dropHeight = startY;
+
+      // Process grid (line clear, bombs, ice)
+      const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken, actions } = processGrid(tempGrid);
+
+      if (linesCleared > 0) {
+        JuiceTriggers.onLinesCleared(actions as any, combo + linesCleared);
+      }
+
+      const isPerfectClear = newGrid.every(row => row.every(cell => !cell.filled));
+      if (isPerfectClear) {
+        set({ perfectClearDetected: true });
+      }
+
+      // Cell explosion effects (throttled by combo level)
+      if (combo < 10) {
+        const maxExplosions = combo >= 5 ? 2 : 3;
+        actions.forEach(action => {
+          if (action.type === 'CELL_CLEAR') {
+            const clearAction = action as any;
+            clearAction.cells.slice(0, maxExplosions).forEach((cell: any) => {
+              setTimeout(() => {
+                useVisualEffectStore.getState().addEffect({
+                  type: 'explosion',
+                  duration: 100,
+                  target: `cell-${cell.x}-${cell.y}`,
+                  props: { x: cell.x, y: cell.y, color: cell.color, blockSize: 20, cellType: cell.cellType },
+                });
+              }, 50);
+            });
+          }
+        });
+      }
+
+      // Mini-events (Endless only)
+      let updatedMiniEventState = get().miniEventState;
+      if (gameMode === GameMode.ENDLESS) {
+        updatedMiniEventState = checkMiniEvents(get().totalMovesPlayed, get().miniEventState, get().difficultyTier);
+      } else {
+        updatedMiniEventState = createMiniEventState();
+      }
+
+      // Combo timer logic
+      const comboShieldPrevented = gameMode === GameMode.ENDLESS && shouldPreventComboBreak(updatedMiniEventState, linesCleared);
+      const now = Date.now();
+      const currentComboTimer = get().comboTimerStartTime;
+      const comboTimerDuration = get().comboTimerDuration;
+
+      let newCombo: number;
+      let newComboTimerStart: number | null = null;
+
+      if (linesCleared > 0) {
+        newCombo = combo + linesCleared;
+        newComboTimerStart = now;
+      } else if (comboShieldPrevented) {
+        newCombo = combo;
+        newComboTimerStart = currentComboTimer;
+      } else {
+        if (currentComboTimer !== null && now - currentComboTimer >= comboTimerDuration) {
+          newCombo = 0;
+          newComboTimerStart = null;
+        } else {
+          newCombo = combo;
+          newComboTimerStart = currentComboTimer;
+        }
+      }
+
+      const shouldUpdateTimeLeft = linesCleared > 0 || newComboTimerStart === null || newComboTimerStart !== currentComboTimer;
+      const newComboTimeLeft = shouldUpdateTimeLeft
+        ? (newComboTimerStart !== null
+            ? Math.max(0, (comboTimerDuration - (now - newComboTimerStart)) / 1000)
+            : 0)
+        : get().comboTimeLeft;
+
+      // Streak (Endless only)
+      let updatedProgressionState = get().progressionState;
+      let streakMultiplier = 1.0;
+      if (gameMode === GameMode.ENDLESS) {
+        const newStreak = updateStreak(updatedProgressionState.currentStreak, linesCleared, comboShieldPrevented);
+        streakMultiplier = getStreakMultiplier(newStreak);
+        updatedProgressionState = { ...updatedProgressionState, currentStreak: newStreak };
+      }
+
+      // COMBO_RUSH (Timed mode)
+      const isTimedMode = gameMode === GameMode.TIMED;
+      const prevTimedBoostMoves = get().timedBoostMovesLeft;
+      let newTimedBoostMoves = prevTimedBoostMoves;
+
+      if (isTimedMode && newCombo >= 4 && prevTimedBoostMoves === 0) {
+        newTimedBoostMoves = 3;
+      } else if (isTimedMode && prevTimedBoostMoves > 0) {
+        newTimedBoostMoves = Math.max(0, prevTimedBoostMoves - 1);
+      }
+
+      const isRushActive = isTimedMode && newTimedBoostMoves > 0;
+      if (isRushActive && linesCleared === 0) {
+        newCombo = Math.max(combo, 1);
+      }
+
+      const comboMultiplier = linesCleared > 0 ? newCombo : combo;
+      const colorBonusMultiplier = (linesCleared > 0 && colorBonus) ? POINTS.COLOR_BONUS_MULTIPLIER : 1;
+      const isFinalSeconds = gameMode === GameMode.TIMED && get().timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD;
+
+      const basePoints = (blocksPlaced * POINTS.BLOCK_PLACED) +
+                         (linesCleared * POINTS.LINE_CLEARED) +
+                         (comboMultiplier * POINTS.COMBO_MULTIPLIER);
+
+      const { score: pointsGained, breakdown } = calculateScore(
+        basePoints,
+        colorBonus,
+        1.0,
+        gameMode === GameMode.ENDLESS ? get().difficultyTier : 0,
+        gameMode === GameMode.ENDLESS ? get().activeEvent : null,
+        updatedMiniEventState,
+        linesCleared,
+        1.0, // passiveScoreMultiplier — ZEN deprecated, always 1.0
+        streakMultiplier
+      );
+
+      let sprintBonusGained = 0;
+      if (isFinalSeconds && linesCleared > 0) {
+        sprintBonusGained = Math.floor(basePoints * 0.5);
+      }
+
+      let newScore = score + pointsGained;
+
+      // Milestones (Endless only)
+      if (gameMode === GameMode.ENDLESS) {
+        const { milestones, newMilestone } = checkMilestones(newScore, updatedProgressionState.milestones);
+        updatedProgressionState = {
+          ...updatedProgressionState,
+          milestones,
+          lastMilestoneShown: newMilestone?.id ?? updatedProgressionState.lastMilestoneShown,
+        };
+      }
+
+      // lastAction
+      if (linesCleared > 0) {
+        set({ lastAction: { type: 'CLEAR', lines: linesCleared, combo: comboMultiplier, chainCount, colorBonus } });
+        if (gameMode === GameMode.DAILY_CHALLENGE) {
+          const snapshot = new Array(linesCleared).fill(null).map(() => new Array(4).fill(null).map(() => Math.random() > 0.3));
+          set({ dailyClearHistory: [...get().dailyClearHistory, ...snapshot].slice(-6) });
+        }
+      } else {
+        set({ lastAction: { type: 'PLACE', cellIds: placedCellIds, dropHeight } });
+      }
+
+      // Refill tray
+      let currentPieces = get().pieces.filter(p => p.instanceId !== piece.instanceId);
+      if (currentPieces.length === 0) {
+        set({ isPiecesLoading: true });
+        const isDaily = get().gameMode === GameMode.DAILY_CHALLENGE;
+        const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
+        try {
+          currentPieces = getRandomPiecesSync(
+            3, newGrid, isDaily,
+            useThemeStore.getState().getPieceColors(),
+            currentTier, get().gameMode, updatedMiniEventState, newScore
+          );
+        } catch {
+          currentPieces = getRandomPiecesSync(3, undefined, false, useThemeStore.getState().getPieceColors(), 0, get().gameMode, createMiniEventState(), newScore);
+        } finally {
+          set({ isPiecesLoading: false });
+        }
+      }
+
+      // Sounds
+      if (linesCleared > 0) {
+        playClear(linesCleared);
+        if ([2, 5, 8].includes(comboMultiplier) || (comboMultiplier > 8 && comboMultiplier % 5 === 0)) {
+          playCombo(comboMultiplier);
+        }
+        playHaptic(linesCleared > 1 ? 'clear_multi' : 'clear_single');
+      } else {
+        playPlace();
+        playHaptic('place');
+      }
+
+      // High score
+      const modeKey = get().gameMode;
+      const currentHighs = get().highScores;
+      const modeHighScore = currentHighs[modeKey] || 0;
+      if (newScore > modeHighScore) {
+        const newHighs = { ...currentHighs, [modeKey]: newScore };
+        set({ highScores: newHighs, highScore: newScore });
+        try {
+          const storageKey = 'fluxgrid_high_scores';
+          const existing = localStorage.getItem(storageKey);
+          let parsed: any = {};
+          if (existing) {
+            try {
+              const sv = JSON.parse(existing);
+              parsed = (sv && sv.data && typeof sv.data === 'object') ? sv.data : (typeof sv === 'object' ? sv : {});
+            } catch { parsed = {}; }
+          }
+          parsed[modeKey] = newScore;
+          localStorage.setItem(storageKey, JSON.stringify({ version: 1, timestamp: Date.now(), data: parsed }));
+        } catch {}
+        LocalStorageService.saveHighScore(modeKey, newScore).catch(() => {});
+      }
+
+      // Timed mode time reward
+      let extraTime = 0;
+      const previousCombo = combo;
+      if (get().gameMode === GameMode.TIMED && linesCleared > 0) {
+        const bonusPerLine = calculateTimeBonus(score, linesCleared);
+        extraTime = linesCleared * bonusPerLine;
+        if (comboMultiplier > 1) extraTime += calculateComboBonus(score);
+
+        const currentExpectedEnd = get().timerExpectedEnd;
+        if (currentExpectedEnd) {
+          const nowTs = Date.now();
+          const maxTime = nowTs + 60000;
+          const newExpectedEnd = Math.min(maxTime, currentExpectedEnd + (extraTime * 1000));
+          const newTimeLeft = Math.max(0, Math.ceil((newExpectedEnd - nowTs) / 1000));
+          extraTime = newTimeLeft - get().timeLeft;
+          set({ timerExpectedEnd: newExpectedEnd });
+        }
+      }
+
+      const newMaxCombo = Math.max(get().maxCombo, newCombo);
+
+      // Tier events (Endless)
+      const prevDifficultyTier = get().difficultyTier;
+      let tierResult: ReturnType<typeof checkTierEvent> | null = null;
+      if (get().gameMode === GameMode.ENDLESS) {
+        tierResult = checkTierEvent(newScore, prevDifficultyTier, get, set);
+        if (tierResult) {
+          (tierResult as any).tierStartMove = get().totalMovesPlayed;
+        }
+      }
+
+      // Active event tick
+      const eventUpdates = tickActiveEvent(newGrid, justPlacedPiece, get, set);
+      const tierUpdates = tierResult ?? {};
+      let finalGrid = (eventUpdates as any)?.grid ?? (tierUpdates as any)?.grid ?? newGrid;
+
+      let eventLinesCleared = 0;
+      let totalPointsGained = pointsGained;
+      let totalLinesCleared = linesCleared;
+      let totalBombsExploded = bombsExploded;
+      let totalIceBroken = iceBroken;
+      let totalColorBonus = colorBonus;
+      let maxChainCount = chainCount;
+
+      if ((eventUpdates as any)?.grid || (tierUpdates as any)?.grid) {
+        const processResult = processGrid(finalGrid);
+        finalGrid = processResult.grid;
+        eventLinesCleared = processResult.totalLinesCleared;
+
+        if (eventLinesCleared > 0) {
+          newCombo += eventLinesCleared;
+          JuiceTriggers.onLinesCleared(processResult.actions as any, newCombo);
+          const eventBasePoints = (eventLinesCleared * POINTS.LINE_CLEARED) + (newCombo * POINTS.COMBO_MULTIPLIER);
+          const { score: eventScore } = calculateScore(
+            eventBasePoints, processResult.colorBonus, 1.0,
+            gameMode === GameMode.ENDLESS ? get().difficultyTier : 0,
+            gameMode === GameMode.ENDLESS ? get().activeEvent : null,
+            updatedMiniEventState, eventLinesCleared, 1.0, streakMultiplier
+          );
+          totalPointsGained += eventScore;
+          newScore += eventScore;
+          totalLinesCleared += eventLinesCleared;
+          totalBombsExploded += processResult.bombsExploded;
+          totalIceBroken += processResult.iceBroken;
+          totalColorBonus = totalColorBonus || processResult.colorBonus;
+          maxChainCount = Math.max(maxChainCount, processResult.chainCount);
+          if (eventUpdates) {
+            (eventUpdates as any).lastAction = {
+              type: 'CLEAR', lines: eventLinesCleared,
+              chainCount: processResult.chainCount, colorBonus: processResult.colorBonus,
+            };
+          }
+        }
+      }
+
+      // Tick mini-events (Endless only)
+      if (gameMode === GameMode.ENDLESS) {
+        const comboWouldBreak = totalLinesCleared === 0 && combo > 0;
+        updatedMiniEventState = tickMiniEvents(updatedMiniEventState, totalLinesCleared, comboWouldBreak);
+      }
+
+      const finalPerfectClear = finalGrid.every(row => row.every(cell => !cell.filled));
+
+      set({
+        ...tierUpdates,
+        ...eventUpdates,
+        grid: finalGrid,
+        score: newScore,
+        highScore: Math.max(newScore, get().highScore),
+        combo: newCombo,
+        pieces: currentPieces,
+        timeLeft: Math.min(99, get().timeLeft + extraTime),
+        finalSprintBonus: get().finalSprintBonus + sprintBonusGained,
+        maxCombo: newMaxCombo,
+        timedBoostMovesLeft: newTimedBoostMoves,
+        miniEventState: updatedMiniEventState,
+        progressionState: updatedProgressionState,
+        comboTimerStartTime: newComboTimerStart,
+        comboTimeLeft: newComboTimeLeft,
+        lastMultiplierBreakdown: breakdown,
+        perfectClearDetected: get().perfectClearDetected || finalPerfectClear,
+      });
+
+      // Timed milestones + personal best
+      if (gameMode === GameMode.TIMED) {
+        const reachedMilestones = get().timedMilestones;
+        const newMilestone = checkTimedMilestones(newScore, reachedMilestones);
+        if (newMilestone) {
+          const updatedMilestones = new Set(reachedMilestones);
+          updatedMilestones.add(newMilestone.id);
+          set({ timedMilestones: updatedMilestones, lastMilestoneShown: newMilestone });
+        }
+        if (isNewPersonalBest(newScore)) {
+          const diff = newScore - (get().stats.timedHighScore || 0);
+          set({ showNewRecordNotification: true, newRecordDiff: diff });
+          savePersonalBest(newScore);
+        }
+      }
+
+      // Global stats
+      const currentStats = get().stats;
+      const nextStats: GameStats = {
+        ...currentStats,
+        blocksPlaced: currentStats.blocksPlaced + blocksPlaced,
+        linesCleared: currentStats.linesCleared + totalLinesCleared,
+        totalScore: currentStats.totalScore + totalPointsGained,
+        bombsExploded: currentStats.bombsExploded + totalBombsExploded,
+        iceBroken: currentStats.iceBroken + totalIceBroken,
+        perfectClears: (currentStats.perfectClears || 0) + (finalPerfectClear ? 1 : 0),
       };
-      
-      // Add to logs (keep last 100)
-      const currentLogs = get().gameLogs || [];
-      const updatedLogs = [newLog, ...currentLogs].slice(0, 100);
-      set({ gameLogs: updatedLogs });
-      
-      // Save to localStorage
-      try {
-        localStorage.setItem('flux_game_logs', JSON.stringify(updatedLogs));
-      } catch (error) {
-        console.error('[GameStore] Failed to save game logs:', error);
+
+      if (gameMode === GameMode.ENDLESS) {
+        nextStats.endlessTotalLines = (currentStats.endlessTotalLines || 0) + totalLinesCleared;
+        nextStats.endlessMaxCombo = Math.max(currentStats.endlessMaxCombo || 0, newCombo);
+        nextStats.endlessMaxTier = Math.max(currentStats.endlessMaxTier || 0, get().difficultyTier);
+        if (tierResult && (tierResult as any).activeEvent) {
+          nextStats.endlessEventCount = (currentStats.endlessEventCount || 0) + 1;
+        }
+      } else if (gameMode === GameMode.TIMED) {
+        nextStats.timedTotalLines = (currentStats.timedTotalLines || 0) + linesCleared;
+        nextStats.timedMaxCombo = Math.max(currentStats.timedMaxCombo || 0, newCombo);
+        nextStats.timedSprintBonusTotal = (currentStats.timedSprintBonusTotal || 0) + sprintBonusGained;
       }
-      
-      // Monetization integration: Record game end and streak
-      try {
-        // Dynamic import to avoid circular dependency
-        import('../../../utils/managers/adManager').then(({ AdManager }) => {
+
+      set({ stats: nextStats });
+      syncSaveStats(nextStats);
+
+      const previousAchievements = get().achievements;
+      const updatedAchievements = updateAchievements(previousAchievements, {
+        newScore, newCombo, previousCombo: combo,
+        totalBombsExploded: nextStats.bombsExploded || 0,
+        totalIceBroken: nextStats.iceBroken || 0,
+        stats: nextStats, gameMode,
+        difficultyTier: get().difficultyTier,
+        isPerfectClear: finalPerfectClear,
+        colorBonus: totalColorBonus, chainCount: maxChainCount,
+      });
+      const newUnlock = updatedAchievements.find((ach, i) => ach.unlocked && !previousAchievements[i]?.unlocked);
+      set({ achievements: updatedAchievements, unlockedAchievementId: newUnlock ? newUnlock.id : get().unlockedAchievementId });
+      syncNewAchievement(previousAchievements, updatedAchievements);
+
+      get().checkGameOver();
+      return true;
+    },
+
+    checkGameOver: () => {
+      const { grid, pieces, gameMode } = get();
+      if (get().isPiecesLoading) return;
+      if (pieces.length === 0) return;
+
+      let canFitAny = false;
+      outer: for (const piece of pieces) {
+        for (let y = 0; y < GRID_SIZE; y++) {
+          for (let x = 0; x < GRID_SIZE; x++) {
+            if (get().canPlacePiece(grid, piece, x, y)) {
+              canFitAny = true;
+              break outer;
+            }
+          }
+        }
+      }
+
+      if (!canFitAny) {
+        if (gameMode === GameMode.DAILY_CHALLENGE) {
+          import('@shared/store/streakStore').then(({ useStreakStore }) => {
+            useStreakStore.getState().recordGameCompleted();
+          });
+        }
+
+        const currentStats = get().stats;
+        const finalScore = get().score;
+        const updatedStats = { ...currentStats };
+
+        if (gameMode === GameMode.ENDLESS) {
+          updatedStats.endlessHighScore = Math.max(currentStats.endlessHighScore || 0, finalScore);
+        } else if (gameMode === GameMode.TIMED) {
+          updatedStats.timedHighScore = Math.max(currentStats.timedHighScore || 0, finalScore);
+          const duration = 60 - get().timeLeft;
+          updatedStats.timedMaxDuration = Math.max(currentStats.timedMaxDuration || 0, duration);
+        }
+
+        const gameStartTime = get().timerStartTime || Date.now() - 60000;
+        const gameDuration = Math.floor((Date.now() - gameStartTime) / 1000);
+        const finalMaxCombo = get().maxCombo;
+        const finalLinesCleared = currentStats.linesCleared || 0;
+
+        let badge: 'new-record' | 'perfect' | 'comeback' | 'speedrun' | undefined;
+        const previousHighScore = gameMode === GameMode.ENDLESS
+          ? (currentStats.endlessHighScore || 0)
+          : (currentStats.timedHighScore || 0);
+
+        if (finalScore > previousHighScore && previousHighScore > 0) badge = 'new-record';
+        else if (get().perfectClearDetected) badge = 'perfect';
+        else if (gameMode === GameMode.TIMED && gameDuration < 30) badge = 'speedrun';
+
+        if (badge === 'new-record') {
+          updatedStats.recordsBroken = (currentStats.recordsBroken || 0) + 1;
+        }
+
+        const previousAchievements = get().achievements;
+        const updatedAchievements = updateAchievements(previousAchievements, {
+          newScore: finalScore, newCombo: get().maxCombo, previousCombo: get().maxCombo,
+          totalBombsExploded: updatedStats.bombsExploded || 0,
+          totalIceBroken: updatedStats.iceBroken || 0,
+          stats: updatedStats, gameMode, difficultyTier: get().difficultyTier,
+          isPerfectClear: false, colorBonus: false, chainCount: 0,
+        });
+        const finalUnlock = updatedAchievements.find((ach, i) => ach.unlocked && !previousAchievements[i]?.unlocked);
+
+        set({ stats: updatedStats, achievements: updatedAchievements, unlockedAchievementId: finalUnlock ? finalUnlock.id : get().unlockedAchievementId });
+        syncSaveStats(updatedStats);
+        syncNewAchievement(previousAchievements, updatedAchievements);
+
+        const newLog = {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          mode: gameMode, score: finalScore, timestamp: Date.now(),
+          duration: gameDuration, linesCleared: finalLinesCleared, maxCombo: finalMaxCombo, badge,
+          metadata: { tier: gameMode === GameMode.ENDLESS ? get().difficultyTier : undefined },
+        };
+
+        const updatedLogs = [newLog, ...(get().gameLogs || [])].slice(0, 100);
+        set({ gameLogs: updatedLogs });
+        try {
+          localStorage.setItem('flux_game_logs', JSON.stringify(updatedLogs));
+        } catch (error) {
+          console.error('[GameStore] Failed to save game logs:', error);
+        }
+
+        // Side effects via dynamic imports (avoids circular deps)
+        import('../../../core/services/ads/AdManager').then(({ AdManager }) => {
           AdManager.recordGameEnd();
-        }).catch((error) => {
-          console.error('[GameStore] Failed to record game end:', error);
-        });
-      } catch (error) {
-        console.error('[GameStore] Failed to record game end:', error);
-      }
-      
-      try {
-        // Dynamic import to avoid circular dependency
-        import('../../../shared/store/streakStore').then(({ useStreakStore }) => {
+        }).catch(console.error);
+
+        Promise.all([
+          import('../../../shared/store/streakStore'),
+          import('@utils/native/widgetHelper'),
+        ]).then(([{ useStreakStore }, { syncAllWidgetData }]) => {
           useStreakStore.getState().recordGameCompleted();
-        }).catch((error) => {
-          console.error('[GameStore] Failed to record game completion:', error);
-        });
-      } catch (error) {
-        console.error('[GameStore] Failed to record game completion:', error);
-      }
-      
-      playGameOver();
-      set({ isGameOver: true });
-      
-      // Update dynamic shortcuts with recent mode
-      try {
+          syncAllWidgetData(get().highScores, useStreakStore.getState().currentStreak);
+        }).catch(console.error);
+
         import('../../../utils/native/dynamicShortcutHelper').then(({ saveRecentMode }) => {
           saveRecentMode(gameMode, finalScore);
-        }).catch((error) => {
-          console.error('[GameStore] Failed to update dynamic shortcuts:', error);
-        });
-      } catch (error) {
-        console.error('[GameStore] Failed to update dynamic shortcuts:', error);
+        }).catch(console.error);
+
+        playGameOver();
+
+        // Save achievements before setting game over
+        try {
+          localStorage.setItem('flux_achievements', JSON.stringify(get().achievements));
+        } catch (error) {
+          console.error('[Achievement] Failed to save on game end:', error);
+        }
+
+        set({ isGameOver: true });
       }
-      
-      // Sync data to widgets and update
+    },
+
+    resetGame: () => {
+      get().initGame();
+    },
+
+    saveCurrentGame: () => {
       const state = get();
-      import('@/src/utils/native/widgetHelper').then(({ syncAllWidgetData }) => {
-        // Get streak from streakStore instead of localStorage
-        import('@/src/shared/store/streakStore').then(({ useStreakStore }) => {
-          const currentStreak = useStreakStore.getState().currentStreak;
-          syncAllWidgetData(state.highScores, currentStreak);
-        });
+      if (state.isGameOver || state.appState !== AppState.GAME) return false;
+      return saveGameState({
+        grid: state.grid,
+        pieces: state.pieces,
+        score: state.score,
+        combo: state.combo,
+        gameMode: state.gameMode,
+        difficultyTier: state.difficultyTier,
+        timeLeft: state.timeLeft,
+        timedBoostMovesLeft: state.timedBoostMovesLeft,
+        maxCombo: state.maxCombo,
+        activeEvent: state.activeEvent,
+        eventMovesRemaining: state.eventMovesRemaining,
+        miniEventState: state.miniEventState,
+        progressionState: state.progressionState,
+        totalMovesPlayed: state.totalMovesPlayed,
+        tierStartMove: state.tierStartMove,
+        savedAt: Date.now(),
       });
-    }
-  },
+    },
 
-  resetGame: () => {
-    get().initGame();
-  },
+    loadSavedGame: () => {
+      const savedState = loadGameState();
+      if (!savedState) return false;
 
-  // Save current game state
-  saveCurrentGame: () => {
-    const state = get();
-    
-    // Don't save if game is over or not in game state
-    if (state.isGameOver || state.appState !== AppState.GAME) {
-      return false;
-    }
-    
-    return saveGameState({
-      grid: state.grid,
-      pieces: state.pieces,
-      score: state.score,
-      combo: state.combo,
-      flux: state.flux,
-      gameMode: state.gameMode,
-      difficultyTier: state.difficultyTier,
-      timeLeft: state.timeLeft,
-      timedBoostMovesLeft: state.timedBoostMovesLeft,
-      maxCombo: state.maxCombo,
-      chronoBonus: state.chronoBonus,
-      activeEvent: state.activeEvent,
-      eventMovesRemaining: state.eventMovesRemaining,
-      miniEventState: state.miniEventState,
-      progressionState: state.progressionState,
-      totalMovesPlayed: state.totalMovesPlayed,
-      isSurgeActive: state.isSurgeActive,
-      savedAt: Date.now(),
-    });
-  },
+      console.log('[GameStore] Starting game load...');
+      get().initGame(savedState.gameMode);
 
-  // Load saved game state
-  loadSavedGame: () => {
-    const savedState = loadGameState();
-    
-    if (!savedState) {
-      return false;
-    }
-    
-    console.log('[GameStore] Starting game load...');
-    
-    // First, initialize a fresh game with the saved mode
-    // This ensures all components mount properly and pieces are fresh
-    get().initGame(savedState.gameMode);
-    
-    // Wait longer for components to fully mount
-    setTimeout(() => {
-      const now = Date.now();
-      const isTimed = savedState.gameMode === GameMode.TIMED;
-      
-      console.log('[GameStore] Components mounted, restoring state...');
-      
-      // Properly restore grid with all cell properties
-      const restoredGrid = savedState.grid.map(row => 
-        row.map(cell => ({
-          filled: Boolean(cell.filled),
-          color: cell.color || '',
-          id: cell.filled ? uuidv4() : '',
-          isClearing: false,
-          type: cell.type,
-          health: cell.health,
-        }))
-      );
-      
-      console.log('[GameStore] Grid cells restored:', restoredGrid.length, 'x', restoredGrid[0].length);
-      console.log('[GameStore] Filled cells:', restoredGrid.flat().filter(c => c.filled).length);
-      
-      set({
-        grid: restoredGrid,
-        score: savedState.score,
-        combo: savedState.combo,
-        difficultyTier: savedState.difficultyTier,
-        timeLeft: savedState.timeLeft,
-        timedBoostMovesLeft: savedState.timedBoostMovesLeft,
-        maxCombo: savedState.maxCombo,
-        chronoBonus: savedState.chronoBonus,
-        activeEvent: savedState.activeEvent,
-        eventMovesRemaining: savedState.eventMovesRemaining,
-        // IMPORTANT: Recreate mini event state instead of restoring
-        // This prevents "not iterable" errors with Sets
-        miniEventState: createMiniEventState(),
-        // IMPORTANT: Recreate progression state instead of restoring
-        progressionState: createProgressionState(),
-        totalMovesPlayed: savedState.totalMovesPlayed,
-        timerStartTime: isTimed ? now : null,
-        timerExpectedEnd: isTimed ? now + (savedState.timeLeft * 1000) : null,
-        isGameOver: false,
-        draggedPiece: null,
-      });
-      
-      console.log('[GameStore] State set complete');
-      console.log('[GameStore] Current pieces count:', get().pieces.length);
-      console.log('[GameStore] Is game over?', get().isGameOver);
-      
-      // Check game over after grid is restored
       setTimeout(() => {
-        console.log('[GameStore] Running game over check...');
-        get().checkGameOver();
-        console.log('[GameStore] Game over check complete. Is game over?', get().isGameOver);
-      }, 300);
-    }, 250); // Increased delay
-    
-    // Clear the save after loading
-    clearGameSave();
-    
-    return true;
-  },
+        const now = Date.now();
+        const isTimed = savedState.gameMode === GameMode.TIMED;
 
-  // Check if saved game exists
-  hasSavedGame: () => {
-    return hasSavedGame();
-  },
+        const restoredGrid = savedState.grid.map(row =>
+          row.map(cell => ({
+            filled: Boolean(cell.filled),
+            color: cell.color || '',
+            id: cell.filled ? uuidv4() : '',
+            isClearing: false,
+            type: cell.type,
+            health: cell.health,
+          }))
+        );
 
-  setState: (update) => {
-    set(update);
-  }
-};
+        set({
+          grid: restoredGrid,
+          score: savedState.score,
+          combo: savedState.combo,
+          difficultyTier: savedState.difficultyTier,
+          timeLeft: savedState.timeLeft,
+          timedBoostMovesLeft: savedState.timedBoostMovesLeft,
+          maxCombo: savedState.maxCombo,
+          activeEvent: savedState.activeEvent,
+          eventMovesRemaining: savedState.eventMovesRemaining,
+          miniEventState: createMiniEventState(),
+          progressionState: createProgressionState(),
+          totalMovesPlayed: savedState.totalMovesPlayed,
+          tierStartMove: savedState.tierStartMove ?? savedState.totalMovesPlayed,
+          timerStartTime: isTimed ? now : null,
+          timerExpectedEnd: isTimed ? now + (savedState.timeLeft * 1000) : null,
+          isGameOver: false,
+          draggedPiece: null,
+        });
+
+        setTimeout(() => {
+          get().checkGameOver();
+        }, 300);
+      }, 250);
+
+      clearGameSave();
+      return true;
+    },
+
+    hasSavedGame: () => hasSavedGame(),
+
+    setState: (update) => set(update),
+  };
 });

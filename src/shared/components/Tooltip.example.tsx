@@ -166,27 +166,20 @@ export function FeatureDiscoveryExample() {
   const { showTooltip, hasShownTooltip } = useTooltipStore();
   
   React.useEffect(() => {
-    // Show tooltip when flux meter reaches 100% for the first time
-    const checkFluxMeter = () => {
-      const flux = 100; // Example: get from game store
-      
-      if (flux >= 100 && !hasShownTooltip('feature_surge_mode')) {
-        showTooltip({
-          id: 'feature_surge_mode',
-          title: 'SURGE Modu Aktif! ⚡',
-          description: 'Flux enerjin doldu! Şimdi 2× puan kazanıyorsun!',
-          position: {
-            x: window.innerWidth / 2,
-            y: 100,
-            placement: 'center',
-          },
-          duration: 5000,
-          icon: '⚡',
-        });
-      }
-    };
-    
-    checkFluxMeter();
+    if (!hasShownTooltip('feature_combo_timer')) {
+      showTooltip({
+        id: 'feature_combo_timer',
+        title: 'Kombo Zamanlayici',
+        description: 'Satir temizleyerek kombonu canli tut ve skorunu yukselt.',
+        position: {
+          x: window.innerWidth / 2,
+          y: 100,
+          placement: 'center',
+        },
+        duration: 5000,
+        icon: '+',
+      });
+    }
   }, [hasShownTooltip, showTooltip]);
   
   return null;
@@ -290,7 +283,7 @@ export function DismissExample() {
         placement: 'center',
       },
       duration: 3000,
-      icon: '⏱️',
+      icon: '⏱ï¸',
     });
   };
   
@@ -424,3 +417,4 @@ export function CompleteAppExample() {
     </div>
   );
 }
+

@@ -37,7 +37,6 @@ describe('Task 15: Theme System Integration Verification', () => {
         endlessMaxCombo: 15,
         endlessMaxTier: 3,
         timedMaxCombo: 10,
-        timedChronoBonus: 5,
       },
       achievements: [
         {

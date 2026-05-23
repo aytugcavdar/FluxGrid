@@ -61,7 +61,6 @@ export interface PerformanceCardProps {
   maxCombo: number;
   maxTier?: number; // Endless only
   maxDuration?: number; // Timed only
-  chronoBonus?: number; // Timed only
   color: string;
 }
 
@@ -73,7 +72,6 @@ export interface ModePerformance {
   maxCombo: number;
   maxTier?: number; // Endless only
   maxDuration?: number; // Timed only
-  chronoBonus?: number; // Timed only
 }
 
 export interface GeneralProgress {
@@ -102,6 +100,7 @@ export interface Achievement {
   current?: number;
   category?: string;
   hidden?: boolean;
+  rarity?: 'BRONZE' | 'SILVER' | 'GOLD' | 'MYTHIC';
   currentValue?: number;
   targetValue?: number;
 }

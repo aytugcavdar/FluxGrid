@@ -111,11 +111,6 @@ export interface SpecialBlockStats {
     averageBreakTime: number;
     iceChains: number;
   };
-  chronoStats: {
-    totalCollected: number;
-    averageBonus: number;
-    efficiency: number;
-  };
   specialBlockEfficiency: number;
 }
 

@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { GameMode } from '@shared/types';
 import { Grid } from '../../features/game/components/Grid';
 import { Piece } from '../../features/game/components/Piece';
-import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboBar, ComboRushFlash, ChronoPopup, EventStartVisual, ComboMilestone, LineCountDisplay, FloatingScoreText, FloatingTimeText, PerfectClearPopup, LineClearFlash } from '@features/hud';
+import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboRushFlash, EventStartVisual, ComboMilestone, LineCountDisplay, FloatingScoreText, FloatingTimeText, LineClearFlash } from '@features/hud';
 import { useThemeStore } from '@shared/store/themeStore';
 import { useTutorialStore } from '../../features/tutorial/store/tutorialStore';
 import { playClick } from '@utils/audio';
 import { AdBanner } from './AdBanner';
 import { AdManager } from '@core/services/ads/AdManager';
 import { useGameStore } from '../../features/game/store/gameStore';
+import { getTrayDecisionSupport } from '../../features/game/utils/trayDecisionSupport';
 import { TutorialOverlay } from '@features/tutorial';
 import { PerformanceMetricsDisplay } from '@features/performance';
 
@@ -25,11 +26,6 @@ interface TimePopup {
   value: number;
 }
 
-interface ChronoPopupData {
-  id: number;
-  seconds: number;
-}
-
 interface GameScreenProps {
   grid: any; // GridState type
   pieces: any[];
@@ -42,12 +38,10 @@ interface GameScreenProps {
   timedBoostMovesLeft: number;
   timePopups: TimePopup[];
   setTimePopups: React.Dispatch<React.SetStateAction<TimePopup[]>>;
-  chronoPopups: ChronoPopupData[];
-  setChronoPopups: React.Dispatch<React.SetStateAction<ChronoPopupData[]>>;
   shownChain: number;
   showPerfect: boolean;
-  eventStartVisual: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
-  setEventStartVisual: React.Dispatch<React.SetStateAction<'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null>>;
+  eventStartVisual: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
+  setEventStartVisual: React.Dispatch<React.SetStateAction<'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null>>;
   showComboMilestone: boolean;
   lineCountToShow: number;
   showLineCount: boolean;
@@ -67,8 +61,6 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
   timedBoostMovesLeft,
   timePopups,
   setTimePopups,
-  chronoPopups,
-  setChronoPopups,
   shownChain,
   showPerfect,
   eventStartVisual,
@@ -80,6 +72,7 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
   const { getThemeColors } = useThemeStore();
   const colors = getThemeColors();
   const isTutorialActive = useTutorialStore(state => state.isActive);
+  const isGameOver = useGameStore(state => state.isGameOver);
 
   // Track piece set refreshes (all 3 pieces replaced at once = reroll/new round)
   const prevPieceIdsRef = React.useRef<string>('');
@@ -102,54 +95,17 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
     prevPieceIdsRef.current = currentIds;
   }, [pieces]);
 
-  const [showPerfectClear, setShowPerfectClear] = useState(false);
-  const [prevPerfectClear, setPrevPerfectClear] = useState(false);
+  const shouldRenderBanner =
+    typeof window !== 'undefined' &&
+    !!(window as any).Capacitor?.isNativePlatform?.() &&
+    !isTutorialActive &&
+    !isGameOver &&
+    !AdManager.isNoAdsActive();
 
-  // Detect perfect clear from game state
-  useEffect(() => {
-    const perfectClearDetected = useGameStore.getState().perfectClearDetected;
-    
-    if (perfectClearDetected && !prevPerfectClear) {
-      setShowPerfectClear(true);
-      
-      // Auto-hide after 3 seconds
-      setTimeout(() => {
-        setShowPerfectClear(false);
-        // Reset perfect clear flag in store
-        useGameStore.setState({ perfectClearDetected: false });
-      }, 3000);
-    }
-    
-    setPrevPerfectClear(perfectClearDetected);
-  }, [prevPerfectClear]);
-
-  // Check if banner should be shown (native platform only)
-  // Note: AdBanner component handles all visibility logic internally
-  const showBanner = typeof window !== 'undefined' && 
-                     !!(window as any).Capacitor?.isNativePlatform?.();
-
-  // Track banner height for dynamic tray padding
-  const [bannerHeight, setBannerHeight] = useState(0);
-
-  // Memoized event handlers for banner events
-  const handleBannerShown = React.useCallback((event: Event) => {
-    const customEvent = event as CustomEvent<{ height: number }>;
-    setBannerHeight(customEvent.detail.height);
-  }, []);
-
-  const handleBannerHidden = React.useCallback(() => {
-    setBannerHeight(0);
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener('fluxgrid-banner-shown', handleBannerShown);
-    window.addEventListener('fluxgrid-banner-hidden', handleBannerHidden);
-
-    return () => {
-      window.removeEventListener('fluxgrid-banner-shown', handleBannerShown);
-      window.removeEventListener('fluxgrid-banner-hidden', handleBannerHidden);
-    };
-  }, [handleBannerShown, handleBannerHidden]);
+  const trayDecisionSupport = React.useMemo(
+    () => getTrayDecisionSupport(grid, pieces),
+    [grid, pieces]
+  );
 
   // Memoized event handlers for performance
   const handleEventStartComplete = React.useCallback(() => {
@@ -159,10 +115,6 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
   const handleTimePopupAnimationComplete = React.useCallback((popupId: number) => {
     setTimePopups(prev => prev.filter(p => p.id !== popupId));
   }, [setTimePopups]);
-
-  const handleChronoPopupComplete = React.useCallback((id: number) => {
-    setChronoPopups(prev => prev.filter(p => p.id !== id));
-  }, [setChronoPopups]);
 
   return (
     <motion.div
@@ -201,7 +153,7 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
             position: 'relative'
           }}
         >
-          <div style={{ 
+          <div className="game-board" style={{ 
             width: gridSize > 0 ? gridSize : '100%', 
             height: gridSize > 0 ? gridSize : '100%', 
             maxWidth: gridSize > 0 ? gridSize : '100vmin', 
@@ -217,7 +169,7 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
       {/* ══ Piece Tray — glassmorphism ══ */}
       <div style={{
         height: `calc(var(--tray-height, 72px) + env(safe-area-inset-bottom, 0px))`,
-        marginBottom: showBanner ? '60px' : '0px',
+        marginBottom: '0px',
         paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6px)',
         flexShrink: 0,
         position: 'relative',
@@ -247,27 +199,33 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
               {pieces.map((piece: any, index: number) => {
                 const isIce   = piece.type === 'ICE';
                 const isBomb  = piece.type === 'BOMB';
-                const isChrono = piece.type === 'CHRONO';
+                const decision = trayDecisionSupport[piece.instanceId] || { canPlace: true, canClear: false };
                 const borderColor = isIce
                   ? 'rgba(56,189,248,0.45)'
                   : isBomb
                   ? 'rgba(239,68,68,0.45)'
-                  : isChrono
-                  ? 'rgba(251,191,36,0.45)'
-                  : 'rgba(255,255,255,0.07)';
+                  : decision.canClear
+                  ? 'rgba(34,197,94,0.56)'
+                  : decision.canPlace
+                  ? 'rgba(255,255,255,0.12)'
+                  : 'rgba(148,163,184,0.12)';
                 const bgColor = isIce
                   ? 'rgba(56,189,248,0.06)'
                   : isBomb
                   ? 'rgba(239,68,68,0.06)'
-                  : isChrono
-                  ? 'rgba(251,191,36,0.05)'
-                  : 'rgba(255,255,255,0.03)';
+                  : decision.canClear
+                  ? 'rgba(34,197,94,0.075)'
+                  : decision.canPlace
+                  ? 'rgba(255,255,255,0.04)'
+                  : 'rgba(255,255,255,0.018)';
                 const glowColor = isIce
                   ? '0 0 12px rgba(56,189,248,0.2)'
                   : isBomb
                   ? '0 0 12px rgba(239,68,68,0.2)'
-                  : isChrono
-                  ? '0 0 12px rgba(251,191,36,0.18)'
+                  : decision.canClear
+                  ? '0 0 18px rgba(34,197,94,0.2), inset 0 0 0 1px rgba(74,222,128,0.18)'
+                  : decision.canPlace
+                  ? '0 0 10px rgba(255,255,255,0.035)'
                   : 'none';
 
                 // Stagger direction: full refresh → slide from right
@@ -300,9 +258,30 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
                       border: `1px solid ${borderColor}`,
                       background: bgColor,
                       boxShadow: glowColor,
-                      transition: 'border-color 0.2s, box-shadow 0.2s',
+                      position: 'relative',
+                      opacity: decision.canPlace ? 1 : 0.52,
+                      filter: decision.canPlace ? 'saturate(1)' : 'saturate(0.45)',
+                      transition: 'border-color 0.2s, box-shadow 0.2s, opacity 0.2s, filter 0.2s',
                     }}
                   >
+                    {decision.canClear && (
+                      <motion.div
+                        aria-hidden="true"
+                        animate={{ opacity: [0.35, 0.9, 0.35], scaleX: [0.72, 1, 0.72] }}
+                        transition={{ duration: 1.35, repeat: Infinity, ease: 'easeInOut' }}
+                        style={{
+                          position: 'absolute',
+                          left: 12,
+                          right: 12,
+                          top: 5,
+                          height: 2,
+                          borderRadius: 999,
+                          background: 'linear-gradient(90deg, transparent, rgba(74,222,128,0.95), transparent)',
+                          transformOrigin: 'center',
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    )}
                     <Piece piece={piece} index={index} />
                   </motion.div>
                 );
@@ -313,7 +292,7 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
       </div>
 
       {/* Ad Banner */}
-      {showBanner && <AdBanner position="bottom" />}
+      {shouldRenderBanner && <AdBanner position="bottom" />}
 
       {/* Game Visual Effects */}
       {/* ComboDisplay DISABLED - causes freeze at 10x combo */}
@@ -327,7 +306,6 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
       {/* Line clear horizontal sweep flash */}
       <LineClearFlash />
       <SurgeFlash active={showSurgeFlash} />
-      <ComboBar />
       {/* ComboMilestone DISABLED - causes crash at 10x combo */}
       {/* <ComboMilestone combo={combo} show={showComboMilestone} /> */}
       <LineCountDisplay lineCount={lineCountToShow} show={showLineCount} />
@@ -366,27 +344,12 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
         ))}
       </AnimatePresence>
 
-      {/* CHRONO Popups */}
-      <AnimatePresence>
-        {chronoPopups.map(popup => (
-          <ChronoPopup
-            key={popup.id}
-            id={popup.id}
-            seconds={popup.seconds}
-            onComplete={handleChronoPopupComplete}
-          />
-        ))}
-      </AnimatePresence>
-
       <div className="fixed top-20 left-0 right-0 flex flex-col items-center gap-2 pointer-events-none z-10">
         <AnimatePresence mode="wait">
           {showPerfect && <PerfectBonus key="perfect" show={showPerfect} />}
         </AnimatePresence>
       </div>
 
-      {/* Perfect Clear Popup */}
-      <PerfectClearPopup show={showPerfectClear} />
-      
       {/* Tutorial Overlay */}
       <TutorialOverlay />
       

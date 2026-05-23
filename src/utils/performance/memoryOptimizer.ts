@@ -4,37 +4,6 @@
  */
 
 /**
- * Clear unused caches periodically
- */
-export const clearUnusedCaches = () => {
-  // Clear old localStorage items (keep last 30 days)
-  const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-  
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('cache_')) {
-        const item = localStorage.getItem(key);
-        if (item) {
-          try {
-            const data = JSON.parse(item);
-            if (data.timestamp && data.timestamp < thirtyDaysAgo) {
-              localStorage.removeItem(key);
-              console.log('[MemoryOptimizer] Removed old cache:', key);
-            }
-          } catch (e) {
-            // Invalid JSON, remove it
-            localStorage.removeItem(key);
-          }
-        }
-      }
-    }
-  } catch (error) {
-    console.error('[MemoryOptimizer] Failed to clear caches:', error);
-  }
-};
-
-/**
  * Monitor memory usage (if available)
  */
 export const monitorMemoryUsage = () => {
@@ -102,18 +71,10 @@ export const cleanupEventListeners = () => {
  * Initialize memory optimization
  */
 export const initializeMemoryOptimization = () => {
-  // Clear unused caches on startup
-  clearUnusedCaches();
-  
   // Monitor memory usage periodically (every 5 minutes)
   setInterval(() => {
     monitorMemoryUsage();
   }, 5 * 60 * 1000);
-  
-  // Clear caches periodically (every hour)
-  setInterval(() => {
-    clearUnusedCaches();
-  }, 60 * 60 * 1000);
   
   // Log initial memory usage
   setTimeout(() => {

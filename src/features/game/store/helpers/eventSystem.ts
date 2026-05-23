@@ -7,16 +7,25 @@ import { EVENT_DURATIONS, EVENT_SCORE_MULTIPLIERS, EVENT_TRIGGER_INTERVALS, ICE_
 
 type GetFn = () => GameStore;
 type SetFn = (partial: Partial<GameStore>) => void;
+type EndlessEvent = 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID';
 
 // Tier thresholds and events for Endless mode
 const TIER_THRESHOLDS = [0, 5000, 15000, 30000, 55000, 90000, 140000];
-const TIER_EVENTS = ['ICE_STORM', 'QUAKE', 'MIRROR', 'CHAOS', 'VOID'];
+const TIER_EVENTS: Record<number, EndlessEvent> = {
+  1: 'ICE_STORM',
+  2: 'QUAKE',
+  3: 'MIRROR',
+  4: 'CHAOS',
+  5: 'VOID',
+  6: 'VOID',
+};
 
 // Return type for checkTierEvent
 type TierEventResult = {
   difficultyTier: number;
-  activeEvent: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
+  activeEvent: EndlessEvent | null;
   eventMovesRemaining: number;
+  tierStartMove?: number;
   lastAction: any;
   grid?: GridState;
 } | null;
@@ -25,8 +34,7 @@ type TierEventResult = {
  * Check if player has reached a new difficulty tier and activate corresponding event
  * 
  * Evaluates whether the player's score has crossed a tier threshold and
- * activates the corresponding tier event. Each tier (1-6) has a unique event:
- * ICE_STORM, GRAVITY_RUSH, QUAKE, MIRROR, CHAOS, VOID.
+ * activates the corresponding tier event.
  * 
  * Only applies to ENDLESS game mode. Other modes (TIMED, ZEN, DAILY_CHALLENGE)
  * do not trigger tier events.
@@ -38,14 +46,14 @@ type TierEventResult = {
  * @returns TierEventResult object with state updates, or null if no tier change
  * 
  * @example
- * // Player reaches 1500 points (tier 1)
- * const result = checkTierEvent(1500, 0, get, set);
+ * // Player reaches 5000 points (tier 1)
+ * const result = checkTierEvent(5000, 0, get, set);
  * // result.difficultyTier === 1
  * // result.activeEvent === 'ICE_STORM'
  * // result.eventMovesRemaining === 10
  * 
- * // Player reaches 9000 points (tier 3)
- * const result2 = checkTierEvent(9000, 2, get, set);
+ * // Player reaches 15000 points (tier 2)
+ * const result2 = checkTierEvent(15000, 1, get, set);
  * // result2.activeEvent === 'QUAKE'
  * // result2.grid !== undefined (QUAKE applies immediately)
  * 
@@ -55,12 +63,12 @@ type TierEventResult = {
  * 
  * @remarks
  * **Tier Events:**
- * - Tier 1 (1500): ICE_STORM - Spawns 2 ice blocks per move (10 moves)
- * - Tier 2 (4000): GRAVITY_RUSH - Reverses gravity every 5 moves (10 moves)
- * - Tier 3 (9000): QUAKE - Shifts blocks left, applies immediately (8 moves)
- * - Tier 4 (18000): MIRROR - Places mirrored piece (10 moves)
- * - Tier 5 (35000): CHAOS - Random effects every 4 moves (12 moves)
- * - Tier 6 (60000): VOID - Clears bottom 2 rows every 5 moves (10 moves)
+ * - Tier 1 (5000): ICE_STORM - Spawns 2 ice blocks per move (10 moves)
+ * - Tier 2 (15000): QUAKE - Shifts blocks left (8 moves)
+ * - Tier 3 (30000): MIRROR - Places mirrored piece (10 moves)
+ * - Tier 4 (55000): CHAOS - Random effects every 4 moves (12 moves)
+ * - Tier 5 (90000): VOID - Clears bottom 2 rows every 5 moves (10 moves)
+ * - Tier 6 (140000): VOID - Endgame VOID pressure (10 moves)
  * 
  * **QUAKE Special Handling:**
  * - QUAKE applies its effect immediately upon activation
@@ -114,9 +122,9 @@ export function checkTierEvent(
   const nextTier = currentTier + 1;
   
   if (newTier >= nextTier && nextTier >= 1 && nextTier <= 6) {
-    const eventName = TIER_EVENTS[nextTier - 1];
+    const eventName = TIER_EVENTS[nextTier];
     
-    const duration = EVENT_DURATIONS[eventName as keyof typeof EVENT_DURATIONS] ?? 10;
+    const duration = EVENT_DURATIONS[eventName];
     
     const tierNames: Record<number, string> = {
       1: 'Gelişmiş',
@@ -124,11 +132,11 @@ export function checkTierEvent(
       3: 'Usta',
       4: 'Efsane',
       5: 'Kaos',
-      6: 'Void',
+      6: 'VOID+',
     };
     
     const result: TierEventResult = {
-      activeEvent: eventName as 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID',
+      activeEvent: eventName,
       eventMovesRemaining: duration,
       difficultyTier: nextTier, // Sadece 1 tier atla
       lastAction: {
@@ -158,13 +166,12 @@ export function checkTierEvent(
  * @param activeEvent - Currently active event name, or null if no event active
  * @returns Score multiplier:
  *   - 1.3x for QUAKE (higher difficulty)
- *   - 1.2x for ICE_STORM, GRAVITY_RUSH, MIRROR, CHAOS, VOID
+ *   - 1.2x for ICE_STORM, MIRROR, CHAOS, VOID
  *   - 1.0x when no event is active
  * 
  * @example
  * getEventScoreMultiplier('QUAKE')        // Returns 1.3
  * getEventScoreMultiplier('ICE_STORM')    // Returns 1.2
- * getEventScoreMultiplier('GRAVITY_RUSH') // Returns 1.2
  * getEventScoreMultiplier(null)           // Returns 1.0
  * 
  * @remarks
@@ -180,7 +187,6 @@ export function checkTierEvent(
  * 
  * **Event Durations:**
  * - ICE_STORM: 10 moves
- * - GRAVITY_RUSH: 10 moves
  * - QUAKE: 8 moves (shorter due to higher multiplier)
  * - MIRROR: 10 moves
  * - CHAOS: 12 moves
@@ -188,7 +194,7 @@ export function checkTierEvent(
  * 
  * **Validates: Requirements 3.4, 3.5, 6.1, 6.2, 6.5**
  */
-export function getEventScoreMultiplier(activeEvent: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null): number {
+export function getEventScoreMultiplier(activeEvent: EndlessEvent | null): number {
   if (!activeEvent) return 1.0;
   if (activeEvent === 'QUAKE') return EVENT_SCORE_MULTIPLIERS.QUAKE;
   return EVENT_SCORE_MULTIPLIERS.DEFAULT;
@@ -238,12 +244,6 @@ export function getEventScoreMultiplier(activeEvent: 'ICE_STORM' | 'GRAVITY_RUSH
  * - If < 2 empty cells, spawns in all available cells
  * - Blocks are unique (no duplicates in same move)
  * 
- * **GRAVITY_RUSH (Every 5 Moves):**
- * - Reverses gravity (blocks fall upward)
- * - Triggers when movesElapsed % 5 === 0
- * - Blocks collect at top instead of bottom
- * - Column-based gravity algorithm
- * 
  * **QUAKE (Every Move):**
  * - Shifts all normal blocks left
  * - ICE and STONE blocks stay in place
@@ -258,7 +258,7 @@ export function getEventScoreMultiplier(activeEvent: 'ICE_STORM' | 'GRAVITY_RUSH
  * - Triggers processGrid (can clear lines)
  * 
  * **CHAOS (Every 4 Moves):**
- * - Triggers random effect from [ICE_STORM, GRAVITY_RUSH, MIRROR]
+ * - Triggers random effect from [ICE_STORM, MIRROR]
  * - Triggers when movesElapsed % 4 === 0
  * - Applies single-move effect without changing active event
  * - Does not trigger itself recursively
@@ -304,54 +304,6 @@ export function tickActiveEvent(
   if (!activeEvent || eventMovesRemaining <= 0) return null;
   
   let updates: Partial<GameStore> = {};
-  
-  if (activeEvent === 'GRAVITY_RUSH') {
-    // BUG FIX: GRAVITY_RUSH her hamlede hafif etki + her 5 hamlede tam etki
-    const movesUsed = EVENT_DURATIONS.GRAVITY_RUSH - eventMovesRemaining;
-    
-    // Her hamlede: rastgele 1 sütunda gravity flip (tek sütun)
-    const flippedGrid = grid.map(row => row.map(c => ({ ...c })));
-    const randomCol = Math.floor(Math.random() * GRID_SIZE);
-    
-    // Tek sütunu flip et
-    const stack: any[] = [];
-    for (let y = 0; y < GRID_SIZE; y++) {
-      if (flippedGrid[y][randomCol].filled) stack.push({ ...flippedGrid[y][randomCol] });
-    }
-    
-    for (let y = 0; y < GRID_SIZE; y++) {
-      flippedGrid[y][randomCol] = { filled: false, color: '' };
-    }
-    
-    // Blocks collect at TOP (reverse gravity)
-    stack.forEach((cell, i) => {
-      flippedGrid[i][randomCol] = cell;
-    });
-    
-    // Her 5 hamlede: tüm grid flip (mevcut davranış)
-    if (movesUsed % 5 === 0 && movesUsed > 0) {
-      for (let x = 0; x < GRID_SIZE; x++) {
-        if (x === randomCol) continue; // Zaten flip ettik
-        
-        const colStack: any[] = [];
-        for (let y = 0; y < GRID_SIZE; y++) {
-          if (flippedGrid[y][x].filled) colStack.push({ ...flippedGrid[y][x] });
-        }
-        
-        for (let y = 0; y < GRID_SIZE; y++) {
-          flippedGrid[y][x] = { filled: false, color: '' };
-        }
-        
-        colStack.forEach((cell, i) => {
-          flippedGrid[i][x] = cell;
-        });
-      }
-    }
-    
-    // Event will be processed in gameStore.ts to clear lines
-    updates.grid = flippedGrid;
-  }
-  
   if (activeEvent === 'QUAKE') {
     // Use the passed grid parameter (with placed piece) instead of get().grid (old state)
     const quakeGrid = grid.map(row => row.map(c => ({ ...c })));
@@ -539,26 +491,6 @@ export function tickActiveEvent(
           
           updates.grid = iceGrid;
         }
-      } else if (randomEvent === 'GRAVITY_RUSH') {
-        // Use the passed grid parameter (with placed piece) instead of get().grid (old state)
-        const flippedGrid = grid.map(row => row.map(c => ({ ...c })));
-        
-        for (let x = 0; x < GRID_SIZE; x++) {
-          const stack: any[] = [];
-          for (let y = 0; y < GRID_SIZE; y++) {
-            if (flippedGrid[y][x].filled) stack.push({ ...flippedGrid[y][x] });
-          }
-          
-          for (let y = 0; y < GRID_SIZE; y++) {
-            flippedGrid[y][x] = { filled: false, color: '' };
-          }
-          
-          stack.forEach((cell, i) => {
-            flippedGrid[i][x] = cell;
-          });
-        }
-        
-        updates.grid = flippedGrid;
       } else if (randomEvent === 'MIRROR') {
         const mirrorShape = piece.shape.map((row: number[]) => [...row].reverse());
         // Use the passed grid parameter (with placed piece) instead of get().grid (old state)

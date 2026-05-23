@@ -153,7 +153,6 @@ export const processGrid = (initialGrid: GridState): {
       }
 
       // Execute Clears
-      let chronoBlocksCleared = 0;
       const clearedCells: ClearAction['cells'] = [];
       
       finalCellsToClear.forEach(key => {
@@ -170,11 +169,6 @@ export const processGrid = (initialGrid: GridState): {
           });
         }
         
-        // Count CHRONO blocks before clearing
-        if (cell.type === CellType.CHRONO) {
-          chronoBlocksCleared++;
-        }
-        
         currentGrid[y][x] = { filled: false, color: '' };
       });
       
@@ -184,15 +178,6 @@ export const processGrid = (initialGrid: GridState): {
           type: 'CELL_CLEAR',
           cells: clearedCells,
           chainIndex: chainCount
-        });
-      }
-      
-      // Add CHRONO_BONUS action if any CHRONO blocks were cleared
-      if (chronoBlocksCleared > 0) {
-        actions.push({
-          type: 'CHRONO_BONUS',
-          seconds: chronoBlocksCleared * 5,
-          count: chronoBlocksCleared
         });
       }
 

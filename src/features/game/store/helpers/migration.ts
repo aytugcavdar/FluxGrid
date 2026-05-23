@@ -7,7 +7,9 @@ import { createMiniEventState } from './miniEventSystem';
 import { createProgressionState } from './progressionSystem';
 import { migrateTierData } from './tierSystem';
 import { EVENT_DURATIONS } from '../../constants';
-import { MiniEventState, ProgressionState } from '../../types';
+import { ProgressionState } from '../../types';
+
+const VALID_ENDLESS_EVENTS = new Set(['ICE_STORM', 'QUAKE', 'MIRROR', 'CHAOS', 'VOID']);
 
 /**
  * Save data interface for migration
@@ -15,10 +17,11 @@ import { MiniEventState, ProgressionState } from '../../types';
 export interface SaveData {
   score?: number;
   difficultyTier?: number;
-  activeEvent?: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
+  activeEvent?: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | string | null;
   eventMovesRemaining?: number;
-  miniEventState?: MiniEventState;
+  miniEventState?: any;
   totalMovesPlayed?: number;
+  tierStartMove?: number;
   bonusRerolls?: number;
   bonusShatter?: number;
   bonusBomb?: number;
@@ -53,6 +56,11 @@ export function migrateSaveData(saveData: SaveData): SaveData {
   }
   
   let migratedData = { ...saveData };
+
+  if (migratedData.activeEvent && !VALID_ENDLESS_EVENTS.has(migratedData.activeEvent)) {
+    migratedData.activeEvent = null;
+    migratedData.eventMovesRemaining = 0;
+  }
   
   // Version 1 -> 2 migration
   if (currentVersion < 2) {
@@ -78,6 +86,9 @@ export function migrateSaveData(saveData: SaveData): SaveData {
     // Initialize totalMovesPlayed if missing
     if (migratedData.totalMovesPlayed === undefined) {
       migratedData.totalMovesPlayed = 0;
+    }
+    if (migratedData.tierStartMove === undefined) {
+      migratedData.tierStartMove = migratedData.totalMovesPlayed;
     }
     
     // Initialize bonus skill counters if missing

@@ -3,7 +3,8 @@
  * Saves and restores game state when user exits and returns
  */
 
-import { GridState, Piece, SkillType, MiniEventState, ProgressionState } from '../../types';
+import { GridState, Piece, ProgressionState } from '../../types';
+import { createMiniEventState } from './miniEventSystem';
 import { GameMode } from '@shared/types';
 
 export interface SavedGameState {
@@ -12,7 +13,6 @@ export interface SavedGameState {
   pieces: Piece[];
   score: number;
   combo: number;
-  flux: number;
   
   // Game mode and settings
   gameMode: GameMode;
@@ -22,20 +22,16 @@ export interface SavedGameState {
   timeLeft: number;
   timedBoostMovesLeft: number;
   maxCombo: number;
-  chronoBonus: number;
   
   // Event system
-  activeEvent: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
+  activeEvent: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
   eventMovesRemaining: number;
   
   // Mini-events and progression
-  miniEventState: MiniEventState;
+  miniEventState: ReturnType<typeof createMiniEventState>;
   progressionState: ProgressionState;
   totalMovesPlayed: number;
-  
-  // Skills
-  activeSkill: SkillType | null;
-  isSurgeActive: boolean;
+  tierStartMove: number;
   
   // Timestamp
   savedAt: number;

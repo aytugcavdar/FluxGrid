@@ -6,9 +6,6 @@
 // ─── Animation Timing Constants ───
 
 export const ANIMATION_DURATIONS = {
-  // CHRONO Popup
-  CHRONO_POPUP: 1400, // ms
-  
   // Line Clear
   LINE_CLEAR_FLASH: 150, // ms
   LINE_CLEAR_COLLAPSE: 250, // ms

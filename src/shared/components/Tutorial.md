@@ -153,9 +153,9 @@ The tutorial consists of 4 steps:
 - **Completion**: User clears a line
 - **Overlay**: None
 
-### Step 3: Flux Energy
-- **Highlight**: Flux meter
-- **Tooltip**: "As you place pieces, Flux fills up. At 100%, SURGE activates and you earn 2× points!"
+### Step 3: Combo Building
+- **Highlight**: Combo indicator
+- **Tooltip**: "Clear lines back-to-back to build combo and increase your score."
 - **Completion**: Auto-advance after 4 seconds
 - **Overlay**: None
 

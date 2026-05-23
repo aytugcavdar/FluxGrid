@@ -1,7 +1,6 @@
 /**
  * Profile feature types
  */
-import type { ActiveAbilityType, PassiveAbilityType } from '../../abilities/types';
 import type { Achievement } from '../../game/types';
 
 // Simple progression state (career removed)
@@ -16,8 +15,8 @@ export interface PlayerProfile {
   lastPlayed: number;
   stats: PlayerStats;
   progression: ProgressionState;
-  unlockedAbilities: Set<ActiveAbilityType | PassiveAbilityType>;
-  equippedPassives: PassiveAbilityType[];
+  unlockedAbilities: Set<string>;
+  equippedPassives: string[];
   achievements: Map<string, Achievement>;
 }
 
@@ -43,7 +42,6 @@ export enum SpecialBlockType {
   LOCK = 'LOCK',
   PORTAL = 'PORTAL',
   MULTIPLIER = 'MULTIPLIER',
-  FLUX_GEN = 'FLUX_GEN',
 }
 
 export interface SpecialBlock {

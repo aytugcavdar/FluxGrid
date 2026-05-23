@@ -14,12 +14,11 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       style: 'dark',
-      backgroundColor: '#0d1117',
+      backgroundColor: '#0d1117', // matches splash screen to prevent flash on launch
       overlaysWebView: true
     }
   },
   android: {
-    backgroundColor: '#0d1117',
     // Optimize WebView rendering for better performance
     webContentsDebuggingEnabled: false,
     allowMixedContent: false

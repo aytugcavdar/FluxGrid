@@ -3,24 +3,21 @@ import { useGameStore } from '../../game/store/gameStore';
 import { useThemeStore } from '@shared/store/themeStore';
 import { useStreakStore } from '@shared/store/streakStore';
 import { Volume2, VolumeX, Home } from 'lucide-react';
-import { TIMED_MODE } from '../../game/constants';
 import { GameMode, AppState } from '@shared/types';
 import { getMuted, toggleMute, playClick } from '../../../utils/audio';
 import { motion, AnimatePresence } from 'framer-motion';
 import { StreakBadge } from '@shared/components/StreakBadge';
 import { StreakShieldModal } from '../../../app/components/StreakShieldModal';
-import { AdManager } from '../../../utils/managers/adManager';
+import { AdManager } from '../../../core/services/ads/AdManager';
 import { TierProgressBar } from './TierProgressBar';
-import { MilestonePopup } from './MilestonePopup';
 import { TimedHUD } from './TimedHUD';
 
 /* ─── Event config ─── */
 const EVENT_CONFIG: Record<
-  'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID',
+  'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID',
   { label: string; color: string; bg: string; icon: string }
 > = {
     ICE_STORM:    { label: 'Buz Fırtınası',              color: '#38adf5', bg: 'rgba(56,173,245,0.1)',   icon: '❄️' },
-    GRAVITY_RUSH: { label: 'Gravity Rush',               color: '#f5a623', bg: 'rgba(245,166,35,0.1)',   icon: '🌀' },
     QUAKE:        { label: 'Deprem!',                    color: '#f97316', bg: 'rgba(249,115,22,0.1)',   icon: '🌋' },
     MIRROR:       { label: 'Ayna Modu',                  color: '#f472b6', bg: 'rgba(244,114,182,0.1)', icon: '🪞' },
     CHAOS:        { label: 'Kaos!',                      color: '#a855f7', bg: 'rgba(168,85,247,0.1)',  icon: '💥' },
@@ -94,50 +91,14 @@ const AnimatedScore: React.FC<{ value: number; color: string }> = ({ value, colo
     );
 };
 
-/* ─── Animated Timer (Milisaniye Gösterimi) ─── */
-const AnimatedTimer: React.FC<{ expectedEnd: number | null; timeLeft: number }> = ({ expectedEnd, timeLeft }) => {
-    const spanRef = useRef<HTMLSpanElement>(null);
 
-    useEffect(() => {
-        if (!expectedEnd || timeLeft > TIMED_MODE.FINAL_SECONDS_THRESHOLD || timeLeft <= 0) return;
-        
-        let frameId: number;
-        const update = () => {
-            if (!spanRef.current) return;
-            const now = Date.now();
-            const remaining = Math.max(0, expectedEnd - now);
-            if (remaining <= 0) {
-                spanRef.current.innerText = '0.0';
-                return;
-            }
-            const seconds = remaining / 1000;
-            spanRef.current.innerText = seconds.toFixed(1);
-            frameId = requestAnimationFrame(update);
-        };
-        frameId = requestAnimationFrame(update);
-        return () => cancelAnimationFrame(frameId);
-    }, [expectedEnd, timeLeft]);
-
-    const isCritical = timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD;
-    const isWarning = timeLeft <= TIMED_MODE.WARNING_THRESHOLD;
-
-    return (
-        <span ref={spanRef} style={{
-            fontSize: 14, fontWeight: 700, lineHeight: 1,
-            color: isCritical ? '#ef4444' : isWarning ? '#f97316' : '#3b82f6',
-            minWidth: 24, display: 'inline-block', textAlign: 'center'
-        }}>
-            {isCritical && expectedEnd && timeLeft > 0 ? Math.max(0, expectedEnd - Date.now()) / 1000 : timeLeft}
-        </span>
-    );
-};
 
 /* ══════════════════════════════════════════════════════════════ */
 export const HUD: React.FC = React.memo(() => {
     const {
         score, highScore, combo,
-        gameMode, timeLeft, timerExpectedEnd, setAppState,
-        activeEvent, eventMovesRemaining, timedBoostMovesLeft,
+        gameMode, setAppState,
+        activeEvent, eventMovesRemaining,
         progressionState, difficultyTier, isGameOver,
     } = useGameStore();
 
@@ -145,7 +106,6 @@ export const HUD: React.FC = React.memo(() => {
     const colors = useThemeStore(state => state.getThemeColors());
     const [muted, setMuted]           = useState(getMuted);
     const [showShieldModal, setShowShieldModal] = useState(false);
-    const [currentMilestone, setCurrentMilestone] = useState<any>(null);
 
     /* ── Score delta tracking ── */
     const prevScoreRef       = useRef(score);
@@ -186,19 +146,6 @@ export const HUD: React.FC = React.memo(() => {
 
     return (
         <>
-            {/* Red tint overlay */}
-            {gameMode === GameMode.TIMED && timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD && timeLeft > 0 && (
-                <motion.div
-                    animate={{ opacity: [0.1, 0.4, 0.1] }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
-                    style={{
-                        position: 'fixed', inset: 0,
-                        background: 'radial-gradient(circle, transparent 40%, rgba(239,68,68,0.5) 100%)',
-                        pointerEvents: 'none', zIndex: 5,
-                    }}
-                />
-            )}
-
             {/* ══ MOBILE LAYOUT ══ */}
             <div className="md:hidden w-full h-full flex flex-col" style={{ gap: 5 }}>
 
@@ -232,10 +179,10 @@ export const HUD: React.FC = React.memo(() => {
                     </button>
 
                     {/* ── Score card ── */}
-                    <div style={{
+                    <div className="combo-display" style={{
                         flex: 1, position: 'relative',
-                        display: 'flex', flexDirection: 'column',
-                        gap: 0, padding: '5px 12px',
+                        display: 'flex', alignItems: 'center',
+                        padding: '0 12px',
                         background: 'rgba(255,255,255,0.04)',
                         borderRadius: 13,
                         border: `1px solid ${colors.hudBorder}`,
@@ -243,102 +190,74 @@ export const HUD: React.FC = React.memo(() => {
                             ? `0 0 18px ${combo >= 8 ? 'rgba(244,114,182,0.2)' : 'rgba(251,191,36,0.15)'}`
                             : '0 2px 8px rgba(0,0,0,0.12)',
                         transition: 'box-shadow 0.4s ease',
-                        justifyContent: 'center', minWidth: 0, overflow: 'visible',
+                        minWidth: 0, overflow: 'visible',
+                        height: 44,
                     }}>
                         {/* Floating score deltas */}
                         <AnimatePresence>
                             {deltas.map(d => <FloatingDelta key={d.id} delta={d} />)}
                         </AnimatePresence>
 
-                        {/* Score row */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                        {/* Sol: Score + Combo */}
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                            <AnimatedScore value={score} color={scoreColor} />
 
-                                {/* Animated score number */}
-                                <AnimatedScore value={score} color={scoreColor} />
-
-                                {/* Combo badge */}
-                                <AnimatePresence>
-                                    {combo >= 2 && (
-                                        <motion.span
-                                            key={combo}
-                                            initial={{ scale: 0.6, opacity: 0, y: -6 }}
-                                            animate={{ scale: 1, opacity: 1, y: 0 }}
-                                            exit={{ scale: 0.6, opacity: 0, y: 4 }}
-                                            transition={{ type: 'spring', stiffness: 300, damping: 18 }}
-                                            style={{
-                                                fontSize: 11, fontWeight: 800, lineHeight: 1,
-                                                color: combo >= 8 ? '#f472b6' : combo >= 5 ? '#f59e0b' : '#34d399',
-                                                background: combo >= 8
-                                                    ? 'rgba(244,114,182,0.15)'
-                                                    : combo >= 5 ? 'rgba(245,158,11,0.15)'
-                                                    : 'rgba(52,211,153,0.15)',
-                                                border: `1px solid ${combo >= 8
-                                                    ? 'rgba(244,114,182,0.45)'
-                                                    : combo >= 5 ? 'rgba(245,158,11,0.45)'
-                                                    : 'rgba(52,211,153,0.45)'}`,
-                                                padding: '2px 7px', borderRadius: 6,
-                                                boxShadow: combo >= 8
-                                                    ? '0 0 10px rgba(244,114,182,0.3)'
-                                                    : combo >= 5 ? '0 0 10px rgba(245,158,11,0.25)' : 'none',
-                                            }}
-                                        >
-                                            {combo}×
-                                        </motion.span>
-                                    )}
-                                </AnimatePresence>
-
-                                {/* Final seconds */}
-                                {gameMode === GameMode.TIMED && timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD && timeLeft > 0 && (
+                            <AnimatePresence>
+                                {combo >= 2 && (
                                     <motion.span
-                                        animate={{ scale: [1, 1.08, 1] }}
-                                        transition={{ duration: 0.5, repeat: Infinity }}
+                                        key={combo}
+                                        initial={{ scale: 0.6, opacity: 0, y: -6 }}
+                                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                                        exit={{ scale: 0.6, opacity: 0, y: 4 }}
+                                        transition={{ type: 'spring', stiffness: 300, damping: 18 }}
                                         style={{
-                                            fontSize: 9, fontWeight: 700, color: '#ef4444',
-                                            background: 'rgba(239,68,68,0.15)',
-                                            border: '1px solid rgba(239,68,68,0.35)',
-                                            padding: '2px 5px', borderRadius: 6,
+                                            fontSize: 11, fontWeight: 800, lineHeight: 1,
+                                            color: combo >= 8 ? '#f472b6' : combo >= 5 ? '#f59e0b' : '#34d399',
+                                            background: combo >= 8
+                                                ? 'rgba(244,114,182,0.15)'
+                                                : combo >= 5 ? 'rgba(245,158,11,0.15)'
+                                                : 'rgba(52,211,153,0.15)',
+                                            border: `1px solid ${combo >= 8
+                                                ? 'rgba(244,114,182,0.45)'
+                                                : combo >= 5 ? 'rgba(245,158,11,0.45)'
+                                                : 'rgba(52,211,153,0.45)'}`,
+                                            padding: '2px 7px', borderRadius: 6,
+                                            boxShadow: combo >= 8
+                                                ? '0 0 10px rgba(244,114,182,0.3)'
+                                                : combo >= 5 ? '0 0 10px rgba(245,158,11,0.25)' : 'none',
                                         }}
                                     >
-                                        ×1.5
+                                        {combo}×
                                     </motion.span>
                                 )}
-                            </div>
+                            </AnimatePresence>
+                        </div>
 
-                            {/* Best score */}
-                            {(gameMode === GameMode.ENDLESS || gameMode === GameMode.TIMED) && (
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0, flexShrink: 0 }}>
-                                    <span style={{ fontSize: 8, color: colors.textTertiary, fontWeight: 500, lineHeight: 1, opacity: 0.6 }}>
-                                        EN İYİ
-                                    </span>
-                                    <span style={{ fontSize: 11, color: colors.textTertiary, fontWeight: 700, lineHeight: 1 }}>
-                                        {highScore.toLocaleString()}
-                                    </span>
-                                </div>
-                            )}
+                        {/* Dikey ayırıcı */}
+                        <div style={{
+                            width: 1, alignSelf: 'stretch',
+                            margin: '10px 10px 10px 4px',
+                            background: 'rgba(255,255,255,0.07)',
+                            flexShrink: 0,
+                        }} />
+
+                        {/* Sağ: EN İYİ */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, gap: 2 }}>
+                            <span style={{
+                                fontSize: 9, fontWeight: 700, lineHeight: 1,
+                                letterSpacing: '0.5px', textTransform: 'uppercase',
+                                color: colors.textTertiary, opacity: 0.55,
+                            }}>
+                                EN İYİ
+                            </span>
+                            <span style={{
+                                fontSize: 13, fontWeight: 800, lineHeight: 1,
+                                color: colors.textTertiary,
+                            }}>
+                                {highScore.toLocaleString()}
+                            </span>
                         </div>
                     </div>
-
-                    {/* Timer pill */}
-                    {gameMode === GameMode.TIMED && (
-                        <div style={{
-                            padding: '5px 10px', borderRadius: 11, flexShrink: 0,
-                            background: timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD
-                                ? 'rgba(239,68,68,0.12)'
-                                : timeLeft <= TIMED_MODE.WARNING_THRESHOLD
-                                ? 'rgba(249,115,22,0.1)' : 'rgba(59,130,246,0.08)',
-                            border: `1px solid ${timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD
-                                ? 'rgba(239,68,68,0.5)'
-                                : timeLeft <= TIMED_MODE.WARNING_THRESHOLD
-                                ? 'rgba(249,115,22,0.4)' : 'rgba(59,130,246,0.3)'}`,
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 32,
-                            animation: timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD
-                                ? 'gentle-pulse 1.5s ease-in-out infinite' : 'none',
-                        }}>
-                            <AnimatedTimer expectedEnd={timerExpectedEnd} timeLeft={timeLeft} />
-                            <span style={{ fontSize: 8, marginTop: 1, opacity: 0.7, color: '#9ca3af' }}>SN</span>
-                        </div>
-                    )}
 
                     {/* Streak */}
                     <div style={{ flexShrink: 0 }}>
@@ -382,27 +301,49 @@ export const HUD: React.FC = React.memo(() => {
                     {activeEvent && (
                         <motion.div
                             key={activeEvent}
-                            initial={{ opacity: 0, y: -5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            transition={{ duration: 0.2 }}
+                            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                            transition={{ duration: 0.22, ease: 'easeOut' }}
                             style={{
-                                height: 26,
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                padding: '0 12px',
+                                margin: '0 10px',
+                                padding: '7px 12px',
+                                borderRadius: 10,
                                 background: EVENT_CONFIG[activeEvent].bg,
-                                borderBottom: `1px solid ${EVENT_CONFIG[activeEvent].color}30`,
+                                border: `1px solid ${EVENT_CONFIG[activeEvent].color}40`,
+                                boxShadow: `0 0 14px ${EVENT_CONFIG[activeEvent].color}18`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                             }}
                         >
-                            <span style={{
-                                fontSize: 10, fontWeight: 700,
-                                color: EVENT_CONFIG[activeEvent].color,
-                                display: 'flex', alignItems: 'center', gap: 5,
-                            }}>
-                                {EVENT_CONFIG[activeEvent].icon} {EVENT_CONFIG[activeEvent].label}
-                            </span>
+                            {/* Sol: pulse dot + icon + label */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                <motion.div
+                                    animate={{ opacity: [1, 0.3, 1] }}
+                                    transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
+                                    style={{
+                                        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                                        background: EVENT_CONFIG[activeEvent].color,
+                                        boxShadow: `0 0 6px ${EVENT_CONFIG[activeEvent].color}`,
+                                    }}
+                                />
+                                <span style={{
+                                    fontSize: 11, fontWeight: 700, lineHeight: 1,
+                                    color: EVENT_CONFIG[activeEvent].color,
+                                    display: 'flex', alignItems: 'center', gap: 5,
+                                }}>
+                                    {EVENT_CONFIG[activeEvent].icon} {EVENT_CONFIG[activeEvent].label}
+                                </span>
+                            </div>
+
+                            {/* Sağ: hamle badge */}
                             {eventMovesRemaining < 9999 && (
-                                <span style={{ fontSize: 9, color: EVENT_CONFIG[activeEvent].color, opacity: 0.65 }}>
+                                <span style={{
+                                    fontSize: 10, fontWeight: 700, lineHeight: 1,
+                                    color: EVENT_CONFIG[activeEvent].color,
+                                    background: `${EVENT_CONFIG[activeEvent].color}18`,
+                                    border: `1px solid ${EVENT_CONFIG[activeEvent].color}35`,
+                                    padding: '3px 8px', borderRadius: 6,
+                                }}>
                                     {eventMovesRemaining} hamle
                                 </span>
                             )}
@@ -420,7 +361,6 @@ export const HUD: React.FC = React.memo(() => {
                 onClose={() => setShowShieldModal(false)}
                 shieldsAvailable={streakShields}
             />
-            <MilestonePopup milestone={currentMilestone} onClose={() => setCurrentMilestone(null)} />
         </>
     );
 });

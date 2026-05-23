@@ -161,7 +161,7 @@ describe('Primary Action Button Logic', () => {
       const modeIcons = {
         [GameMode.ENDLESS]: '∞',
         [GameMode.TIMED]: '⚡',
-        [GameMode.ZEN]: '☁',
+        [GameMode.DAILY_CHALLENGE]: '★',
       };
 
       expect(modeIcons[GameMode.ENDLESS]).toBe('∞');

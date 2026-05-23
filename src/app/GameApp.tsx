@@ -10,15 +10,15 @@ import { useCountUp } from '@shared/hooks/useCountUp';
 import { useBrowserHistory } from './hooks/useBrowserHistory';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { useGameSync } from '../features/game/hooks/useGameSync';
-import { TIER_SCORE_MULTIPLIERS } from '../features/game/constants';
-import { playSkill, playHaptic, unlockAudio, playGameOver, playChronoBonus, playClick } from '@utils/audio';
+import { TIER_SCORE_MULTIPLIERS, TIER_THRESHOLDS } from '../features/game/constants';
+import { playSkill, playHaptic, unlockAudio, playGameOver, playClick } from '@utils/audio';
 import { AdManager } from '@core/services/ads/AdManager';
 import { createContinueGrid } from '@features/game/utils/game/gameHelpers';
 import { getRandomPiecesSync } from '../features/game/store/helpers/pieces';
 import { GameScreen } from './components/GameScreen';
 import { DragOverlay } from '../features/hud/components/DragOverlay';
 import { ParticleExplosionOverlay } from '../features/visual-effects/components/ParticleExplosionOverlay';
-import { ScreenShakeEffect, LineClearAnimations, PlacementFeedbackEffect, GridBreathingEffect, PerfectClearEffect, PlacementImpactEffect, TierTransitionAnimation, ScoreMilestoneCelebration, AbilityUnlockAnimation, StreakIndicator, NearMissWarning, PauseResumeAnimation, GameOverSequence, VictoryCelebration, ModeChangeTransition } from '../features/visual-effects/components';
+import { ScreenShakeEffect, LineClearAnimations, PlacementFeedbackEffect, GridBreathingEffect, PlacementImpactEffect, TierTransitionAnimation, ScoreMilestoneCelebration, AbilityUnlockAnimation, StreakIndicator, NearMissWarning, PauseResumeAnimation, GameOverSequence, VictoryCelebration, ModeChangeTransition } from '../features/visual-effects/components';
 import { TierCelebrationOverlay } from '../features/hud/components/TierCelebrationOverlay';
 import { ExitConfirmDialog } from '../shared/components/ExitConfirmDialog';
 import { generateShareText, shareResult } from '../utils/sharing/shareResult';
@@ -43,10 +43,14 @@ interface TimePopup {
   value: number;
 }
 
-interface ChronoPopup {
-  id: number;
-  seconds: number;
-}
+const TIER_EVENT_LABELS: Record<number, string> = {
+  1: 'Buz Fırtınası',
+  2: 'Deprem',
+  3: 'Ayna Modu',
+  4: 'Kaos',
+  5: 'VOID',
+  6: 'VOID+',
+};
 
 const App: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -54,7 +58,9 @@ const App: React.FC = () => {
     initGame, pieces, isGameOver, resetGame, score, combo, lastAction,
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
     dailyClearHistory, highScore, stats, highScores,
-    maxCombo, chronoBonus, timedBoostMovesLeft, finalSprintBonus, difficultyTier, grid
+    maxCombo, timedBoostMovesLeft, finalSprintBonus, difficultyTier, tierStartMove, totalMovesPlayed, grid,
+    newRecordDiff, gameLogs,
+    timerStartTime, timerExpectedEnd
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors, getPieceColors } = useThemeStore();
   const colors = getThemeColors();
@@ -69,8 +75,6 @@ const App: React.FC = () => {
   const lastActionRef = useRef<typeof lastAction>(null);
   const [timePopups, setTimePopups] = useState<TimePopup[]>([]);
   const timePopupIdRef = useRef(0);
-  const [chronoPopups, setChronoPopups] = useState<ChronoPopup[]>([]);
-  const chronoPopupIdRef = useRef(0);
   const prevTimeLeftRef = useRef(timeLeft);
   const prevComboRef = useRef(combo);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared'>('idle');
@@ -95,6 +99,18 @@ const App: React.FC = () => {
   // Memoize expensive score calculations (Requirement 1.5)
   const currentModeHighScore = useMemo(() => highScores[gameMode] || 0, [highScores, gameMode]);
   const isNewRecord = useMemo(() => score > 0 && score >= currentModeHighScore, [score, currentModeHighScore]);
+  const todayBestCombo = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return (gameLogs || []).reduce((best, log) => {
+      const logDay = new Date(log.timestamp).toISOString().slice(0, 10);
+      return logDay === today ? Math.max(best, log.maxCombo || 0) : best;
+    }, maxCombo || 0);
+  }, [gameLogs, maxCombo]);
+  const tierMovesSurvived = useMemo(() => {
+    if (gameMode !== GameMode.ENDLESS) return 0;
+    if (difficultyTier <= 0) return totalMovesPlayed || 0;
+    return Math.max(1, (totalMovesPlayed || 0) - (tierStartMove || 0));
+  }, [difficultyTier, gameMode, tierStartMove, totalMovesPlayed]);
   const [showRecordBadge, setShowRecordBadge] = useState(false);
   const [showButtons, setShowButtons] = useState(false);
   
@@ -103,6 +119,8 @@ const App: React.FC = () => {
     tier: number;
     tierName: string;
     multiplier: number;
+    eventLabel: string;
+    nextGoal: number | null;
   } | null>(null);
   
   // Grid sizing with ResizeObserver for safe area compatibility
@@ -462,19 +480,6 @@ const App: React.FC = () => {
       }));
     }
 
-    // Handle CHRONO bonus popup
-    if (lastAction.chronoBonus && lastAction.chronoBonus > 0) {
-      // Play sound
-      playChronoBonus();
-      
-      // Create popup with fixed positioning (no grid coordinates needed)
-      const id = chronoPopupIdRef.current++;
-      setChronoPopups(prev => [...prev, {
-        id,
-        seconds: lastAction.chronoBonus!,
-      }]);
-    }
-
     const chain = lastAction.chainCount ?? 0;
     if (chain >= 2) {
       setShownChain(chain);
@@ -512,8 +517,8 @@ const App: React.FC = () => {
       }]);
     }
     
-    // Combo milestone detection (5, 10, 15, 20)
-    if ([5, 10, 15, 20].includes(combo) && combo > prevComboRef.current) {
+    // Combo milestone detection: small feedback at meaningful growth points.
+    if ((combo === 2 || combo === 5 || combo === 8 || (combo > 8 && combo % 5 === 0)) && combo > prevComboRef.current) {
       setShowComboMilestone(true);
       playHaptic('combo_milestone');
       const timer = setTimeout(() => setShowComboMilestone(false), 800);
@@ -539,7 +544,9 @@ const App: React.FC = () => {
       setTierCelebration({
         tier: lastAction.tier,
         tierName: lastAction.tierName,
-        multiplier
+        multiplier,
+        eventLabel: TIER_EVENT_LABELS[lastAction.tier] ?? 'Tier baskısı',
+        nextGoal: TIER_THRESHOLDS[lastAction.tier + 1] ?? null,
       });
       
       playSkill();
@@ -625,8 +632,6 @@ const App: React.FC = () => {
             timedBoostMovesLeft={timedBoostMovesLeft}
             timePopups={timePopups}
             setTimePopups={setTimePopups}
-            chronoPopups={chronoPopups}
-            setChronoPopups={setChronoPopups}
             shownChain={shownChain}
             showPerfect={showPerfect}
             eventStartVisual={eventStartVisual}
@@ -646,7 +651,6 @@ const App: React.FC = () => {
       <LineClearAnimations />
       <PlacementFeedbackEffect />
       <PlacementImpactEffect />
-      <PerfectClearEffect />
       <ParticleExplosionOverlay />
       
       {/* Achievement Notification */}
@@ -667,6 +671,8 @@ const App: React.FC = () => {
               tier={tierCelebration.tier}
               tierName={tierCelebration.tierName}
               multiplier={tierCelebration.multiplier}
+              eventLabel={tierCelebration.eventLabel}
+              nextGoal={tierCelebration.nextGoal}
             />
           </motion.div>
         )}
@@ -699,15 +705,19 @@ const App: React.FC = () => {
             gameMode={gameOverMode}
             combo={combo}
             maxCombo={maxCombo}
-            chronoBonus={chronoBonus}
+            todayBestCombo={todayBestCombo}
             finalSprintBonus={finalSprintBonus}
+            newRecordDiff={newRecordDiff}
             stats={stats}
             difficultyTier={difficultyTier}
+            tierMovesSurvived={tierMovesSurvived}
             surgeWasUsed={surgeWasUsed}
             dailyClearHistory={dailyClearHistory}
             shareStatus={shareStatus}
             showPWAPrompt={showPWAPrompt}
             showIOSInstructions={showIOSInstructions}
+            timerStartTime={timerStartTime}
+            timerExpectedEnd={timerExpectedEnd}
             onClose={handleClose}
             onPlayAgain={handlePlayAgain}
             onTryMode={handleTryMode}

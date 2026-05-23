@@ -116,8 +116,8 @@
       "description": "¡Completa una fila o columna para limpiarla y ganar puntos!"
     },
     "step4": {
-      "title": "Observa tu Flux",
-      "description": "¡El medidor de flux se llena mientras colocas piezas. Al 100%, activas el modo Surge para 2× puntos!"
+      "title": "Crea combos",
+      "description": "Limpia l?neas seguidas para mantener el combo y subir tu puntuaci?n."
     },
     "step5": {
       "title": "Usa una habilidad",
@@ -182,7 +182,7 @@
   "guided": {
     "step1": "Arrastra la pieza de abajo y suéltala en la cuadrícula",
     "step2": "Llena una fila completa",
-    "step3": "Usa habilidades cuando el Flux esté lleno",
+    "step3": "Limpia l?neas r?pido para mantener el combo",
     "step4": "¡Perfecto! Ya estás listo",
     "skip": "SALTAR"
   },

@@ -7,7 +7,7 @@ import ReactDOM from 'react-dom/client';
 import { App } from './App'; // New UI for menu
 import AppWithErrorBoundary from './GameApp'; // Old App for game
 import { useGameStore } from '../features/game/store/gameStore';
-import { AppState } from '@shared/types';
+import { AppState, GameMode } from '@shared/types';
 import { AdManager } from '@core/services/ads/AdManager';
 import { useStreakStore } from '@shared/store/streakStore';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -36,13 +36,33 @@ const APP_VERSION = '1.0.0';
  */
 const configureStatusBar = async () => {
   try {
-    await StatusBar.setStyle({ style: Style.Dark });
-    await StatusBar.setBackgroundColor({ color: '#0d1117' });
-    await StatusBar.setOverlaysWebView({ overlay: true });
+    await StatusBar.setStyle({ style: Style.Dark }); // light icons on dark background
+    await StatusBar.setBackgroundColor({ color: '#0d1117' }); // matches splash screen, prevents flash on launch
+    await StatusBar.setOverlaysWebView({ overlay: true }); // fully transparent overlay
   } catch (e) {
     // StatusBar not available on web, silently ignore
     console.log('[StatusBar] Not available:', e);
   }
+};
+
+const getNotificationContext = () => {
+  const gameState = useGameStore.getState();
+  const streakState = useStreakStore.getState();
+  const gameLogs = gameState.gameLogs || [];
+  const lastLog = gameLogs[0];
+  const lastTimedLog = gameLogs.find(log => log.mode === GameMode.TIMED);
+  const bestScore = lastLog?.mode === GameMode.TIMED
+    ? (gameState.stats?.timedHighScore || gameState.highScores?.[GameMode.TIMED] || 0)
+    : (lastLog ? gameState.highScores?.[lastLog.mode] || 0 : 0);
+
+  return {
+    currentStreak: streakState.currentStreak,
+    todayPlayed: streakState.todayPlayed,
+    lastPlayedAt: lastLog?.timestamp,
+    lastScore: lastLog?.score,
+    bestScore,
+    lastTimedPlayedAt: lastTimedLog?.timestamp,
+  };
 };
 
 // Root component that switches between menu and game
@@ -142,11 +162,7 @@ const RootApp: React.FC = () => {
     if (Capacitor.isNativePlatform()) {
       pushNotificationService.initialize()
         .then(() => {
-          // Schedule daily reminders
-          return Promise.all([
-            notificationScheduler.scheduleDailyChallengeReminder(),
-            notificationScheduler.scheduleDailyRewardReminder()
-          ]);
+          return notificationScheduler.scheduleEngagementNotifications(getNotificationContext());
         })
         .catch((error) => {
           console.error('[App] Failed to initialize push notifications:', error);

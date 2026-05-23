@@ -44,7 +44,6 @@ export const GameEvents = {
  * Ability types for tracking
  */
 export enum AbilityType {
-  CHRONO = 'chrono',
   SURGE = 'surge',
   PERFECT_BONUS = 'perfect_bonus',
   CHAIN_MASTER = 'chain_master',

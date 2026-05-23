@@ -86,11 +86,12 @@ function loadFromLocalStorage(): StreakStorageData | null {
       return null;
     }
     
-    if (typeof parsed.streakShields !== 'number' || 
-        parsed.streakShields < 0 || 
-        parsed.streakShields > 2) {
-      console.warn('[StreakStore] Invalid streakShields in localStorage, using defaults');
-      return null;
+    if (typeof parsed.streakShields !== 'number' || parsed.streakShields < 0) {
+      console.warn('[StreakStore] Invalid streakShields in localStorage, clamping to 0');
+      parsed.streakShields = 0;
+    } else if (parsed.streakShields > 2) {
+      console.warn('[StreakStore] streakShields > 2 in localStorage, clamping to 2');
+      parsed.streakShields = 2;
     }
     
     // Validate date format

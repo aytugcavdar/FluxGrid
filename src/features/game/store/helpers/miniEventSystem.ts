@@ -21,7 +21,7 @@ export function shouldPreventComboBreak(state: any, linesCleared: number): boole
   return false;
 }
 
-export function getMiniEventMultiplier(activeEvents: any, isFlux: boolean, linesCleared: number): number {
+export function getMiniEventMultiplier(activeEvents: any, _isScoringBoost: boolean, linesCleared: number): number {
   return 1.0;
 }
 

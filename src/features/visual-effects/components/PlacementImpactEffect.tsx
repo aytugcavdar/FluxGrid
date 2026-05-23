@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../../game/store/gameStore';
-import { useJuiceStore } from '../store/juiceStore';
 import { useCleanup } from '@shared/hooks/useCleanup';
 
 export const PlacementImpactEffect: React.FC = React.memo(() => {
@@ -22,11 +21,6 @@ export const PlacementImpactEffect: React.FC = React.memo(() => {
       if (dropHeight > 2) {
         const id = impactIdRef.current++;
         setImpacts(prev => [...prev, { id, dropHeight, timestamp: Date.now() }]);
-        
-        // Trigger screen shake based on drop height
-        const shakeIntensity = Math.min(dropHeight * 0.5, 5);
-        const shakeDuration = Math.min(dropHeight * 20, 200);
-        useJuiceStore.getState().triggerScreenShake(shakeIntensity, shakeDuration);
         
         // Remove after animation
         const timeoutId = setTimeout(() => {

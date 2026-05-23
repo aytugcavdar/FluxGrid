@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { GameScreen } from '../GameScreen';
 import { GameMode } from '@shared/types';
-import { SkillType } from '../../../features/game/types';
 
 // Mock dependencies
 vi.mock('@features/hud', () => ({
@@ -13,10 +12,13 @@ vi.mock('@features/hud', () => ({
   ComboFlash: () => null,
   ComboBar: () => null,
   ComboRushFlash: () => null,
-  ChronoPopup: () => null,
   EventStartVisual: () => null,
   ComboMilestone: () => null,
   LineCountDisplay: () => null,
+  FloatingScoreText: () => null,
+  FloatingTimeText: () => null,
+  PerfectClearPopup: () => null,
+  LineClearFlash: () => null,
 }));
 
 vi.mock('../../../features/game/components/Grid', () => ({
@@ -31,7 +33,7 @@ vi.mock('../AdBanner', () => ({
   AdBanner: () => <div data-testid="ad-banner">AdBanner</div>,
 }));
 
-vi.mock('@utils/adManager', () => ({
+vi.mock('@core/services/ads/AdManager', () => ({
   AdManager: {
     isNoAdsActive: () => false,
   },
@@ -61,21 +63,16 @@ vi.mock('@utils/audio', () => ({
 describe('GameScreen - Safe Area Integration', () => {
   const defaultProps = {
     pieces: [],
+    grid: [],
     combo: 0,
     gameMode: GameMode.ENDLESS,
-    activeSkill: null as SkillType | null,
-    activateSkill: vi.fn(),
     gridContainerRef: { current: null },
     gridSize: 400,
     scorePopups: [],
     showSurgeFlash: false,
-    showRushStart: false,
-    showRushEnd: false,
     timedBoostMovesLeft: 0,
     timePopups: [],
     setTimePopups: vi.fn(),
-    chronoPopups: [],
-    setChronoPopups: vi.fn(),
     shownChain: 0,
     showPerfect: false,
     eventStartVisual: null,
@@ -128,7 +125,7 @@ describe('GameScreen - Safe Area Integration', () => {
         isNativePlatform: () => true,
       };
       
-      // Set window width to >= 390 to show banner
+      // Native banner should reserve space on all phone widths.
       Object.defineProperty(window, 'innerWidth', { 
         value: 400, 
         writable: true,
@@ -167,13 +164,13 @@ describe('GameScreen - Safe Area Integration', () => {
       expect(trayDiv).toBeTruthy();
       const style = trayDiv?.getAttribute('style');
       
-      // Should have only safe-area-inset-bottom + 4px padding
-      expect(style).toContain('4px');
+      // Should have only safe-area-inset-bottom + tray padding
+      expect(style).toContain('6px');
       expect(style).toContain('padding-bottom');
       expect(style).not.toContain('60px');
     });
 
-    it('should not show banner on small screens', () => {
+    it('should reserve banner space on small native screens', () => {
       // Mock native platform with small screen
       (window as any).Capacitor = {
         isNativePlatform: () => true,
@@ -183,8 +180,8 @@ describe('GameScreen - Safe Area Integration', () => {
       
       const { queryByTestId } = render(<GameScreen {...defaultProps} />);
       
-      // Banner should not be rendered
-      expect(queryByTestId('ad-banner')).toBeNull();
+      // Small native screens still need matching layout space for the native banner.
+      expect(queryByTestId('ad-banner')).not.toBeNull();
     });
   });
 

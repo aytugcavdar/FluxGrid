@@ -17,10 +17,6 @@ describe('eventSystem', () => {
       expect(getEventScoreMultiplier('ICE_STORM')).toBe(1.2);
     });
 
-    it('should return 1.2 for GRAVITY_RUSH event', () => {
-      expect(getEventScoreMultiplier('GRAVITY_RUSH')).toBe(1.2);
-    });
-
     it('should return 1.2 for MIRROR event', () => {
       expect(getEventScoreMultiplier('MIRROR')).toBe(1.2);
     });
@@ -49,7 +45,7 @@ describe('eventSystem', () => {
       const set = () => {};
       
       // Test: Tier transition in ENDLESS mode should activate event
-      const resultEndless = checkTierEvent(1500, 0, getEndless as any, set);
+      const resultEndless = checkTierEvent(5000, 0, getEndless as any, set);
       expect(resultEndless).not.toBeNull();
       expect(resultEndless?.activeEvent).toBe('ICE_STORM');
       expect(resultEndless?.difficultyTier).toBe(1);
@@ -68,25 +64,8 @@ describe('eventSystem', () => {
       const set = () => {};
       
       // Test: Tier transition in TIMED mode should NOT activate event
-      const resultTimed = checkTierEvent(1500, 0, getTimed as any, set);
+      const resultTimed = checkTierEvent(5000, 0, getTimed as any, set);
       expect(resultTimed).toBeNull();
-    });
-
-    it('should NOT activate tier events in ZEN mode', () => {
-      // Validates Requirements 9.2
-      
-      const getZen = () => ({
-        gameMode: GameMode.ZEN,
-        grid: Array(GRID_SIZE).fill(null).map(() => 
-          Array(GRID_SIZE).fill(null).map(() => ({ filled: false, color: '' }))
-        ),
-      });
-      
-      const set = () => {};
-      
-      // Test: Tier transition in ZEN mode should NOT activate event
-      const resultZen = checkTierEvent(1500, 0, getZen as any, set);
-      expect(resultZen).toBeNull();
     });
 
     it('should NOT activate tier events in DAILY_CHALLENGE mode', () => {
@@ -102,7 +81,7 @@ describe('eventSystem', () => {
       const set = () => {};
       
       // Test: Tier transition in DAILY_CHALLENGE mode should NOT activate event
-      const resultDaily = checkTierEvent(1500, 0, getDaily as any, set);
+      const resultDaily = checkTierEvent(5000, 0, getDaily as any, set);
       expect(resultDaily).toBeNull();
     });
   });

@@ -20,7 +20,7 @@ const TIER_GRADIENTS: Record<number, { bar: string; glow: string; border: string
 
 const TIER_NAMES: Record<number, string> = {
   0: 'Başlangıç', 1: 'Gelişmiş', 2: 'Uzman',
-  3: 'Usta', 4: 'Efsane', 5: 'Kaos', 6: 'VOID',
+  3: 'Usta', 4: 'Efsane', 5: 'Kaos', 6: 'VOID+',
 };
 
 const TIER_ICONS: Record<number, string> = {
@@ -107,7 +107,7 @@ export const TierProgressBar: React.FC<TierProgressBarProps> = React.memo(({ tie
               lineHeight: 1,
             }}
           >
-            {isMaxTier ? 'MAX TIER' : TIER_NAMES[tier]}
+            {TIER_NAMES[tier] ?? `Tier ${tier}`}
           </span>
         </motion.div>
 
@@ -124,7 +124,7 @@ export const TierProgressBar: React.FC<TierProgressBarProps> = React.memo(({ tie
           }}
         >
           {isMaxTier
-            ? '∞ EFSANE'
+            ? 'MAX TIER'
             : `+${scoreNeeded.toLocaleString()} puan`}
         </motion.span>
       </div>

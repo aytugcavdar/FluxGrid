@@ -225,7 +225,7 @@ export function CustomLogicExample() {
       case 2:
         return 'Great! Now clear a line!';
       case 3:
-        return 'Watch the Flux meter fill up!';
+        return 'Build your combo by clearing lines!';
       case 4:
         return 'You\'re ready to play!';
       default:

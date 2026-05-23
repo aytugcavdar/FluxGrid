@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useUnifiedNavigationStore, type AppScreen } from '../shared/store/unifiedNavigationStore';
@@ -20,6 +20,7 @@ import '../utils/native/testWidgetSync'; // Load test helper
 import { AchievementNotification } from '../features/achievements';
 import type { ConsentType } from '@core/services/gdpr';
 import { RemoteLogger } from '../utils/debug/RemoteLogger';
+import { cleanupLegacyStorage } from '../utils/storage/cleanupLegacyStorage';
 
 export const App: React.FC = () => {
   const { i18n } = useTranslation();
@@ -29,6 +30,7 @@ export const App: React.FC = () => {
   const { setGameMode, achievements: rawAchievements, unlockedAchievementId } = useGameStore();
   const { initialize: initializeStreak, currentStreak } = useStreakStore();
   const colors = getThemeColors();
+  const didRunInitialWidgetSync = useRef(false);
   
   // Ensure achievements is always an array
   const achievements = Array.isArray(rawAchievements) ? rawAchievements : [];
@@ -39,6 +41,9 @@ export const App: React.FC = () => {
   // Load settings and sync language on mount
   useEffect(() => {
     loadSettings();
+    
+    // Clean up legacy localStorage keys (one-time cleanup)
+    cleanupLegacyStorage();
     
     // Initialize streak store
     initializeStreak();
@@ -57,12 +62,25 @@ export const App: React.FC = () => {
     // Sync existing data to widgets on app start
     import('../utils/native/widgetHelper').then(({ syncAllWidgetData }) => {
       const gameState = useGameStore.getState();
-      // Use currentStreak from streakStore instead of localStorage
-      syncAllWidgetData(gameState.highScores, currentStreak);
+      const streak = useStreakStore.getState().currentStreak;
+      didRunInitialWidgetSync.current = true;
+      syncAllWidgetData(gameState.highScores, streak);
     }).catch(error => {
       console.error('[App] Failed to sync widget data:', error);
     });
-  }, [loadSettings, initializeStreak, currentStreak]);
+  }, [loadSettings, initializeStreak]);
+
+  // Keep widgets current when daily streak changes without rerunning app startup work.
+  useEffect(() => {
+    if (!didRunInitialWidgetSync.current) return;
+
+    import('../utils/native/widgetHelper').then(({ syncAllWidgetData }) => {
+      const gameState = useGameStore.getState();
+      syncAllWidgetData(gameState.highScores, currentStreak);
+    }).catch(error => {
+      console.error('[App] Failed to sync widget streak:', error);
+    });
+  }, [currentStreak]);
   
   // Sync language with i18n
   useEffect(() => {
@@ -199,7 +217,7 @@ export const App: React.FC = () => {
           navigateTo(screen as AppScreen);
         }}
       />
-      
+
       {/* GDPR Consent Modal */}
       {showConsentModal && <ConsentModal onConsent={handleConsent} />}
       

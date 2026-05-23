@@ -37,8 +37,8 @@ export const initializeEngine = (
     preserveDrawingBuffer: true,
     stencil: true,
     antialias: !isMobile && !isLowEndDevice,
-    adaptToDeviceRatio: false,
-    limitDeviceRatio: isAndroid ? 1.0 : (isNativeApp ? 1.5 : Math.min(window.devicePixelRatio, 2)),
+    adaptToDeviceRatio: true,
+    limitDeviceRatio: Math.min(window.devicePixelRatio || 1, 2),
     doNotHandleContextLost: false,
   });
 
@@ -47,8 +47,7 @@ export const initializeEngine = (
   }
 
   // Hardware scaling
-  const hardwareScale = isLowEndDevice ? 2.0 : (isNativeApp ? 1.2 : (isMobile ? Math.min(window.devicePixelRatio, 1.5) : window.devicePixelRatio));
-  engine.setHardwareScalingLevel(1 / hardwareScale);
+  engine.setHardwareScalingLevel(1.0);
 
   return engine;
 };
@@ -107,7 +106,9 @@ export const createLighting = (
 
   const dirLight = new BABYLON.DirectionalLight("dirLight", new BABYLON.Vector3(-0.5, -1, -0.5), scene);
   dirLight.position = new BABYLON.Vector3(20, 40, 20);
-  dirLight.intensity = isLowEndDevice ? 0 : (isMobile ? 0.35 : 0.6);
+  dirLight.intensity = isLowEndDevice
+    ? (isMobile ? 0.3 : 0.42)
+    : (isMobile ? 0.35 : 0.6);
 
   return light;
 };

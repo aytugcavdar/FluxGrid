@@ -153,18 +153,6 @@ export const FloatingScoreText: React.FC = React.memo(() => {
         });
         setTextCounter(prev => prev + 1);
         
-        // Screen shake for high scores - DISABLED for high combo to prevent jank
-        const currentCombo = lastAction?.combo || 0;
-        if (scoreDiff >= 500 && !prefersReducedMotion && currentCombo < 5) {
-          // Only shake for combo < 5 to prevent FPS drops
-          const intensity = scoreDiff >= 2000 ? 5 : scoreDiff >= 1000 ? 3 : 2;
-          document.body.style.animation = `screenShake 0.2s ease-in-out`;
-          document.body.style.setProperty('--shake-intensity', `${intensity}px`);
-          setTimeout(() => {
-            document.body.style.animation = '';
-          }, 200);
-        }
-        
         // Remove after animation completes (3 seconds - reduced from 4.5s)
         setTimeout(() => {
           setFloatingTexts(prev => prev.filter(t => t.id !== newText.id));
@@ -177,22 +165,6 @@ export const FloatingScoreText: React.FC = React.memo(() => {
 
   return (
     <>
-      {/* Screen shake keyframes */}
-      <style>{`
-        @keyframes screenShake {
-          0%, 100% { transform: translate(0, 0); }
-          10% { transform: translate(calc(var(--shake-intensity, 5px) * -1), calc(var(--shake-intensity, 5px) * 0.5)); }
-          20% { transform: translate(var(--shake-intensity, 5px), calc(var(--shake-intensity, 5px) * -0.5)); }
-          30% { transform: translate(calc(var(--shake-intensity, 5px) * -0.8), calc(var(--shake-intensity, 5px) * 0.8)); }
-          40% { transform: translate(calc(var(--shake-intensity, 5px) * 0.8), calc(var(--shake-intensity, 5px) * -0.8)); }
-          50% { transform: translate(calc(var(--shake-intensity, 5px) * -0.5), calc(var(--shake-intensity, 5px) * 0.5)); }
-          60% { transform: translate(calc(var(--shake-intensity, 5px) * 0.5), calc(var(--shake-intensity, 5px) * -0.5)); }
-          70% { transform: translate(calc(var(--shake-intensity, 5px) * -0.3), calc(var(--shake-intensity, 5px) * 0.3)); }
-          80% { transform: translate(calc(var(--shake-intensity, 5px) * 0.3), calc(var(--shake-intensity, 5px) * -0.3)); }
-          90% { transform: translate(calc(var(--shake-intensity, 5px) * -0.1), calc(var(--shake-intensity, 5px) * 0.1)); }
-        }
-      `}</style>
-      
       <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 150 }}>
         <AnimatePresence>
           {floatingTexts.map((text) => {

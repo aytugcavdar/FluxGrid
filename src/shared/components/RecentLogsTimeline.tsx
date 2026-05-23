@@ -33,8 +33,6 @@ export const RecentLogsTimeline: React.FC<RecentLogsTimelineProps> = ({
         return { color: '#a855f7', icon: '∞', label: 'Sonsuz' };
       case GameMode.TIMED:
         return { color: '#f59e0b', icon: '⏱', label: 'Zamanlı' };
-      case GameMode.ZEN:
-        return { color: '#06b6d4', icon: '🧘', label: 'Zen' };
       case GameMode.DAILY_CHALLENGE:
         return { color: '#10b981', icon: '📅', label: 'Günlük' };
       default:

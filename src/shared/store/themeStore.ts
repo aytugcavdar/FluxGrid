@@ -57,7 +57,7 @@ const THEMES: Record<ThemeType, ThemeColors> = {
     modalOverlay: 'rgba(0,0,0,0.85)',
     cardBackground: '#1f2937',
     cardBorder: 'rgba(255,255,255,0.08)',
-    pieceColors: ['#a855f7', '#f59e0b', '#3b82f6', '#10b981', '#f472b6', '#6366f1'],
+    pieceColors: ['#a855f7', '#f59e0b', '#3b82f6', '#10b981', '#f472b6', '#6366f1', '#06b6d4', '#84cc16', '#fb7185'],
     // New UI Redesign colors
     screenBackground: 'linear-gradient(135deg, #0f0c1d 0%, #1a1333 50%, #0f0c1d 100%)',
     cardBackgroundTransparent: 'rgba(255,255,255,0.03)',
@@ -82,7 +82,7 @@ const THEMES: Record<ThemeType, ThemeColors> = {
     modalOverlay: 'rgba(120,53,15,0.7)',
     cardBackground: '#ffffff',
     cardBorder: 'rgba(251,191,36,0.15)',
-    pieceColors: ['#f59e0b', '#ea580c', '#fb923c', '#fbbf24', '#f97316', '#fdba74'],
+    pieceColors: ['#d97706', '#dc2626', '#2563eb', '#059669', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#ea580c'],
     // New UI Redesign colors
     screenBackground: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fde68a 100%)',
     cardBackgroundTransparent: 'rgba(255,255,255,0.85)',
@@ -107,7 +107,7 @@ const THEMES: Record<ThemeType, ThemeColors> = {
     modalOverlay: 'rgba(15,14,23,0.9)',
     cardBackground: '#1a0a2e',
     cardBorder: 'rgba(232,121,249,0.15)',
-    pieceColors: ['#e879f9', '#c084fc', '#a78bfa', '#d946ef', '#f0abfc', '#e879f9'],
+    pieceColors: ['#e879f9', '#22d3ee', '#a78bfa', '#f472b6', '#34d399', '#facc15', '#60a5fa', '#fb7185', '#c084fc'],
     // New UI Redesign colors
     screenBackground: 'linear-gradient(135deg, #0f0e17 0%, #1a0a2e 50%, #2d1b4e 100%)',
     cardBackgroundTransparent: 'rgba(232,121,249,0.08)',

@@ -73,7 +73,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderb
     { mode: GameMode.ENDLESS, icon: '∞', label: 'Sonsuz', color: 'from-purple-500 to-pink-500' },
     { mode: GameMode.TIMED, icon: '⚡', label: 'Rush', color: 'from-amber-500 to-orange-500' },
     { mode: GameMode.DAILY_CHALLENGE, icon: '📅', label: 'Günlük', color: 'from-blue-500 to-cyan-500' },
-    { mode: GameMode.ZEN, icon: '☁️', label: 'Zen', color: 'from-green-500 to-emerald-500' },
   ];
 
   // Get high score for a mode from localStorage

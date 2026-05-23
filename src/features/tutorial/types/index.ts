@@ -26,7 +26,7 @@ export interface TutorialStep {
   description: string;
   highlightTarget: string | null; // CSS selector
   arrowDirection: 'up' | 'down' | 'left' | 'right' | null;
-  action: 'place' | 'clear' | 'combo' | 'complete';
+  action: 'place' | 'clear' | 'combo' | 'info' | 'complete';
   validation: (gameState: any) => boolean;
 }
 

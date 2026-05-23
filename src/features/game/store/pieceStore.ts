@@ -53,20 +53,34 @@ export const usePieceStore = create<PieceStore>((set, get) => ({
     const tutorialState = useTutorialStore.getState();
     const tutorialStep = tutorialState.isActive ? tutorialState.currentStep : undefined;
     
-    const newPieces = getRandomPiecesSync(
-      count,
-      grid,
-      isDaily,
-      useThemeStore.getState().getPieceColors(),
-      currentTier,
-      gameMode,
-      miniEventState || createMiniEventState()
-    );
-    
-    set({ 
-      pieces: newPieces,
-      isPiecesLoading: false 
-    });
+    try {
+      const newPieces = getRandomPiecesSync(
+        count,
+        grid,
+        isDaily,
+        useThemeStore.getState().getPieceColors(),
+        currentTier,
+        gameMode,
+        miniEventState || createMiniEventState()
+      );
+      
+      set({ pieces: newPieces });
+    } catch (error) {
+      console.error('[PieceStore] Failed to generate pieces:', error);
+      set({
+        pieces: getRandomPiecesSync(
+          count,
+          undefined,
+          false,
+          useThemeStore.getState().getPieceColors(),
+          0,
+          gameMode,
+          createMiniEventState()
+        ),
+      });
+    } finally {
+      set({ isPiecesLoading: false });
+    }
   },
   
   /**

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { useAchievementStore } from '../achievementStore';
+import { useGameStore } from '@features/game/store/gameStore';
 import styles from './AchievementNotification.module.css';
 
 /**
@@ -10,7 +10,8 @@ import styles from './AchievementNotification.module.css';
  * Supports swipe-to-dismiss (left or right)
  */
 export const AchievementNotification = React.memo(() => {
-  const { recentUnlock, clearRecentUnlock } = useAchievementStore();
+  const { achievements, unlockedAchievementId, clearAchievementNotification } = useGameStore();
+  const recentUnlock = achievements.find(achievement => achievement.id === unlockedAchievementId);
   
   // Motion values for drag
   const x = useMotionValue(0);
@@ -22,7 +23,7 @@ export const AchievementNotification = React.memo(() => {
   const handleDragEnd = (_: any, info: any) => {
     // If dragged more than 100px horizontally or 50px upwards, dismiss
     if (Math.abs(info.offset.x) > 100 || info.offset.y < -50) {
-      clearRecentUnlock();
+      clearAchievementNotification();
     }
   };
 
@@ -48,7 +49,7 @@ export const AchievementNotification = React.memo(() => {
         dragElastic={{ top: 0.7, bottom: 0, left: 0.7, right: 0.7 }}
         onDragEnd={handleDragEnd}
         style={{ x, y, opacity }}
-        onClick={clearRecentUnlock}
+        onClick={clearAchievementNotification}
       >
         {/* Glow effect */}
         <div className={styles.glow} />
@@ -68,13 +69,13 @@ export const AchievementNotification = React.memo(() => {
               repeatDelay: 2,
             }}
           >
-            {recentUnlock.icon}
+            🏆
           </motion.div>
           
           {/* Text */}
-          <div className={styles.text}>
-            <div className={styles.badge}>Başarım Kazanıldı!</div>
-            <div className={styles.title}>{recentUnlock.title}</div>
+          <div className={styles.text} style={{ fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif' }}>
+            <div className={styles.badge}>BAŞARIM KAZANILDI!</div>
+            <div className={styles.title}>{recentUnlock.name}</div>
             <div className={styles.description}>{recentUnlock.description}</div>
           </div>
         </div>

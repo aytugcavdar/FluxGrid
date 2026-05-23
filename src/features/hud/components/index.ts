@@ -12,7 +12,6 @@ export { ComboRushFlash } from './ComboRushFlash';
 // MiniEventIndicators removed - mini-event system deprecated
 // MultiplierBreakdownDisplay removed - mini-event system deprecated
 export { TierDisplay } from './TierDisplay';
-export { ChronoPopup } from './ChronoPopup';
 export { EventStartVisual } from './EventStartVisual';
 export { TierMilestoneNotification } from './TierMilestoneNotification';
 export { TierCelebrationOverlay } from './TierCelebrationOverlay';
@@ -22,6 +21,5 @@ export { ComboDisplay } from './ComboDisplay';
 export { FloatingScoreText } from './FloatingScoreText';
 export { FloatingTimeText } from './FloatingTimeText';
 export { PerfectClearPopup } from './PerfectClearPopup';
-export { FluxBar } from './FluxBar';
 export { LineClearFlash } from './LineClearFlash';
 

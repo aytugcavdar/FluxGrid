@@ -4,10 +4,9 @@ import { useGameStore } from '../../game/store/gameStore';
 
 export const GridBreathingEffect: React.FC = React.memo(() => {
   const combo = useGameStore((state) => state.combo);
-  const isSurgeActive = useGameStore((state) => state.isSurgeActive);
   
-  // Calculate intensity based on combo and surge
-  const intensity = Math.min(combo * 0.1 + (isSurgeActive ? 0.3 : 0), 0.8);
+  // Calculate intensity based on combo.
+  const intensity = Math.min(combo * 0.1, 0.8);
   
   if (intensity === 0) return null;
 

@@ -295,8 +295,7 @@ Show tooltips when accessing settings features:
 ### Game Features
 
 Show tooltips for game features:
-- `feature_flux_meter`: First time flux meter fills
-- `feature_surge_mode`: First time entering surge mode
+- `feature_combo_timer`: First time combo timer starts
 - `feature_daily_reward`: First time claiming daily reward
 - `feature_streak`: First time building a streak
 

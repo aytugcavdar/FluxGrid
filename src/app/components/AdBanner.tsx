@@ -13,74 +13,69 @@ export const AdBanner: React.FC<AdBannerProps> = React.memo(() => {
 
   // Detect native platform
   const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.();
+  const shouldShowBanner =
+    isNative &&
+    !isTutorialActive &&
+    !isGameOver &&
+    !AdManager.isNoAdsActive();
 
   // Manage banner lifecycle on native platform
   useEffect(() => {
-    if (isNative) {
-      // Delay banner display to ensure Activity is fully loaded
-      // This prevents NullPointerException when ViewGroup is not ready
-      const timer = setTimeout(() => {
-        AdManager.showBanner();
-      }, 1500); // 1500ms delay for Activity stabilization
-      
-      // Listen for pause/resume events
-      const handlePause = () => {
-        AdManager.hideBanner();
-      };
-      
-      const handleResume = () => {
-        // Delay banner show to ensure smooth transition
-        setTimeout(() => {
-          AdManager.showBanner();
-        }, 500);
-      };
-      
-      window.addEventListener('fluxgrid-pause', handlePause);
-      window.addEventListener('fluxgrid-resume', handleResume);
-      
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener('fluxgrid-pause', handlePause);
-        window.removeEventListener('fluxgrid-resume', handleResume);
-        AdManager.hideBanner();
-      };
+    if (!isNative) {
+      return;
     }
-  }, [isNative]);
 
-  // Don't show during tutorial
-  if (isTutorialActive) {
-    return null;
-  }
-  
-  // Don't show during game over
-  if (isGameOver) {
-    return null;
-  }
+    if (!shouldShowBanner) {
+      AdManager.hideBanner();
+      window.dispatchEvent(new CustomEvent('fluxgrid-banner-hidden', {
+        detail: { height: 0 }
+      }));
+      return;
+    }
 
-  // Don't show on small screens
-  if (typeof window !== 'undefined' && window.innerWidth < 390) {
-    return null;
-  }
+    // Delay banner display to ensure Activity is fully loaded
+    // This prevents NullPointerException when ViewGroup is not ready
+    const timer = setTimeout(() => {
+      AdManager.showBanner();
+    }, 1500); // 1500ms delay for Activity stabilization
+    
+    // Listen for pause/resume events
+    const handlePause = () => {
+      AdManager.hideBanner();
+    };
+    
+    const handleResume = () => {
+      // Delay banner show to ensure smooth transition
+      setTimeout(() => {
+        AdManager.showBanner();
+      }, 500);
+    };
+    
+    window.addEventListener('fluxgrid-pause', handlePause);
+    window.addEventListener('fluxgrid-resume', handleResume);
+    
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('fluxgrid-pause', handlePause);
+      window.removeEventListener('fluxgrid-resume', handleResume);
+      AdManager.hideBanner();
+    };
+  }, [isNative, shouldShowBanner]);
 
-  // Don't show if no-ads is active
-  if (AdManager.isNoAdsActive()) {
-    return null;
-  }
-
-  // Only show on native platform
-  if (!isNative) {
+  if (!shouldShowBanner) {
     return null;
   }
 
   // Render native banner container
   return (
     <div
-      className="w-full"
+      className="w-full flex-shrink-0"
       style={{
-        height: 'calc(50px + env(safe-area-inset-bottom, 0px) + 5px)',
-        minHeight: 'calc(50px + env(safe-area-inset-bottom, 0px) + 5px)',
-        maxHeight: 'calc(50px + env(safe-area-inset-bottom, 0px) + 5px)',
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 5px)',
+        height: 'calc(60px + env(safe-area-inset-bottom, 0px) + 10px)',
+        minHeight: 'calc(60px + env(safe-area-inset-bottom, 0px) + 10px)',
+        maxHeight: 'calc(60px + env(safe-area-inset-bottom, 0px) + 10px)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)',
+        marginTop: '8px',
       }}
     />
   );

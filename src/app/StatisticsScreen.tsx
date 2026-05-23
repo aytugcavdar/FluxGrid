@@ -1,18 +1,124 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Timer } from 'lucide-react';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useThemeStore } from '../shared/store/themeStore';
 import { GameMode } from '@shared/types';
-import { PerformanceCard, ProgressBar, StatCard, SectionHeader, RecentLogsTimeline, TrendAnalysisChart } from '../shared/components';
+import { PerformanceCard, SectionHeader, RecentLogsTimeline } from '../shared/components';
 import { useCountUp } from '../shared/hooks/useCountUp';
 
 import { Achievement } from '../shared/types/ui';
-import { usePerformanceMetrics } from '../shared/hooks/usePerformanceMetrics';
-import { useTrendData } from '../shared/hooks/useTrendData';
-import { TrendPeriod } from '../shared/utils/trendDataAggregation';
+import { useStreakStore } from '../shared/store/streakStore';
 
 type TabType = 'overview' | 'achievements';
+
+type StatsGameLog = {
+  mode: GameMode;
+  score: number;
+  timestamp: number;
+  duration: number;
+};
+
+type PersonalInsight = {
+  label: string;
+  value: string;
+  detail: string;
+  icon: React.ReactNode;
+  color: string;
+};
+
+const MODE_LABELS: Record<GameMode, string> = {
+  [GameMode.ENDLESS]: 'Sonsuz',
+  [GameMode.TIMED]: 'Timed',
+  [GameMode.DAILY_CHALLENGE]: 'Günlük',
+};
+
+const formatDuration = (seconds: number): string => {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '0 sn';
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.round(seconds % 60);
+
+  if (minutes <= 0) return `${remainingSeconds} sn`;
+  if (remainingSeconds === 0) return `${minutes} dk`;
+  return `${minutes} dk ${remainingSeconds} sn`;
+};
+
+const buildPersonalInsights = (logs: StatsGameLog[]): PersonalInsight[] => {
+  if (!Array.isArray(logs) || logs.length === 0) {
+    return [
+      { label: 'En iyi günün', value: '-', detail: 'Henüz oyun kaydı yok', icon: '★', color: '#f59e0b' },
+      { label: 'En çok oynadığın mod', value: '-', detail: 'Birkaç oyun sonrası görünür', icon: '◈', color: '#818cf8' },
+      { label: 'Ortalama oyun süren', value: '0 sn', detail: 'Oyun ritmin burada oluşur', icon: <Timer size={17} strokeWidth={2.5} />, color: '#34d399' },
+      { label: 'Son 7 günde gelişim', value: '-', detail: 'Karşılaştırma için veri lazım', icon: '↗', color: '#f472b6' },
+    ];
+  }
+
+  const dayTotals = new Map<string, { label: string; score: number; games: number }>();
+  const modeCounts = new Map<GameMode, number>();
+  let totalDuration = 0;
+
+  logs.forEach(log => {
+    const date = new Date(log.timestamp);
+    const dayKey = date.toISOString().slice(0, 10);
+    const dayLabel = date.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' });
+    const currentDay = dayTotals.get(dayKey) || { label: dayLabel, score: 0, games: 0 };
+    currentDay.score += log.score;
+    currentDay.games += 1;
+    dayTotals.set(dayKey, currentDay);
+
+    modeCounts.set(log.mode, (modeCounts.get(log.mode) || 0) + 1);
+    totalDuration += log.duration || 0;
+  });
+
+  const bestDay = [...dayTotals.values()].sort((a, b) => b.score - a.score)[0];
+  const favoriteMode = [...modeCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  const averageDuration = Math.round(totalDuration / logs.length);
+  const now = Date.now();
+  const sevenDays = 7 * 24 * 60 * 60 * 1000;
+  const recentLogs = logs.filter(log => now - log.timestamp <= sevenDays);
+  const previousLogs = logs.filter(log => now - log.timestamp > sevenDays && now - log.timestamp <= sevenDays * 2);
+  const averageScore = (items: StatsGameLog[]) =>
+    items.length > 0 ? items.reduce((sum, log) => sum + log.score, 0) / items.length : 0;
+  const recentAverage = averageScore(recentLogs);
+  const previousAverage = averageScore(previousLogs);
+  const improvement = previousAverage > 0
+    ? Math.round(((recentAverage - previousAverage) / previousAverage) * 100)
+    : null;
+
+  return [
+    {
+      label: 'En iyi günün',
+      value: bestDay?.label || '-',
+      detail: bestDay ? `${bestDay.score.toLocaleString('tr-TR')} puan, ${bestDay.games} oyun` : 'Henüz oyun kaydı yok',
+      icon: '★',
+      color: '#f59e0b',
+    },
+    {
+      label: 'En çok oynadığın mod',
+      value: favoriteMode ? MODE_LABELS[favoriteMode[0]] : '-',
+      detail: favoriteMode ? `${favoriteMode[1]} oyun` : 'Birkaç oyun sonrası görünür',
+      icon: '◈',
+      color: '#818cf8',
+    },
+    {
+      label: 'Ortalama oyun süren',
+      value: formatDuration(averageDuration),
+      detail: `${logs.length} oyun ortalaması`,
+      icon: <Timer size={17} strokeWidth={2.5} />,
+      color: '#34d399',
+    },
+    {
+      label: 'Son 7 günde gelişim',
+      value: improvement === null ? 'Yeni' : `${improvement > 0 ? '+' : ''}${improvement}%`,
+      detail: improvement === null
+        ? `${recentLogs.length} yeni oyun kaydı`
+        : `${Math.round(recentAverage).toLocaleString('tr-TR')} ortalama puan`,
+      icon: '↗',
+      color: improvement !== null && improvement < 0 ? '#fb7185' : '#f472b6',
+    },
+  ];
+};
 
 /* ── Hero stat card with CountUp ── */
 const HeroStatCard: React.FC<{
@@ -60,6 +166,136 @@ const HeroStatCard: React.FC<{
   );
 };
 
+/* ── Streak Banner ── */
+const PersonalInsightGrid: React.FC<{ insights: PersonalInsight[] }> = ({ insights }) => (
+  <div>
+    <SectionHeader title="Kişisel Özet" />
+    <div className="grid grid-cols-2 gap-3">
+      {insights.map((insight, index) => (
+        <motion.div
+          key={insight.label}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.08 * index }}
+          className="rounded-2xl p-4 relative overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.025) 100%)',
+            border: `1px solid ${insight.color}33`,
+          }}
+        >
+          <div
+            className="absolute -top-5 -right-5 w-16 h-16 rounded-full opacity-15 blur-xl pointer-events-none"
+            style={{ background: insight.color }}
+          />
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <span style={{ color: insight.color, fontSize: 18, lineHeight: 1, display: 'flex', alignItems: 'center' }}>{insight.icon}</span>
+            <span className="text-[9px] font-bold uppercase text-right leading-tight" style={{ color: `${insight.color}cc` }}>
+              {insight.label}
+            </span>
+          </div>
+          <div className="text-lg font-black tabular-nums leading-tight" style={{ color: '#f0f0f8' }}>
+            {insight.value}
+          </div>
+          <p className="text-[10px] mt-1 leading-snug" style={{ color: 'rgba(208,208,232,0.48)' }}>
+            {insight.detail}
+          </p>
+        </motion.div>
+      ))}
+    </div>
+  </div>
+);
+
+const StreakBanner: React.FC = () => {
+  const { currentStreak, longestStreak, streakShields, todayPlayed } = useStreakStore();
+
+  const streakColor = currentStreak >= 7 ? '#f97316' : currentStreak >= 3 ? '#fbbf24' : '#94a3b8';
+  const fireEmoji = currentStreak >= 7 ? '🔥' : currentStreak >= 3 ? '⚡' : '🌙';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.35 }}
+      className="rounded-2xl overflow-hidden relative"
+      style={{
+        background: `linear-gradient(135deg, rgba(249,115,22,0.10) 0%, rgba(251,191,36,0.06) 100%)`,
+        border: `1px solid ${streakColor}30`,
+        boxShadow: `0 4px 20px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.04)`,
+      }}
+    >
+      {/* Shimmer */}
+      <motion.div
+        animate={{ x: ['-120%', '220%'] }}
+        transition={{ duration: 3.5, repeat: Infinity, repeatDelay: 5, ease: 'easeInOut' }}
+        className="absolute top-0 left-0 w-1/3 h-full pointer-events-none"
+        style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent)' }}
+      />
+
+      <div className="flex items-center gap-0 px-1 py-1">
+        {/* Current streak */}
+        <div className="flex-1 flex flex-col items-center py-2">
+          <div style={{ fontSize: 22, lineHeight: 1, marginBottom: 3 }}>{fireEmoji}</div>
+          <div
+            className="text-xl font-black tabular-nums"
+            style={{
+              background: `linear-gradient(135deg, ${streakColor}, #fff)`,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
+          >
+            {currentStreak}
+          </div>
+          <div className="text-[9px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: 'rgba(208,208,232,0.45)' }}>
+            Günlük Seri
+          </div>
+          {todayPlayed && (
+            <div className="text-[8px] font-bold mt-0.5" style={{ color: streakColor }}>
+              ✓ Bugün oynadın
+            </div>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div className="w-px h-10 mx-1" style={{ background: 'rgba(255,255,255,0.07)' }} />
+
+        {/* Longest streak */}
+        <div className="flex-1 flex flex-col items-center py-2">
+          <div style={{ fontSize: 22, lineHeight: 1, marginBottom: 3 }}>👑</div>
+          <div
+            className="text-xl font-black tabular-nums"
+            style={{ color: '#f0f0f8' }}
+          >
+            {longestStreak}
+          </div>
+          <div className="text-[9px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: 'rgba(208,208,232,0.45)' }}>
+            En Uzun
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="w-px h-10 mx-1" style={{ background: 'rgba(255,255,255,0.07)' }} />
+
+        {/* Shields */}
+        <div className="flex-1 flex flex-col items-center py-2">
+          <div style={{ fontSize: 22, lineHeight: 1, marginBottom: 3 }}>
+            {streakShields > 0 ? '🛡️' : '💨'}
+          </div>
+          <div
+            className="text-xl font-black tabular-nums"
+            style={{ color: streakShields > 0 ? '#60a5fa' : 'rgba(255,255,255,0.25)' }}
+          >
+            {streakShields}
+          </div>
+          <div className="text-[9px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: 'rgba(208,208,232,0.45)' }}>
+            Kalkan
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
 /* ─────────────────────────────────────────────── */
 /* ── Category meta ── */
 const CAT_META: Record<string, { icon: string; color: string; bg: string }> = {
@@ -72,12 +308,40 @@ const CAT_META: Record<string, { icon: string; color: string; bg: string }> = {
   MASTERY:        { icon: '👑', color: '#f472b6', bg: 'rgba(244,114,182,0.12)' },
 };
 
+const RARITY_META: Record<NonNullable<Achievement['rarity']>, { label: string; color: string; bg: string }> = {
+  BRONZE: { label: 'Bronze', color: '#cd7f32', bg: 'rgba(205,127,50,0.16)' },
+  SILVER: { label: 'Silver', color: '#cbd5e1', bg: 'rgba(203,213,225,0.14)' },
+  GOLD: { label: 'Gold', color: '#facc15', bg: 'rgba(250,204,21,0.16)' },
+  MYTHIC: { label: 'Mythic', color: '#c084fc', bg: 'rgba(192,132,252,0.18)' },
+};
+
+const getAchievementRarity = (ach: { hidden?: boolean; targetValue?: number; category?: string; id: string }): NonNullable<Achievement['rarity']> => {
+  if (ach.hidden || ach.id.includes('1m') || ach.id.includes('tier_6')) return 'MYTHIC';
+  const target = ach.targetValue || 0;
+  if (target >= 100000 || target >= 5000 || ach.category === 'MASTERY') return 'GOLD';
+  if (target >= 50 || ach.category === 'SPEED') return 'SILVER';
+  return 'BRONZE';
+};
+
+const getHiddenHint = (category?: string) => {
+  if (category === 'SPEED') return 'Timed modda güçlü bir hedefi tamamla.';
+  if (category === 'MASTERY') return 'Endless modda ileri seviye bir hedefi tamamla.';
+  if (category === 'SCORE') return 'Tek oyunda yüksek skor hedeflerinden birine ulaş.';
+  if (category === 'COMBO') return 'Kombo seviyeni daha yukarı taşı.';
+  if (category === 'SPECIAL_BLOCKS') return 'Özel bloklarla ilgili ileri bir hedefi tamamla.';
+  return 'Oyunda ilerledikçe açılır.';
+};
+
 /* ── Single achievement row ── */
 const AchRow: React.FC<{ ach: Achievement; index?: number }> = ({ ach, index = 0 }) => {
   const meta   = CAT_META[ach.category || ''] ?? { icon: '🏅', color: '#9ca3af', bg: 'rgba(156,163,175,0.1)' };
+  const rarity = RARITY_META[ach.rarity || 'BRONZE'];
   const pct    = Math.min(100, ach.progress ?? 0);
   const done   = ach.status === 'unlocked';
   const locked = ach.status === 'locked' && pct === 0;
+  const hideDetails = Boolean(ach.hidden && !done);
+  const title = hideDetails ? 'Gizli Başarım' : ach.title;
+  const description = hideDetails ? getHiddenHint(ach.category) : ach.description;
 
   return (
     <motion.div
@@ -113,16 +377,24 @@ const AchRow: React.FC<{ ach: Achievement; index?: number }> = ({ ach, index = 0
             fontSize: 12, fontWeight: 700, lineHeight: 1,
             color: done ? meta.color : 'rgba(255,255,255,0.8)',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '65%',
-          }}>{ach.title}</span>
-          <span style={{ fontSize: 10, fontWeight: 600, color: done ? meta.color : 'rgba(255,255,255,0.35)', lineHeight: 1 }}>
-            {done ? '✓ Tamamlandı' : `${ach.currentValue ?? 0}/${ach.targetValue ?? 0}`}
-          </span>
+          }}>{title}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <span style={{
+              fontSize: 9, fontWeight: 800, lineHeight: 1, padding: '4px 6px', borderRadius: 999,
+              color: rarity.color, background: rarity.bg, border: `1px solid ${rarity.color}40`,
+            }}>
+              {rarity.label}
+            </span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: done ? meta.color : 'rgba(255,255,255,0.35)', lineHeight: 1 }}>
+              {done ? '✓ Tamamlandı' : (hideDetails ? '???' : `${ach.currentValue ?? 0}/${ach.targetValue ?? 0}`)}
+            </span>
+          </div>
         </div>
         <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', margin: '0 0 5px', lineHeight: 1.3 }}>
-          {ach.description}
+          {description}
         </p>
         {/* Progress track */}
-        {!done && (
+        {!done && !hideDetails && (
           <div style={{
             width: '100%', height: 4, borderRadius: 2,
             background: 'rgba(255,255,255,0.08)',
@@ -151,13 +423,16 @@ export const StatisticsScreen: React.FC = () => {
   const { t } = useTranslation();
   const colors = getThemeColors();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
-  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('daily');
 
-  const trendData = useTrendData(trendPeriod);
+  const sortedGameLogs = useMemo(() => (
+    Array.isArray(gameLogs) ? [...gameLogs].sort((a, b) => b.timestamp - a.timestamp) : []
+  ), [gameLogs]);
 
-  const recentLogs = Array.isArray(gameLogs)
-    ? gameLogs.sort((a, b) => b.timestamp - a.timestamp).slice(0, 5)
-    : [];
+  const recentLogs = sortedGameLogs.slice(0, 5);
+  const personalInsights = useMemo(
+    () => buildPersonalInsights(sortedGameLogs),
+    [sortedGameLogs]
+  );
 
 
 
@@ -171,6 +446,7 @@ export const StatisticsScreen: React.FC = () => {
       icon: '🏆',
       status: ach.unlocked ? 'unlocked' : (progress > 0 ? 'in-progress' : 'locked'),
       progress, category: ach.category, hidden: ach.hidden,
+      rarity: ach.rarity || getAchievementRarity(ach),
       currentValue: ach.currentValue, targetValue: ach.targetValue,
     };
   });
@@ -206,7 +482,7 @@ export const StatisticsScreen: React.FC = () => {
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, #0a0812 0%, #110d22 50%, #0c0918 100%)' }}>
+      style={{ background: 'linear-gradient(160deg, #0d1117 0%, #110d22 50%, #0c0918 100%)' }}>
 
       {/* Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -241,7 +517,6 @@ export const StatisticsScreen: React.FC = () => {
               {activeTab === 'overview' ? 'İstatistikler' : 'Başarımlar'}
             </span>
           </div>
-
           {/* Pill tabs */}
           <div className="flex gap-2" style={{
             background: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: 4,
@@ -294,54 +569,10 @@ export const StatisticsScreen: React.FC = () => {
                   ))}
                 </div>
 
-                {/* ─ Trend section ─ */}
-                <div className="rounded-2xl overflow-hidden"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(168,85,247,0.06) 0%, rgba(99,102,241,0.04) 100%)',
-                    border: '1px solid rgba(168,85,247,0.15)',
-                    boxShadow: '0 4px 24px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.04)',
-                  }}>
-                  {/* Section header inside card */}
-                  <div className="px-4 pt-4 pb-2">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-1 h-4 rounded-full" style={{ background: 'linear-gradient(180deg, #a855f7, #6366f1)' }} />
-                        <span className="text-xs font-black uppercase tracking-wider" style={{ color: '#c4b5fd' }}>
-                          {t('stats.trendAnalysis', 'Trend Analizi')}
-                        </span>
-                      </div>
-                      {trendData.length > 0 && (
-                        <span className="text-[10px] font-semibold" style={{ color: 'rgba(196,181,253,0.5)' }}>
-                          {trendData.reduce((sum, d) => sum + d.gamesPlayed, 0)} oyun
-                        </span>
-                      )}
-                    </div>
-                    {/* Period pills */}
-                    <div className="flex gap-1.5">
-                      {(['daily', 'weekly', 'monthly'] as TrendPeriod[]).map(p => (
-                        <button key={p} onClick={() => setTrendPeriod(p)}
-                          className="flex-1 py-2 rounded-lg text-[10px] font-bold transition-all relative overflow-hidden"
-                          style={{
-                            background: trendPeriod === p
-                              ? 'linear-gradient(135deg, rgba(168,85,247,0.25), rgba(99,102,241,0.2))'
-                              : 'rgba(255,255,255,0.03)',
-                            color: trendPeriod === p ? '#e9d5ff' : 'rgba(255,255,255,0.3)',
-                            border: `1px solid ${trendPeriod === p ? 'rgba(168,85,247,0.45)' : 'rgba(255,255,255,0.06)'}`,
-                            cursor: 'pointer',
-                            boxShadow: trendPeriod === p ? '0 0 12px rgba(168,85,247,0.15)' : 'none',
-                          }}>
-                          {p === 'daily' ? 'Günlük' : p === 'weekly' ? 'Haftalık' : 'Aylık'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {/* Chart */}
-                  <div className="px-1 pb-2">
-                    <TrendAnalysisChart data={trendData}
-                      lines={[{ dataKey: 'score', color: '#a855f7', label: 'SKOR' }, { dataKey: 'combo', color: '#f59e0b', label: 'KOMBO' }]}
-                      height={200} showGrid showLegend />
-                  </div>
-                </div>
+                {/* ─ Streak Banner ─ */}
+                <StreakBanner />
+
+                <PersonalInsightGrid insights={personalInsights} />
 
                 {/* ─ Mode performance ─ */}
                 <div>
@@ -350,20 +581,7 @@ export const StatisticsScreen: React.FC = () => {
                     <PerformanceCard mode={GameMode.ENDLESS} bestScore={sonsuzBestScore}
                       maxCombo={stats.endlessMaxCombo || 0} maxTier={stats.endlessMaxTier || 0} color="#a855f7" />
                     <PerformanceCard mode={GameMode.TIMED} bestScore={timedBestScore}
-                      maxCombo={stats.timedMaxCombo || 0} chronoBonus={stats.timedChronoBonus || 0} color="#f59e0b" />
-                  </div>
-                </div>
-
-                {/* ─ Progress bars ─ */}
-                <div>
-                  <SectionHeader title={t('stats.overallProgress', 'Genel İlerleme')} />
-                  <div className="rounded-2xl p-4 space-y-4"
-                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                    <ProgressBar label={t('stats.totalBlocks', 'Blok')} value={stats.blocksPlaced || 0} maxValue={5000} color="#a855f7" />
-                    <ProgressBar label={t('stats.linesCleared', 'Satır')} value={stats.linesCleared || 0} maxValue={500} color="#3b82f6" />
-                    <ProgressBar label={t('stats.bombsExploded', 'Bomba')} value={stats.bombsExploded || 0} maxValue={100} color="#ef4444" />
-                    <ProgressBar label={t('stats.iceBroken', 'Buz')} value={stats.iceBroken || 0} maxValue={100} color="#06b6d4" />
-                    <ProgressBar label={t('stats.totalGames', 'Oyun')} value={stats.gamesPlayed || 0} maxValue={150} color="#10b981" />
+                      maxCombo={stats.timedMaxCombo || 0} maxDuration={stats.timedMaxDuration || 0} color="#f59e0b" />
                   </div>
                 </div>
 

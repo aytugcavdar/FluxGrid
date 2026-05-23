@@ -16,7 +16,7 @@ export interface MultiplierStore {
   timedBoostMovesLeft: number;
   
   // Event System State
-  activeEvent: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
+  activeEvent: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
   eventMovesRemaining: number;
   
   // Actions
@@ -27,7 +27,7 @@ export interface MultiplierStore {
   incrementTotalMoves: () => void;
   setTimedBoostMoves: (moves: number) => void;
   decrementTimedBoostMoves: () => void;
-  setActiveEvent: (event: 'ICE_STORM' | 'GRAVITY_RUSH' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null) => void;
+  setActiveEvent: (event: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null) => void;
   setEventMovesRemaining: (moves: number) => void;
   decrementEventMoves: () => void;
   setMiniEventState: (state: ReturnType<typeof createMiniEventState>) => void;

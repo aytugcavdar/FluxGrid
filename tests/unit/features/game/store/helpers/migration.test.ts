@@ -23,7 +23,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
     it('should recalculate tier based on score and new thresholds', () => {
       const saveData: SaveData = {
-        score: 5000, // Should be tier 2 with new thresholds [0, 1500, 4000, 9000, ...]
+        score: 5000,
         difficultyTier: 3, // Old tier value
         saveVersion: 1,
       };
@@ -31,7 +31,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
       const result = migrateSaveData(saveData);
 
       expect(result.saveVersion).toBe(3);
-      expect(result.difficultyTier).toBe(2); // Recalculated from score
+      expect(result.difficultyTier).toBe(1); // Recalculated from current thresholds
       expect(result.score).toBe(5000); // Score preserved
     });
 
@@ -116,7 +116,6 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
       const saveData: SaveData = {
         score: 8000,
         difficultyTier: 3,
-        flux: 75,
         combo: 5,
         activeEvent: 'QUAKE',
         eventMovesRemaining: 8,
@@ -127,7 +126,6 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
       const result = migrateSaveData(saveData);
 
       expect(result.saveVersion).toBe(3);
-      expect(result.flux).toBe(75);
       expect(result.combo).toBe(5);
       expect(result.activeEvent).toBe('QUAKE');
       expect(result.eventMovesRemaining).toBe(8); // Not 999, so not converted
@@ -136,7 +134,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
     it('should handle edge case: score at tier threshold', () => {
       const saveData: SaveData = {
-        score: 9000, // Exactly at tier 3 threshold
+        score: 9000,
         difficultyTier: 2,
         saveVersion: 1,
       };
@@ -144,7 +142,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
       const result = migrateSaveData(saveData);
 
       expect(result.saveVersion).toBe(3);
-      expect(result.difficultyTier).toBe(3); // Should be tier 3
+      expect(result.difficultyTier).toBe(1);
     });
 
     it('should handle edge case: score = 0', () => {
@@ -162,7 +160,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
     it('should handle edge case: very high score', () => {
       const saveData: SaveData = {
-        score: 100000, // Beyond tier 6 threshold
+        score: 100000,
         difficultyTier: 5,
         saveVersion: 1,
       };
@@ -170,7 +168,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
       const result = migrateSaveData(saveData);
 
       expect(result.saveVersion).toBe(3);
-      expect(result.difficultyTier).toBe(6); // Max tier
+      expect(result.difficultyTier).toBe(5);
     });
 
     it('should not convert non-infinite event durations', () => {

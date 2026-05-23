@@ -1,5 +1,5 @@
 /**
- * Special Block Mastery Card - Stats for bomb, ice, chrono blocks
+ * Special Block Mastery Card - Stats for bomb and ice blocks
  */
 
 import React from 'react';
@@ -10,7 +10,7 @@ interface SpecialBlockMasteryCardProps {
 }
 
 export const SpecialBlockMasteryCard: React.FC<SpecialBlockMasteryCardProps> = ({ specialBlockStats }) => {
-  const { bombStats, iceStats, chronoStats, specialBlockEfficiency } = specialBlockStats;
+  const { bombStats, iceStats, specialBlockEfficiency } = specialBlockStats;
   
   return (
     <div
@@ -83,30 +83,7 @@ export const SpecialBlockMasteryCard: React.FC<SpecialBlockMasteryCardProps> = (
           </div>
         </div>
       </div>
-      
-      {/* Chrono Stats */}
-      <div
-        className="p-4 rounded-xl"
-        style={{
-          background: 'rgba(249, 115, 22, 0.1)',
-          border: '1px solid rgba(249, 115, 22, 0.2)',
-        }}
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-2xl">⏱️</span>
-          <span className="text-sm font-bold text-orange-400">CHRONO</span>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <div className="text-xs text-white/60 mb-1">Toplanan</div>
-            <div className="text-lg font-bold text-white">{chronoStats.totalCollected}</div>
-          </div>
-          <div>
-            <div className="text-xs text-white/60 mb-1">Ort. Bonus</div>
-            <div className="text-lg font-bold text-white">{Math.round(chronoStats.averageBonus)}s</div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
+

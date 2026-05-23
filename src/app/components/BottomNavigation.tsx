@@ -15,36 +15,24 @@ const TAB_CONFIG: Array<{
   labelKey: string;
   icon: React.FC<{ size: number; strokeWidth: number }>;
   activeColor: string;
-  activeBg: string;
-  activeBorder: string;
-  glow: string;
 }> = [
   {
     id: 'home',
     labelKey: 'navigation.home',
     icon: Home,
     activeColor: '#818cf8',
-    activeBg: 'rgba(99,102,241,0.16)',
-    activeBorder: 'rgba(99,102,241,0.35)',
-    glow: '0 0 16px rgba(99,102,241,0.3)',
   },
   {
     id: 'stats',
     labelKey: 'navigation.stats',
     icon: BarChart2,
     activeColor: '#f472b6',
-    activeBg: 'rgba(244,114,182,0.14)',
-    activeBorder: 'rgba(244,114,182,0.32)',
-    glow: '0 0 16px rgba(244,114,182,0.28)',
   },
   {
     id: 'settings',
     labelKey: 'navigation.settings',
     icon: Settings,
     activeColor: '#34d399',
-    activeBg: 'rgba(52,211,153,0.14)',
-    activeBorder: 'rgba(52,211,153,0.32)',
-    glow: '0 0 16px rgba(52,211,153,0.28)',
   },
 ];
 
@@ -56,60 +44,34 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   const { currentTheme } = useThemeStore();
   const isDark = currentTheme !== 'light';
 
-  const activeConfig = TAB_CONFIG.find(t => t.id === activeTab) ?? TAB_CONFIG[0];
-
   return (
     <div
-      className="fixed z-50"
+      className="fixed left-0 right-0 bottom-0 z-50"
       style={{
-        bottom: 6,
-        left: 8,
-        right: 8,
-        borderRadius: 22,
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         background: isDark
-          ? 'rgba(10,8,22,0.92)'
-          : 'rgba(255,255,255,0.96)',
-        backdropFilter: 'blur(24px)',
-        WebkitBackdropFilter: 'blur(24px)',
-        border: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)'}`,
+          ? 'rgba(5,5,12,0.88)'
+          : 'rgba(255,255,255,0.92)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
+        borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)'}`,
         boxShadow: isDark
-          ? `0 -2px 32px rgba(0,0,0,0.4), ${activeConfig.glow}`
-          : '0 -2px 24px rgba(0,0,0,0.08)',
-        transition: 'box-shadow 0.4s ease',
+          ? '0 -5px 18px rgba(0,0,0,0.24)'
+          : '0 -5px 18px rgba(0,0,0,0.06)',
       }}
     >
       <div style={{
         maxWidth: 448,
         margin: '0 auto',
-        padding: '6px 8px',
+        padding: '6px 16px 8px',
         display: 'flex',
         alignItems: 'center',
         position: 'relative',
       }}>
-        {/* Sliding active background pill */}
-        <motion.div
-          animate={{
-            left: activeTab === 'home'
-              ? 8
-              : activeTab === 'stats'
-              ? 'calc(33.33% + 5px)'
-              : 'calc(66.66% + 2px)',
-            width: 'calc(33.33% - 13px)',
-          }}
-          transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-          style={{
-            position: 'absolute',
-            top: 6, bottom: 6,
-            borderRadius: 16,
-            background: activeConfig.activeBg,
-            border: `1px solid ${activeConfig.activeBorder}`,
-            boxShadow: activeConfig.glow,
-          }}
-        />
-
         {TAB_CONFIG.map(tab => {
           const isActive = activeTab === tab.id;
           const Icon = tab.icon;
+          const inactiveColor = isDark ? 'rgba(255,255,255,0.42)' : 'rgba(0,0,0,0.45)';
 
           return (
             <motion.button
@@ -123,55 +85,41 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: 3,
-                padding: '8px 4px',
+                justifyContent: 'center',
+                padding: '7px 4px 8px',
+                minHeight: 42,
                 position: 'relative',
                 zIndex: 1,
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
-                borderRadius: 14,
+                borderRadius: 10,
+                color: isActive ? tab.activeColor : inactiveColor,
               }}
             >
               {/* Icon */}
               <motion.div
                 animate={{
-                  scale: isActive ? 1.08 : 1,
-                  y: isActive ? -1 : 0,
+                  scale: isActive ? 1.12 : 1,
+                  y: isActive ? -2 : 0,
                 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 26 }}
-              >
-                <Icon
-                  size={20}
-                  strokeWidth={isActive ? 2.2 : 1.8}
-                />
-              </motion.div>
-
-              {/* Label */}
-              <motion.span
-                animate={{ scale: isActive ? 1.02 : 0.97 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 26 }}
                 style={{
-                  fontSize: 9,
-                  fontWeight: isActive ? 800 : 600,
-                  color: isActive
-                    ? tab.activeColor
-                    : isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.4)',
-                  letterSpacing: isActive ? '0.04em' : 0,
-                  lineHeight: 1,
-                  transition: 'color 0.2s, font-weight 0.1s',
+                  width: 34,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 10,
+                  background: isActive ? `${tab.activeColor}14` : 'transparent',
+                  boxShadow: isActive ? `0 0 14px ${tab.activeColor}22` : 'none',
                 }}
               >
-                {t(tab.labelKey)}
-              </motion.span>
-
-              {/* Override icon color via inline wrapper */}
-              <style>{`
-                button[aria-label="${t(tab.labelKey)}"] svg {
-                  color: ${isActive ? tab.activeColor : isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.4)'};
-                  transition: color 0.2s;
-                }
-              `}</style>
+                <Icon
+                  size={23}
+                  strokeWidth={isActive ? 2.45 : 1.95}
+                />
+              </motion.div>
 
               {/* Active bottom dot */}
               {isActive && (
@@ -182,10 +130,11 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                     bottom: 2,
                     left: '50%',
                     transform: 'translateX(-50%)',
-                    width: 4, height: 4,
-                    borderRadius: '50%',
+                    width: 5,
+                    height: 5,
+                    borderRadius: 999,
                     background: tab.activeColor,
-                    boxShadow: `0 0 8px ${tab.activeColor}`,
+                    boxShadow: `0 0 10px ${tab.activeColor}`,
                   }}
                   transition={{ type: 'spring', stiffness: 500, damping: 32 }}
                 />
