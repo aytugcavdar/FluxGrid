@@ -82,9 +82,8 @@ export class PlacementImpactSystem {
       this.emitImpactParticles(cellIds, meshMap);
     }
     
-    // 3. Juice Effects - Dust particles and ripple
+    // 3. Juice Effects - Dust particles
     if (this.juiceEffectsManager && !this.prefersReducedMotion) {
-      // Emit dust particles at each placed cell
       const positions: BABYLON.Vector3[] = [];
       cellIds.forEach(id => {
         const mesh = meshMap.get(id);
@@ -92,13 +91,9 @@ export class PlacementImpactSystem {
           positions.push(mesh.position.clone());
         }
       });
-      
+
       if (positions.length > 0) {
         this.juiceEffectsManager.emitDustParticles(positions, dropHeight);
-        
-        // Trigger ripple effect from center of placed piece
-        const epicenter = positions[0]; // Use first cell as epicenter
-        this.juiceEffectsManager.triggerRippleEffect(epicenter, meshMap, dropHeight);
       }
     }
     

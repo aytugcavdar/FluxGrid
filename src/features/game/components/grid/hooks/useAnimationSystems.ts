@@ -5,23 +5,23 @@
  */
 import { useRef } from 'react';
 import * as BABYLON from 'babylonjs';
-import { AnimationCoordinator } from '../../../visual-effects/core/AnimationCoordinator';
-import { PlacementImpactSystem } from '../../../visual-effects/placement/PlacementImpactSystem';
-import { ComboMilestoneSystem } from '../../../visual-effects/combo/ComboMilestoneSystem';
-import { PerfectClearCelebration } from '../../../visual-effects/celebration/PerfectClearCelebration';
-import { ParticlePoolManager } from '../../../visual-effects/particles/ParticlePoolManager';
-import { ParticleEmitter } from '../../../visual-effects/particles/ParticleEmitter';
-import { HapticManager } from '../../../../utils/audio/haptics';
-import { getBatterySaverManager } from '../../../visual-effects/performance/BatterySaverManager';
-import { LineClearAnimationSystem } from '../../../visual-effects/line-clear/LineClearAnimationSystem';
-import { KineticAnimationController } from '../../../visual-effects/animation/KineticAnimationController';
-import { TrailMeshManager } from '../../../visual-effects/animation/TrailMeshManager';
-import { PerformanceMonitor } from '../../../visual-effects/performance/PerformanceMonitor';
-import { AdaptiveQualitySystem } from '../../../visual-effects/performance/AdaptiveQualitySystem';
-import { SPSParticlePoolManager } from '../../../visual-effects/particles/SPSParticlePoolManager';
-import { UI3DManager } from '../../../visual-effects/ui-3d';
-import { SpecialBlockEffectsManager } from '../../../visual-effects/special-blocks';
-import { JuiceEffectsManager } from '../../../visual-effects/juice/JuiceEffectsManager';
+import { AnimationCoordinator } from '../../../../visual-effects/core/AnimationCoordinator';
+import { PlacementImpactSystem } from '../../../../visual-effects/placement/PlacementImpactSystem';
+import { ComboMilestoneSystem } from '../../../../visual-effects/combo/ComboMilestoneSystem';
+import { PerfectClearCelebration } from '../../../../visual-effects/celebration/PerfectClearCelebration';
+import { ParticlePoolManager } from '../../../../visual-effects/particles/ParticlePoolManager';
+import { ParticleEmitter } from '../../../../visual-effects/particles/ParticleEmitter';
+import { HapticManager } from '../../../../../utils/audio/haptics';
+import { getBatterySaverManager } from '../../../../visual-effects/performance/BatterySaverManager';
+import { LineClearAnimationSystem } from '../../../../visual-effects/line-clear/LineClearAnimationSystem';
+import { KineticAnimationController } from '../../../../visual-effects/animation/KineticAnimationController';
+import { TrailMeshManager } from '../../../../visual-effects/animation/TrailMeshManager';
+import { PerformanceMonitor } from '../../../../visual-effects/performance/PerformanceMonitor';
+import { AdaptiveQualitySystem } from '../../../../visual-effects/performance/AdaptiveQualitySystem';
+import { SPSParticlePoolManager } from '../../../../visual-effects/particles/SPSParticlePoolManager';
+import { UI3DManager } from '../../../../visual-effects/ui-3d';
+import { SpecialBlockEffectsManager } from '../../../../visual-effects/special-blocks';
+import { JuiceEffectsManager } from '../../../../visual-effects/juice/JuiceEffectsManager';
 
 export interface AnimationSystemRefs {
   animationCoordinatorRef: React.MutableRefObject<AnimationCoordinator | null>;
