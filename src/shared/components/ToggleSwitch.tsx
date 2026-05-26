@@ -60,21 +60,6 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
           border: value ? '1px solid rgba(168,85,247,0.4)' : '1px solid rgba(255,255,255,0.08)',
         }}
       >
-        {/* Shimmer on active track */}
-        {value && (
-          <motion.div
-            animate={{ x: ['-100%', '200%'] }}
-            transition={{ duration: 1.8, repeat: Infinity, repeatDelay: 1.5, ease: 'easeInOut' }}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
-              borderRadius: 999,
-              pointerEvents: 'none',
-            }}
-          />
-        )}
-
         {/* Thumb */}
         <motion.div
           animate={{ x: value ? 24 : 2 }}

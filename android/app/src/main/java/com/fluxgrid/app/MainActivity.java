@@ -143,12 +143,23 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void syncStats(int endlessScore, int timedScore, int streak) {
+            syncStatsV2(endlessScore, timedScore, streak, 0, false);
+        }
+
+        @JavascriptInterface
+        public void syncStatsV2(int endlessScore, int timedScore, int streak, int lastScore, boolean todayPlayed) {
+            writeWidgetStats(endlessScore, timedScore, streak, lastScore, todayPlayed);
+        }
+
+        private void writeWidgetStats(int endlessScore, int timedScore, int streak, int lastScore, boolean todayPlayed) {
             SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             SharedPreferences.Editor editor = prefs.edit();
 
             editor.putString("widget_high_score_endless", String.valueOf(Math.max(0, endlessScore)));
             editor.putString("widget_high_score_timed", String.valueOf(Math.max(0, timedScore)));
             editor.putString("widget_daily_streak", String.valueOf(Math.max(0, streak)));
+            editor.putString("widget_last_score", String.valueOf(Math.max(0, lastScore)));
+            editor.putString("widget_today_played", String.valueOf(todayPlayed));
             editor.putString("widget_last_updated", String.valueOf(System.currentTimeMillis()));
 
             editor.putString("flux_high_score_endless", String.valueOf(Math.max(0, endlessScore)));
@@ -274,16 +285,6 @@ public class MainActivity extends BridgeActivity {
      */
     private void createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Achievement notifications channel
-            NotificationChannel achievementChannel = new NotificationChannel(
-                "achievements",
-                getString(R.string.notification_channel_achievements),
-                NotificationManager.IMPORTANCE_DEFAULT
-            );
-            achievementChannel.setDescription(getString(R.string.notification_channel_achievements_desc));
-            achievementChannel.enableVibration(true);
-            achievementChannel.setShowBadge(true);
-            
             // Daily reminder channel
             NotificationChannel dailyChannel = new NotificationChannel(
                 "daily_reminders",
@@ -297,9 +298,19 @@ public class MainActivity extends BridgeActivity {
             // Register channels
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
-                manager.createNotificationChannel(achievementChannel);
+                deleteLegacyNotificationChannels(manager);
                 manager.createNotificationChannel(dailyChannel);
             }
+        }
+    }
+
+    private void deleteLegacyNotificationChannels(NotificationManager manager) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.deleteNotificationChannel("achievements");
+            manager.deleteNotificationChannel("events");
+            manager.deleteNotificationChannel("combo");
+            manager.deleteNotificationChannel("highscore");
+            manager.deleteNotificationChannel("default");
         }
     }
     

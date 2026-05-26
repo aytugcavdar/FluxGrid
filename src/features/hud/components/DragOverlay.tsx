@@ -1,63 +1,117 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../../game/store/gameStore';
 import { getDragYOffset } from '@/src/utils/responsive/responsive';
+import {
+  getActiveDragPointerId,
+  getSharedPointerPosition,
+  setSharedPointerPosition,
+} from '../../game/utils/placementHelper';
 
 export const DragOverlay: React.FC = React.memo(() => {
   const draggedPiece = useGameStore(state => state.draggedPiece);
-  const [pos, setPos] = useState({ x: -1000, y: -1000 });
-
-  useEffect(() => {
-    const handleMove = (e: PointerEvent) => {
-      setPos({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener('pointermove', handleMove);
-    return () => window.removeEventListener('pointermove', handleMove);
-  }, []);
-
-  if (!draggedPiece) return null;
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<number | null>(null);
+  const latestPositionRef = useRef<{ x: number; y: number } | null>(null);
 
   const isMobile = window.innerWidth < 768;
   const isSmallPhone = window.innerWidth < 400;
-  
+
   // Native mobile app detection
-  const isNativeApp = !!(window as any).ReactNativeWebView || 
-                     !!(window as any).Capacitor || 
+  const isNativeApp = !!(window as any).ReactNativeWebView ||
+                     !!(window as any).Capacitor ||
                      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  
+
   const yOffset = getDragYOffset();
+  const overlayScale = isMobile ? 1.05 : 1.02;
   const cellSize = isSmallPhone ? 28 : isMobile ? 32 : 42;
   const gap = isSmallPhone ? 1.5 : 2;
+  const initialPosition = getSharedPointerPosition();
+
+  const applyPosition = useCallback((position: { x: number; y: number }) => {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+
+    overlay.style.transform = `translate3d(${position.x}px, ${position.y + yOffset}px, 0) translate(-50%, -50%) scale(${overlayScale})`;
+  }, [overlayScale, yOffset]);
+
+  useEffect(() => {
+    const initial = getSharedPointerPosition();
+    if (initial) {
+      latestPositionRef.current = initial;
+      applyPosition(initial);
+    }
+  }, [applyPosition, draggedPiece]);
+
+  useEffect(() => {
+    const schedulePositionUpdate = (position: { x: number; y: number }) => {
+      latestPositionRef.current = position;
+
+      if (frameRef.current !== null) return;
+
+      frameRef.current = window.requestAnimationFrame(() => {
+        frameRef.current = null;
+        if (latestPositionRef.current) {
+          applyPosition(latestPositionRef.current);
+        }
+      });
+    };
+
+    const handleMove = (e: PointerEvent) => {
+      const activePointerId = getActiveDragPointerId();
+      if (activePointerId !== null && e.pointerId !== activePointerId) return;
+
+      const nextPosition = { x: e.clientX, y: e.clientY };
+      setSharedPointerPosition(nextPosition);
+      schedulePositionUpdate(nextPosition);
+    };
+
+    window.addEventListener('pointermove', handleMove, { passive: true });
+
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+    };
+  }, [applyPosition]);
+
+  if (!draggedPiece) return null;
 
   return (
     <div
+      ref={overlayRef}
       className="fixed pointer-events-none z-[100]"
       style={{
-        left: pos.x,
-        top: pos.y + yOffset,
-        transform: `translate(-50%, -50%) scale(${isMobile ? 1.05 : 1.02})`,
-        transition: 'transform 0.1s ease-out',
+        left: 0,
+        top: 0,
+        transform: initialPosition
+          ? `translate3d(${initialPosition.x}px, ${initialPosition.y + yOffset}px, 0) translate(-50%, -50%) scale(${overlayScale})`
+          : 'translate3d(-1000px, -1000px, 0)',
+        transition: 'none',
         perspective: '1000px',
+        willChange: 'transform',
       }}
     >
       <motion.div
         initial={{ scale: 0.8, opacity: 0, rotateX: -20 }}
-        animate={{ 
-          scale: 1, 
+        animate={{
+          scale: 1,
           opacity: 1,
           rotateX: 0,
         }}
         className="flex flex-col items-center justify-center"
-        style={{ 
+        style={{
           gap: `${gap}px`,
           transformStyle: 'preserve-3d',
         }}
       >
         {draggedPiece.shape.map((row, rIdx) => (
-          <div 
-            key={rIdx} 
-            className="flex" 
-            style={{ 
+          <div
+            key={rIdx}
+            className="flex"
+            style={{
               gap: `${gap}px`,
               transformStyle: 'preserve-3d',
             }}
@@ -72,7 +126,7 @@ export const DragOverlay: React.FC = React.memo(() => {
                   backgroundColor: cell
                     ? (draggedPiece.type === 'ICE' ? '#93c5fd' : draggedPiece.type === 'BOMB' ? '#f87171' : draggedPiece.color)
                     : 'transparent',
-                  boxShadow: cell && !isNativeApp 
+                  boxShadow: cell && !isNativeApp
                     ? `
                       0 4px ${isMobile ? 8 : 12}px ${draggedPiece.color}40,
                       0 8px ${isMobile ? 16 : 24}px ${draggedPiece.color}20,
@@ -85,9 +139,9 @@ export const DragOverlay: React.FC = React.memo(() => {
                   transform: cell ? 'translateZ(8px)' : 'none',
                   transformStyle: 'preserve-3d',
                   position: 'relative',
-                  background: cell 
-                    ? `linear-gradient(135deg, 
-                        ${draggedPiece.type === 'ICE' ? '#93c5fd' : draggedPiece.type === 'BOMB' ? '#f87171' : draggedPiece.color}99 0%, 
+                  background: cell
+                    ? `linear-gradient(135deg,
+                        ${draggedPiece.type === 'ICE' ? '#93c5fd' : draggedPiece.type === 'BOMB' ? '#f87171' : draggedPiece.color}99 0%,
                         ${draggedPiece.type === 'ICE' ? '#60a5fa' : draggedPiece.type === 'BOMB' ? '#ef4444' : draggedPiece.color}77 100%
                       )`
                     : 'transparent',

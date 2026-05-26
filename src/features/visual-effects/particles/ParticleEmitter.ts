@@ -1,12 +1,10 @@
 import * as BABYLON from 'babylonjs';
-import { ParticlePoolManager, ParticleType, ActiveParticle } from './ParticlePoolManager';
+import { ParticlePoolManager, ParticleType } from './ParticlePoolManager';
 import { 
   DUST_PARTICLE_CONFIG,
   TRAIL_PARTICLE_CONFIG,
   EXPLOSION_PARTICLE_CONFIG,
   ICY_PARTICLE_CONFIG,
-  QUALITY_MULTIPLIERS,
-  REDUCED_MOTION_MULTIPLIERS,
 } from '../juice/config/juice.config';
 import type {
   DustEmissionConfig,
@@ -399,6 +397,12 @@ export class ParticleEmitter {
     } else {
       particlesPerBlock = EXPLOSION_PARTICLE_CONFIG.countPerLine.triple;
     }
+
+    const secondaryMultiplier = config.isSecondaryBurst
+      ? EXPLOSION_PARTICLE_CONFIG.secondaryBurst.countPercent
+      : 1;
+    const particleMultiplier = Math.max(0, (config.particleMultiplier ?? 1) * secondaryMultiplier);
+    particlesPerBlock = Math.max(0, Math.round(particlesPerBlock * particleMultiplier));
     
     let emittedCount = 0;
     
@@ -412,8 +416,9 @@ export class ParticleEmitter {
       // Random radial velocity with elevation
       const angle = Math.random() * Math.PI * 2;
       const elevation = (Math.random() - 0.5) * (Math.PI / 4); // -45° to +45°
-      const speed = EXPLOSION_PARTICLE_CONFIG.velocityMin + 
-        Math.random() * (EXPLOSION_PARTICLE_CONFIG.velocityMax - EXPLOSION_PARTICLE_CONFIG.velocityMin);
+      const velocityScale = config.isSecondaryBurst ? 1.18 : 1;
+      const speed = (EXPLOSION_PARTICLE_CONFIG.velocityMin +
+        Math.random() * (EXPLOSION_PARTICLE_CONFIG.velocityMax - EXPLOSION_PARTICLE_CONFIG.velocityMin)) * velocityScale;
       
       particle.velocity.set(
         Math.cos(angle) * Math.cos(elevation) * speed,
@@ -426,15 +431,22 @@ export class ParticleEmitter {
       particle.color = color;
       const material = particle.mesh.material as BABYLON.StandardMaterial;
       if (material) {
-        material.emissiveColor = color.scale(EXPLOSION_PARTICLE_CONFIG.emissiveBoost);
+        const emissiveBoost = config.isSecondaryBurst
+          ? EXPLOSION_PARTICLE_CONFIG.emissiveBoost * 0.85
+          : EXPLOSION_PARTICLE_CONFIG.emissiveBoost;
+        material.emissiveColor = color.scale(emissiveBoost);
         material.alpha = 1.0;
       }
       
       // Set properties
-      particle.lifetime = EXPLOSION_PARTICLE_CONFIG.lifetime;
+      particle.lifetime = config.isSecondaryBurst
+        ? Math.round(EXPLOSION_PARTICLE_CONFIG.lifetime * 0.7)
+        : EXPLOSION_PARTICLE_CONFIG.lifetime;
       particle.startTime = Date.now();
       particle.applyGravity = true;
-      particle.gravityDelay = EXPLOSION_PARTICLE_CONFIG.gravityDelay;
+      particle.gravityDelay = config.isSecondaryBurst
+        ? Math.round(EXPLOSION_PARTICLE_CONFIG.gravityDelay * 0.6)
+        : EXPLOSION_PARTICLE_CONFIG.gravityDelay;
       
       emittedCount++;
     }

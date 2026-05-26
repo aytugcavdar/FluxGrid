@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '@core/state/settingsStore';
-import { useThemeStore, ThemeType } from '../shared/store/themeStore';
+import { hapticEvents, type HapticIntensity } from '@utils/audio';
+import { THEME_SWATCHES, useThemeStore, ThemeType } from '../shared/store/themeStore';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useTutorialStore } from '../features/tutorial/store/tutorialStore';
 import { usePerformanceStore } from '../features/game/store/performanceStore';
@@ -166,12 +167,28 @@ const DeviceInfoSection: React.FC<{ colors: any }> = ({ colors }) => {
   );
 };
 
+const hapticIntensityOptions: Array<{ value: HapticIntensity; label: string }> = [
+  { value: 'low', label: 'Hafif' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'strong', label: 'Guclu' },
+];
+
+const hapticTestActions = [
+  { label: 'Placement', action: () => hapticEvents.placement() },
+  { label: 'Line clear', action: () => hapticEvents.lineClear(1) },
+  { label: 'Multi clear', action: () => hapticEvents.lineClear(4) },
+  { label: 'Combo', action: () => hapticEvents.combo(8) },
+  { label: 'Perfect clear', action: () => hapticEvents.perfectClear() },
+];
+
 export const SettingsScreen: React.FC = () => {
   const { i18n, t } = useTranslation();
   const {
     soundEnabled,
     musicEnabled,
     hapticEnabled,
+    hapticIntensity,
+    dragHapticsEnabled,
     ghostBlockEnabled,
     performanceModeEnabled,
     colorBlindMode,
@@ -179,6 +196,8 @@ export const SettingsScreen: React.FC = () => {
     setSoundEnabled,
     setMusicEnabled,
     setHapticEnabled,
+    setHapticIntensity,
+    setDragHapticsEnabled,
     setGhostBlockEnabled,
     setPerformanceModeEnabled,
     setColorBlindMode,
@@ -391,9 +410,9 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const themes: Array<{ theme: ThemeType; label: string; colors: string[] }> = [
-    { theme: 'dark', label: t('settingsScreen.themeDark'), colors: ['#a855f7', '#9333ea', '#f59e0b'] },
-    { theme: 'light', label: t('settingsScreen.themeLight'), colors: ['#f59e0b', '#fbbf24', '#fb923c'] },
-    { theme: 'neon', label: t('settingsScreen.themeNeon'), colors: ['#e879f9', '#c084fc', '#a78bfa'] },
+    { theme: 'dark', label: t('settingsScreen.themeDark'), colors: THEME_SWATCHES.dark },
+    { theme: 'light', label: t('settingsScreen.themeLight'), colors: THEME_SWATCHES.light },
+    { theme: 'neon', label: t('settingsScreen.themeNeon'), colors: THEME_SWATCHES.neon },
   ];
 
   const handleExport = async () => {
@@ -464,46 +483,56 @@ export const SettingsScreen: React.FC = () => {
           <div className="mb-8">
             <SectionHeader title={t('settingsScreen.appearance')} />
             
-            <div className="grid grid-cols-3 gap-3">
-              {themes.map(({ theme, label, colors: themeColors }) => (
-                <button
+            <div className="grid grid-cols-3 gap-2">
+              {themes.map(({ theme, label, colors: themeColors }) => {
+                const isSelected = currentTheme === theme;
+
+                return (
+                  <button
                   key={theme}
                   onClick={() => setTheme(theme)}
-                  className="text-left transition-all cursor-pointer"
+                  className="text-center transition-all cursor-pointer"
                   style={{
-                    padding: '10px',
+                    padding: '9px',
                     borderRadius: '10px',
-                    background: currentTheme === theme 
-                      ? 'rgba(59,130,246,0.1)' 
-                      : 'transparent',
-                    border: currentTheme === theme 
-                      ? '2px solid #3b82f6' 
-                      : '1.5px solid rgba(255,255,255,0.06)',
+                    background: isSelected
+                      ? `${themeColors[0]}12`
+                      : colors.cardBackgroundTransparent,
+                    border: isSelected
+                      ? `1.5px solid ${themeColors[0]}`
+                      : `1px solid ${colors.cardBorderTransparent}`,
                   }}
                   aria-label={`${label} temasını seç`}
-                  aria-pressed={currentTheme === theme}
+                  aria-pressed={isSelected}
                 >
-                  {/* 32px height preview gradient */}
-                  <div 
-                    className="mb-2"
+                  <div
+                    className="mb-2 overflow-hidden"
                     style={{
-                      height: '32px',
-                      borderRadius: '6px',
+                      height: '28px',
+                      borderRadius: '7px',
                       background: `linear-gradient(135deg, ${themeColors[0]} 0%, ${themeColors[1]} 50%, ${themeColors[2]} 100%)`,
                     }}
-                  />
+                  >
+                    <div className="h-full grid grid-cols-3 gap-1 p-1.5">
+                      {themeColors.map((swatch) => (
+                        <span
+                          key={swatch}
+                          style={{
+                            borderRadius: '3px',
+                            background: swatch,
+                            opacity: 0.82,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
                   
-                  {/* Theme name and subtitle */}
-                  <p className="text-sm font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
+                  <span className="block text-xs font-semibold truncate" style={{ color: isSelected ? themeColors[0] : colors.textPrimary }}>
                     {label}
-                  </p>
-                  <p className="text-xs" style={{ color: colors.textTertiary }}>
-                    {theme === 'dark' && t('settingsScreen.themeDarkDesc')}
-                    {theme === 'light' && t('settingsScreen.themeLightDesc')}
-                    {theme === 'neon' && t('settingsScreen.themeNeonDesc')}
-                  </p>
-                </button>
-              ))}
+                  </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -532,6 +561,103 @@ export const SettingsScreen: React.FC = () => {
                 value={hapticEnabled}
                 onChange={setHapticEnabled}
               />
+
+              {hapticEnabled && (
+                <div
+                  className="p-4 rounded-xl"
+                  style={{
+                    background: colors.cardBackgroundTransparent,
+                    border: `1.5px solid ${colors.cardBorderTransparent}`,
+                  }}
+                >
+                  <div className="mb-3">
+                    <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                      Titresim gucu
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: colors.textTertiary }}>
+                      Android cihazlarda oyun ici titresimin seviyesini ayarlar.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 mb-4" role="group" aria-label="Titresim gucu">
+                    {hapticIntensityOptions.map((option) => {
+                      const isSelected = hapticIntensity === option.value;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setHapticIntensity(option.value)}
+                          className="h-10 rounded-lg text-xs font-bold transition-all"
+                          style={{
+                            background: isSelected ? 'rgba(59,130,246,0.16)' : 'rgba(255,255,255,0.03)',
+                            border: isSelected ? '2px solid #3b82f6' : `1.5px solid ${colors.cardBorderTransparent}`,
+                            color: isSelected ? '#60a5fa' : colors.textSecondary,
+                          }}
+                          aria-pressed={isSelected}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setDragHapticsEnabled(!dragHapticsEnabled)}
+                    className="w-full flex items-center justify-between gap-3 text-left"
+                    aria-pressed={dragHapticsEnabled}
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                        Surukleme titresimi
+                      </span>
+                      <span className="block text-xs mt-1" style={{ color: colors.textTertiary }}>
+                        Parcayi tasirken hafif dokunsal geri bildirimi acip kapatir.
+                      </span>
+                    </span>
+                    <span
+                      className="relative flex-shrink-0 w-11 h-6 rounded-full"
+                      style={{
+                        background: dragHapticsEnabled ? '#3b82f6' : 'rgba(255,255,255,0.12)',
+                        border: `1px solid ${dragHapticsEnabled ? '#60a5fa' : colors.cardBorderTransparent}`,
+                      }}
+                    >
+                      <span
+                        className="absolute top-0.5 h-5 w-5 rounded-full transition-transform"
+                        style={{
+                          left: '2px',
+                          background: '#ffffff',
+                          transform: dragHapticsEnabled ? 'translateX(20px)' : 'translateX(0)',
+                        }}
+                      />
+                    </span>
+                  </button>
+
+                  <div className="mt-4 pt-4 border-t" style={{ borderColor: colors.cardBorderTransparent }}>
+                    <p className="text-sm font-semibold mb-2" style={{ color: colors.textPrimary }}>
+                      Haptic test
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {hapticTestActions.map((item) => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={item.action}
+                          className="h-10 rounded-lg text-xs font-bold transition-all active:scale-[0.98]"
+                          style={{
+                            background: 'rgba(255,255,255,0.04)',
+                            border: `1.5px solid ${colors.cardBorderTransparent}`,
+                            color: colors.textSecondary,
+                          }}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

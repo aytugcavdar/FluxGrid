@@ -33,6 +33,7 @@ interface NotificationData {
   id?: number;
   schedule?: Record<string, any>;
   data?: Record<string, any>;
+  channelId?: string;
 }
 
 export interface EngagementNotificationContext {
@@ -57,7 +58,128 @@ interface EngagementNotificationPlan {
 }
 
 const ENGAGEMENT_NOTIFICATION_IDS = [101, 102, 103, 104, 105];
+const ENGAGEMENT_CHANNEL_ID = 'daily_reminders';
+const MAX_CONTEXTUAL_NOTIFICATIONS = 2;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+interface NotificationCopy {
+  title: string;
+  body: string;
+}
+
+function stableIndex(seed: string, length: number): number {
+  if (length <= 1) return 0;
+
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    hash |= 0;
+  }
+
+  return Math.abs(hash) % length;
+}
+
+function pickCopy(variants: NotificationCopy[], seed: string): NotificationCopy {
+  return variants[stableIndex(seed, variants.length)];
+}
+
+function dateSeed(now: Date): string {
+  return now.toISOString().slice(0, 10);
+}
+
+export function createEngagementNotificationCopy(
+  type: NotificationType,
+  context: EngagementNotificationContext = {},
+  now: Date = new Date()
+): NotificationCopy {
+  const streak = context.currentStreak || 0;
+  const recordGap = Math.max(0, (context.bestScore || 0) - (context.lastScore || 0));
+  const inactiveDays = daysSince(context.lastPlayedAt, now);
+  const seed = `${type}:${dateSeed(now)}:${streak}:${recordGap}:${inactiveDays ?? 0}`;
+
+  switch (type) {
+    case NotificationType.STREAK_REMINDER:
+      return pickCopy([
+        {
+          title: `${streak} gunluk seri alarmi`,
+          body: 'Bu seri kendi kendini koruyamiyor. Kisa bir tur yeter.',
+        },
+        {
+          title: 'Serin seni bekliyor',
+          body: `${streak} gunluk emek var. Bugunu bos gecmeyelim.`,
+        },
+        {
+          title: 'Seri kirilmasin',
+          body: 'Bir mini tur at, sayac rahat nefes alsin.',
+        },
+      ], seed);
+
+    case NotificationType.NEAR_RECORD:
+      return pickCopy([
+        {
+          title: 'Rekor kapida',
+          body: `${recordGap.toLocaleString('tr-TR')} puan kalmisti. Bu kadar yakinken bir deneme daha.`,
+        },
+        {
+          title: 'Az kaldi',
+          body: `Son skorun rekora ${recordGap.toLocaleString('tr-TR')} puan uzakta. Tahta hazir.`,
+        },
+        {
+          title: 'Rekor seni gordu',
+          body: `${recordGap.toLocaleString('tr-TR')} puanlik fark kapanabilir. Bir tur daha?`,
+        },
+      ], seed);
+
+    case NotificationType.TIMED_MODE:
+      return pickCopy([
+        {
+          title: '60 saniyelik meydan okuma',
+          body: 'Timed mod isinmis. Bir dakikada skor alalim.',
+        },
+        {
+          title: 'Bir dakika yeter',
+          body: 'Hizli tur hazir. Kronometre baslamayi bekliyor.',
+        },
+        {
+          title: 'Kisa ve net',
+          body: '60 saniyelik tur, bahane kabul etmeyen tur.',
+        },
+      ], seed);
+
+    case NotificationType.INACTIVITY:
+      return pickCopy([
+        {
+          title: 'Tahta seni unutmadi',
+          body: `${inactiveDays || 2} gundur sessiz. Geri donus turu 2 dakika.`,
+        },
+        {
+          title: 'Kucuk bir geri donus',
+          body: 'Bir kisa tur at; ritmi yeniden yakalayalim.',
+        },
+        {
+          title: 'FluxGrid yoklama aliyor',
+          body: 'Bugun bir hamlelik isimiz var.',
+        },
+      ], seed);
+
+    case NotificationType.DAILY_REMINDER:
+    default:
+      return pickCopy([
+        {
+          title: 'FluxGrid seni bekliyor',
+          body: 'Bugunun mini turu hala bos. Bir hamleyle baslayalim.',
+        },
+        {
+          title: '2 dakika, sonra ozgursun',
+          body: 'Kisa bir tur at; gunluk ritim bozulmasin.',
+        },
+        {
+          title: 'Tahta sessiz kaldi',
+          body: 'Bir oyunluk yer ayirdik. Gelip dolduralim mi?',
+        },
+      ], seed);
+  }
+}
 
 function daysSince(timestamp: number | undefined, now: Date): number | null {
   if (!timestamp) return null;
@@ -83,70 +205,114 @@ export function createEngagementNotificationPlans(
   context: EngagementNotificationContext,
   now: Date = new Date()
 ): EngagementNotificationPlan[] {
-  const plans: EngagementNotificationPlan[] = [
-    {
+  const plans: EngagementNotificationPlan[] = [];
+  const todayPlayed = context.todayPlayed === true;
+
+  if (!todayPlayed) {
+    const copy = createEngagementNotificationCopy(NotificationType.DAILY_REMINDER, context, now);
+    plans.push({
       id: 101,
       type: NotificationType.DAILY_REMINDER,
-      title: 'FluxGrid',
-      body: 'Bugunku skorunu denedin mi?',
+      title: copy.title,
+      body: copy.body,
       hour: 20,
       minute: 0,
       repeats: true,
-    },
-  ];
+      data: { target: 'home' },
+    });
+  }
 
-  if ((context.currentStreak || 0) >= 2 && !context.todayPlayed) {
-    plans.push({
+  const contextualPlans: EngagementNotificationPlan[] = [];
+
+  if ((context.currentStreak || 0) >= 2 && !todayPlayed) {
+    const copy = createEngagementNotificationCopy(NotificationType.STREAK_REMINDER, context, now);
+    contextualPlans.push({
       id: 102,
       type: NotificationType.STREAK_REMINDER,
-      title: 'Serin devam ediyor',
-      body: `${context.currentStreak} gunluk seri bozulmadan kisa bir oyun at.`,
+      title: copy.title,
+      body: copy.body,
       hour: 18,
       minute: 30,
-      data: { streak: context.currentStreak },
+      data: { streak: context.currentStreak, target: 'game', mode: 'daily' },
     });
   }
 
   const recordGap = (context.bestScore || 0) - (context.lastScore || 0);
   const closeRecordLimit = Math.max(240, Math.round((context.bestScore || 0) * 0.1));
   if ((context.bestScore || 0) > 0 && recordGap > 0 && recordGap <= closeRecordLimit) {
-    plans.push({
+    const copy = createEngagementNotificationCopy(NotificationType.NEAR_RECORD, context, now);
+    contextualPlans.push({
       id: 103,
       type: NotificationType.NEAR_RECORD,
-      title: 'Rekora yaklastin',
-      body: `Son rekoruna ${recordGap.toLocaleString('tr-TR')} puan kalmisti.`,
+      title: copy.title,
+      body: copy.body,
       hour: 19,
       minute: 30,
-      data: { recordGap },
+      data: { recordGap, target: 'statistics' },
     });
   }
 
   const timedDaysSince = daysSince(context.lastTimedPlayedAt, now);
-  if (timedDaysSince === null || timedDaysSince >= 1) {
-    plans.push({
+  if (!todayPlayed && (timedDaysSince === null || timedDaysSince >= 1)) {
+    const copy = createEngagementNotificationCopy(NotificationType.TIMED_MODE, context, now);
+    contextualPlans.push({
       id: 104,
       type: NotificationType.TIMED_MODE,
-      title: 'Timed mod hazir',
-      body: '60 saniyelik hizli tur hazir.',
+      title: copy.title,
+      body: copy.body,
       hour: 12,
       minute: 30,
+      data: { target: 'game', mode: 'timed' },
     });
   }
 
   const inactiveDays = daysSince(context.lastPlayedAt, now);
   if (inactiveDays !== null && inactiveDays >= 2) {
-    plans.push({
+    const copy = createEngagementNotificationCopy(NotificationType.INACTIVITY, context, now);
+    contextualPlans.push({
       id: 105,
       type: NotificationType.INACTIVITY,
-      title: 'Kisa bir tur iyi gider',
-      body: '2 dakikalik sakin bir oyun seni bekliyor.',
+      title: copy.title,
+      body: copy.body,
       hour: 17,
       minute: 30,
-      data: { inactiveDays },
+      data: { inactiveDays, target: 'home' },
     });
   }
 
+  plans.push(...contextualPlans.slice(0, MAX_CONTEXTUAL_NOTIFICATIONS));
   return plans;
+}
+
+export function getNotificationActionTarget(data: Record<string, any> = {}): {
+  target: 'home' | 'game' | 'statistics' | 'settings';
+  mode?: 'endless' | 'timed' | 'daily';
+} {
+  const type = data.type;
+  const target = data.target;
+  const mode = data.mode;
+
+  if (target === 'statistics' || type === NotificationType.NEAR_RECORD) {
+    return { target: 'statistics' };
+  }
+
+  if (target === 'settings') {
+    return { target: 'settings' };
+  }
+
+  if (mode === 'timed' || type === NotificationType.TIMED_MODE) {
+    return { target: 'game', mode: 'timed' };
+  }
+
+  if (mode === 'daily' || type === NotificationType.STREAK_REMINDER) {
+    return { target: 'game', mode: 'daily' };
+  }
+
+  if (mode === 'endless' || target === 'game') {
+    return { target: 'game', mode: 'endless' };
+  }
+
+  return { target: 'home' };
 }
 
 class PushNotificationService {
@@ -165,7 +331,7 @@ class PushNotificationService {
     }
 
     try {
-      const permission = await PushNotifications.requestPermissions();
+      const permission = await PushNotifications.checkPermissions();
 
       if (permission.receive === 'granted') {
         await PushNotifications.register();
@@ -173,7 +339,7 @@ class PushNotificationService {
         this.isInitialized = true;
         console.log('[PushNotifications] Initialized successfully');
       } else {
-        console.log('[PushNotifications] Permission denied');
+        console.log('[PushNotifications] Permission not granted; skipping registration');
       }
     } catch (error) {
       console.error('[PushNotifications] Initialization failed:', error);
@@ -212,6 +378,8 @@ class PushNotificationService {
           token,
           platform: Capacitor.getPlatform(),
           timestamp: Date.now(),
+          locale: navigator.language,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
 
@@ -226,17 +394,14 @@ class PushNotificationService {
   }
 
   private handleNotificationAction(action: ActionPerformed): void {
-    const type = action.notification.data?.type;
+    const target = getNotificationActionTarget(action.notification.data);
 
-    if (
-      type === NotificationType.DAILY_REMINDER ||
-      type === NotificationType.STREAK_REMINDER ||
-      type === NotificationType.NEAR_RECORD ||
-      type === NotificationType.TIMED_MODE ||
-      type === NotificationType.INACTIVITY
-    ) {
-      window.location.href = '/';
+    if (target.target === 'game' && target.mode) {
+      window.location.href = `/?mode=${target.mode}`;
+      return;
     }
+
+    window.location.href = '/';
   }
 
   getToken(): string | null {
@@ -263,7 +428,16 @@ class PushNotificationService {
     }
 
     try {
+      if (this.isInitialized) {
+        return true;
+      }
+
       const permission = await PushNotifications.requestPermissions();
+      if (permission.receive === 'granted') {
+        await PushNotifications.register();
+        this.setupListeners();
+        this.isInitialized = true;
+      }
       return permission.receive === 'granted';
     } catch (error) {
       console.error('[PushNotifications] Permission request failed:', error);
@@ -277,6 +451,19 @@ class PushNotificationService {
     }
 
     try {
+      const permission = await LocalNotifications.checkPermissions();
+      let displayPermission = permission.display;
+
+      if (displayPermission === 'prompt' || displayPermission === 'prompt-with-rationale') {
+        const request = await LocalNotifications.requestPermissions();
+        displayPermission = request.display;
+      }
+
+      if (displayPermission !== 'granted') {
+        console.log('[PushNotifications] Local notification permission not granted');
+        return;
+      }
+
       await LocalNotifications.schedule({
         notifications: [
           {
@@ -284,7 +471,7 @@ class PushNotificationService {
             body: notification.body,
             id: notification.id || Date.now(),
             schedule: notification.schedule,
-            channelId: 'daily_reminders',
+            channelId: notification.channelId || ENGAGEMENT_CHANNEL_ID,
             smallIcon: 'ic_stat_notification',
             autoCancel: true,
             actionTypeId: 'ENGAGEMENT_ACTIONS',
@@ -312,12 +499,16 @@ export const scheduleLocalNotification = (notification: any): Promise<void> => {
     body: notification.body,
     id: notification.id,
     schedule: notification.schedule,
+    channelId: notification.channelId,
     data: notification,
   });
 };
 
 export const notificationScheduler = {
-  scheduleEngagementNotifications: async (context: EngagementNotificationContext = {}) => {
+  scheduleEngagementNotifications: async (
+    context: EngagementNotificationContext = {},
+    options: { requestPermission?: boolean } = {}
+  ) => {
     if (!Capacitor.isNativePlatform()) {
       return;
     }
@@ -326,7 +517,10 @@ export const notificationScheduler = {
       const permission = await LocalNotifications.checkPermissions();
       let displayPermission = permission.display;
 
-      if (displayPermission === 'prompt' || displayPermission === 'prompt-with-rationale') {
+      if (
+        options.requestPermission &&
+        (displayPermission === 'prompt' || displayPermission === 'prompt-with-rationale')
+      ) {
         const request = await LocalNotifications.requestPermissions();
         displayPermission = request.display;
       }
@@ -347,13 +541,17 @@ export const notificationScheduler = {
 
       const now = new Date();
       const plans = createEngagementNotificationPlans(context, now);
+      if (plans.length === 0) {
+        console.log('[Notifications] No engagement notifications to schedule');
+        return;
+      }
 
       await LocalNotifications.schedule({
         notifications: plans.map(plan => ({
           id: plan.id,
           title: plan.title,
           body: plan.body,
-          channelId: 'daily_reminders',
+          channelId: ENGAGEMENT_CHANNEL_ID,
           smallIcon: 'ic_stat_notification',
           autoCancel: true,
           actionTypeId: 'ENGAGEMENT_ACTIONS',

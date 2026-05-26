@@ -13,14 +13,21 @@ import { syncAllWidgetData } from './widgetHelper';
  */
 export function testWidgetSync() {
   const state = useGameStore.getState();
-  const currentStreak = useStreakStore.getState().currentStreak;
+  const streakState = useStreakStore.getState();
 
   console.log('=== WIDGET SYNC TEST ===');
   console.log('High Scores:', state.highScores);
-  console.log('Streak:', currentStreak);
+  console.log('Last Score:', state.gameLogs?.[0]?.score ?? 0);
+  console.log('Streak:', streakState.currentStreak);
+  console.log('Today Played:', streakState.todayPlayed);
   console.log('========================');
 
-  syncAllWidgetData(state.highScores, currentStreak);
+  syncAllWidgetData(
+    state.highScores,
+    streakState.currentStreak,
+    state.gameLogs?.[0]?.score ?? 0,
+    streakState.todayPlayed
+  );
 }
 
 // Expose to window for easy testing.

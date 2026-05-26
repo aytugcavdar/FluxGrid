@@ -1,6 +1,11 @@
 import { useJuiceStore } from '../store/juiceStore';
 import { ClearAction } from '../../game/store/helpers/grid';
-import { AudioBPMManager } from '../audio/AudioBPMManager';
+import { gameFeelEvents } from '../../../utils/audio';
+
+interface AudioBPMManager {
+  update(deltaTime: number): void;
+  scheduleOnBeat(callback: () => void, subdivision: '16th' | '8th' | 'quarter'): void;
+}
 
 /**
  * Trigger juice effects based on game actions
@@ -208,9 +213,6 @@ export class JuiceTriggers {
     
     triggerPlacementFeedback('valid');
     
-    // Subtle haptic feedback
-    if ('vibrate' in navigator) {
-      navigator.vibrate(10);
-    }
+    gameFeelEvents.dragHover();
   }
 }

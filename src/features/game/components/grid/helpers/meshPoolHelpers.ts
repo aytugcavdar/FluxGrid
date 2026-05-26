@@ -171,7 +171,8 @@ export class MeshPool {
     const col = BABYLON.Color3.FromHexString(colorHex);
     mat.diffuseColor = col;
     mat.emissiveColor = col.scale(0.06);
-    mat.alpha = 0.95;
+    mat.alpha = 1;
+    mat.transparencyMode = BABYLON.Material.MATERIAL_OPAQUE;
     mesh.enableEdgesRendering();
     mesh.edgesWidth = 1.5;
     mesh.edgesColor = new BABYLON.Color4(1, 1, 1, 0.12);

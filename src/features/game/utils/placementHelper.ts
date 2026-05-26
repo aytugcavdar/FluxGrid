@@ -131,6 +131,8 @@ export const FAST_SWIPE_THRESHOLD = 0.8;
 /* ──────────────────────────────────────────────────────────── */
 
 let _sharedHoverCoord: { x: number; y: number } | null = null;
+let _activeDragPointerId: number | null = null;
+let _sharedPointerPosition: { x: number; y: number } | null = null;
 
 export function setSharedHoverCoord(coord: { x: number; y: number } | null): void {
   _sharedHoverCoord = coord;
@@ -138,4 +140,20 @@ export function setSharedHoverCoord(coord: { x: number; y: number } | null): voi
 
 export function getSharedHoverCoord(): { x: number; y: number } | null {
   return _sharedHoverCoord;
+}
+
+export function setActiveDragPointerId(pointerId: number | null): void {
+  _activeDragPointerId = pointerId;
+}
+
+export function getActiveDragPointerId(): number | null {
+  return _activeDragPointerId;
+}
+
+export function setSharedPointerPosition(position: { x: number; y: number } | null): void {
+  _sharedPointerPosition = position;
+}
+
+export function getSharedPointerPosition(): { x: number; y: number } | null {
+  return _sharedPointerPosition;
 }

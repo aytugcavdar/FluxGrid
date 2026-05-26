@@ -62,7 +62,7 @@ describe('Accessibility Tests - Task 17', () => {
       const { container } = render(<SettingsScreen />);
       const themeButtons = container.querySelectorAll('button[aria-label*="temasını seç"]');
       
-      expect(themeButtons.length).toBe(4); // 4 theme options
+      expect(themeButtons.length).toBe(3); // 3 theme options
       
       themeButtons.forEach((button) => {
         expect(button).toHaveAttribute('aria-label');

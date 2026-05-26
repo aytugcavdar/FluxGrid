@@ -4,99 +4,113 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp"
+    android:padding="14dp"
     android:background="@drawable/widget_background"
     android:gravity="center">
-    
-    <!-- Title -->
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="FluxGrid"
-        android:textSize="14sp"
+        android:textSize="13sp"
         android:textColor="#FFFFFF"
         android:textStyle="bold"
-        android:alpha="0.7"
-        android:layout_marginBottom="8dp"/>
-    
-    <!-- High Score Section -->
+        android:alpha="0.72"
+        android:layout_marginBottom="8dp" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center"
-        android:layout_marginBottom="12dp">
-        
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🏆"
-            android:textSize="24sp"
-            android:layout_marginEnd="8dp"/>
-        
+        android:layout_marginBottom="8dp">
+
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
-            
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center">
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="En Yüksek Skor"
-                android:textSize="10sp"
+                android:text="En iyi"
+                android:textSize="9sp"
                 android:textColor="#FFFFFF"
-                android:alpha="0.6"/>
-            
+                android:alpha="0.6" />
+
             <TextView
                 android:id="@+id/widget_high_score"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="0"
-                android:textSize="20sp"
+                android:textSize="18sp"
                 android:textColor="#FFFFFF"
-                android:textStyle="bold"/>
+                android:textStyle="bold" />
         </LinearLayout>
-    </LinearLayout>
-    
-    <!-- Streak Section -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center">
-        
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🔥"
-            android:textSize="20sp"
-            android:layout_marginEnd="8dp"/>
-        
+
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
-            
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center">
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Günlük Seri"
-                android:textSize="10sp"
+                android:text="Son skor"
+                android:textSize="9sp"
                 android:textColor="#FFFFFF"
-                android:alpha="0.6"/>
-            
+                android:alpha="0.6" />
+
             <TextView
-                android:id="@+id/widget_streak"
+                android:id="@+id/widget_last_score"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="0"
                 android:textSize="18sp"
                 android:textColor="#FFFFFF"
-                android:textStyle="bold"/>
+                android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
-    
-    <!-- Tap to play hint -->
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <TextView
+            android:id="@+id/widget_streak"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0"
+            android:textSize="13sp"
+            android:textColor="#F59E0B"
+            android:textStyle="bold"
+            android:layout_marginEnd="6dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="seri"
+            android:textSize="10sp"
+            android:textColor="#FFFFFF"
+            android:alpha="0.65"
+            android:layout_marginEnd="10dp" />
+
+        <TextView
+            android:id="@+id/widget_today_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Bugün bekliyor"
+            android:textSize="10sp"
+            android:textColor="#FFFFFF"
+            android:alpha="0.78" />
+    </LinearLayout>
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -104,6 +118,6 @@
         android:textSize="9sp"
         android:textColor="#FFFFFF"
         android:alpha="0.4"
-        android:layout_marginTop="12dp"/>
-    
+        android:layout_marginTop="8dp" />
+
 </LinearLayout>

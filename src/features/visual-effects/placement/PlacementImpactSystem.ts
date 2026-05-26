@@ -1,7 +1,7 @@
 import * as BABYLON from 'babylonjs';
 import { ParticlePoolManager } from '../particles/ParticlePoolManager';
 import { ParticleEmitter } from '../particles/ParticleEmitter';
-import { HapticManager } from '../../../utils/audio/haptics';
+import type { HapticManager } from '../../../utils/audio/haptics';
 
 /**
  * PlacementImpactSystem - Handles placement impact animations
@@ -38,7 +38,6 @@ export class PlacementImpactSystem {
   private scene: BABYLON.Scene;
   private particlePool: ParticlePoolManager;
   private particleEmitter: ParticleEmitter;
-  private hapticManager: HapticManager;
   private config: PlacementImpactConfig;
   private activeAnimations: Map<string, PlacementAnimation>;
   private prefersReducedMotion: boolean = false;
@@ -48,12 +47,11 @@ export class PlacementImpactSystem {
   constructor(
     scene: BABYLON.Scene,
     particlePool: ParticlePoolManager,
-    hapticManager: HapticManager
+    _hapticManager: HapticManager
   ) {
     this.scene = scene;
     this.particlePool = particlePool;
     this.particleEmitter = new ParticleEmitter(particlePool);
-    this.hapticManager = hapticManager;
     this.activeAnimations = new Map();
     
     // Default config
@@ -97,10 +95,7 @@ export class PlacementImpactSystem {
       }
     }
     
-    // 4. Haptic feedback
-    this.hapticManager.play('placement');
-    
-    // 5. Audio feedback (handled by caller - audio.ts playPlace)
+    // 4. Audio and haptic feedback are handled by the game action router.
     // Volume calculation: min(0.8, dropHeight / 12 * 0.8)
   }
   

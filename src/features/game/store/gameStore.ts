@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { GridState, Piece, GRID_SIZE, GridCell, CellType, Achievement, MultiplierBreakdown, ProgressionState } from '../types';
 import { AppState, GameStats, GameMode } from '@shared/types';
 import { POINTS, EXPANDED_ACHIEVEMENTS, TIER_SCORE_MULTIPLIERS, TIMED_MODE, COMBO_TIMER } from '../constants';
-import { playPlace, playInvalid, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, playHaptic } from '../../../utils/audio';
+import { playPlace, playInvalid, playClear, playCombo, playSkill, playGameOver, playSurgeStart, playSurgeEnd, gameFeelEvents } from '../../../utils/audio';
 import { safeExecute, ErrorCategory } from '../../../utils/managers/errorHandler';
 import { safeLocalStorageGet, safeParseInt, safeJSONParse } from './helpers/localStorage';
 import { createEmptyGrid, processGrid } from './helpers/grid';
@@ -455,7 +455,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (!get().canPlacePiece(grid, piece, startX, startY)) {
         JuiceTriggers.onInvalidPlacement();
         playInvalid();
-        playHaptic('invalid');
+        gameFeelEvents.invalidPlacement();
         return false;
       }
 
@@ -676,10 +676,10 @@ export const useGameStore = create<GameStore>((set, get) => {
         if ([2, 5, 8].includes(comboMultiplier) || (comboMultiplier > 8 && comboMultiplier % 5 === 0)) {
           playCombo(comboMultiplier);
         }
-        playHaptic(linesCleared > 1 ? 'clear_multi' : 'clear_single');
+        gameFeelEvents.linesCleared(linesCleared, comboMultiplier);
       } else {
         playPlace();
-        playHaptic('place');
+        gameFeelEvents.placement();
       }
 
       // High score
@@ -963,7 +963,8 @@ export const useGameStore = create<GameStore>((set, get) => {
           import('@utils/native/widgetHelper'),
         ]).then(([{ useStreakStore }, { syncAllWidgetData }]) => {
           useStreakStore.getState().recordGameCompleted();
-          syncAllWidgetData(get().highScores, useStreakStore.getState().currentStreak);
+          const streakState = useStreakStore.getState();
+          syncAllWidgetData(get().highScores, streakState.currentStreak, finalScore, streakState.todayPlayed);
         }).catch(console.error);
 
         import('../../../utils/native/dynamicShortcutHelper').then(({ saveRecentMode }) => {

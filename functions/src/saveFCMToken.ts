@@ -10,6 +10,8 @@ interface FCMTokenRequest {
   token: string;
   platform: string;
   timestamp: number;
+  locale?: string;
+  timezone?: string;
 }
 
 /**
@@ -35,7 +37,7 @@ export const saveFCMToken = functions.https.onRequest(async (req, res) => {
   }
 
   try {
-    const { token, platform, timestamp } = req.body as FCMTokenRequest;
+    const { token, platform, timestamp, locale, timezone } = req.body as FCMTokenRequest;
 
     // Validate input
     if (!token || typeof token !== 'string') {
@@ -56,8 +58,11 @@ export const saveFCMToken = functions.https.onRequest(async (req, res) => {
       token,
       platform,
       timestamp: timestamp || Date.now(),
+      locale: typeof locale === 'string' ? locale : null,
+      timezone: typeof timezone === 'string' ? timezone : null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
       active: true,
     }, { merge: true });
 

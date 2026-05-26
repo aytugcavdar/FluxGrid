@@ -16,6 +16,7 @@ import { create } from 'zustand';
 import { performanceMonitor } from '@core/services/performance/PerformanceMonitor';
 import type { QualityPreset } from '@core/services/performance/PerformanceMonitor';
 import { QUALITY_PRESETS } from '@core/services/performance/PerformanceMonitor';
+import { getHapticManager, type HapticIntensity } from '@utils/audio';
 
 export type LanguageType = 'tr' | 'en' | 'de' | 'fr' | 'es';
 export type ColorBlindMode = 'none' | 'protanopia' | 'deuteranopia' | 'tritanopia';
@@ -26,6 +27,8 @@ interface SettingsStore {
   soundEnabled: boolean;
   musicEnabled: boolean;
   hapticEnabled: boolean;
+  hapticIntensity: HapticIntensity;
+  dragHapticsEnabled: boolean;
   
   // Game Settings
   ghostBlockEnabled: boolean;
@@ -51,6 +54,8 @@ interface SettingsStore {
   setSoundEnabled: (enabled: boolean) => void;
   setMusicEnabled: (enabled: boolean) => void;
   setHapticEnabled: (enabled: boolean) => void;
+  setHapticIntensity: (intensity: HapticIntensity) => void;
+  setDragHapticsEnabled: (enabled: boolean) => void;
   
   // Game Settings Actions
   setGhostBlockEnabled: (enabled: boolean) => void;
@@ -87,6 +92,8 @@ const STORAGE_KEYS = {
   SOUND_ENABLED: 'flux_sound_enabled',
   MUSIC_ENABLED: 'flux_music_enabled',
   HAPTIC_ENABLED: 'flux_haptic_enabled',
+  HAPTIC_INTENSITY: 'flux_haptic_intensity',
+  DRAG_HAPTICS_ENABLED: 'flux_drag_haptics_enabled',
   
   // Game Settings
   GHOST_BLOCK: 'flux_ghost_block',
@@ -107,6 +114,8 @@ const DEFAULT_SETTINGS = {
   soundEnabled: true,
   musicEnabled: true,
   hapticEnabled: true,
+  hapticIntensity: 'normal' as HapticIntensity,
+  dragHapticsEnabled: true,
   
   // Game Settings
   ghostBlockEnabled: true,
@@ -174,6 +183,21 @@ function savePerformanceSettings(state: SettingsStore): void {
   }
 }
 
+function syncHapticSettings(
+  enabled: boolean,
+  intensity: HapticIntensity,
+  dragHapticsEnabled: boolean
+): void {
+  try {
+    const hapticManager = getHapticManager();
+    hapticManager.setEnabled(enabled);
+    hapticManager.setIntensity(intensity);
+    hapticManager.setDragHapticsEnabled(dragHapticsEnabled);
+  } catch (error) {
+    console.debug('[SettingsStore] Failed to sync haptic manager:', error);
+  }
+}
+
 export const useSettingsStore = create<SettingsStore>((set, get) => {
   // Load saved performance settings
   const savedPerformanceSettings = loadPerformanceSettings();
@@ -197,6 +221,20 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
     setHapticEnabled: (enabled: boolean) => {
       set({ hapticEnabled: enabled });
       localStorage.setItem(STORAGE_KEYS.HAPTIC_ENABLED, JSON.stringify(enabled));
+      localStorage.setItem('flux_haptics_enabled', JSON.stringify(enabled));
+      syncHapticSettings(enabled, get().hapticIntensity, get().dragHapticsEnabled);
+    },
+
+    setHapticIntensity: (intensity: HapticIntensity) => {
+      set({ hapticIntensity: intensity });
+      localStorage.setItem(STORAGE_KEYS.HAPTIC_INTENSITY, intensity);
+      syncHapticSettings(get().hapticEnabled, intensity, get().dragHapticsEnabled);
+    },
+
+    setDragHapticsEnabled: (enabled: boolean) => {
+      set({ dragHapticsEnabled: enabled });
+      localStorage.setItem(STORAGE_KEYS.DRAG_HAPTICS_ENABLED, JSON.stringify(enabled));
+      syncHapticSettings(get().hapticEnabled, get().hapticIntensity, enabled);
     },
     
     // Game Settings Actions
@@ -325,6 +363,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
         const soundEnabled = localStorage.getItem(STORAGE_KEYS.SOUND_ENABLED);
         const musicEnabled = localStorage.getItem(STORAGE_KEYS.MUSIC_ENABLED);
         const hapticEnabled = localStorage.getItem(STORAGE_KEYS.HAPTIC_ENABLED);
+        const hapticIntensity = localStorage.getItem(STORAGE_KEYS.HAPTIC_INTENSITY);
+        const dragHapticsEnabled = localStorage.getItem(STORAGE_KEYS.DRAG_HAPTICS_ENABLED);
         const ghostBlockEnabled = localStorage.getItem(STORAGE_KEYS.GHOST_BLOCK);
         const performanceModeEnabled = localStorage.getItem(STORAGE_KEYS.PERFORMANCE_MODE);
         const colorBlindMode = localStorage.getItem(STORAGE_KEYS.COLOR_BLIND_MODE);
@@ -336,6 +376,12 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
           soundEnabled: soundEnabled !== null ? JSON.parse(soundEnabled) : DEFAULT_SETTINGS.soundEnabled,
           musicEnabled: musicEnabled !== null ? JSON.parse(musicEnabled) : DEFAULT_SETTINGS.musicEnabled,
           hapticEnabled: hapticEnabled !== null ? JSON.parse(hapticEnabled) : DEFAULT_SETTINGS.hapticEnabled,
+          hapticIntensity: (
+            hapticIntensity === 'low' || hapticIntensity === 'normal' || hapticIntensity === 'strong'
+              ? hapticIntensity
+              : DEFAULT_SETTINGS.hapticIntensity
+          ) as HapticIntensity,
+          dragHapticsEnabled: dragHapticsEnabled !== null ? JSON.parse(dragHapticsEnabled) : DEFAULT_SETTINGS.dragHapticsEnabled,
           ghostBlockEnabled: ghostBlockEnabled !== null ? JSON.parse(ghostBlockEnabled) : DEFAULT_SETTINGS.ghostBlockEnabled,
           performanceModeEnabled: performanceModeEnabled !== null ? JSON.parse(performanceModeEnabled) : DEFAULT_SETTINGS.performanceModeEnabled,
           colorBlindMode: (colorBlindMode as ColorBlindMode) || DEFAULT_SETTINGS.colorBlindMode,
@@ -344,6 +390,11 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
         };
         
         set(loadedSettings);
+        syncHapticSettings(
+          loadedSettings.hapticEnabled,
+          loadedSettings.hapticIntensity,
+          loadedSettings.dragHapticsEnabled
+        );
         
         // Apply color blind mode if set
         if (loadedSettings.colorBlindMode !== 'none') {
@@ -363,6 +414,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
         localStorage.setItem(STORAGE_KEYS.SOUND_ENABLED, JSON.stringify(state.soundEnabled));
         localStorage.setItem(STORAGE_KEYS.MUSIC_ENABLED, JSON.stringify(state.musicEnabled));
         localStorage.setItem(STORAGE_KEYS.HAPTIC_ENABLED, JSON.stringify(state.hapticEnabled));
+        localStorage.setItem(STORAGE_KEYS.HAPTIC_INTENSITY, state.hapticIntensity);
+        localStorage.setItem(STORAGE_KEYS.DRAG_HAPTICS_ENABLED, JSON.stringify(state.dragHapticsEnabled));
         localStorage.setItem(STORAGE_KEYS.GHOST_BLOCK, JSON.stringify(state.ghostBlockEnabled));
         localStorage.setItem(STORAGE_KEYS.PERFORMANCE_MODE, JSON.stringify(state.performanceModeEnabled));
         localStorage.setItem(STORAGE_KEYS.COLOR_BLIND_MODE, state.colorBlindMode);
@@ -386,6 +439,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
           soundEnabled: state.soundEnabled,
           musicEnabled: state.musicEnabled,
           hapticEnabled: state.hapticEnabled,
+          hapticIntensity: state.hapticIntensity,
+          dragHapticsEnabled: state.dragHapticsEnabled,
           ghostBlockEnabled: state.ghostBlockEnabled,
           performanceModeEnabled: state.performanceModeEnabled,
           colorBlindMode: state.colorBlindMode,
@@ -413,6 +468,11 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
       
       // Reset settings to defaults
       set(DEFAULT_SETTINGS);
+      syncHapticSettings(
+        DEFAULT_SETTINGS.hapticEnabled,
+        DEFAULT_SETTINGS.hapticIntensity,
+        DEFAULT_SETTINGS.dragHapticsEnabled
+      );
       
       // Force reload to reset all stores
       window.location.reload();
@@ -420,6 +480,11 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
     
     resetToDefaults: () => {
       set(DEFAULT_SETTINGS);
+      syncHapticSettings(
+        DEFAULT_SETTINGS.hapticEnabled,
+        DEFAULT_SETTINGS.hapticIntensity,
+        DEFAULT_SETTINGS.dragHapticsEnabled
+      );
       
       performanceMonitor.applyPreset(QUALITY_PRESETS.medium);
       performanceMonitor.disableAutoAdjust();

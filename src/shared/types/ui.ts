@@ -40,7 +40,7 @@ export interface AchievementCardProps {
 }
 
 export interface ThemeCardProps {
-  theme: 'dark' | 'light' | 'neon' | 'ocean';
+  theme: 'dark' | 'light' | 'neon';
   label: string;
   colors: string[]; // 3 representative colors
   isSelected: boolean;

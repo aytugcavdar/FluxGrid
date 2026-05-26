@@ -3,7 +3,17 @@ import { motion } from 'framer-motion';
 import { Piece as PieceType, CellType } from '../types';
 import { useGameStore } from '../store/gameStore';
 import clsx from 'clsx';
-import { resetVelocityTracking, getSharedHoverCoord, setSharedHoverCoord, getDragVelocity, FAST_SWIPE_THRESHOLD, findBestPlacement } from '../utils/placementHelper';
+import {
+  resetVelocityTracking,
+  getSharedHoverCoord,
+  setSharedHoverCoord,
+  getDragVelocity,
+  FAST_SWIPE_THRESHOLD,
+  findBestPlacement,
+  setActiveDragPointerId,
+  setSharedPointerPosition,
+} from '../utils/placementHelper';
+import { gameFeelEvents } from '../../../utils/audio';
 
 interface Props {
   piece: PieceType;
@@ -13,6 +23,7 @@ interface Props {
 export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
   const { setDraggedPiece, draggedPiece, placePiece, pieces, activeEvent, grid, canPlacePiece } = useGameStore();
   const ref = useRef<HTMLDivElement>(null);
+  const activePointerIdRef = useRef<number | null>(null);
   const [windowWidth, setWindowWidth] = React.useState(window.innerWidth);
 
   // Update window width on resize for responsive block size
@@ -32,13 +43,59 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
 
   const [flashDown, setFlashDown] = useState(false);
 
+  const endDrag = (pointerId: number, options: { place: boolean; currentTarget: EventTarget & Element }) => {
+    if (activePointerIdRef.current !== pointerId) return;
+
+    if (options.currentTarget.hasPointerCapture?.(pointerId)) {
+      options.currentTarget.releasePointerCapture(pointerId);
+    }
+
+    document.body.classList.remove('dragging');
+    delete document.body.dataset.dragging;
+
+    if (options.place) {
+      // PRIMARY placement path - runs reliably on Capacitor because
+      // setPointerCapture guarantees this element receives pointerup.
+      // Grid render loop writes hover coord to shared state.
+      const hoverCoord = getSharedHoverCoord();
+      if (hoverCoord) {
+        const velocity = getDragVelocity();
+        const isFastSwipe = velocity > FAST_SWIPE_THRESHOLD;
+
+        if (isFastSwipe) {
+          // Hizli kaydirma: 2 hucre yaricapinda en yakin gecerli konumu bul
+          const best = findBestPlacement(grid, piece, hoverCoord.x, hoverCoord.y, 2);
+          if (best) {
+            placePiece(piece, best.x, best.y);
+          } else {
+            placePiece(piece, hoverCoord.x, hoverCoord.y);
+          }
+        } else {
+          // Normal birakma: 1 hucre snap zaten Grid render loopda yapildi
+          placePiece(piece, hoverCoord.x, hoverCoord.y);
+        }
+      }
+    }
+
+    activePointerIdRef.current = null;
+    setActiveDragPointerId(null);
+    setSharedPointerPosition(null);
+    setSharedHoverCoord(null);
+    setDraggedPiece(null);
+    resetVelocityTracking();
+  };
+
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
+    activePointerIdRef.current = e.pointerId;
+    setActiveDragPointerId(e.pointerId);
+    setSharedPointerPosition({ x: e.clientX, y: e.clientY });
     
     // Add scroll prevention
     document.body.classList.add('dragging');
+    document.body.dataset.dragging = 'true';
     
     setFlashDown(true);
     setTimeout(() => setFlashDown(false), 120);
@@ -49,48 +106,15 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
     // Immediate visual feedback
     setDraggedPiece(piece);
     
-    // Quick haptic feedback for better responsiveness
-    if ('vibrate' in navigator) {
-      navigator.vibrate(10); // Very short vibration for instant feedback
-    }
+    gameFeelEvents.dragStart();
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    e.currentTarget.releasePointerCapture(e.pointerId);
-    document.body.classList.remove('dragging');
-
-    // PRIMARY placement path - runs reliably on Capacitor because
-    // setPointerCapture guarantees this element receives pointerup.
-    // Grid render loop writes hover coord to shared state.
-    const hoverCoord = getSharedHoverCoord();
-    if (hoverCoord) {
-      const velocity = getDragVelocity();
-      const isFastSwipe = velocity > FAST_SWIPE_THRESHOLD;
-
-      if (isFastSwipe) {
-        // Hizli kaydirma: 2 hucre yaricapinda en yakin gecerli konumu bul
-        const best = findBestPlacement(grid, piece, hoverCoord.x, hoverCoord.y, 2);
-        if (best) {
-          placePiece(piece, best.x, best.y);
-        } else {
-          placePiece(piece, hoverCoord.x, hoverCoord.y);
-        }
-      } else {
-        // Normal birakma: 1 hucre snap zaten Grid render loopda yapildi
-        placePiece(piece, hoverCoord.x, hoverCoord.y);
-      }
-    }
-
-    // Clear shared hover coord and drag state
-    setSharedHoverCoord(null);
-    setDraggedPiece(null);
+    endDrag(e.pointerId, { place: true, currentTarget: e.currentTarget });
   };
 
   const handlePointerCancel = (e: React.PointerEvent) => {
-    e.currentTarget.releasePointerCapture(e.pointerId);
-    document.body.classList.remove('dragging');
-    setSharedHoverCoord(null);
-    setDraggedPiece(null);
+    endDrag(e.pointerId, { place: false, currentTarget: e.currentTarget });
   };
 
 

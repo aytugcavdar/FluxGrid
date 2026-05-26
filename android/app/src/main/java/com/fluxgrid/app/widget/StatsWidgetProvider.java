@@ -11,12 +11,14 @@ import com.fluxgrid.app.MainActivity;
 import com.fluxgrid.app.R;
 
 /**
- * Stats Widget - Shows high scores and streak
+ * Stats Widget - Shows high scores, latest score, streak and daily play status.
  * 
  * Widget Data Contract:
  * - widget_high_score_endless: High score for endless mode (primary)
  * - widget_high_score_timed: High score for timed mode
  * - widget_daily_streak: Current daily streak
+ * - widget_last_score: Last completed game score
+ * - widget_today_played: Whether a game was completed today
  * - widget_last_updated: Last update timestamp
  * 
  * Legacy keys (fallback for backward compatibility):
@@ -57,13 +59,24 @@ public class StatsWidgetProvider extends AppWidgetProvider {
             "widget_daily_streak",
             "flux_daily_streak"
         );
+        int lastScore = getIntPreference(
+            prefs,
+            "widget_last_score",
+            "flux_last_score"
+        );
+        boolean todayPlayed = Boolean.parseBoolean(prefs.getString("widget_today_played", "false"));
         
         // Create RemoteViews
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_stats);
         
         // Set data
         views.setTextViewText(R.id.widget_high_score, formatScore(highScore));
+        views.setTextViewText(R.id.widget_last_score, formatScore(lastScore));
         views.setTextViewText(R.id.widget_streak, String.valueOf(streak));
+        views.setTextViewText(
+            R.id.widget_today_status,
+            todayPlayed ? "Bugün oynandı" : "Bugün bekliyor"
+        );
         
         // Create intent to launch app
         Intent intent = new Intent(context, MainActivity.class);
@@ -85,7 +98,9 @@ public class StatsWidgetProvider extends AppWidgetProvider {
             "Updated widget - Score: " + highScore +
                 ", Endless: " + endlessHighScore +
                 ", Timed: " + timedHighScore +
-                ", Streak: " + streak
+                ", Last: " + lastScore +
+                ", Streak: " + streak +
+                ", Today: " + todayPlayed
         );
     }
 
@@ -115,18 +130,25 @@ public class StatsWidgetProvider extends AppWidgetProvider {
      * Update all widgets
      */
     public static void updateAllWidgets(Context context) {
-        Intent intent = new Intent(context, StatsWidgetProvider.class);
-        intent.setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
-        
+        triggerWidgetUpdate(context, StatsWidgetProvider.class);
+        triggerWidgetUpdate(context, QuickPlayWidgetProvider.class);
+    }
+
+    private static void triggerWidgetUpdate(
+        Context context,
+        Class<? extends AppWidgetProvider> providerClass
+    ) {
         AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
         int[] ids = appWidgetManager.getAppWidgetIds(
-            new android.content.ComponentName(context, StatsWidgetProvider.class)
+            new android.content.ComponentName(context, providerClass)
         );
-        
-        if (ids.length > 0) {
-            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids);
-            context.sendBroadcast(intent);
-            android.util.Log.d("FluxGridWidget", "Triggered update for " + ids.length + " widgets");
-        }
+
+        if (ids.length == 0) return;
+
+        Intent intent = new Intent(context, providerClass);
+        intent.setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
+        intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids);
+        context.sendBroadcast(intent);
+        android.util.Log.d("FluxGridWidget", "Triggered update for " + ids.length + " " + providerClass.getSimpleName() + " widgets");
     }
 }

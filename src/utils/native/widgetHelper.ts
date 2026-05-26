@@ -5,6 +5,8 @@
  * - widget_high_score_endless: High score for endless mode
  * - widget_high_score_timed: High score for timed mode
  * - widget_daily_streak: Current daily streak
+ * - widget_last_score: Last completed game score
+ * - widget_today_played: Whether a game was completed today
  * - widget_last_updated: Last update timestamp
  */
 
@@ -12,6 +14,18 @@ import { Capacitor } from '@capacitor/core';
 
 let Preferences: any = null;
 const WIDGET_SCORE_MODES = ['endless', 'timed'] as const;
+
+interface WidgetBridge {
+  syncStats?: (endlessScore: number, timedScore: number, streak: number) => void;
+  syncStatsV2?: (
+    endlessScore: number,
+    timedScore: number,
+    streak: number,
+    lastScore: number,
+    todayPlayed: boolean
+  ) => void;
+  update?: () => void;
+}
 
 export function normalizeWidgetMode(gameMode: string): string {
   return gameMode.trim().toLowerCase();
@@ -34,7 +48,7 @@ export function createWidgetHighScoreProjection(highScores: Record<string, numbe
   }, {});
 }
 
-function getWidgetBridge(): { syncStats?: (endlessScore: number, timedScore: number, streak: number) => void; update?: () => void } | null {
+function getWidgetBridge(): WidgetBridge | null {
   if (typeof window === 'undefined') return null;
   return (window as any).FluxGridWidget ?? null;
 }
@@ -119,7 +133,12 @@ export async function syncStreakToWidget(streak: number): Promise<void> {
 /**
  * Sync all widget data.
  */
-export async function syncAllWidgetData(highScores: Record<string, number>, streak: number): Promise<void> {
+export async function syncAllWidgetData(
+  highScores: Record<string, number>,
+  streak: number,
+  lastScore = 0,
+  todayPlayed = false
+): Promise<void> {
   if (!Capacitor.isNativePlatform()) {
     console.log('[Widget] Not on native platform, skipping all data sync');
     return;
@@ -132,7 +151,20 @@ export async function syncAllWidgetData(highScores: Record<string, number>, stre
   try {
     const widgetHighScores = createWidgetHighScoreProjection(highScores);
     const widgetStreak = toWidgetScore(streak);
+    const widgetLastScore = toWidgetScore(lastScore);
     const bridge = getWidgetBridge();
+
+    if (typeof bridge?.syncStatsV2 === 'function') {
+      bridge.syncStatsV2(
+        widgetHighScores.endless,
+        widgetHighScores.timed,
+        widgetStreak,
+        widgetLastScore,
+        todayPlayed
+      );
+      console.log('[Widget] Synced extended stats via JavaScript bridge');
+      return;
+    }
 
     if (typeof bridge?.syncStats === 'function') {
       bridge.syncStats(widgetHighScores.endless, widgetHighScores.timed, widgetStreak);
@@ -148,6 +180,14 @@ export async function syncAllWidgetData(highScores: Record<string, number>, stre
 
     const prefs = await getPreferences();
     if (prefs) {
+      await prefs.set({
+        key: 'widget_last_score',
+        value: widgetLastScore.toString(),
+      });
+      await prefs.set({
+        key: 'widget_today_played',
+        value: String(todayPlayed),
+      });
       await prefs.set({
         key: 'widget_last_updated',
         value: Date.now().toString(),

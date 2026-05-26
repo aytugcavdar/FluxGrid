@@ -9,7 +9,7 @@ import { GRID_SIZE, TOTAL_CELL_SIZE, GHOST_POOL_SIZE } from '../constants';
 import { Piece } from '../../../types';
 import { GridState } from '../../../types';
 import { getDragYOffset } from '../../../../../utils/responsive/responsive';
-import { playHaptic } from '../../../../../utils/audio';
+import { gameFeelEvents } from '../../../../../utils/audio';
 
 const GRID_OFFSET = (GRID_SIZE - 1) * TOTAL_CELL_SIZE / 2;
 
@@ -70,7 +70,7 @@ export const updateHover = (
       if (!hoverCoordRef.current || hoverCoordRef.current.x !== fx || hoverCoordRef.current.y !== fy) {
         hoverCoordRef.current = newCoord;
         setHoverCoord(newCoord);
-        playHaptic('hover');
+        gameFeelEvents.dragHover();
       }
 
       // Hide all ghosts first

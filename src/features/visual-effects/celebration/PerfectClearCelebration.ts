@@ -1,6 +1,6 @@
 import * as BABYLON from 'babylonjs';
 import { ParticleEmitter } from '../particles/ParticleEmitter';
-import { HapticManager } from '../../../utils/audio/haptics';
+import type { HapticManager } from '../../../utils/audio/haptics';
 
 /**
  * PerfectClearCelebration - Handles perfect clear celebration
@@ -27,17 +27,15 @@ const RAINBOW_COLORS = [
 
 export class PerfectClearCelebration {
   private particleEmitter: ParticleEmitter;
-  private hapticManager: HapticManager;
   private prefersReducedMotion: boolean = false;
   private qualityPreset: 'high' | 'medium' | 'low' = 'high';
   public allowInput: boolean = true;
   
   constructor(
     particleEmitter: ParticleEmitter,
-    hapticManager: HapticManager
+    _hapticManager: HapticManager
   ) {
     this.particleEmitter = particleEmitter;
-    this.hapticManager = hapticManager;
   }
   
   /**
@@ -63,12 +61,9 @@ export class PerfectClearCelebration {
       this.showPerfectClearText(false);
     }
     
-    // 4. Haptic
-    this.hapticManager.play('perfect_clear');
-    
-    // 5. Audio (handled by caller - audio.ts playGameOver or new sound)
-    
-    // 6. Unblock input after 400ms
+    // 4. Audio and haptic feedback are handled by the game action router.
+
+    // 5. Unblock input after 400ms
     setTimeout(() => {
       this.allowInput = true;
     }, 400);

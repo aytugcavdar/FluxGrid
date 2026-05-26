@@ -6,25 +6,49 @@
     android:padding="12dp"
     android:background="@drawable/widget_background"
     android:gravity="center">
-    
-    <!-- Title -->
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="🎮 Hızlı Başlat"
+        android:text="Hızlı Başlat"
         android:textSize="14sp"
         android:textColor="#FFFFFF"
         android:textStyle="bold"
-        android:layout_marginBottom="12dp"/>
-    
-    <!-- Game Mode Buttons (Endless and Timed only) -->
+        android:layout_marginBottom="4dp" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/widget_quick_best_score"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="En iyi 0"
+            android:textSize="9sp"
+            android:textColor="#FFFFFF"
+            android:alpha="0.62"
+            android:layout_marginEnd="10dp" />
+
+        <TextView
+            android:id="@+id/widget_quick_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Bugün bekliyor"
+            android:textSize="9sp"
+            android:textColor="#FFFFFF"
+            android:alpha="0.72" />
+    </LinearLayout>
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center">
-        
-        <!-- Endless Mode -->
+
         <LinearLayout
             android:id="@+id/widget_btn_endless"
             android:layout_width="0dp"
@@ -32,16 +56,17 @@
             android:layout_weight="1"
             android:orientation="vertical"
             android:gravity="center"
-            android:padding="12dp"
+            android:padding="10dp"
             android:layout_marginEnd="6dp"
             android:background="@drawable/widget_button_background">
-            
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="♾️"
-                android:textSize="28sp"/>
-            
+                android:text="∞"
+                android:textSize="24sp"
+                android:textColor="#FFFFFF" />
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -49,10 +74,9 @@
                 android:textSize="11sp"
                 android:textColor="#FFFFFF"
                 android:textStyle="bold"
-                android:layout_marginTop="6dp"/>
+                android:layout_marginTop="4dp" />
         </LinearLayout>
-        
-        <!-- Timed Mode -->
+
         <LinearLayout
             android:id="@+id/widget_btn_timed"
             android:layout_width="0dp"
@@ -60,16 +84,18 @@
             android:layout_weight="1"
             android:orientation="vertical"
             android:gravity="center"
-            android:padding="12dp"
+            android:padding="10dp"
             android:layout_marginStart="6dp"
             android:background="@drawable/widget_button_background">
-            
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="⏱️"
-                android:textSize="28sp"/>
-            
+                android:text="60"
+                android:textSize="21sp"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold" />
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -77,8 +103,8 @@
                 android:textSize="11sp"
                 android:textColor="#FFFFFF"
                 android:textStyle="bold"
-                android:layout_marginTop="6dp"/>
+                android:layout_marginTop="4dp" />
         </LinearLayout>
     </LinearLayout>
-    
+
 </LinearLayout>

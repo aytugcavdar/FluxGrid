@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspens
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
-import { useThemeStore } from '../shared/store/themeStore';
+import { useThemeStore, type ThemeType } from '../shared/store/themeStore';
 import { useGameStore } from '../features/game/store/gameStore';
 import { useTutorialStore } from '../features/tutorial/store/tutorialStore';
 import { GameMode, AppState } from '@shared/types';
@@ -11,7 +11,7 @@ import { useBrowserHistory } from './hooks/useBrowserHistory';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { useGameSync } from '../features/game/hooks/useGameSync';
 import { TIER_SCORE_MULTIPLIERS, TIER_THRESHOLDS } from '../features/game/constants';
-import { playSkill, playHaptic, unlockAudio, playGameOver, playClick } from '@utils/audio';
+import { playSkill, hapticEvents, unlockAudio, playGameOver, playClick } from '@utils/audio';
 import { AdManager } from '@core/services/ads/AdManager';
 import { createContinueGrid } from '@features/game/utils/game/gameHelpers';
 import { getRandomPiecesSync } from '../features/game/store/helpers/pieces';
@@ -186,7 +186,7 @@ const App: React.FC = () => {
     setShowIOSInstructions(false);
   }, [setShowIOSInstructions]);
 
-  const handleThemeChange = useCallback((theme: 'dark' | 'light' | 'neon') => {
+  const handleThemeChange = useCallback((theme: ThemeType) => {
     playClick();
     setTheme(theme);
   }, [setTheme]);
@@ -349,7 +349,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (isGameOver && !prevGameOver) {
       playGameOver();
-      playHaptic('game_over');
+      hapticEvents.gameOver();
       setGameOverMode(gameMode);
       handleGameEnd();
     }
@@ -454,17 +454,12 @@ const App: React.FC = () => {
     
     // Tutorial validation events
     if (lastAction.type === 'PLACE') {
-      playHaptic('place');
       window.dispatchEvent(new CustomEvent('tutorial-validation', {
         detail: { type: 'piece_placed' }
       }));
     }
     
     if (lastAction.type !== 'CLEAR') return;
-
-    // Haptic for line clear
-    const linesNow = lastAction.lines || 0;
-    playHaptic(linesNow >= 2 ? 'clear_multi' : 'clear_single');
 
     // Dispatch line cleared event for tutorial
     if (lastAction.lines && lastAction.lines > 0) {
@@ -520,7 +515,6 @@ const App: React.FC = () => {
     // Combo milestone detection: small feedback at meaningful growth points.
     if ((combo === 2 || combo === 5 || combo === 8 || (combo > 8 && combo % 5 === 0)) && combo > prevComboRef.current) {
       setShowComboMilestone(true);
-      playHaptic('combo_milestone');
       const timer = setTimeout(() => setShowComboMilestone(false), 800);
       return () => clearTimeout(timer);
     }
@@ -550,7 +544,7 @@ const App: React.FC = () => {
       });
       
       playSkill();
-      playHaptic('surge');
+      hapticEvents.surge();
       
       const timer = setTimeout(() => setTierCelebration(null), 2800);
       return () => clearTimeout(timer);
@@ -564,7 +558,7 @@ const App: React.FC = () => {
   const { clearAchievementNotification } = useGameStore();
   useEffect(() => {
     if (unlockedAchievementId) {
-      playHaptic('achievement');
+      hapticEvents.achievement();
       
       // Show native notification
       const achievement = achievements.find(a => a.id === unlockedAchievementId);
@@ -747,41 +741,38 @@ const App: React.FC = () => {
               <h2 className="text-2xl font-bold text-white mb-4 text-center">{t('settings.title')}</h2>
               <p className="text-gray-400 text-xs text-center mb-6">{t('settings.themeDesc')}</p>
               
-              <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="grid grid-cols-3 gap-2 mb-6">
                 <button
                   onClick={() => handleThemeChange('dark')}
                   className={clsx(
-                    "p-4 rounded-xl border-2 transition-all",
+                    "p-2.5 rounded-lg border transition-all",
                     currentTheme === 'dark' ? "border-blue-500 bg-blue-500/10" : "border-white/10 bg-white/5 hover:bg-white/10"
                   )}
                 >
-                  <div className="w-full h-16 rounded-lg mb-2" style={{ background: 'linear-gradient(180deg, #111827 0%, #0f172a 100%)' }}></div>
-                  <p className="text-white text-sm font-bold">{t('settings.dark')}</p>
-                  <p className="text-gray-400 text-xs">{t('settings.darkSub')}</p>
+                  <div className="w-full h-8 rounded-md mb-2" style={{ background: 'linear-gradient(180deg, #111827 0%, #0f172a 100%)' }}></div>
+                  <p className="text-white text-xs font-bold truncate">{t('settings.dark')}</p>
                 </button>
                 
                 <button
                   onClick={() => handleThemeChange('light')}
                   className={clsx(
-                    "p-4 rounded-xl border-2 transition-all",
+                    "p-2.5 rounded-lg border transition-all",
                     currentTheme === 'light' ? "border-blue-500 bg-blue-500/10" : "border-white/10 bg-white/5 hover:bg-white/10"
                   )}
                 >
-                  <div className="w-full h-16 rounded-lg mb-2" style={{ background: 'linear-gradient(180deg, #f9fafb 0%, #e5e7eb 100%)' }}></div>
-                  <p className="text-white text-sm font-bold">{t('settings.light')}</p>
-                  <p className="text-gray-400 text-xs">{t('settings.lightSub')}</p>
+                  <div className="w-full h-8 rounded-md mb-2" style={{ background: 'linear-gradient(180deg, #f9fafb 0%, #e5e7eb 100%)' }}></div>
+                  <p className="text-white text-xs font-bold truncate">{t('settings.light')}</p>
                 </button>
                 
                 <button
                   onClick={() => handleThemeChange('neon')}
                   className={clsx(
-                    "p-4 rounded-xl border-2 transition-all",
+                    "p-2.5 rounded-lg border transition-all",
                     currentTheme === 'neon' ? "border-blue-500 bg-blue-500/10" : "border-white/10 bg-white/5 hover:bg-white/10"
                   )}
                 >
-                  <div className="w-full h-16 rounded-lg mb-2" style={{ background: 'linear-gradient(180deg, #0f0e17 0%, #1a0a2e 100%)' }}></div>
-                  <p className="text-white text-sm font-bold">{t('settings.neon')}</p>
-                  <p className="text-gray-400 text-xs">{t('settings.neonSub')}</p>
+                  <div className="w-full h-8 rounded-md mb-2" style={{ background: 'linear-gradient(180deg, #0f0e17 0%, #1a0a2e 100%)' }}></div>
+                  <p className="text-white text-xs font-bold truncate">{t('settings.neon')}</p>
                 </button>
               </div>
 

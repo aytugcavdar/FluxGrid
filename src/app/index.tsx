@@ -22,7 +22,11 @@ import { initializeSentry, setUserContext, addBreadcrumb } from '../services/mon
 import { SentryErrorBoundary } from '../shared/components/SentryErrorBoundary';
 import { Capacitor } from '@capacitor/core';
 import { initializePerformanceMonitoring, startGameLoadMeasure } from '../services/monitoring/performanceMonitoring';
-import { pushNotificationService, notificationScheduler } from '../services/notifications/pushNotificationService';
+import {
+  getNotificationActionTarget,
+  pushNotificationService,
+  notificationScheduler,
+} from '../services/notifications/pushNotificationService';
 import { initializeLazyLoading } from '../utils/performance/lazyLoader';
 import { initializeMemoryOptimization } from '../utils/performance/memoryOptimizer';
 import { PageTransition } from '../shared/components/PageTransition';
@@ -174,20 +178,28 @@ const RootApp: React.FC = () => {
       registerNotificationActions();
       addNotificationActionListener((action) => {
         console.log('[Notification] Action performed:', action);
-        
-        // Handle notification actions
-        if (action.actionId === 'play_again') {
-          // Navigate to game screen
-          useGameStore.getState().setState({ appState: AppState.GAME });
-        } else if (action.actionId === 'share') {
-          // Open share dialog
-          import('@/src/utils/sharing/shareHelper').then(({ shareScore }) => {
-            const { score, gameMode } = useGameStore.getState();
-            shareScore(score, gameMode);
-          });
-        } else if (action.actionId === 'view_stats') {
-          // Navigate to statistics screen
-          useGameStore.getState().setState({ appState: AppState.STATISTICS });
+
+        const extra = action.notification?.extra || action.notification?.data || {};
+        const target = getNotificationActionTarget(extra);
+        const gameStore = useGameStore.getState();
+
+        if (target.target === 'game') {
+          const mode = target.mode === 'timed'
+            ? GameMode.TIMED
+            : target.mode === 'daily'
+              ? GameMode.DAILY_CHALLENGE
+              : GameMode.ENDLESS;
+
+          gameStore.setGameMode(mode);
+          gameStore.setState({ appState: AppState.GAME });
+        } else if (target.target === 'statistics') {
+          gameStore.setState({ appState: AppState.HOME });
+          useUnifiedNavigationStore.getState().navigateTo('statistics');
+        } else if (target.target === 'settings') {
+          gameStore.setState({ appState: AppState.HOME });
+          useUnifiedNavigationStore.getState().navigateTo('settings');
+        } else if (action.actionId === 'play_again') {
+          gameStore.setState({ appState: AppState.GAME });
         }
       });
     }).catch((error) => {
@@ -199,7 +211,7 @@ const RootApp: React.FC = () => {
     
     // Cleanup on unmount
     return cleanup;
-  }, [appState]);
+  }, []);
   
   // Show game screen when in GAME state, otherwise show menu
   if (appState === AppState.GAME) {

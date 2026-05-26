@@ -20,12 +20,13 @@ import {
   TrailConfig,
 } from './config/animation.config';
 import { TrailMeshManager } from './TrailMeshManager';
+import type { JuiceEffectsManager } from '../juice/JuiceEffectsManager';
 
 export class KineticAnimationController {
   private config: KineticAnimationConfig;
   private animationStates: Map<string, AnimationState>;
   private trailManager: TrailMeshManager | null = null;
-  private juiceEffectsManager: any = null;
+  private juiceEffectsManager: JuiceEffectsManager | null = null;
   
   constructor(config?: Partial<KineticAnimationConfig>) {
     // Initialize configuration with defaults
@@ -48,43 +49,12 @@ export class KineticAnimationController {
   public setTrailManager(trailManager: TrailMeshManager): void {
     this.trailManager = trailManager;
   }
-  
-  /**
-   * Set juice effects manager
-   * @param manager JuiceEffectsManager instance
-   */
-  public setJuiceEffectsManager(manager: any): void {
+
+  public setJuiceEffectsManager(manager: JuiceEffectsManager): void {
     this.juiceEffectsManager = manager;
   }
   
-  /**
-   * Apply stretch animation during fall
-   * @param pieceId Piece identifier
-   * @param fallSpeed Fall speed (units/second)
-   * @param maxFallSpeed Maximum fall speed for normalization
-   * @returns Stretch scale [x, y, z]
-   */
-  public applyStretch(
-    pieceId: string,
-    fallSpeed: number,
-    maxFallSpeed: number = 20
-  ): [number, number, number] {
-    // Calculate stretch factor based on speed (0-1 range)
-    const speedRatio = Math.min(fallSpeed / maxFallSpeed, 1);
-    const stretchFactor = speedRatio * ANIMATION_CONFIG.stretch.maxFactor;
-    
-    // Apply stretch with volume conservation
-    const stretchY = 1.0 + stretchFactor;
-    const compressXZ = 1.0 / Math.sqrt(stretchY); // Maintain volume
-    
-    const scale: [number, number, number] = [
-      this.config.stretchScale[0] * compressXZ,
-      this.config.stretchScale[1] * stretchY,
-      this.config.stretchScale[2] * compressXZ,
-    ];
-    
-    return scale;
-  }
+
   
   /**
    * Apply squash animation on landing
@@ -104,27 +74,6 @@ export class KineticAnimationController {
     };
     
     this.animationStates.set(pieceId, state);
-  }
-  
-  /**
-   * Apply rotation animation
-   * @param pieceId Piece identifier
-   * @param rotationDelta Rotation change in radians
-   */
-  public applyRotation(pieceId: string, rotationDelta: number): void {
-    const now = Date.now();
-    
-    // Create rotation animation with scale pulse
-    const state: AnimationState = {
-      isAnimating: true,
-      startTime: now,
-      startScale: [1, 1, 1],
-      targetScale: [1, 1, 1], // Will pulse to 1.1 and back
-      duration: ANIMATION_CONFIG.rotation.duration,
-      easingFn: EASING_FUNCTIONS[ANIMATION_CONFIG.rotation.easing] || EASING_FUNCTIONS.easeOutBack,
-    };
-    
-    this.animationStates.set(`${pieceId}_rotation`, state);
   }
   
   /**
@@ -182,12 +131,6 @@ export class KineticAnimationController {
     
     // Create trail
     this.trailManager.createTrail(pieceId, generator, trailConfig);
-    
-    // Enable juice trail particles
-    if (this.juiceEffectsManager && comboLevel >= 5) {
-      const color = new BABYLON.Color3(color.r, color.g, color.b);
-      this.juiceEffectsManager.enableTrailParticles(pieceId, generator, color, comboLevel);
-    }
   }
   
   /**
@@ -195,19 +138,10 @@ export class KineticAnimationController {
    * @param pieceId Piece identifier
    */
   public disableTrail(pieceId: string): void {
-    if (!this.trailManager) {
-      return;
-    }
-    
-    // Dispose trail after 100ms
+    if (!this.trailManager) return;
     setTimeout(() => {
       this.trailManager?.disposeTrail(pieceId);
     }, 100);
-    
-    // Disable juice trail particles
-    if (this.juiceEffectsManager) {
-      this.juiceEffectsManager.disableTrailParticles(pieceId);
-    }
   }
   
   /**
@@ -248,15 +182,6 @@ export class KineticAnimationController {
       ];
       
       scales.set(pieceId, scale);
-    }
-    
-    // Update trails
-    if (this.trailManager) {
-      // Update each active trail
-      const trailCount = this.trailManager.getActiveTrailCount();
-      for (let i = 0; i < trailCount; i++) {
-        // TrailMesh updates automatically, we just track positions
-      }
     }
     
     return scales;

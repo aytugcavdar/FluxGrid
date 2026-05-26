@@ -6,7 +6,6 @@
 
 import * as BABYLON from 'babylonjs';
 import type { ParticlePoolManager } from '../particles/ParticlePoolManager';
-import type { SPSParticlePoolManager } from '../particles/SPSParticlePoolManager';
 
 /**
  * Juice Effects Manager Configuration
@@ -14,7 +13,6 @@ import type { SPSParticlePoolManager } from '../particles/SPSParticlePoolManager
 export interface JuiceEffectsConfig {
   scene: BABYLON.Scene;
   particlePoolManager: ParticlePoolManager;
-  spsParticleManager: SPSParticlePoolManager;
   qualityPreset: 'high' | 'medium' | 'low';
   prefersReducedMotion: boolean;
 }
@@ -49,6 +47,7 @@ export interface ExplosionEmissionConfig {
   color: BABYLON.Color3;
   lineCount: number;
   isSecondaryBurst: boolean;
+  particleMultiplier?: number;
 }
 
 /**

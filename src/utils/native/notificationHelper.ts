@@ -8,6 +8,7 @@
 import { Achievement } from '@features/game/types';
 import { Capacitor } from '@capacitor/core';
 import {
+  createEngagementNotificationCopy,
   NotificationType,
   scheduleLocalNotification,
   notificationScheduler,
@@ -57,10 +58,15 @@ export async function requestNotificationPermission(): Promise<boolean> {
 export async function showDailyStreakReminder(streak: number): Promise<void> {
   if (!isNotificationSupported()) return;
 
+  const copy = createEngagementNotificationCopy(NotificationType.STREAK_REMINDER, {
+    currentStreak: streak,
+    todayPlayed: false,
+  });
+
   await scheduleLocalNotification({
     type: NotificationType.STREAK_REMINDER,
-    title: 'Serin devam ediyor',
-    body: `${streak} gunluk seri bozulmadan kisa bir oyun at.`,
+    title: copy.title,
+    body: copy.body,
     data: { streak },
   });
 }

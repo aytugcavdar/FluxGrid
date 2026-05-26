@@ -19,6 +19,73 @@ interface SendNotificationRequest {
   notification: NotificationPayload;
 }
 
+const ENGAGEMENT_TYPES = new Set([
+  'daily_reminder',
+  'streak_reminder',
+  'near_record',
+  'timed_mode',
+  'inactivity',
+]);
+
+interface NotificationCopy {
+  title: string;
+  body: string;
+}
+
+function stableIndex(seed: string, length: number): number {
+  if (length <= 1) return 0;
+
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    hash |= 0;
+  }
+
+  return Math.abs(hash) % length;
+}
+
+function dateSeed(date: Date = new Date()): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function pickCopy(type: string, variants: NotificationCopy[], date: Date = new Date()): NotificationCopy {
+  return variants[stableIndex(`${type}:${dateSeed(date)}`, variants.length)];
+}
+
+function getScheduledEngagementCopy(type: 'daily_reminder' | 'inactivity', date: Date = new Date()): NotificationCopy {
+  if (type === 'inactivity') {
+    return pickCopy(type, [
+      {
+        title: 'Tahta seni unutmadi',
+        body: 'Geri donus turu 2 dakika. Bir hamleyle ritmi yakalayalim.',
+      },
+      {
+        title: 'FluxGrid yoklama aliyor',
+        body: 'Bugun bir oyunluk isimiz var.',
+      },
+      {
+        title: 'Kucuk bir geri donus',
+        body: 'Bir kisa tur at; tahta tekrar canlansin.',
+      },
+    ], date);
+  }
+
+  return pickCopy(type, [
+    {
+      title: 'FluxGrid seni bekliyor',
+      body: 'Bugunun mini turu hala bos. Bir hamleyle baslayalim.',
+    },
+    {
+      title: '2 dakika, sonra ozgursun',
+      body: 'Kisa bir tur at; gunluk ritim bozulmasin.',
+    },
+    {
+      title: 'Tahta sessiz kaldi',
+      body: 'Bir oyunluk yer ayirdik. Gelip dolduralim mi?',
+    },
+  ], date);
+}
+
 /**
  * Send push notification to specific tokens or topic
  * Endpoint: POST /sendPushNotification
@@ -55,6 +122,11 @@ export const sendPushNotification = functions.https.onRequest(async (req, res) =
       return;
     }
 
+    if (!ENGAGEMENT_TYPES.has(notification.type)) {
+      res.status(400).json({ error: 'Unsupported phone notification type' });
+      return;
+    }
+
     const message: Partial<admin.messaging.Message> = {
       notification: {
         title: notification.title,
@@ -65,7 +137,8 @@ export const sendPushNotification = functions.https.onRequest(async (req, res) =
         ...(notification.data || {}),
       },
       android: {
-        priority: 'high',
+        priority: 'normal',
+        collapseKey: notification.type,
         notification: {
           sound: 'default',
           channelId: getChannelId(notification.type),
@@ -126,21 +199,8 @@ export const sendPushNotification = functions.https.onRequest(async (req, res) =
 /**
  * Get Android notification channel ID based on notification type
  */
-function getChannelId(type: string): string {
-  switch (type) {
-    case 'daily_challenge':
-      return 'daily_reminders';
-    case 'daily_reward':
-      return 'daily_reminders';
-    case 'achievement':
-      return 'achievements';
-    case 'leaderboard_update':
-      return 'events';
-    case 'weekly_stats':
-      return 'events';
-    default:
-      return 'default';
-  }
+function getChannelId(_type: string): string {
+  return 'daily_reminders';
 }
 
 /**
@@ -164,17 +224,20 @@ export const sendDailyChallengeReminder = functions.pubsub
       }
 
       const tokens = tokensSnapshot.docs.map((doc) => doc.data().token);
+      const copy = getScheduledEngagementCopy('daily_reminder');
 
       const message: admin.messaging.MulticastMessage = {
         notification: {
-          title: 'FluxGrid Günlük Meydan Okuma! 🎮',
-          body: 'Günlük görevini tamamla ve ödüllerini kazan!',
+          title: copy.title,
+          body: copy.body,
         },
         data: {
-          type: 'daily_challenge',
+          type: 'daily_reminder',
+          target: 'home',
         },
         android: {
-          priority: 'high',
+          priority: 'normal',
+          collapseKey: 'daily_reminder',
           notification: {
             sound: 'default',
             channelId: 'daily_reminders',
@@ -227,17 +290,20 @@ export const sendDailyRewardReminder = functions.pubsub
       }
 
       const tokens = tokensSnapshot.docs.map((doc) => doc.data().token);
+      const copy = getScheduledEngagementCopy('inactivity');
 
       const message: admin.messaging.MulticastMessage = {
         notification: {
-          title: 'Günlük Ödülün Seni Bekliyor! 🎁',
-          body: 'FluxGrid\'e gir ve günlük ödülünü topla!',
+          title: copy.title,
+          body: copy.body,
         },
         data: {
-          type: 'daily_reward',
+          type: 'inactivity',
+          target: 'home',
         },
         android: {
-          priority: 'high',
+          priority: 'normal',
+          collapseKey: 'inactivity',
           notification: {
             sound: 'default',
             channelId: 'daily_reminders',

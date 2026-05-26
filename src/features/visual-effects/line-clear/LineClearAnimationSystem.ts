@@ -93,16 +93,30 @@ export class LineClearAnimationSystem {
     
     // Emit juice effects with particle multiplier
     if (this.juiceEffectsManager && params.cellPositions.length > 0) {
-      // Explosion particles for multi-line clears
-      if (lineCount >= 2) {
-        // Create colors array (use white for now, can be customized later)
+      // Single clears get a small centered snap; multi clears burst from sampled cells.
+      if (lineCount === 1) {
+        const center = params.cellPositions
+          .reduce((sum, position) => sum.add(position), BABYLON.Vector3.Zero())
+          .scale(1 / params.cellPositions.length);
+
+        this.juiceEffectsManager.emitExplosionParticles(
+          [center],
+          [new BABYLON.Color3(1, 1, 1)],
+          lineCount,
+          { particleMultiplier: 0.8 }
+        );
+      } else if (lineCount >= 2) {
         const colors = params.cellPositions.map(() => new BABYLON.Color3(1, 1, 1));
-        
-        // Apply particle multiplier to explosion particles
-        const reducedPositions = params.cellPositions.slice(0, Math.ceil(params.cellPositions.length * particleMultiplier));
-        const reducedColors = colors.slice(0, Math.ceil(colors.length * particleMultiplier));
-        
-        this.juiceEffectsManager.emitExplosionParticles(reducedPositions, reducedColors, lineCount);
+        const sampleCount = Math.ceil(params.cellPositions.length * particleMultiplier);
+        const reducedPositions = params.cellPositions.slice(0, sampleCount);
+        const reducedColors = colors.slice(0, sampleCount);
+
+        this.juiceEffectsManager.emitExplosionParticles(
+          reducedPositions,
+          reducedColors,
+          lineCount,
+          { particleMultiplier }
+        );
       }
       
       // Icy particles for ice blocks

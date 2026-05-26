@@ -28,7 +28,7 @@ export const App: React.FC = () => {
   const { loadSettings, language } = useSettingsStore();
   const { getThemeColors } = useThemeStore();
   const { setGameMode, achievements: rawAchievements, unlockedAchievementId } = useGameStore();
-  const { initialize: initializeStreak, currentStreak } = useStreakStore();
+  const { initialize: initializeStreak, currentStreak, todayPlayed } = useStreakStore();
   const colors = getThemeColors();
   const didRunInitialWidgetSync = useRef(false);
   
@@ -48,23 +48,13 @@ export const App: React.FC = () => {
     // Initialize streak store
     initializeStreak();
     
-    // Request notification permission on first launch (native only)
-    import('../utils/native/notificationHelper').then(({ requestNotificationPermission }) => {
-      requestNotificationPermission().then(granted => {
-        console.log('[App] Notification permission:', granted ? 'granted' : 'denied');
-      }).catch(error => {
-        console.error('[App] Notification permission error:', error);
-      });
-    }).catch(error => {
-      console.error('[App] Failed to load notification helper:', error);
-    });
-    
     // Sync existing data to widgets on app start
     import('../utils/native/widgetHelper').then(({ syncAllWidgetData }) => {
       const gameState = useGameStore.getState();
-      const streak = useStreakStore.getState().currentStreak;
+      const streakState = useStreakStore.getState();
+      const lastScore = gameState.gameLogs?.[0]?.score ?? 0;
       didRunInitialWidgetSync.current = true;
-      syncAllWidgetData(gameState.highScores, streak);
+      syncAllWidgetData(gameState.highScores, streakState.currentStreak, lastScore, streakState.todayPlayed);
     }).catch(error => {
       console.error('[App] Failed to sync widget data:', error);
     });
@@ -76,11 +66,12 @@ export const App: React.FC = () => {
 
     import('../utils/native/widgetHelper').then(({ syncAllWidgetData }) => {
       const gameState = useGameStore.getState();
-      syncAllWidgetData(gameState.highScores, currentStreak);
+      const lastScore = gameState.gameLogs?.[0]?.score ?? 0;
+      syncAllWidgetData(gameState.highScores, currentStreak, lastScore, todayPlayed);
     }).catch(error => {
       console.error('[App] Failed to sync widget streak:', error);
     });
-  }, [currentStreak]);
+  }, [currentStreak, todayPlayed]);
   
   // Sync language with i18n
   useEffect(() => {

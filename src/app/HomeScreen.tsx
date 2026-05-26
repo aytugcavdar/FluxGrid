@@ -108,7 +108,7 @@ export const HomeScreen: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const stagger = (i: number) => ({ duration: 0.5, delay: 0.08 * i, ease: [0.25, 0.46, 0.45, 0.94] });
+  const stagger = (i: number) => ({ duration: 0.5, delay: 0.08 * i, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] });
 
   return (
     <MotionConfig reducedMotion={isLowEndDevice ? 'always' : 'user'}>
@@ -219,37 +219,12 @@ export const HomeScreen: React.FC = () => {
 
                   {/* Top: Title and Time */}
                   <div className="flex items-center justify-between mb-2.5">
-                    <div className="flex items-center gap-3">
-                      <div 
-                        className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ 
-                          background: savedGameData.gameMode === GameMode.TIMED
-                            ? 'linear-gradient(135deg, rgba(245,158,11,0.38), rgba(217,119,6,0.18))'
-                            : 'linear-gradient(135deg, rgba(99,102,241,0.44), rgba(168,85,247,0.2))',
-                          boxShadow: savedGameData.gameMode === GameMode.TIMED
-                            ? '0 0 18px rgba(245,158,11,0.24)'
-                            : '0 0 18px rgba(129,140,248,0.26)',
-                        }}
-                      >
-                        <span className="text-xl">▶️</span>
+                    <div>
+                      <div className="text-[17px] font-black text-left" style={{ color: 'white' }}>
+                        Devam Et
                       </div>
-                      <div>
-                        <div 
-                          className="text-[17px] font-black"
-                          style={{ 
-                            color: 'white',
-                          }}
-                        >
-                          Devam Et
-                        </div>
-                        <div 
-                          className="text-xs font-medium"
-                          style={{ 
-                            color: 'rgba(255,255,255,0.5)',
-                          }}
-                        >
-                          Kaldığın yerden devam et.
-                        </div>
+                      <div className="text-xs font-medium text-left" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                        Kaldığın yerden devam et.
                       </div>
                     </div>
                     <div 

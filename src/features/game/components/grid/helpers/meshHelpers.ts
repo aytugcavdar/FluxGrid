@@ -118,7 +118,8 @@ export function createBlockMesh(
     mat.emissiveColor = col.scale(0.06); // Daha düşük emissive
     mat.specularColor = BABYLON.Color3.Black();
     mat.specularPower = 0;
-    mat.alpha = 0.95;
+    mat.alpha = 1.0;
+    mat.transparencyMode = BABYLON.Material.MATERIAL_OPAQUE;
     box.material = mat;
 
     // Clean edges

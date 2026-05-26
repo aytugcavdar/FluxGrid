@@ -1,6 +1,6 @@
 import * as BABYLON from 'babylonjs';
 import { ParticleEmitter } from '../particles/ParticleEmitter';
-import { HapticManager } from '../../../utils/audio/haptics';
+import type { HapticManager } from '../../../utils/audio/haptics';
 
 /**
  * ComboMilestoneSystem - Handles combo milestone celebrations
@@ -63,7 +63,6 @@ const CELEBRATION_COLORS = [
 
 export class ComboMilestoneSystem {
   private particleEmitter: ParticleEmitter;
-  private hapticManager: HapticManager;
   private lastMilestone: number = 0;
   private prefersReducedMotion: boolean = false;
   private qualityPreset: 'high' | 'medium' | 'low' = 'high';
@@ -72,10 +71,9 @@ export class ComboMilestoneSystem {
   
   constructor(
     particleEmitter: ParticleEmitter,
-    hapticManager: HapticManager
+    _hapticManager: HapticManager
   ) {
     this.particleEmitter = particleEmitter;
-    this.hapticManager = hapticManager;
   }
   
   /**
@@ -144,10 +142,7 @@ export class ComboMilestoneSystem {
       this.emitCelebrationParticles(config.particleCount);
     }
     
-    // 3. Haptic
-    this.hapticManager.play('combo_milestone');
-    
-    // 4. Audio (handled by caller - audio.ts playCombo)
+    // 3. Audio and haptic feedback are handled by the game action router.
   }
   
   /**

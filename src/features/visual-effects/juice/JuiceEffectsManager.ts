@@ -9,9 +9,8 @@ import * as BABYLON from 'babylonjs';
 import { MeshDeformationManager } from './MeshDeformationManager';
 import { ParticleEmitter } from '../particles/ParticleEmitter';
 import { PerformanceMonitor } from './PerformanceMonitor';
-import type { ParticlePoolManager } from '../particles/ParticlePoolManager';
-import type { SPSParticlePoolManager } from '../particles/SPSParticlePoolManager';
 import {
+  EXPLOSION_PARTICLE_CONFIG,
   QUALITY_MULTIPLIERS,
   REDUCED_MOTION_MULTIPLIERS,
 } from './config/juice.config';
@@ -23,9 +22,6 @@ import type {
 } from './types';
 
 export class JuiceEffectsManager {
-  private scene: BABYLON.Scene;
-  private particlePoolManager: ParticlePoolManager;
-  private spsParticleManager: SPSParticlePoolManager;
   private meshDeformationManager: MeshDeformationManager;
   private particleEmitter: ParticleEmitter;
   private performanceMonitor: PerformanceMonitor;
@@ -34,9 +30,6 @@ export class JuiceEffectsManager {
   private autoQualityEnabled: boolean = true;
 
   constructor(config: JuiceEffectsConfig) {
-    this.scene = config.scene;
-    this.particlePoolManager = config.particlePoolManager;
-    this.spsParticleManager = config.spsParticleManager;
     this.qualityPreset = config.qualityPreset;
     this.prefersReducedMotion = config.prefersReducedMotion;
 
@@ -84,13 +77,15 @@ export class JuiceEffectsManager {
   emitExplosionParticles(
     positions: BABYLON.Vector3[],
     colors: BABYLON.Color3[],
-    lineCount: number
+    lineCount: number,
+    options: { particleMultiplier?: number } = {}
   ): void {
     if (this.qualityPreset === 'low') return;
 
     const reducedMotionMult = this.prefersReducedMotion
       ? REDUCED_MOTION_MULTIPLIERS.explosionParticles
       : 1.0;
+    const particleMultiplier = reducedMotionMult * (options.particleMultiplier ?? 1);
 
     positions.forEach((position, index) => {
       const color = colors[index] || colors[0];
@@ -100,21 +95,23 @@ export class JuiceEffectsManager {
         color,
         lineCount,
         isSecondaryBurst: false,
+        particleMultiplier,
       };
 
       this.particleEmitter.emitExplosion(config);
 
       // Secondary burst for 3+ lines
-      if (lineCount >= 3 && !this.prefersReducedMotion) {
+      if (lineCount >= 3 && !this.prefersReducedMotion && EXPLOSION_PARTICLE_CONFIG.secondaryBurst.enabled) {
         setTimeout(() => {
           const secondaryConfig: ExplosionEmissionConfig = {
             position,
             color,
             lineCount,
             isSecondaryBurst: true,
+            particleMultiplier,
           };
           this.particleEmitter.emitExplosion(secondaryConfig);
-        }, 150);
+        }, EXPLOSION_PARTICLE_CONFIG.secondaryBurst.delay);
       }
     });
   }

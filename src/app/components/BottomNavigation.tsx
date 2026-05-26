@@ -121,24 +121,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 />
               </motion.div>
 
-              {/* Active bottom dot */}
-              {isActive && (
-                <motion.div
-                  layoutId="nav-dot"
-                  style={{
-                    position: 'absolute',
-                    bottom: 2,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: 5,
-                    height: 5,
-                    borderRadius: 999,
-                    background: tab.activeColor,
-                    boxShadow: `0 0 10px ${tab.activeColor}`,
-                  }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 32 }}
-                />
-              )}
+
             </motion.button>
           );
         })}

@@ -3,7 +3,7 @@
  * Only runs on MID/HIGH devices (isEffectLimitedDevice = false).
  * Returns stable refs to each system for the render loop hook.
  */
-import { useRef } from 'react';
+import type { MutableRefObject } from 'react';
 import * as BABYLON from 'babylonjs';
 import { AnimationCoordinator } from '../../../../visual-effects/core/AnimationCoordinator';
 import { PlacementImpactSystem } from '../../../../visual-effects/placement/PlacementImpactSystem';
@@ -24,17 +24,17 @@ import { SpecialBlockEffectsManager } from '../../../../visual-effects/special-b
 import { JuiceEffectsManager } from '../../../../visual-effects/juice/JuiceEffectsManager';
 
 export interface AnimationSystemRefs {
-  animationCoordinatorRef: React.MutableRefObject<AnimationCoordinator | null>;
-  juiceEffectsManagerRef: React.MutableRefObject<any | null>;
-  lineClearSystemRef: React.MutableRefObject<LineClearAnimationSystem | null>;
-  spsParticleManagerRef: React.MutableRefObject<SPSParticlePoolManager | null>;
-  ui3dManagerRef: React.MutableRefObject<UI3DManager | null>;
-  specialBlockManagerRef: React.MutableRefObject<SpecialBlockEffectsManager | null>;
-  kineticAnimationRef: React.MutableRefObject<KineticAnimationController | null>;
-  trailManagerRef: React.MutableRefObject<TrailMeshManager | null>;
-  performanceMonitorRef: React.MutableRefObject<PerformanceMonitor | null>;
-  adaptiveQualityRef: React.MutableRefObject<AdaptiveQualitySystem | null>;
-  batterySaverManagerRef: React.MutableRefObject<any | null>;
+  animationCoordinatorRef: MutableRefObject<AnimationCoordinator | null>;
+  juiceEffectsManagerRef: MutableRefObject<any | null>;
+  lineClearSystemRef: MutableRefObject<LineClearAnimationSystem | null>;
+  spsParticleManagerRef: MutableRefObject<SPSParticlePoolManager | null>;
+  ui3dManagerRef: MutableRefObject<UI3DManager | null>;
+  specialBlockManagerRef: MutableRefObject<SpecialBlockEffectsManager | null>;
+  kineticAnimationRef: MutableRefObject<KineticAnimationController | null>;
+  trailManagerRef: MutableRefObject<TrailMeshManager | null>;
+  performanceMonitorRef: MutableRefObject<PerformanceMonitor | null>;
+  adaptiveQualityRef: MutableRefObject<AdaptiveQualitySystem | null>;
+  batterySaverManagerRef: MutableRefObject<any | null>;
 }
 
 export function createAnimationSystemRefs(): AnimationSystemRefs {
@@ -55,8 +55,8 @@ export function createAnimationSystemRefs(): AnimationSystemRefs {
 
 export interface InitAnimationSystemsOptions {
   scene: BABYLON.Scene;
-  glowLayerRef: React.MutableRefObject<BABYLON.GlowLayer | null>;
-  meshMapRef: React.MutableRefObject<Map<string, BABYLON.Mesh>>;
+  glowLayerRef: MutableRefObject<BABYLON.GlowLayer | null>;
+  meshMapRef: MutableRefObject<Map<string, BABYLON.Mesh>>;
   isEffectLimitedDevice: boolean;
   isLowEndDevice: boolean;
   tier: string;
@@ -158,7 +158,7 @@ export function initAnimationSystems(opts: InitAnimationSystemsOptions): () => v
   // Performance monitor + adaptive quality
   const performanceMonitor = new PerformanceMonitor();
   const adaptiveQuality = new AdaptiveQualitySystem({
-    particleManager: spsParticleManager ?? undefined,
+    particleManager: spsParticleManager,
     trailManager,
     onPerformanceModeChange: (enabled) => console.log('[AnimationSystems] Performance mode:', enabled),
   });
@@ -170,7 +170,6 @@ export function initAnimationSystems(opts: InitAnimationSystemsOptions): () => v
   // Juice effects manager
   const juiceEffectsManager = new JuiceEffectsManager({
     scene, particlePoolManager,
-    spsParticleManager: spsParticleManager ?? undefined,
     qualityPreset: currentQualityPreset, prefersReducedMotion,
   });
   refs.juiceEffectsManagerRef.current = juiceEffectsManager;

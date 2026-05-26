@@ -71,9 +71,9 @@ export const EXPLOSION_PARTICLE_CONFIG = {
   lifetime: 600,           // Reduced from 800ms to 600ms
   gravityDelay: 200,       // milliseconds
   secondaryBurst: {
-    enabled: false,        // DISABLED for performance
+    enabled: true,         // Smaller delayed burst for 3+ line clears
     delay: 150,            // milliseconds
-    countPercent: 0.5,     // 50% of primary count
+    countPercent: 0.45,    // 45% of primary count
   },
 } as const;
 

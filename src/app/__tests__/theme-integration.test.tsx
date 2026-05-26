@@ -220,7 +220,7 @@ describe('Task 15: Theme System Integration Verification', () => {
   });
 
   describe('Theme Switching Updates All Screens', () => {
-    const themes = ['dark', 'light', 'neon', 'ocean'] as const;
+    const themes = ['dark', 'light', 'neon'] as const;
 
     themes.forEach((theme) => {
       describe(`Theme: ${theme}`, () => {
@@ -272,7 +272,7 @@ describe('Task 15: Theme System Integration Verification', () => {
 
           // Verify theme cards are rendered
           const themeCards = container.querySelectorAll('[aria-label*="temasını seç"]');
-          expect(themeCards.length).toBe(4); // 4 theme options
+          expect(themeCards.length).toBe(3); // 3 theme options
         });
       });
     });
