@@ -58,7 +58,7 @@ const App: React.FC = () => {
     initGame, pieces, isGameOver, resetGame, score, combo, lastAction,
     achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
     dailyClearHistory, highScore, stats, highScores,
-    maxCombo, timedBoostMovesLeft, finalSprintBonus, difficultyTier, tierStartMove, totalMovesPlayed, grid,
+    maxCombo, timedBoostMovesLeft, finalSprintBonus, timedScoreBreakdown, difficultyTier, tierStartMove, totalMovesPlayed, grid,
     newRecordDiff, gameLogs,
     timerStartTime, timerExpectedEnd
   } = useGameStore();
@@ -338,7 +338,7 @@ const App: React.FC = () => {
 
   // Global Timer Loop
   useEffect(() => {
-    if (gameMode !== GameMode.TIMED || appState !== AppState.GAME || isGameOver) return;
+    if (appState !== AppState.GAME || isGameOver) return;
     const interval = setInterval(() => {
       tickTimer();
     }, 250); // 250ms for more accurate timer updates
@@ -701,6 +701,7 @@ const App: React.FC = () => {
             maxCombo={maxCombo}
             todayBestCombo={todayBestCombo}
             finalSprintBonus={finalSprintBonus}
+            timedScoreBreakdown={timedScoreBreakdown}
             newRecordDiff={newRecordDiff}
             stats={stats}
             difficultyTier={difficultyTier}

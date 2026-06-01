@@ -52,13 +52,7 @@ export class LineClearAnimationSystem {
    * Trigger line clear animation sequence
    */
   public triggerLineClear(params: LineClearParams): void {
-    const now = Date.now();
     const lineCount = params.clearedLines.length;
-    
-    // Calculate flash intensity (20% boost for 3+ lines)
-    const baseIntensity = this.prefersReducedMotion ? 1.2 : 1.5; // 120% for reduced motion, 150% normal
-    const intensityBoost = lineCount >= 3 ? 1.2 : 1.0;
-    const flashIntensity = baseIntensity * intensityBoost;
     
     // 🎯 PARTICLE OPTIMIZATION: Reduce particle count for large line clears
     // Calculate particle multiplier based on line count and device tier
@@ -133,29 +127,14 @@ export class LineClearAnimationSystem {
     }
     
     // Sequence: Rainbow (if color bonus) → Flash → Cascade
-    let currentDelay = 0;
-    
-    // 1. Rainbow effect (if color bonus)
-    if (params.hasColorBonus) {
-      this.triggerRainbowEffect(params.clearedLines, now);
-      currentDelay = 600; // Rainbow duration
-    }
-    
-    // 2. Flash effect
-    setTimeout(() => {
-      this.triggerFlashEffect(params.clearedLines, flashIntensity, now + currentDelay);
-    }, currentDelay);
-    
-    // 3. Cascade animation (starts with flash)
-    setTimeout(() => {
-      this.triggerCascadeAnimation(params.clearedLines, now + currentDelay);
-    }, currentDelay);
+    // The block meshes handle the visible clear animation. Avoid additional
+    // white row/column flash planes here; they look like artifacts on the board.
     
     // 4. Perfect clear celebration
     if (params.isPerfectClear) {
       setTimeout(() => {
         this.triggerPerfectClear();
-      }, currentDelay + 400); // After flash completes
+      }, 120);
     }
   }
 

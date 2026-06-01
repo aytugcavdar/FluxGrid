@@ -9,7 +9,17 @@ export interface ClearAction {
   cells: Array<{
     x: number;
     y: number;
+    id?: string;
     color: string;
+    cellType?: CellType;
+  }>;
+  rows: number[];
+  cols: number[];
+  movedCells: Array<{
+    id?: string;
+    x: number;
+    fromY: number;
+    toY: number;
     cellType?: CellType;
   }>;
   chainIndex: number; // Which chain step this clear happened in
@@ -152,6 +162,8 @@ export const processGrid = (initialGrid: GridState): {
         }
       }
 
+      const movedCells: ClearAction['movedCells'] = [];
+
       // Execute Clears
       const clearedCells: ClearAction['cells'] = [];
       
@@ -164,6 +176,7 @@ export const processGrid = (initialGrid: GridState): {
           clearedCells.push({
             x,
             y,
+            id: cell.id,
             color: cell.color,
             cellType: cell.type
           });
@@ -177,6 +190,9 @@ export const processGrid = (initialGrid: GridState): {
         actions.push({
           type: 'CELL_CLEAR',
           cells: clearedCells,
+          rows: [...fullRows],
+          cols: [...fullCols],
+          movedCells,
           chainIndex: chainCount
         });
       }
@@ -193,11 +209,11 @@ export const processGrid = (initialGrid: GridState): {
         }
         
         // 2. Collect non-ICE filled cells
-        const normalStack: GridCell[] = [];
+        const normalStack: Array<{ cell: GridCell; fromY: number }> = [];
         for (let y = 0; y < GRID_SIZE; y++) {
           const cell = currentGrid[y][x];
           if (cell.filled && cell.type !== CellType.ICE) {
-            normalStack.push({ ...cell });
+            normalStack.push({ cell: { ...cell }, fromY: y });
           }
         }
         
@@ -209,7 +225,17 @@ export const processGrid = (initialGrid: GridState): {
             currentGrid[y][x] = icePositions.get(y)!;
           } else if (normalIndex >= 0) {
             // Fill with normal block from stack
-            currentGrid[y][x] = normalStack[normalIndex];
+            const entry = normalStack[normalIndex];
+            currentGrid[y][x] = entry.cell;
+            if (entry.fromY !== y) {
+              movedCells.push({
+                id: entry.cell.id,
+                x,
+                fromY: entry.fromY,
+                toY: y,
+                cellType: entry.cell.type,
+              });
+            }
             normalIndex--;
           } else {
             // Empty cell

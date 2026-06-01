@@ -4,11 +4,8 @@
  */
 
 import * as BABYLON from 'babylonjs';
-import { GRID_SIZE, CELL_SIZE } from '../constants';
+import { GRID_SIZE, CELL_SIZE, GRID_OFFSET, TOTAL_CELL_SIZE } from '../constants';
 import { GridState } from '../../../types';
-
-const GRID_OFFSET = (GRID_SIZE - 1) * 1.1 / 2;
-const TOTAL_CELL_SIZE = 1.1;
 
 /**
  * Get 3D position from grid coordinates

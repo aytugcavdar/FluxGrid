@@ -26,10 +26,9 @@ export const FloatingTimeText: React.FC = React.memo(() => {
 
     if (timerExpectedEnd !== null && prevExpectedEnd !== null) {
       const addedMs = timerExpectedEnd - prevExpectedEnd;
-      // Only show if at least 0.5s was added
-      if (addedMs >= 500) {
-        // Calculate added seconds
-        const addedSeconds = Math.round((addedMs / 1000) * 10) / 10;
+      const addedSeconds = Math.round(addedMs / 1000);
+      // Only show whole-second rewards.
+      if (addedSeconds >= 1) {
         
         // Use a fixed position slightly offset from the score to prevent overlap
         // or position based on last action if possible

@@ -45,6 +45,13 @@ describe('Task 8.1: GameEndScreen Enhanced Stats Display', () => {
     maxCombo: 8,
     todayBestCombo: 6,
     finalSprintBonus: 500,
+    timedScoreBreakdown: {
+      placementAndLines: 9000,
+      combo: 2000,
+      bonus: 500,
+      finalSprint: 500,
+      total: 12000,
+    },
     newRecordDiff: 0,
     stats: mockStats,
     difficultyTier: 3,

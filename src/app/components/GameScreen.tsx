@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { GameMode } from '@shared/types';
 import { Grid } from '../../features/game/components/Grid';
 import { Piece } from '../../features/game/components/Piece';
-import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboRushFlash, EventStartVisual, ComboMilestone, LineCountDisplay, FloatingScoreText, FloatingTimeText, LineClearFlash } from '@features/hud';
+import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboRushFlash, EventStartVisual, ComboMilestone, LineCountDisplay, FloatingScoreText, FloatingTimeText, LineClearFlash, ComboBar } from '@features/hud';
 import { useThemeStore } from '@shared/store/themeStore';
 import { useTutorialStore } from '../../features/tutorial/store/tutorialStore';
 import { playClick } from '@utils/audio';
@@ -163,6 +163,7 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
           }}>
             <Grid grid={grid} />
           </div>
+          <ComboBar gridSize={gridSize} />
         </div>
       </main>
 

@@ -9,9 +9,11 @@ import { detectDeviceCapabilities, getPerformanceConfig } from '../../../../util
 export const GRID_SIZE = 10;
 
 // 3D Layout Constants
-export const CELL_SIZE = 1.0;
-export const CELL_SPACING = 0.05;
+export const BOARD_SCALE = 1.08;
+export const CELL_SIZE = 1.0 * BOARD_SCALE;
+export const CELL_SPACING = 0.05 * BOARD_SCALE;
 export const TOTAL_CELL_SIZE = CELL_SIZE + CELL_SPACING;
+export const SLOT_SIZE = CELL_SIZE * 0.95;
 export const GRID_OFFSET = ((GRID_SIZE - 1) * TOTAL_CELL_SIZE) / 2;
 
 // Pool Sizes

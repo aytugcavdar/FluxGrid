@@ -30,6 +30,7 @@ import {
 // Import constants and helpers
 import {
   CELL_SIZE,
+  SLOT_SIZE,
   TOTAL_CELL_SIZE,
   GRID_OFFSET,
   GHOST_POOL_SIZE,
@@ -49,9 +50,7 @@ import {
   updateFragments,
   createBreakApartFragments,
   updateCameraShake,
-  triggerCameraShake,
   updateCameraSettings,
-  detectLineClear,
   startLineClearAnimation,
   updateLineClearAnimation,
   updatePlacementAnimations,
@@ -94,7 +93,6 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
     const { draggedPiece, placePiece, canPlacePiece, setDraggedPiece, score, combo, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, totalMovesPlayed, perfectClearDetected } = useGameStore();
     const { getThemeColors } = useThemeStore();
     const { ghostBlockEnabled } = useSettingsStore();
-
     // Platform detection - calculate once at initialization
     const isNativeApp = !!(window as any).Capacitor?.isNativePlatform?.();
     const isAndroid = isNativeApp && /Android/i.test(navigator.userAgent);
@@ -342,7 +340,13 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         progress: number;
         startTime: number;
         clearedCells: Set<string>;
-        affectedBlocks: Map<string, { startY: number; targetY: number }>;
+        clearedCellIds?: Map<string, string>;
+        clearedCellData?: Map<string, { color: string; cellType?: CellType }>;
+        clearOrder?: Map<string, number>;
+        clearOrderSpan?: number;
+        intersectionCells?: Set<string>;
+        intersectionPulseMeshes?: BABYLON.Mesh[];
+        affectedBlocks: Map<string, { startPosition: BABYLON.Vector3; targetPosition: BABYLON.Vector3 }>;
         originalColors: Map<string, BABYLON.Color3>;
     } | null>(null);
 
@@ -660,7 +664,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
         for (let y = 0; y < GRID_SIZE; y++) {
             for (let x = 0; x < GRID_SIZE; x++) {
-                const slot = BABYLON.MeshBuilder.CreateBox(`slot-${x}-${y}`, { width: 0.95, depth: 0.95, height: 0.05 }, scene);
+                const slot = BABYLON.MeshBuilder.CreateBox(`slot-${x}-${y}`, { width: SLOT_SIZE, depth: SLOT_SIZE, height: 0.05 }, scene);
                 slot.position.x = (x * TOTAL_CELL_SIZE) - GRID_OFFSET;
                 slot.position.z = -((y * TOTAL_CELL_SIZE) - GRID_OFFSET);
                 slot.position.y = -0.5;
@@ -1347,14 +1351,17 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
                     anim.clearedCells.forEach((key: string) => {
                         const [x, y] = key.split(',').map(Number);
+                        const cellData = anim.clearedCellData?.get(key);
                         const cell = grid[y]?.[x];
-                        if (cell?.type) {
+                        const color = cellData?.color || cell?.color;
+                        const cellType = cellData?.cellType || cell?.type;
+                        if (color && cellType) {
                             // Create break apart fragments (existing system)
                             createBreakApartFragments(
                                 x,
                                 y,
-                                cell.color,
-                                cell.type,
+                                color,
+                                cellType,
                                 fragmentPoolRef.current,
                                 isMobile,
                                 isNativeApp,
@@ -1367,7 +1374,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                             if (animationCoordinatorRef.current) {
                                 animationCoordinatorRef.current.emitLineClearParticles({
                                     position: getVectorPos(x, y),
-                                    color: cell.color,
+                                    color,
                                     clearedLines,
                                     is4LineClear
                                 });
@@ -1380,15 +1387,9 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             // Check for new shake events and trigger animations
             if (lastAction && lastAction !== lastHandledActionRef.current) {
                 if (lastAction.type === 'CLEAR') {
-                    // Shake intensity based on lines cleared and combo
-                    // Reduced on weak devices to save CPU
                     const lines = lastAction.lines || 1;
                     const cmb = lastAction.combo || 1;
-                    const baseIntensity = isLowEndDevice ? 0.1 : 0.35;
-                    const lineBonus = isLowEndDevice ? 0 : (lines * 0.18);
-                    const comboBonus = isLowEndDevice ? 0 : (cmb * 0.08);
-                    const calculatedIntensity = Math.min(baseIntensity + lineBonus + comboBonus, isLowEndDevice ? 0.2 : 1.2);
-                    shakeIntensityRef.current = prefersReducedMotion ? 0 : calculatedIntensity;
+                    shakeIntensityRef.current = 0;
 
                     // ─── Haptic: Line clear feedback ───
                     // Single line = light short pulse, multi = double pulse
@@ -1411,8 +1412,18 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                         ui3dManagerRef.current.updateCombo(cmb, 10);
                     }
 
-                    // Trigger line clear animation
-                    const { rows, cols } = detectLineClear(grid);
+                    // Trigger line clear animation from the exact store action data.
+                    const rows = lastAction.clearedRows || [];
+                    const cols = lastAction.clearedCols || [];
+                    const clearedCells = lastAction.clearedCells || [];
+                    const movedCells = lastAction.movedCells || [];
+                    clearedCells.forEach((cell: any) => {
+                        if (!cell.id || meshMapRef.current.has(cell.id)) return;
+                        const mesh = createBlockMeshLocal(cell.color, cell.id, cell.cellType || CellType.NORMAL);
+                        mesh.position = getVectorPos(cell.x, cell.y);
+                        meshMapRef.current.set(cell.id, mesh);
+                    });
+
                     if (rows.length > 0 || cols.length > 0) {
                         startLineClearAnimation(
                             rows,
@@ -1420,64 +1431,29 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                             grid,
                             meshMapRef.current,
                             lineClearAnimationRef,
-                            (lineCount: number) => triggerCameraShake(lineCount, shakeIntensityRef, prefersReducedMotion)
+                            clearedCells,
+                            movedCells
                         );
 
                         // Trigger enhanced line clear animation system
                         // Skip on weak devices to prevent stuttering
                         if (lineClearSystemRef.current && !isLowEndDevice) {
-                            // Collect cell positions for cleared lines
-                            const cellPositions: BABYLON.Vector3[] = [];
                             const clearedLineIndices = [...rows, ...cols];
-
-                            // Get positions from cleared cells
-                            rows.forEach(y => {
-                                for (let x = 0; x < GRID_SIZE; x++) {
-                                    const cell = grid[y]?.[x];
-                                    if (cell?.id) {
-                                        const mesh = meshMapRef.current.get(cell.id);
-                                        if (mesh) {
-                                            cellPositions.push(mesh.position.clone());
-                                        }
-                                    }
-                                }
-                            });
-
-                            cols.forEach(x => {
-                                for (let y = 0; y < GRID_SIZE; y++) {
-                                    const cell = grid[y]?.[x];
-                                    if (cell?.id) {
-                                        const mesh = meshMapRef.current.get(cell.id);
-                                        if (mesh) {
-                                            cellPositions.push(mesh.position.clone());
-                                        }
-                                    }
-                                }
-                            });
-
-                            // Collect ice block positions
+                            const seenCellPositions = new Set<string>();
+                            const cellPositions: BABYLON.Vector3[] = [];
                             const iceBlockPositions: BABYLON.Vector3[] = [];
-                            rows.forEach(y => {
-                                for (let x = 0; x < GRID_SIZE; x++) {
-                                    const cell = grid[y]?.[x];
-                                    if (cell?.id && cell.type === CellType.ICE) {
-                                        const mesh = meshMapRef.current.get(cell.id);
-                                        if (mesh) {
-                                            iceBlockPositions.push(mesh.position.clone());
-                                        }
-                                    }
-                                }
-                            });
 
-                            cols.forEach(x => {
-                                for (let y = 0; y < GRID_SIZE; y++) {
-                                    const cell = grid[y]?.[x];
-                                    if (cell?.id && cell.type === CellType.ICE) {
-                                        const mesh = meshMapRef.current.get(cell.id);
-                                        if (mesh) {
-                                            iceBlockPositions.push(mesh.position.clone());
-                                        }
-                                    }
+                            clearedCells.forEach((cell: any) => {
+                                const key = `${cell.x},${cell.y}`;
+                                if (seenCellPositions.has(key)) return;
+                                seenCellPositions.add(key);
+
+                                const mesh = cell.id ? meshMapRef.current.get(cell.id) : null;
+                                const position = mesh?.position.clone() || getVectorPos(cell.x, cell.y);
+                                cellPositions.push(position);
+
+                                if (cell.cellType === CellType.ICE) {
+                                    iceBlockPositions.push(position.clone());
                                 }
                             });
 
@@ -1545,7 +1521,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             // For now, let's just use a ref to track score
             if (stateRef.current.score > lastScoreRef.current) {
                 const diff = stateRef.current.score - lastScoreRef.current;
-                if (diff >= 100) { // Line clear or big combo
+                if (diff >= 100 && stateRef.current.lastAction?.type !== 'CLEAR') {
                     shakeIntensityRef.current = 0.5; // Trigger shake
                 }
                 lastScoreRef.current = stateRef.current.score;
@@ -1576,6 +1552,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
                 // Skip grid sync during line clear animation to prevent conflicts
                 const isAnimating = lineClearAnimationRef.current?.active || false;
+                const isLineClearContext = isAnimating || lastAction?.type === 'CLEAR';
 
                 // LOW DEVICE OPTIMIZATION: Skip lerp and emissive updates completely
                 const skipLerp = isLowEndDevice;
@@ -1590,11 +1567,11 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                         if (!mesh) {
                             mesh = createBlockMeshLocal(cell.color, cell.id, cell.type, cell.health);
                             mesh.position = targetPos.clone();
-                            mesh.position.y = skipLerp ? 0 : 2; // Instant placement on LOW devices, normal drop on others
+                            mesh.position.y = (skipLerp || isLineClearContext) ? 0 : 2; // Do not play placement drop during line-clear gravity
                             meshMap.set(cell.id, mesh);
 
                             // Track newly created block for placement animation
-                            if (!isLowEndDevice) {
+                            if (!isLowEndDevice && !isLineClearContext) {
                                 newlyCreatedIds.push(cell.id);
                             }
                         }
@@ -1704,7 +1681,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
             // Trigger placement animation for newly created blocks
             // Skip on weak devices to save CPU
-            if (newlyCreatedIds.length > 0 && !isLowEndDevice) {
+            if (newlyCreatedIds.length > 0 && !isLowEndDevice && !isLineClearContext) {
                 animatePlacement(newlyCreatedIds, meshMapRef.current, placementAnimationRef, disableAnimations, prefersReducedMotion);
 
                 // Trigger squash animation for newly placed blocks

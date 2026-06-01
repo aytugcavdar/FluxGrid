@@ -120,6 +120,7 @@ export const POINTS = {
 
 // TIMED Mode Constants
 export const TIMED_MODE = {
+  DURATION_SECONDS: 60,
   FINAL_SECONDS_THRESHOLD: 10,  // Seconds remaining for final bonus multiplier (1.5x)
   WARNING_THRESHOLD: 30,          // Seconds remaining for warning state
 };

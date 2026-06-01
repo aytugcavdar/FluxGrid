@@ -4,22 +4,15 @@
  */
 
 export const DIFFICULTY_SCALING = {
-  // Time bonus for line clears (REDUCED for harder gameplay)
-  // Formula: max(MIN_BONUS, MAX_BONUS - (score / DECAY_DIVISOR) * DECAY_RATE)
-  TIME_BONUS: {
-    MIN_BONUS: 0.3,        // Minimum seconds per line (at high scores) - REDUCED from 0.5
-    MAX_BONUS: 1.5,        // Maximum seconds per line (at score 0) - REDUCED from 2.0
-    DECAY_RATE: 0.1,       // Rate of decay per divisor unit
-    DECAY_DIVISOR: 5000,   // Score divisor for decay calculation
-  },
-
-  // Combo bonus time
-  // Formula: max(MIN_BONUS, MAX_BONUS - (score / DECAY_DIVISOR) * DECAY_RATE)
-  COMBO_BONUS: {
-    MIN_BONUS: 0.1,        // Minimum seconds per combo
-    MAX_BONUS: 0.5,        // Maximum seconds per combo (at score 0)
-    DECAY_RATE: 0.05,      // Rate of decay per divisor unit
-    DECAY_DIVISOR: 10000,  // Score divisor for decay calculation
+  // TIMED mode uses whole-second rewards for clear mobile feedback.
+  TIMED_CLEAR_BONUS: {
+    SINGLE_LINE: 1,
+    DOUBLE_LINE: 2,
+    TRIPLE_LINE: 3,
+    MULTI_LINE: 5,
+    PERFECT_CLEAR: 7,
+    COMBO_RUSH: 1,
+    MAX_TIME_SECONDS: 60,
   },
 
   // Easy piece spawn rate (dot, h2, v2) - REDUCED for harder gameplay

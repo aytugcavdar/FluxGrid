@@ -6,38 +6,29 @@
 import { DIFFICULTY_SCALING } from '../../constants/difficultyScaling';
 
 /**
- * Calculate time bonus for line clears based on current score
- * Formula: max(0.5, 2.0 - (score / 5000) * 0.1)
- * 
- * @param score - Current game score
- * @param linesCleared - Number of lines cleared (for future multi-line bonuses)
- * @returns Bonus seconds per line cleared
+ * Integer time rewards for TIMED mode.
+ * Keeps the reward readable on mobile: +1s, +2s, +3s, +5s.
  */
-export function calculateTimeBonus(score: number, linesCleared: number): number {
-  // Validate input
-  if (!Number.isFinite(score) || score < 0) {
-    score = 0; // Default to score 0 (maximum bonus)
+export function getTimedClearBonusSeconds(
+  linesCleared: number,
+  isPerfectClear = false,
+  comboRushActive = false
+): number {
+  if (!Number.isFinite(linesCleared) || linesCleared <= 0) {
+    return 0;
   }
-  
-  const { MIN_BONUS, MAX_BONUS, DECAY_RATE, DECAY_DIVISOR } = DIFFICULTY_SCALING.TIME_BONUS;
-  return Math.max(MIN_BONUS, MAX_BONUS - (score / DECAY_DIVISOR) * DECAY_RATE);
-}
 
-/**
- * Calculate combo bonus time based on current score
- * Formula: max(0.1, 0.5 - (score / 10000) * 0.05)
- * 
- * @param score - Current game score
- * @returns Bonus seconds per combo
- */
-export function calculateComboBonus(score: number): number {
-  // Validate input
-  if (!Number.isFinite(score) || score < 0) {
-    score = 0; // Default to score 0 (maximum bonus)
-  }
-  
-  const { MIN_BONUS, MAX_BONUS, DECAY_RATE, DECAY_DIVISOR } = DIFFICULTY_SCALING.COMBO_BONUS;
-  return Math.max(MIN_BONUS, MAX_BONUS - (score / DECAY_DIVISOR) * DECAY_RATE);
+  const rewards = DIFFICULTY_SCALING.TIMED_CLEAR_BONUS;
+  let bonus = 0;
+  if (linesCleared === 1) bonus = rewards.SINGLE_LINE;
+  else if (linesCleared === 2) bonus = rewards.DOUBLE_LINE;
+  else if (linesCleared === 3) bonus = rewards.TRIPLE_LINE;
+  else bonus = rewards.MULTI_LINE;
+
+  if (isPerfectClear) bonus += rewards.PERFECT_CLEAR;
+  if (comboRushActive) bonus += rewards.COMBO_RUSH;
+
+  return bonus;
 }
 
 /**

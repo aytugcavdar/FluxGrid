@@ -16,7 +16,7 @@ const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)
 /* ─── Dairesel Timer ─── */
 const RADIUS = 28;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-const TOTAL_TIME = 120;
+const TOTAL_TIME = TIMED_MODE.DURATION_SECONDS;
 
 const CircularTimer: React.FC<{
   timeLeft: number;

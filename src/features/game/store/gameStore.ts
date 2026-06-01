@@ -23,11 +23,28 @@ import { migrateSaveData, SaveData } from './helpers/migration';
 import { storageService as LocalStorageService } from '@core/services/storage/StorageService';
 import { useVisualEffectStore } from '../../visual-effects/store/visualEffectStore';
 import { saveGameState, loadGameState, clearGameSave, hasSavedGame } from './helpers/gameSaveSystem';
-import { calculateTimeBonus, calculateComboBonus } from './helpers/difficultyScaling';
+import { getTimedClearBonusSeconds } from './helpers/difficultyScaling';
+import { DIFFICULTY_SCALING } from '../constants/difficultyScaling';
 
 // Re-export slice types for consumers
 export type { TimedModeSlice } from './slices/timedModeSlice';
 export type { ProgressionSlice } from './slices/progressionSlice';
+
+export interface TimedScoreBreakdown {
+  placementAndLines: number;
+  combo: number;
+  bonus: number;
+  finalSprint: number;
+  total: number;
+}
+
+const createEmptyTimedScoreBreakdown = (): TimedScoreBreakdown => ({
+  placementAndLines: 0,
+  combo: 0,
+  bonus: 0,
+  finalSprint: 0,
+  total: 0,
+});
 
 /**
  * Synchronous stats save — ensures stats persist even when async
@@ -88,6 +105,23 @@ export interface GameStore {
     combo?: number;
     chainCount?: number;
     colorBonus?: boolean;
+    clearedCells?: Array<{
+      x: number;
+      y: number;
+      id?: string;
+      color: string;
+      cellType?: CellType;
+    }>;
+    clearedRows?: number[];
+    clearedCols?: number[];
+    movedCells?: Array<{
+      id?: string;
+      x: number;
+      fromY: number;
+      toY: number;
+      cellType?: CellType;
+    }>;
+    isPerfectClear?: boolean;
     tier?: number;
     tierName?: string;
     cellIds?: string[];
@@ -144,6 +178,7 @@ export interface GameStore {
   timedBoostMovesLeft: number;
   maxCombo: number;
   finalSprintBonus: number;
+  timedScoreBreakdown: TimedScoreBreakdown;
   timedMilestones: Set<string>;
   lastMilestoneShown: { id: string; label: string } | null;
   showNewRecordNotification: boolean;
@@ -278,6 +313,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     timedBoostMovesLeft: 0,
     maxCombo: 0,
     finalSprintBonus: 0,
+    timedScoreBreakdown: createEmptyTimedScoreBreakdown(),
     timedMilestones: new Set<string>(),
     lastMilestoneShown: null,
     showNewRecordNotification: false,
@@ -353,12 +389,13 @@ export const useGameStore = create<GameStore>((set, get) => {
             appState: AppState.GAME,
             gameMode: mode,
             // Timed mode slice
-            timeLeft: isTimed ? 60 : 0,
+            timeLeft: isTimed ? TIMED_MODE.DURATION_SECONDS : 0,
             timerStartTime: null,
             timerExpectedEnd: null,
             timedBoostMovesLeft: 0,
             maxCombo: 0,
             finalSprintBonus: 0,
+            timedScoreBreakdown: createEmptyTimedScoreBreakdown(),
             timedMilestones: new Set<string>(),
             lastMilestoneShown: null,
             showNewRecordNotification: false,
@@ -466,8 +503,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         const now = Date.now();
         set({
           timerStartTime: now,
-          timerExpectedEnd: now + 60000,
-          timeLeft: 60,
+          timerExpectedEnd: now + TIMED_MODE.DURATION_SECONDS * 1000,
+          timeLeft: TIMED_MODE.DURATION_SECONDS,
         });
       }
 
@@ -607,9 +644,10 @@ export const useGameStore = create<GameStore>((set, get) => {
       const colorBonusMultiplier = (linesCleared > 0 && colorBonus) ? POINTS.COLOR_BONUS_MULTIPLIER : 1;
       const isFinalSeconds = gameMode === GameMode.TIMED && get().timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD;
 
-      const basePoints = (blocksPlaced * POINTS.BLOCK_PLACED) +
-                         (linesCleared * POINTS.LINE_CLEARED) +
-                         (comboMultiplier * POINTS.COMBO_MULTIPLIER);
+      const placementAndLinePoints = (blocksPlaced * POINTS.BLOCK_PLACED) +
+                                     (linesCleared * POINTS.LINE_CLEARED);
+      const comboPoints = comboMultiplier * POINTS.COMBO_MULTIPLIER;
+      const basePoints = placementAndLinePoints + comboPoints;
 
       const { score: pointsGained, breakdown } = calculateScore(
         basePoints,
@@ -628,7 +666,18 @@ export const useGameStore = create<GameStore>((set, get) => {
         sprintBonusGained = Math.floor(basePoints * 0.5);
       }
 
-      let newScore = score + pointsGained;
+      const scoreBonusPoints = Math.max(0, pointsGained - basePoints);
+      const timedScoreDelta = pointsGained + sprintBonusGained;
+      const previousTimedBreakdown = get().timedScoreBreakdown;
+      const timedScoreBreakdown = isTimedMode ? {
+        placementAndLines: previousTimedBreakdown.placementAndLines + placementAndLinePoints,
+        combo: previousTimedBreakdown.combo + comboPoints,
+        bonus: previousTimedBreakdown.bonus + scoreBonusPoints,
+        finalSprint: previousTimedBreakdown.finalSprint + sprintBonusGained,
+        total: previousTimedBreakdown.total + timedScoreDelta,
+      } : previousTimedBreakdown;
+
+      let newScore = score + timedScoreDelta;
 
       // Milestones (Endless only)
       if (gameMode === GameMode.ENDLESS) {
@@ -642,7 +691,26 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       // lastAction
       if (linesCleared > 0) {
-        set({ lastAction: { type: 'CLEAR', lines: linesCleared, combo: comboMultiplier, chainCount, colorBonus } });
+        const clearActions = actions.filter(action => action.type === 'CELL_CLEAR');
+        const clearedCells = clearActions.flatMap(action => action.cells || []);
+        const clearedRows = Array.from(new Set(clearActions.flatMap(action => action.rows || [])));
+        const clearedCols = Array.from(new Set(clearActions.flatMap(action => action.cols || [])));
+        const movedCells = clearActions.flatMap(action => action.movedCells || []);
+
+        set({
+          lastAction: {
+            type: 'CLEAR',
+            lines: linesCleared,
+            combo: comboMultiplier,
+            chainCount,
+            colorBonus,
+            clearedCells,
+            clearedRows,
+            clearedCols,
+            movedCells,
+            isPerfectClear,
+          }
+        });
         if (gameMode === GameMode.DAILY_CHALLENGE) {
           const snapshot = new Array(linesCleared).fill(null).map(() => new Array(4).fill(null).map(() => Math.random() > 0.3));
           set({ dailyClearHistory: [...get().dailyClearHistory, ...snapshot].slice(-6) });
@@ -707,19 +775,18 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       // Timed mode time reward
       let extraTime = 0;
-      const previousCombo = combo;
+      let timedTimeLeft = get().timeLeft;
       if (get().gameMode === GameMode.TIMED && linesCleared > 0) {
-        const bonusPerLine = calculateTimeBonus(score, linesCleared);
-        extraTime = linesCleared * bonusPerLine;
-        if (comboMultiplier > 1) extraTime += calculateComboBonus(score);
+        extraTime = getTimedClearBonusSeconds(linesCleared, isPerfectClear, isRushActive);
 
         const currentExpectedEnd = get().timerExpectedEnd;
         if (currentExpectedEnd) {
           const nowTs = Date.now();
-          const maxTime = nowTs + 60000;
+          const maxTime = nowTs + DIFFICULTY_SCALING.TIMED_CLEAR_BONUS.MAX_TIME_SECONDS * 1000;
           const newExpectedEnd = Math.min(maxTime, currentExpectedEnd + (extraTime * 1000));
           const newTimeLeft = Math.max(0, Math.ceil((newExpectedEnd - nowTs) / 1000));
           extraTime = newTimeLeft - get().timeLeft;
+          timedTimeLeft = newTimeLeft;
           set({ timerExpectedEnd: newExpectedEnd });
         }
       }
@@ -742,7 +809,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       let finalGrid = (eventUpdates as any)?.grid ?? (tierUpdates as any)?.grid ?? newGrid;
 
       let eventLinesCleared = 0;
-      let totalPointsGained = pointsGained;
+      let totalPointsGained = timedScoreDelta;
       let totalLinesCleared = linesCleared;
       let totalBombsExploded = bombsExploded;
       let totalIceBroken = iceBroken;
@@ -772,9 +839,14 @@ export const useGameStore = create<GameStore>((set, get) => {
           totalColorBonus = totalColorBonus || processResult.colorBonus;
           maxChainCount = Math.max(maxChainCount, processResult.chainCount);
           if (eventUpdates) {
+            const eventClearActions = processResult.actions.filter(action => action.type === 'CELL_CLEAR');
             (eventUpdates as any).lastAction = {
               type: 'CLEAR', lines: eventLinesCleared,
               chainCount: processResult.chainCount, colorBonus: processResult.colorBonus,
+              clearedCells: eventClearActions.flatMap(action => action.cells || []),
+              clearedRows: Array.from(new Set(eventClearActions.flatMap(action => action.rows || []))),
+              clearedCols: Array.from(new Set(eventClearActions.flatMap(action => action.cols || []))),
+              movedCells: eventClearActions.flatMap(action => action.movedCells || []),
             };
           }
         }
@@ -796,8 +868,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         highScore: Math.max(newScore, get().highScore),
         combo: newCombo,
         pieces: currentPieces,
-        timeLeft: Math.min(99, get().timeLeft + extraTime),
+        timeLeft: timedTimeLeft,
         finalSprintBonus: get().finalSprintBonus + sprintBonusGained,
+        timedScoreBreakdown,
         maxCombo: newMaxCombo,
         timedBoostMovesLeft: newTimedBoostMoves,
         miniEventState: updatedMiniEventState,
@@ -1001,6 +1074,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         timeLeft: state.timeLeft,
         timedBoostMovesLeft: state.timedBoostMovesLeft,
         maxCombo: state.maxCombo,
+        timedScoreBreakdown: state.timedScoreBreakdown,
         activeEvent: state.activeEvent,
         eventMovesRemaining: state.eventMovesRemaining,
         miniEventState: state.miniEventState,
@@ -1049,6 +1123,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           tierStartMove: savedState.tierStartMove ?? savedState.totalMovesPlayed,
           timerStartTime: isTimed ? now : null,
           timerExpectedEnd: isTimed ? now + (savedState.timeLeft * 1000) : null,
+          timedScoreBreakdown: savedState.timedScoreBreakdown ?? createEmptyTimedScoreBreakdown(),
           isGameOver: false,
           draggedPiece: null,
         });

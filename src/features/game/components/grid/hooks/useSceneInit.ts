@@ -14,6 +14,7 @@ import { isAndroid as isAndroidPlatform } from '../../../../utils/platform/platf
 import { MeshPool } from '../grid/helpers/meshPoolHelpers';
 import {
   CELL_SIZE,
+  SLOT_SIZE,
   TOTAL_CELL_SIZE,
   GRID_OFFSET,
   GHOST_POOL_SIZE,
@@ -197,7 +198,7 @@ export function useSceneInit(canvasRef: React.RefObject<HTMLCanvasElement>): Sce
 
       for (let y = 0; y < GRID_SIZE; y++) {
         for (let x = 0; x < GRID_SIZE; x++) {
-          const slot = BABYLON.MeshBuilder.CreateBox(`slot-${x}-${y}`, { width: 0.95, depth: 0.95, height: 0.05 }, scene);
+          const slot = BABYLON.MeshBuilder.CreateBox(`slot-${x}-${y}`, { width: SLOT_SIZE, depth: SLOT_SIZE, height: 0.05 }, scene);
           slot.position.x = (x * TOTAL_CELL_SIZE) - GRID_OFFSET;
           slot.position.z = -((y * TOTAL_CELL_SIZE) - GRID_OFFSET);
           slot.position.y = -0.5;

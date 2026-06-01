@@ -22,6 +22,13 @@ export interface SavedGameState {
   timeLeft: number;
   timedBoostMovesLeft: number;
   maxCombo: number;
+  timedScoreBreakdown?: {
+    placementAndLines: number;
+    combo: number;
+    bonus: number;
+    finalSprint: number;
+    total: number;
+  };
   
   // Event system
   activeEvent: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;

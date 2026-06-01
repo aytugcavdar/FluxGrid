@@ -4,7 +4,7 @@
  */
 
 import * as BABYLON from 'babylonjs';
-import { GRID_SIZE, TOTAL_CELL_SIZE } from '../constants';
+import { GRID_SIZE, SLOT_SIZE, TOTAL_CELL_SIZE } from '../constants';
 
 export interface SceneSetupResult {
   engine: BABYLON.Engine;
@@ -180,7 +180,7 @@ export const createGridSlots = (
 
   for (let y = 0; y < GRID_SIZE; y++) {
     for (let x = 0; x < GRID_SIZE; x++) {
-      const slot = BABYLON.MeshBuilder.CreateBox(`slot-${x}-${y}`, { width: 0.95, depth: 0.95, height: 0.05 }, scene);
+      const slot = BABYLON.MeshBuilder.CreateBox(`slot-${x}-${y}`, { width: SLOT_SIZE, depth: SLOT_SIZE, height: 0.05 }, scene);
       slot.position.x = (x * TOTAL_CELL_SIZE) - GRID_OFFSET;
       slot.position.z = -((y * TOTAL_CELL_SIZE) - GRID_OFFSET);
       slot.position.y = -0.5;

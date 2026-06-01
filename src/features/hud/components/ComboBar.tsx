@@ -1,110 +1,89 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { COMBO_TIMER } from '@features/game/constants';
 import { useGameStore } from '@features/game/store/gameStore';
 
-const COMBO_DECAY_MS = 4000; // 4 saniyede combo sıfırlanır (görsel)
+interface ComboBarProps {
+  gridSize?: number;
+  side?: 'left' | 'right';
+}
 
-export const ComboBar: React.FC = React.memo(() => {
-  const combo = useGameStore(s => s.combo);
-  const lastAction = useGameStore(s => s.lastAction);
-  const [fillPercent, setFillPercent] = useState(0);
-  const [isDecaying, setIsDecaying] = useState(false);
-  const decayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const decayStartRef = useRef<number>(0);
-  const rafRef = useRef<number>(0);
+export const ComboBar: React.FC<ComboBarProps> = React.memo(({ gridSize = 0, side = 'left' }) => {
+  const combo = useGameStore(state => state.combo);
+  const comboTimeLeft = useGameStore(state => state.comboTimeLeft);
+  const comboTimerDuration = useGameStore(state => state.comboTimerDuration);
+  const isGameOver = useGameStore(state => state.isGameOver);
 
-  // Combo değişince bar'ı doldur ve decay başlat
-  useEffect(() => {
-    if (combo <= 0) {
-      setFillPercent(0);
-      setIsDecaying(false);
-      if (decayTimerRef.current) clearTimeout(decayTimerRef.current);
-      cancelAnimationFrame(rafRef.current);
-      return;
-    }
+  if (combo <= 0 || isGameOver) return null;
 
-    // Bar'ı yüzde doldur: combo ne kadar yüksekse o kadar hızlı dolar
-    setFillPercent(100);
-    setIsDecaying(false);
-
-    // Decay başlat
-    if (decayTimerRef.current) clearTimeout(decayTimerRef.current);
-    decayTimerRef.current = setTimeout(() => {
-      setIsDecaying(true);
-      decayStartRef.current = Date.now();
-      
-      const decay = () => {
-        const elapsed = Date.now() - decayStartRef.current;
-        const remaining = Math.max(0, 1 - elapsed / COMBO_DECAY_MS);
-        setFillPercent(remaining * 100);
-        
-        if (remaining > 0) {
-          rafRef.current = requestAnimationFrame(decay);
-        } else {
-          setIsDecaying(false);
-        }
-      };
-      
-      rafRef.current = requestAnimationFrame(decay);
-    }, 500); // 0.5s sonra decay başlasın
-
-    return () => {
-      if (decayTimerRef.current) clearTimeout(decayTimerRef.current);
-      cancelAnimationFrame(rafRef.current);
-    };
-  }, [combo, lastAction]);
-
-  if (combo <= 0) return null;
-
-  // Combo seviyesine göre renk:
-  const barColor = combo >= 8 ? '#f472b6'
+  const durationSeconds = comboTimerDuration > 0
+    ? comboTimerDuration / 1000
+    : COMBO_TIMER.DURATION / 1000;
+  const timeLeft = comboTimeLeft > 0 ? comboTimeLeft : durationSeconds;
+  const fillPercent = Math.max(0, Math.min(100, (timeLeft / durationSeconds) * 100));
+  const isCritical = timeLeft <= COMBO_TIMER.CRITICAL_THRESHOLD;
+  const isWarning = timeLeft <= COMBO_TIMER.WARNING_THRESHOLD;
+  const barColor = isCritical ? '#ef4444'
+    : isWarning ? '#f59e0b'
+    : combo >= 8 ? '#f472b6'
     : combo >= 5 ? '#f59e0b'
     : combo >= 3 ? '#34d399'
     : '#22c55e';
+  const sideOffset = gridSize > 0
+    ? `max(6px, calc(50% - ${Math.round(gridSize / 2)}px - 34px))`
+    : 8;
 
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, scaleX: 0.8 }}
-        animate={{ opacity: 1, scaleX: 1 }}
-        exit={{ opacity: 0, scaleX: 0.8 }}
+        initial={{ opacity: 0, x: side === 'left' ? -8 : 8, y: '-50%' }}
+        animate={{ opacity: 1, x: 0, y: '-50%' }}
+        exit={{ opacity: 0, x: side === 'left' ? -8 : 8, y: '-50%' }}
         style={{
-          position: 'fixed',
-          left: 12,
+          position: 'absolute',
+          [side]: sideOffset,
           top: '50%',
-          transform: 'translateY(-50%)',
           zIndex: 35,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: 4,
+          gap: 5,
           pointerEvents: 'none',
         }}
       >
-        {/* Combo sayısı */}
         <motion.div
           key={combo}
-          initial={{ scale: 1.4, opacity: 0 }}
+          initial={{ scale: 1.2, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.16 }}
           style={{
-            fontSize: 22,
-            fontWeight: 700,
+            minWidth: 28,
+            minHeight: 24,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 8,
+            background: 'rgba(8,10,24,0.72)',
+            border: `1px solid ${barColor}66`,
+            boxShadow: `0 0 14px ${barColor}24`,
+            fontSize: 17,
+            fontWeight: 900,
             color: barColor,
             lineHeight: 1,
-            letterSpacing: '-0.02em',
+            letterSpacing: 0,
           }}
         >
           x{combo}
         </motion.div>
 
-        {/* Dikey bar */}
         <div style={{
-          width: 4,
-          height: 80,
-          background: 'rgba(255,255,255,0.06)',
-          borderRadius: 2,
+          width: 6,
+          height: 88,
+          background: 'rgba(255,255,255,0.07)',
+          borderRadius: 999,
           overflow: 'hidden',
           position: 'relative',
+          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06)',
         }}>
           <motion.div
             style={{
@@ -114,39 +93,35 @@ export const ComboBar: React.FC = React.memo(() => {
               right: 0,
               height: `${fillPercent}%`,
               background: barColor,
-              borderRadius: 2,
+              borderRadius: 999,
+              boxShadow: `0 0 12px ${barColor}80`,
             }}
             animate={{ height: `${fillPercent}%` }}
-            transition={{ duration: isDecaying ? 0.05 : 0.2 }}
+            transition={{ duration: 0.18, ease: 'linear' }}
           />
         </div>
 
-        {/* COMBO label */}
         <div style={{
-          fontSize: 8,
+          fontSize: 7,
           color: `${barColor}80`,
           fontWeight: 700,
-          letterSpacing: '.08em',
+          letterSpacing: 0,
           writingMode: 'vertical-rl',
           transform: 'rotate(180deg)',
         }}>
           COMBO
         </div>
 
-        {/* Combo çarpan göstergesi */}
-        {combo >= 2 && (
-          <motion.div
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            style={{
-              fontSize: 9,
-              color: 'rgba(255,255,255,0.4)',
-              marginTop: 2,
-            }}
-          >
-            +{combo * 75} bonus
-          </motion.div>
-        )}
+        <div style={{
+          minWidth: 24,
+          textAlign: 'center',
+          fontSize: 9,
+          color: isCritical ? '#fecaca' : 'rgba(255,255,255,0.56)',
+          fontWeight: 800,
+          lineHeight: 1,
+        }}>
+          {Math.ceil(timeLeft)}s
+        </div>
       </motion.div>
     </AnimatePresence>
   );

@@ -27,7 +27,7 @@ export interface LineClearAnimationState {
   progress: number;
   startTime: number;
   clearedCells: Set<string>;
-  affectedBlocks: Map<string, { startY: number; targetY: number }>;
+  affectedBlocks: Map<string, { startPosition: BABYLON.Vector3; targetPosition: BABYLON.Vector3 }>;
   originalColors: Map<string, BABYLON.Color3>;
 }
 
