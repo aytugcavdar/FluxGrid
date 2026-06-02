@@ -5,6 +5,7 @@
 
 import * as BABYLON from 'babylonjs';
 import { GridState } from '../../../types';
+import { TOTAL_CELL_SIZE } from '../constants';
 
 function getClearedCellMesh(
   anim: any,
@@ -200,8 +201,8 @@ export function updateLineClearAnimation(
     }
   } else if (anim.phase === 'collapse') {
     // Stage 3: quick settle for affected blocks.
-    if (elapsed < 110) {
-      anim.progress = elapsed / 110;
+    if (elapsed < 92) {
+      anim.progress = elapsed / 92;
       const easedProgress = anim.progress * (2 - anim.progress); // ease-out-quad
       
       // Animate falling blocks
@@ -210,7 +211,10 @@ export function updateLineClearAnimation(
         const cell = grid[y]?.[x];
         const mesh = cell?.id ? meshMap.get(cell.id) : undefined;
         if (mesh && data.startPosition && data.targetPosition) {
-          mesh.position = BABYLON.Vector3.Lerp(data.startPosition, data.targetPosition, easedProgress);
+          const nextPosition = BABYLON.Vector3.Lerp(data.startPosition, data.targetPosition, easedProgress);
+          const fallDistance = Math.abs(data.targetPosition.z - data.startPosition.z) / TOTAL_CELL_SIZE;
+          nextPosition.y += Math.sin(easedProgress * Math.PI) * Math.min(0.14, 0.035 * fallDistance);
+          mesh.position = nextPosition;
         }
       });
     } else {

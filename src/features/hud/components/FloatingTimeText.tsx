@@ -12,7 +12,7 @@ interface FloatingTime {
 }
 
 export const FloatingTimeText: React.FC = React.memo(() => {
-  const { gameMode, timerExpectedEnd, isGameOver, lastAction } = useGameStore();
+  const { gameMode, timerExpectedEnd, isGameOver } = useGameStore();
   const [floatingTexts, setFloatingTexts] = useState<FloatingTime[]>([]);
   const [prevExpectedEnd, setPrevExpectedEnd] = useState<number | null>(null);
   const [prefersReducedMotion] = useState(detectReducedMotion());
@@ -30,10 +30,8 @@ export const FloatingTimeText: React.FC = React.memo(() => {
       // Only show whole-second rewards.
       if (addedSeconds >= 1) {
         
-        // Use a fixed position slightly offset from the score to prevent overlap
-        // or position based on last action if possible
         const x = window.innerWidth / 2;
-        const y = window.innerHeight / 2 + 60; // Below center
+        const y = Math.max(132, window.innerHeight * 0.34);
         
         const newText: FloatingTime = {
           id: `${Date.now()}-${Math.random()}`,
@@ -87,12 +85,11 @@ export const FloatingTimeText: React.FC = React.memo(() => {
               }}
               style={{
                 position: 'fixed',
-                left: '50%',
-                top: '50%',
+                left: text.x,
+                top: text.y,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                marginTop: 80, // Offset below the score text
               }}
             >
               <div style={{

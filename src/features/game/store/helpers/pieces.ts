@@ -3,7 +3,7 @@
  */
 import { v4 as uuidv4 } from 'uuid';
 import { Piece, PieceShape, GridState, GRID_SIZE, CellType } from '../../types';
-import { SHAPES } from '../../constants';
+import { SHAPES, SPAWN_RATES } from '../../constants';
 import { SeededRNG, getDailySeed } from '@features/game/utils/game/seededRng';
 import { GameMode } from '@shared/types';
 import { isPieceBlessingActive } from './miniEventSystem';
@@ -24,6 +24,15 @@ function weightedPick(
 }
 
 let currentDailyRNG: SeededRNG | null = null;
+
+function pickSpecialBlockType(rng: () => number, gameMode?: GameMode): CellType {
+  if (gameMode === GameMode.TIMED) return CellType.NORMAL;
+
+  const roll = rng();
+  if (roll < SPAWN_RATES.BOMB) return CellType.BOMB;
+  if (roll < SPAWN_RATES.BOMB + SPAWN_RATES.ICE) return CellType.ICE;
+  return CellType.NORMAL;
+}
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const normalized = hex.replace('#', '');
@@ -293,20 +302,12 @@ export const getRandomPiecesSync = (
     let selectedShape: PieceShape = SHAPES[0]; // Initialize with fallback
     let attempts = 0;
 
-    // Special block type selection - MUST happen before shape selection
-    let type: CellType = CellType.NORMAL;
-    
-    // TIMED MODE: No special blocks (ICE, BOMB) - keep it simple and fast-paced
-    if (gameMode !== GameMode.TIMED) {
-      const specialRand = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
-      
-      // Special blocks: BOMB 8%, ICE 7%, NORMAL 85%
-      if (specialRand > 0.92) {
-        type = CellType.BOMB;
-      } else if (specialRand > 0.85) {
-        type = CellType.ICE;
-      }
-    }
+    // Special block type selection - MUST happen before shape selection.
+    // Timed mode stays clean and fast-paced.
+    const type = pickSpecialBlockType(
+      useSeededRNG && currentDailyRNG ? () => currentDailyRNG!.next() : Math.random,
+      gameMode
+    );
 
     // PIECE_BLESSING: Override all logic and use only blessed shapes
     if (blessingActive && blessedShapes) {
@@ -666,15 +667,10 @@ export const getRandomPieces = (
     }
     
     // Special block type selection
-    let type: CellType = CellType.NORMAL;
-    const specialRand = isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
-    
-    // Special blocks: BOMB 8%, ICE 7%, NORMAL 85%
-    if (specialRand > 0.92) {
-      type = CellType.BOMB;
-    } else if (specialRand > 0.85) {
-      type = CellType.ICE;
-    }
+    const type = pickSpecialBlockType(
+      isDaily && currentDailyRNG ? () => currentDailyRNG!.next() : Math.random,
+      gameMode
+    );
 
     // Determine piece color based on type
     let pieceColor: string;

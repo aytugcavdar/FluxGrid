@@ -134,9 +134,9 @@ export const COMBO_TIMER = {
 
 // Spawn rates for currently supported block types.
 export const SPAWN_RATES = {
-  NORMAL: 0.85,    // 85%
-  ICE: 0.07,       // 7%
-  BOMB: 0.08,      // 8%
+  NORMAL: 0.90,    // 90%
+  ICE: 0.05,       // 5%
+  BOMB: 0.05,      // 5%
 } as const;
 
 // Achievements

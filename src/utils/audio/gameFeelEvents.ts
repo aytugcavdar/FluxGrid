@@ -1,6 +1,6 @@
 import { hapticEvents } from './haptics';
 
-const COMBO_AFTER_CLEAR_DELAY_MS = 105;
+const COMBO_AFTER_CLEAR_DELAY_MS = 155;
 
 const schedule = (callback: () => void, delayMs: number): void => {
   if (typeof window !== 'undefined') {

@@ -61,7 +61,7 @@ export class PlacementImpactSystem {
       scaleTo: 1.0,
       peakDuration: 80,
       returnDuration: 120,
-      particleCount: 10,
+      particleCount: 6,
       particleSpeed: 300,
       hapticIntensity: 0.5
     };
@@ -126,20 +126,21 @@ export class PlacementImpactSystem {
    * Requirements: 1.2
    */
   private emitImpactParticles(cellIds: string[], meshMap: Map<string, BABYLON.Mesh>): void {
-    cellIds.forEach(id => {
+    const maxImpactCells = this.qualityPreset === 'low' ? 2 : 4;
+    const impactCellIds = cellIds.slice(0, maxImpactCells);
+    const particlesPerCell = Math.max(2, Math.ceil(this.config.particleCount / Math.max(1, impactCellIds.length)));
+
+    impactCellIds.forEach(id => {
       const mesh = meshMap.get(id);
       if (!mesh) return;
-      
-      // Random particle count (8-12)
-      const count = Math.floor(8 + Math.random() * 5);
-      
+
       // Emit radial particles
       this.particleEmitter.emitRadial('impact', {
         position: mesh.position.clone(),
-        count,
-        velocityMin: 200,
-        velocityMax: 400,
-        lifetime: 300,
+        count: particlesPerCell,
+        velocityMin: 140,
+        velocityMax: 260,
+        lifetime: 240,
         applyGravity: false
       });
     });
@@ -226,13 +227,13 @@ export class PlacementImpactSystem {
     // Adjust particle count based on quality
     switch (preset) {
       case 'high':
-        this.config.particleCount = 10;
-        break;
-      case 'medium':
         this.config.particleCount = 6;
         break;
-      case 'low':
+      case 'medium':
         this.config.particleCount = 4;
+        break;
+      case 'low':
+        this.config.particleCount = 2;
         break;
     }
   }

@@ -1444,6 +1444,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                     const clearedCells = lastAction.clearedCells || [];
                     const movedCells = lastAction.movedCells || [];
                     const lockedIceCells = lastAction.lockedIceCells || [];
+                    const bombClearCells = clearedCells.filter((cell: any) => cell.cellType === CellType.BOMB);
                     clearedCells.forEach((cell: any) => {
                         if (!cell.id || meshMapRef.current.has(cell.id)) return;
                         const mesh = createBlockMeshLocal(cell.color, cell.id, cell.cellType || CellType.NORMAL);
@@ -1499,6 +1500,36 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                                         (targetMesh.material as BABYLON.StandardMaterial).emissiveColor = originalEmissive;
                                     }
                                 }, 360);
+                            });
+                        }
+
+                        if (bombClearCells.length > 0 && !isLowEndDevice) {
+                            bombClearCells.slice(0, 3).forEach((cell: any) => {
+                                const meshId = cell.id || grid[cell.y]?.[cell.x]?.id;
+                                const targetMesh = meshId ? meshMapRef.current.get(meshId) : null;
+                                const position = targetMesh?.position.clone() || getVectorPos(cell.x, cell.y);
+                                const ring = BABYLON.MeshBuilder.CreateTorus(`bomb-clear-${cell.x}-${cell.y}-${Date.now()}`, {
+                                    diameter: 0.86,
+                                    thickness: 0.03,
+                                    tessellation: 20,
+                                }, scene);
+                                ring.position = position;
+                                ring.position.y += 0.56;
+                                ring.rotation.x = Math.PI / 2;
+                                ring.isPickable = false;
+
+                                const mat = new BABYLON.StandardMaterial(`bomb-clear-mat-${cell.x}-${cell.y}-${Date.now()}`, scene);
+                                mat.diffuseColor = BABYLON.Color3.FromHexString('#fb923c').scale(0.35);
+                                mat.emissiveColor = BABYLON.Color3.FromHexString('#f97316').scale(0.85);
+                                mat.alpha = 0.7;
+                                mat.disableLighting = true;
+                                mat.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+                                ring.material = mat;
+
+                                setTimeout(() => {
+                                    ring.dispose();
+                                    mat.dispose();
+                                }, 300);
                             });
                         }
 
