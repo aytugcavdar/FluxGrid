@@ -83,37 +83,37 @@ const INTENSITY_MULTIPLIER: Record<HapticIntensity, number> = {
 const HAPTIC_PATTERNS: Record<HapticPattern, HapticPatternConfig> = {
   // New patterns for game juice
   placement: {
-    vibration: [72],
+    vibration: [42],
     impactStyle: ImpactStyle.Medium,
     cooldownMs: 90,
     priority: 'gameplay'
   },
   place: {
-    vibration: [72],
+    vibration: [42],
     impactStyle: ImpactStyle.Medium,
     cooldownMs: 90,
     priority: 'gameplay'
   },
   line_clear_single: {
-    vibration: [48],
+    vibration: [32, 18, 42],
     impactStyle: ImpactStyle.Light,
     cooldownMs: 150,
     priority: 'gameplay'
   },
   clear_single: {
-    vibration: [48],
+    vibration: [32, 18, 42],
     impactStyle: ImpactStyle.Light,
     cooldownMs: 150,
     priority: 'gameplay'
   },
   line_clear_multi: {
-    vibration: [66, 30, 98],
+    vibration: [48, 24, 72],
     impactStyle: ImpactStyle.Medium,
     cooldownMs: 180,
     priority: 'high'
   },
   clear_multi: {
-    vibration: [66, 30, 98],
+    vibration: [48, 24, 72],
     impactStyle: ImpactStyle.Medium,
     cooldownMs: 180,
     priority: 'high'
@@ -201,7 +201,7 @@ const HAPTIC_PATTERNS: Record<HapticPattern, HapticPatternConfig> = {
     skipInReducedMotion: true
   },
   invalid: {
-    vibration: [34, 24, 48],
+    vibration: [24, 18, 34],
     impactStyle: ImpactStyle.Light,
     cooldownMs: 140,
     priority: 'high'

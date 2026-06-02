@@ -26,8 +26,8 @@ Oyun, cihazları 6 farklı tier'a ayırır ve her tier için optimize edilmiş p
 
 ```typescript
 enum DeviceTier {
-  LOW = 'low',           // 0-30 puan
-  LOW_MID = 'low-mid',   // 31-45 puan
+  LOW = 'low',           // 0-35 puan
+  LOW_MID = 'low-mid',   // 36-45 puan
   MID_LOW = 'mid-low',   // 46-60 puan
   MID = 'mid',           // 61-70 puan
   MID_HIGH = 'mid-high', // 71-80 puan
@@ -49,17 +49,19 @@ enum DeviceTier {
 
 ## 📊 Tier Sınıflandırması
 
-### LOW Tier (0-30 puan)
+### LOW Tier (0-35 puan)
 
 **Cihaz Özellikleri**:
-- RAM: < 3 GB
-- CPU: 2-4 cores
-- GPU: Adreno 3xx/4xx, Mali-4xx, PowerVR SGX
+- RAM: < 4 GB
+- CPU: 2-4 cores veya eski 6-8 cores
+- GPU: Adreno 3xx/4xx, Mali-4xx/G51/G52, PowerVR SGX
 
 **Örnek Cihazlar**:
+- Honor 9X (Mali-G52, 4-6GB RAM, 8 cores) - **Yeni LOW tier örneği**
+- Redmi Note 9 (Mali-G52)
 - Samsung Galaxy J Series
 - Xiaomi Redmi 6/7
-- Eski budget telefonlar (2018 öncesi)
+- Eski budget telefonlar (2018-2019)
 
 **Performans Ayarları**:
 ```typescript
@@ -73,19 +75,24 @@ enum DeviceTier {
 }
 ```
 
+**Görsel Ayarlar** (Yeni):
+- Grid renkleri: HIGH tier ile aynı (parlak)
+- Grid çizgileri: Aktif (alpha: 0.8)
+- Emissive: 0.8x scale
+
 ---
 
-### LOW_MID Tier (31-45 puan)
+### LOW_MID Tier (36-45 puan)
 
 **Cihaz Özellikleri**:
-- RAM: 3-4 GB
-- CPU: 4-6 cores
-- GPU: Adreno 5xx (500-520), Mali-G31, PowerVR Rogue
+- RAM: 4-6 GB
+- CPU: 6-8 cores
+- GPU: Adreno 5xx (530-590), Mali-G71, PowerVR Rogue
 
 **Örnek Cihazlar**:
 - Samsung Galaxy A10/A20
-- Xiaomi Redmi 8/9
-- Entry-level 2019-2020 cihazlar
+- Xiaomi Redmi Note 8
+- Entry-level 2020-2021 cihazlar
 
 **Performans Ayarları**:
 ```typescript
@@ -284,13 +291,22 @@ CPU: 10 cores → 20 puan
 Total: 95 puan → HIGH tier
 ```
 
+**Honor 9X** (Yeni LOW tier örneği):
+```
+GPU: Mali-G52 (Tier 1) → 10 puan
+RAM: 4-6 GB → 10-15 puan
+CPU: 8 cores → 15 puan
+─────────────────────────
+Total: 35-40 puan → LOW tier
+```
+
 **Oppo A60**:
 ```
-GPU: Mali-G52 (Tier 2) → 20 puan
+GPU: Mali-G52 (Tier 1) → 10 puan
 RAM: 6 GB → 15 puan
 CPU: 8 cores → 15 puan
 ─────────────────────────
-Total: 50 puan → MID_LOW tier
+Total: 40 puan → LOW_MID tier (sınırda)
 ```
 
 ---
@@ -471,7 +487,7 @@ Adreno (TM) 53-59
 
 **Mali Entry Mid**:
 ```
-Mali-G52, Mali-G51, Mali-G71
+Mali-G71
 ```
 
 **PowerVR Rogue**:
@@ -482,6 +498,11 @@ PowerVR Rogue (entry-level)
 ---
 
 ### LOW GPUs (Tier 1 - 10 puan)
+
+**Mali Budget** (2019-2020 budget phones - **Honor 9X, Redmi Note 9**):
+```
+Mali-G52, Mali-G51
+```
 
 **Adreno 5xx Lower** (500-520):
 ```

@@ -62,8 +62,8 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
         const velocity = getDragVelocity();
         const isFastSwipe = velocity > FAST_SWIPE_THRESHOLD;
 
-        if (isFastSwipe) {
-          // Hizli kaydirma: 2 hucre yaricapinda en yakin gecerli konumu bul
+        if (isFastSwipe && !canPlacePiece(grid, piece, hoverCoord.x, hoverCoord.y)) {
+          // Fast swipe recovery: only search wider when the current hover target is not valid.
           const best = findBestPlacement(grid, piece, hoverCoord.x, hoverCoord.y, 2);
           if (best) {
             placePiece(piece, best.x, best.y);

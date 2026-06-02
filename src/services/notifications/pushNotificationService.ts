@@ -315,6 +315,13 @@ export function getNotificationActionTarget(data: Record<string, any> = {}): {
   return { target: 'home' };
 }
 
+const FCM_TOKEN_REGISTRATION_KEY = 'flux_fcm_token_registration_v1';
+
+interface StoredFCMRegistration {
+  signature: string;
+  sentAt: number;
+}
+
 class PushNotificationService {
   private fcmToken: string | null = null;
   private isInitialized = false;
@@ -369,6 +376,18 @@ class PushNotificationService {
 
   private async sendTokenToBackend(token: string): Promise<void> {
     try {
+      const platform = Capacitor.getPlatform();
+      const locale = navigator.language;
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const appVersion = import.meta.env.VITE_APP_VERSION || null;
+      const signature = JSON.stringify({ token, platform, locale, timezone, appVersion });
+      const storedRegistration = this.getStoredTokenRegistration();
+
+      if (storedRegistration?.signature === signature) {
+        console.log('[PushNotifications] Token metadata unchanged; skipping backend sync');
+        return;
+      }
+
       const response = await fetch('https://us-central1-fluxgrid-app.cloudfunctions.net/saveFCMToken', {
         method: 'POST',
         headers: {
@@ -376,10 +395,12 @@ class PushNotificationService {
         },
         body: JSON.stringify({
           token,
-          platform: Capacitor.getPlatform(),
+          platform,
           timestamp: Date.now(),
-          locale: navigator.language,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          locale,
+          timezone,
+          appVersion,
+          active: true,
         }),
       });
 
@@ -388,8 +409,24 @@ class PushNotificationService {
       }
 
       console.log('[PushNotifications] Token sent to backend');
+      localStorage.setItem(FCM_TOKEN_REGISTRATION_KEY, JSON.stringify({
+        signature,
+        sentAt: Date.now(),
+      }));
     } catch (error) {
       console.error('[PushNotifications] Failed to send token:', error);
+    }
+  }
+
+  private getStoredTokenRegistration(): StoredFCMRegistration | null {
+    try {
+      const raw = localStorage.getItem(FCM_TOKEN_REGISTRATION_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as StoredFCMRegistration;
+      if (!parsed?.signature || typeof parsed.sentAt !== 'number') return null;
+      return parsed;
+    } catch {
+      return null;
     }
   }
 

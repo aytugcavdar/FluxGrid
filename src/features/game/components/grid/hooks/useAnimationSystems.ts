@@ -11,7 +11,7 @@ import { ComboMilestoneSystem } from '../../../../visual-effects/combo/ComboMile
 import { PerfectClearCelebration } from '../../../../visual-effects/celebration/PerfectClearCelebration';
 import { ParticlePoolManager } from '../../../../visual-effects/particles/ParticlePoolManager';
 import { ParticleEmitter } from '../../../../visual-effects/particles/ParticleEmitter';
-import { HapticManager } from '../../../../../utils/audio/haptics';
+import { getHapticManager } from '../../../../../utils/audio/haptics';
 import { getBatterySaverManager } from '../../../../visual-effects/performance/BatterySaverManager';
 import { LineClearAnimationSystem } from '../../../../visual-effects/line-clear/LineClearAnimationSystem';
 import { KineticAnimationController } from '../../../../visual-effects/animation/KineticAnimationController';
@@ -93,7 +93,7 @@ export function initAnimationSystems(opts: InitAnimationSystemsOptions): () => v
 
   const particlePoolManager = new ParticlePoolManager({ scene, qualityMultiplier });
   const particleEmitter = new ParticleEmitter(particlePoolManager);
-  const hapticManager = new HapticManager();
+  const hapticManager = getHapticManager();
 
   // Battery saver
   const batterySaver = getBatterySaverManager({

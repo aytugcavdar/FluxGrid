@@ -12,14 +12,30 @@ export const ComboBar: React.FC<ComboBarProps> = React.memo(({ gridSize = 0, sid
   const combo = useGameStore(state => state.combo);
   const comboTimeLeft = useGameStore(state => state.comboTimeLeft);
   const comboTimerDuration = useGameStore(state => state.comboTimerDuration);
+  const comboTimerStartTime = useGameStore(state => state.comboTimerStartTime);
   const isGameOver = useGameStore(state => state.isGameOver);
+  const [now, setNow] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    if (combo <= 0 || isGameOver || comboTimerStartTime === null) return;
+
+    let frameId = 0;
+    const tick = () => {
+      setNow(Date.now());
+      frameId = window.requestAnimationFrame(tick);
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [combo, comboTimerStartTime, isGameOver]);
 
   if (combo <= 0 || isGameOver) return null;
 
-  const durationSeconds = comboTimerDuration > 0
-    ? comboTimerDuration / 1000
-    : COMBO_TIMER.DURATION / 1000;
-  const timeLeft = comboTimeLeft > 0 ? comboTimeLeft : durationSeconds;
+  const durationMs = comboTimerDuration > 0 ? comboTimerDuration : COMBO_TIMER.DURATION;
+  const durationSeconds = durationMs / 1000;
+  const timeLeft = comboTimerStartTime !== null
+    ? Math.max(0, (comboTimerStartTime + durationMs - now) / 1000)
+    : Math.max(0, comboTimeLeft);
   const fillPercent = Math.max(0, Math.min(100, (timeLeft / durationSeconds) * 100));
   const isCritical = timeLeft <= COMBO_TIMER.CRITICAL_THRESHOLD;
   const isWarning = timeLeft <= COMBO_TIMER.WARNING_THRESHOLD;

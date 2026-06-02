@@ -140,8 +140,8 @@ export function updateLineClearAnimation(
   
   if (anim.phase === 'brightness') {
     // Stage 1: short confirmation flash before blocks disappear.
-    if (elapsed < 110) {
-      anim.progress = elapsed / 110;
+    if (elapsed < 150) {
+      anim.progress = elapsed / 150;
 
       ensureIntersectionPulses(anim, grid, meshMap);
       updateIntersectionPulses(anim, anim.progress);
@@ -172,8 +172,8 @@ export function updateLineClearAnimation(
     }
   } else if (anim.phase === 'particles') {
     // Stage 2: clean fade-out, no particle burst.
-    if (elapsed < 90) {
-      anim.progress = elapsed / 90;
+    if (elapsed < 130) {
+      anim.progress = elapsed / 130;
 
       updateIntersectionPulses(anim, Math.min(1, 0.78 + anim.progress * 0.22));
 
@@ -200,8 +200,8 @@ export function updateLineClearAnimation(
     }
   } else if (anim.phase === 'collapse') {
     // Stage 3: quick settle for affected blocks.
-    if (elapsed < 80) {
-      anim.progress = elapsed / 80;
+    if (elapsed < 110) {
+      anim.progress = elapsed / 110;
       const easedProgress = anim.progress * (2 - anim.progress); // ease-out-quad
       
       // Animate falling blocks

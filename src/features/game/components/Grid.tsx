@@ -48,7 +48,6 @@ import {
   initGuidedHighlightPool,
   initFragmentPool,
   updateFragments,
-  createBreakApartFragments,
   updateCameraShake,
   updateCameraSettings,
   startLineClearAnimation,
@@ -72,7 +71,7 @@ import { ComboMilestoneSystem } from '../../visual-effects/combo/ComboMilestoneS
 import { PerfectClearCelebration } from '../../visual-effects/celebration/PerfectClearCelebration';
 import { ParticlePoolManager } from '../../visual-effects/particles/ParticlePoolManager';
 import { ParticleEmitter } from '../../visual-effects/particles/ParticleEmitter';
-import { HapticManager } from '../../../utils/audio/haptics';
+import { getHapticManager } from '../../../utils/audio/haptics';
 import { getBatterySaverManager } from '../../visual-effects/performance/BatterySaverManager';
 import { LineClearAnimationSystem } from '../../visual-effects/line-clear/LineClearAnimationSystem';
 import { KineticAnimationController } from '../../visual-effects/animation/KineticAnimationController';
@@ -460,6 +459,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
             // Low-end device flag for compatibility with existing code
             const isLowEndDevice = deviceCapabilities.tier === 'low';
+            const isLowMidDevice = deviceCapabilities.tier === 'low-mid';
+            const isBackgroundLimitedDevice = isLowEndDevice || isLowMidDevice || deviceCapabilities.isNative;
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || deviceCapabilities.isNative;
 
             // Disable animations on low-end devices, native apps, or when reduced motion is preferred
@@ -637,6 +638,75 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
         // Get theme colors
         const themeColors = getThemeColors();
+        const currentThemeName = useThemeStore.getState().currentTheme;
+        const tableColors: Record<string, { diffuse: string; emissive: string; shadow: string; alpha: number }> = {
+            dark:  { diffuse: '#1a2433', emissive: '#111a27', shadow: '#0b111b', alpha: 0.95 },
+            light: { diffuse: '#8f7657', emissive: '#46311e', shadow: '#26170d', alpha: 0.92 },
+            neon:  { diffuse: '#1b2133', emissive: '#111628', shadow: '#0b0e19', alpha: 0.94 },
+        };
+        const getTableColors = () => tableColors[useThemeStore.getState().currentTheme] ?? tableColors.dark;
+        const paintTableTexture = (texture: BABYLON.DynamicTexture) => {
+            const table = getTableColors();
+            const size = texture.getSize().width;
+            const ctx = texture.getContext() as CanvasRenderingContext2D;
+            ctx.clearRect(0, 0, size, size);
+            ctx.fillStyle = table.diffuse;
+            ctx.fillRect(0, 0, size, size);
+
+            const sheen = ctx.createLinearGradient(0, 0, size, size);
+            sheen.addColorStop(0, 'rgba(255,255,255,0.055)');
+            sheen.addColorStop(0.48, 'rgba(255,255,255,0.012)');
+            sheen.addColorStop(1, 'rgba(7,11,18,0.14)');
+            ctx.fillStyle = sheen;
+            ctx.fillRect(0, 0, size, size);
+
+            ctx.globalAlpha = isBackgroundLimitedDevice ? 0.045 : (useThemeStore.getState().currentTheme === 'light' ? 0.10 : 0.08);
+            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+            ctx.lineWidth = 1;
+            for (let i = -size; i < size * 2; i += isBackgroundLimitedDevice ? 28 : 18) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i + size, size);
+                ctx.stroke();
+            }
+
+            ctx.globalAlpha = isBackgroundLimitedDevice ? 0.045 : (useThemeStore.getState().currentTheme === 'light' ? 0.06 : 0.1);
+            const grainCount = isBackgroundLimitedDevice ? 55 : 180;
+            for (let i = 0; i < grainCount; i++) {
+                const x = Math.floor(Math.random() * size);
+                const y = Math.floor(Math.random() * size);
+                ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.5)' : 'rgba(6,10,16,0.42)';
+                ctx.fillRect(x, y, 1, 1);
+            }
+            ctx.globalAlpha = 1;
+            texture.update(false);
+        };
+
+        const applyTableMaterial = (mat: BABYLON.StandardMaterial) => {
+            const table = getTableColors();
+            mat.diffuseColor = BABYLON.Color3.FromHexString(table.diffuse);
+            mat.emissiveColor = BABYLON.Color3.FromHexString(table.emissive).scale(isBackgroundLimitedDevice ? 0.14 : 0.28);
+            mat.alpha = table.alpha;
+        };
+
+        const tabletopSize = (GRID_SIZE * TOTAL_CELL_SIZE) + 2.2;
+        const tabletop = BABYLON.MeshBuilder.CreateGround("tabletop", { width: tabletopSize, height: tabletopSize }, scene);
+        tabletop.position.y = -0.74;
+        tabletop.isPickable = false;
+        const tabletopMat = new BABYLON.StandardMaterial("tabletopMat", scene);
+        const tabletopTextureSize = isBackgroundLimitedDevice ? 80 : 160;
+        const tabletopTexture = new BABYLON.DynamicTexture("tabletopTexture", { width: tabletopTextureSize, height: tabletopTextureSize }, scene, false);
+        paintTableTexture(tabletopTexture);
+        tabletopTexture.wrapU = BABYLON.Texture.WRAP_ADDRESSMODE;
+        tabletopTexture.wrapV = BABYLON.Texture.WRAP_ADDRESSMODE;
+        tabletopTexture.uScale = 1.35;
+        tabletopTexture.vScale = 1.35;
+        applyTableMaterial(tabletopMat);
+        tabletopMat.diffuseTexture = tabletopTexture;
+        tabletopMat.specularColor = BABYLON.Color3.Black();
+        tabletopMat.specularPower = 0;
+        tabletopMat.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+        tabletop.material = tabletopMat;
 
         // Grid Base — themed
         const baseSize = (GRID_SIZE * TOTAL_CELL_SIZE) + 1.5;
@@ -659,7 +729,6 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             light: { slot: '#fef9e7', emissiveScale: 1.0, alpha: 0.95 },
             neon:  { slot: '#1e1050', emissiveScale: 1.5, alpha: 0.95 },
         };
-        const currentThemeName = useThemeStore.getState().currentTheme;
         const lowSlot = lowTierSlotColors[currentThemeName] ?? lowTierSlotColors['dark'];
 
         for (let y = 0; y < GRID_SIZE; y++) {
@@ -709,6 +778,9 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 mat.diffuseColor = BABYLON.Color3.FromHexString(colors.gridBase);
                 mat.emissiveColor = BABYLON.Color3.FromHexString(colors.gridBase).scale(0.6);
             }
+
+            applyTableMaterial(tabletopMat);
+            paintTableTexture(tabletopTexture);
 
             // Update grid slots
             gridSlotsRef.forEach((slot) => {
@@ -787,8 +859,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             // Task 20: Initialize particle emitter for line clear particles
             particleEmitter = new ParticleEmitter(particlePoolManager);
 
-            // Initialize haptic manager
-            const hapticManager = new HapticManager();
+            // Use the shared haptic manager so settings and throttling stay consistent.
+            const hapticManager = getHapticManager();
 
             // Task 24.7: Initialize battery saver manager
             // Requirements: 14.6
@@ -1338,52 +1410,6 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 useVisualEffectStore
             );
 
-            // Create break apart fragments and emit particles during particle phase
-            // Task 20: Enhanced line clear particle system
-            if (lineClearAnimationRef.current?.active && lineClearAnimationRef.current.phase === 'particles') {
-                const anim = lineClearAnimationRef.current;
-                const elapsed = Date.now() - anim.startTime;
-
-                if (elapsed < 150 && anim.progress < 0.1 && !isLowEndDevice) {
-                    // Track if this is a 4-line clear (Tetris) for trail effects
-                    const clearedLines = lastAction?.lines || 0;
-                    const is4LineClear = clearedLines === 4;
-
-                    anim.clearedCells.forEach((key: string) => {
-                        const [x, y] = key.split(',').map(Number);
-                        const cellData = anim.clearedCellData?.get(key);
-                        const cell = grid[y]?.[x];
-                        const color = cellData?.color || cell?.color;
-                        const cellType = cellData?.cellType || cell?.type;
-                        if (color && cellType) {
-                            // Create break apart fragments (existing system)
-                            createBreakApartFragments(
-                                x,
-                                y,
-                                color,
-                                cellType,
-                                fragmentPoolRef.current,
-                                isMobile,
-                                isNativeApp,
-                                isLowEndDevice,
-                                prefersReducedMotion,
-                                deviceCapabilities.tier
-                            );
-
-                            // Task 20.3: Emit enhanced line clear particles
-                            if (animationCoordinatorRef.current) {
-                                animationCoordinatorRef.current.emitLineClearParticles({
-                                    position: getVectorPos(x, y),
-                                    color,
-                                    clearedLines,
-                                    is4LineClear
-                                });
-                            }
-                        }
-                    });
-                }
-            }
-
             // Check for new shake events and trigger animations
             if (lastAction && lastAction !== lastHandledActionRef.current) {
                 if (lastAction.type === 'CLEAR') {
@@ -1417,6 +1443,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                     const cols = lastAction.clearedCols || [];
                     const clearedCells = lastAction.clearedCells || [];
                     const movedCells = lastAction.movedCells || [];
+                    const lockedIceCells = lastAction.lockedIceCells || [];
                     clearedCells.forEach((cell: any) => {
                         if (!cell.id || meshMapRef.current.has(cell.id)) return;
                         const mesh = createBlockMeshLocal(cell.color, cell.id, cell.cellType || CellType.NORMAL);
@@ -1435,9 +1462,49 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                             movedCells
                         );
 
+                        if (lockedIceCells.length > 0 && !isLowEndDevice) {
+                            lockedIceCells.slice(0, 4).forEach((cell: any) => {
+                                const meshId = cell.id || grid[cell.y]?.[cell.x]?.id;
+                                const targetMesh = meshId ? meshMapRef.current.get(meshId) : null;
+                                const position = targetMesh?.position.clone() || getVectorPos(cell.x, cell.y);
+                                const ring = BABYLON.MeshBuilder.CreateTorus(`ice-lock-${cell.x}-${cell.y}-${Date.now()}`, {
+                                    diameter: 0.72,
+                                    thickness: 0.025,
+                                    tessellation: 18,
+                                }, scene);
+                                ring.position = position;
+                                ring.position.y += 0.52;
+                                ring.rotation.x = Math.PI / 2;
+                                ring.isPickable = false;
+
+                                const mat = new BABYLON.StandardMaterial(`ice-lock-mat-${cell.x}-${cell.y}-${Date.now()}`, scene);
+                                mat.diffuseColor = BABYLON.Color3.FromHexString('#7dd3fc').scale(0.25);
+                                mat.emissiveColor = BABYLON.Color3.FromHexString('#38bdf8').scale(0.7);
+                                mat.alpha = 0.62;
+                                mat.disableLighting = true;
+                                mat.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+                                ring.material = mat;
+
+                                const originalEmissive = targetMesh?.material
+                                    ? (targetMesh.material as BABYLON.StandardMaterial).emissiveColor.clone()
+                                    : null;
+                                if (targetMesh?.material) {
+                                    (targetMesh.material as BABYLON.StandardMaterial).emissiveColor = BABYLON.Color3.FromHexString('#38bdf8').scale(0.62);
+                                }
+
+                                setTimeout(() => {
+                                    ring.dispose();
+                                    mat.dispose();
+                                    if (targetMesh?.material && originalEmissive) {
+                                        (targetMesh.material as BABYLON.StandardMaterial).emissiveColor = originalEmissive;
+                                    }
+                                }, 360);
+                            });
+                        }
+
                         // Trigger enhanced line clear animation system
-                        // Skip on weak devices to prevent stuttering
-                        if (lineClearSystemRef.current && !isLowEndDevice) {
+                        // Skip on weak devices and single-line clears to keep feedback focused.
+                        if (lineClearSystemRef.current && !isLowEndDevice && (lines >= 2 || currentPerfectClear || lockedIceCells.length > 0)) {
                             const clearedLineIndices = [...rows, ...cols];
                             const seenCellPositions = new Set<string>();
                             const cellPositions: BABYLON.Vector3[] = [];
@@ -1470,7 +1537,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
                     // Trigger combo milestone if applicable
                     // Skip on weak devices to save CPU
-                    if (animationCoordinatorRef.current && cmb >= 5 && !isLowEndDevice) {
+                    if (currentPerfectClear && animationCoordinatorRef.current && cmb >= 5 && !isLowEndDevice) {
                         animationCoordinatorRef.current.triggerComboMilestone({ level: cmb });
 
                         // ─── UI3D: Show achievement for combo milestones ───
@@ -1487,7 +1554,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                     // ─── Haptic: Combo feedback ───
                     // milestone (5+) = double heavy, medium (3-4) = single medium, light (2) = tiny
                 } else if (lastAction.type === 'PLACE') {
-                    shakeIntensityRef.current = prefersReducedMotion ? 0 : 0.05; // Tiny thud on placement
+                    shakeIntensityRef.current = 0;
 
                     // Trigger placement impact animation using data from gameStore
                     if (animationCoordinatorRef.current && lastAction.cellIds && lastAction.cellIds.length > 0) {
@@ -1520,10 +1587,6 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             // We can check if lines were cleared by observing grid changes or store changes
             // For now, let's just use a ref to track score
             if (stateRef.current.score > lastScoreRef.current) {
-                const diff = stateRef.current.score - lastScoreRef.current;
-                if (diff >= 100 && stateRef.current.lastAction?.type !== 'CLEAR') {
-                    shakeIntensityRef.current = 0.5; // Trigger shake
-                }
                 lastScoreRef.current = stateRef.current.score;
             }
 

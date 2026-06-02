@@ -47,8 +47,8 @@ export const lazyLoadServices = () => {
       console.error('[LazyLoader] Failed to preload performance monitoring:', err);
     });
     
-    // Preload haptics
-    import('../../services/haptics/hapticService').catch(err => {
+    // Preload the shared haptic manager used by gameplay and settings.
+    import('../../utils/audio/haptics').catch(err => {
       console.error('[LazyLoader] Failed to preload haptics:', err);
     });
   }, 500);

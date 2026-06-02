@@ -12,6 +12,8 @@ interface FCMTokenRequest {
   timestamp: number;
   locale?: string;
   timezone?: string;
+  appVersion?: string | null;
+  active?: boolean;
 }
 
 /**
@@ -37,7 +39,7 @@ export const saveFCMToken = functions.https.onRequest(async (req, res) => {
   }
 
   try {
-    const { token, platform, timestamp, locale, timezone } = req.body as FCMTokenRequest;
+    const { token, platform, timestamp, locale, timezone, appVersion, active } = req.body as FCMTokenRequest;
 
     // Validate input
     if (!token || typeof token !== 'string') {
@@ -53,18 +55,26 @@ export const saveFCMToken = functions.https.onRequest(async (req, res) => {
     // Save to Firestore
     const db = admin.firestore();
     const tokenRef = db.collection('fcm_tokens').doc(token);
+    const tokenSnapshot = await tokenRef.get();
+    const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
 
-    await tokenRef.set({
+    const tokenData: admin.firestore.DocumentData = {
       token,
       platform,
       timestamp: timestamp || Date.now(),
       locale: typeof locale === 'string' ? locale : null,
       timezone: typeof timezone === 'string' ? timezone : null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
-      active: true,
-    }, { merge: true });
+      appVersion: typeof appVersion === 'string' ? appVersion : null,
+      updatedAt: serverTimestamp,
+      lastSeenAt: serverTimestamp,
+      active: typeof active === 'boolean' ? active : true,
+    };
+
+    if (!tokenSnapshot.exists) {
+      tokenData.createdAt = serverTimestamp;
+    }
+
+    await tokenRef.set(tokenData, { merge: true });
 
     console.log('[FCM] Token saved:', { token: token.substring(0, 20) + '...', platform });
 

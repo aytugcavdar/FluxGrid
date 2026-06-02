@@ -121,6 +121,13 @@ export interface GameStore {
       toY: number;
       cellType?: CellType;
     }>;
+    lockedIceCells?: Array<{
+      id?: string;
+      x: number;
+      y: number;
+      color: string;
+      health?: number;
+    }>;
     isPerfectClear?: boolean;
     tier?: number;
     tierName?: string;
@@ -696,6 +703,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         const clearedRows = Array.from(new Set(clearActions.flatMap(action => action.rows || [])));
         const clearedCols = Array.from(new Set(clearActions.flatMap(action => action.cols || [])));
         const movedCells = clearActions.flatMap(action => action.movedCells || []);
+        const lockedIceCells = clearActions.flatMap(action => action.lockedIceCells || []);
 
         set({
           lastAction: {
@@ -708,6 +716,7 @@ export const useGameStore = create<GameStore>((set, get) => {
             clearedRows,
             clearedCols,
             movedCells,
+            lockedIceCells,
             isPerfectClear,
           }
         });
@@ -847,6 +856,7 @@ export const useGameStore = create<GameStore>((set, get) => {
               clearedRows: Array.from(new Set(eventClearActions.flatMap(action => action.rows || []))),
               clearedCols: Array.from(new Set(eventClearActions.flatMap(action => action.cols || []))),
               movedCells: eventClearActions.flatMap(action => action.movedCells || []),
+              lockedIceCells: eventClearActions.flatMap(action => action.lockedIceCells || []),
             };
           }
         }

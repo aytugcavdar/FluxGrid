@@ -203,6 +203,41 @@ function getChannelId(_type: string): string {
   return 'daily_reminders';
 }
 
+const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const FCM_MULTICAST_LIMIT = 500;
+
+function timestampToMillis(value: unknown): number | null {
+  if (!value) return null;
+
+  if (typeof value === 'number') return value;
+
+  if (value instanceof Date) return value.getTime();
+
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toMillis' in value &&
+    typeof (value as { toMillis: () => number }).toMillis === 'function'
+  ) {
+    return (value as { toMillis: () => number }).toMillis();
+  }
+
+  return null;
+}
+
+function canSendReminder(tokenData: admin.firestore.DocumentData, now: number): boolean {
+  const lastNotificationAt = timestampToMillis(tokenData.lastNotificationAt);
+  return !lastNotificationAt || now - lastNotificationAt >= REMINDER_COOLDOWN_MS;
+}
+
+function chunkDocs<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
 /**
  * Scheduled function to send daily challenge reminder
  * Runs every day at 9 AM UTC
@@ -223,47 +258,71 @@ export const sendDailyChallengeReminder = functions.pubsub
         return;
       }
 
-      const tokens = tokensSnapshot.docs.map((doc) => doc.data().token);
-      const copy = getScheduledEngagementCopy('daily_reminder');
-
-      const message: admin.messaging.MulticastMessage = {
-        notification: {
-          title: copy.title,
-          body: copy.body,
-        },
-        data: {
-          type: 'daily_reminder',
-          target: 'home',
-        },
-        android: {
-          priority: 'normal',
-          collapseKey: 'daily_reminder',
-          notification: {
-            sound: 'default',
-            channelId: 'daily_reminders',
-          },
-        },
-        tokens,
-      };
-
-      const result = await admin.messaging().sendEachForMulticast(message);
-
-      console.log('[FCM] Daily challenge reminder sent:', {
-        success: result.successCount,
-        failure: result.failureCount,
+      const now = Date.now();
+      const eligibleTokenDocs = tokensSnapshot.docs.filter((doc) => {
+        const data = doc.data();
+        return typeof data.token === 'string' && canSendReminder(data, now);
       });
 
-      // Remove invalid tokens
-      if (result.failureCount > 0) {
+      if (eligibleTokenDocs.length === 0) {
+        console.log('[FCM] No eligible tokens for daily challenge reminder', {
+          totalActive: tokensSnapshot.size,
+        });
+        return;
+      }
+
+      const copy = getScheduledEngagementCopy('daily_reminder');
+      let successCount = 0;
+      let failureCount = 0;
+
+      for (const tokenDocs of chunkDocs(eligibleTokenDocs, FCM_MULTICAST_LIMIT)) {
+        const tokens = tokenDocs.map((doc) => doc.data().token as string);
+        const message: admin.messaging.MulticastMessage = {
+          notification: {
+            title: copy.title,
+            body: copy.body,
+          },
+          data: {
+            type: 'daily_reminder',
+            target: 'home',
+          },
+          android: {
+            priority: 'normal',
+            collapseKey: 'daily_reminder',
+            notification: {
+              sound: 'default',
+              channelId: 'daily_reminders',
+            },
+          },
+          tokens,
+        };
+
+        const result = await admin.messaging().sendEachForMulticast(message);
+        successCount += result.successCount;
+        failureCount += result.failureCount;
+
         const batch = db.batch();
         result.responses.forEach((response, index) => {
+          const tokenDoc = tokenDocs[index];
           if (!response.success) {
-            const tokenDoc = tokensSnapshot.docs[index];
             batch.update(tokenDoc.ref, { active: false });
+            return;
           }
+
+          batch.update(tokenDoc.ref, {
+            lastNotificationAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastNotificationType: 'daily_reminder',
+          });
         });
         await batch.commit();
       }
+
+      console.log('[FCM] Daily challenge reminder sent:', {
+        success: successCount,
+        failure: failureCount,
+        eligible: eligibleTokenDocs.length,
+        skippedByCooldown: tokensSnapshot.size - eligibleTokenDocs.length,
+      });
     } catch (error) {
       console.error('[FCM] Error sending daily challenge reminder:', error);
     }

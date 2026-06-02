@@ -22,6 +22,13 @@ export interface ClearAction {
     toY: number;
     cellType?: CellType;
   }>;
+  lockedIceCells: Array<{
+    id?: string;
+    x: number;
+    y: number;
+    color: string;
+    health?: number;
+  }>;
   chainIndex: number; // Which chain step this clear happened in
 }
 
@@ -163,6 +170,7 @@ export const processGrid = (initialGrid: GridState): {
       }
 
       const movedCells: ClearAction['movedCells'] = [];
+      const lockedIceCells: ClearAction['lockedIceCells'] = [];
 
       // Execute Clears
       const clearedCells: ClearAction['cells'] = [];
@@ -193,6 +201,7 @@ export const processGrid = (initialGrid: GridState): {
           rows: [...fullRows],
           cols: [...fullCols],
           movedCells,
+          lockedIceCells,
           chainIndex: chainCount
         });
       }
@@ -223,6 +232,14 @@ export const processGrid = (initialGrid: GridState): {
           if (icePositions.has(y)) {
             // ICE block stays at this position
             currentGrid[y][x] = icePositions.get(y)!;
+            const iceCell = currentGrid[y][x];
+            lockedIceCells.push({
+              id: iceCell.id,
+              x,
+              y,
+              color: iceCell.color,
+              health: iceCell.health,
+            });
           } else if (normalIndex >= 0) {
             // Fill with normal block from stack
             const entry = normalStack[normalIndex];
