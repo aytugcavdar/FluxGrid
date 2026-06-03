@@ -100,6 +100,31 @@
     "useBomb": "Bombas"
   },
   "tutorial": {
+    "drag": {
+      "title": "Arrastra una pieza",
+      "description": "Toma una pieza de abajo y sueltala en una casilla valida."
+    },
+    "firstClear": {
+      "title": "Limpia una linea",
+      "description": "Completa la fila inferior. Los bloques de arriba caeran despues del clear."
+    },
+    "combo": {
+      "title": "Mantén el combo",
+      "description": "Haz otro clear enseguida. Los clears seguidos mantienen activo el combo."
+    },
+    "ready": {
+      "endlessTitle": "Estas listo",
+      "endlessDescription": "Limpia filas o columnas, conserva el combo y supera tu propio record.",
+      "timedTitle": "Gana tiempo",
+      "timedDescription": "En Timed, cada clear da +segundos. Limpia rapido y alarga la partida."
+    },
+    "hints": {
+      "tryDragging": "Arrastra una pieza al tablero",
+      "fillLine": "Llena una fila o columna",
+      "keepClearing": "Sigue limpiando rapido",
+      "perfectStart": "Inicio perfecto!",
+      "timeReward": "Clear hecho, tiempo ganado!"
+    },
     "start": "Empezar a jugar",
     "next": "Siguiente",
     "skip": "Saltar",

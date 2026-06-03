@@ -721,6 +721,11 @@ export function canShowRewardedContinue(): boolean {
   return canShow;
 }
 
+export function getRewardedContinueRemaining(): number {
+  const config = remoteAdConfig || getFirebaseAdConfig();
+  return Math.max(0, config.rewarded_daily_limit - dailyRewardedCount);
+}
+
 /**
  * Show rewarded ad for continue feature
  */
@@ -787,11 +792,11 @@ export async function showRewardedContinue(): Promise<AdResult> {
       let isResolved = false;
       let dismissListener: any = null;
       
-      // Timeout after 30 seconds - if ad doesn't respond, force complete
+      // Timeout after 30 seconds. In production this must not grant a reward.
       const timeout = setTimeout(() => {
         if (!isResolved) {
           isResolved = true;
-          console.log('[AdManager] Rewarded ad timeout (30s) - force completing');
+          console.log('[AdManager] Rewarded ad timeout (30s)');
           
           // Clean up listeners
           if (rewardedAdListener) {
@@ -803,8 +808,7 @@ export async function showRewardedContinue(): Promise<AdResult> {
             dismissListener = null;
           }
           
-          // For test ads, assume success after timeout
-          resolve({ type: 'continue', amount: 1 } as AdMobRewardItem);
+          reject(new Error('Rewarded ad timed out without reward'));
         }
       }, 30000); // 30 second timeout
       
@@ -830,10 +834,13 @@ export async function showRewardedContinue(): Promise<AdResult> {
         if (!isResolved) {
           isResolved = true;
           clearTimeout(timeout);
-          console.log('[AdManager] Ad dismissed - treating as success for test ads');
+          console.log('[AdManager] Rewarded ad dismissed without reward');
           
-          // For test ads, treat dismiss as success
-          resolve({ type: 'continue', amount: 1 } as AdMobRewardItem);
+          if (rewardedAdListener) {
+            rewardedAdListener.remove();
+            rewardedAdListener = null;
+          }
+          reject(new Error('Rewarded ad dismissed without reward'));
         }
       });
     });
@@ -1065,6 +1072,7 @@ export const AdManager = {
   recordGameEnd,
   showInterstitial,
   canShowRewardedContinue,
+  getRewardedContinueRemaining,
   showRewardedContinue,
   showRewardedStreakShield,
   isNoAdsActive,

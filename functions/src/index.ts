@@ -9,5 +9,5 @@ admin.initializeApp();
 
 // Active Cloud Functions
 // Keep the Firebase surface small while leaderboard/admin tooling is disabled.
+// Engagement reminders are scheduled locally on device to avoid duplicate phone notifications.
 export { saveFCMToken } from './saveFCMToken';
-export { sendDailyChallengeReminder } from './sendPushNotification';

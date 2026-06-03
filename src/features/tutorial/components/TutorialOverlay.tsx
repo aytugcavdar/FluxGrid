@@ -7,6 +7,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { GameMode } from '@shared/types';
 import { useTutorialStore } from '../store/tutorialStore';
 import { useGameStore } from '../../game/store/gameStore';
 import { getTutorialGridState, getTutorialPieces } from '../data/tutorialPieces';
@@ -29,13 +30,15 @@ export const TutorialOverlay: React.FC = () => {
     trackStepComplete,
     trackInteraction
   } = useTutorialStore();
+  const gameMode = useGameStore(state => state.gameMode);
+  const isTimedMode = gameMode === GameMode.TIMED;
   
   // Define tutorial steps with i18n
   const TUTORIAL_STEPS: TutorialStep[] = [
     {
       id: 0,
-      title: t('tutorial.welcome.title'),
-      description: t('tutorial.welcome.description'),
+      title: t('tutorial.drag.title'),
+      description: t('tutorial.drag.description'),
       highlightTarget: '.piece-slot',
       arrowDirection: 'down',
       action: 'place',
@@ -52,8 +55,17 @@ export const TutorialOverlay: React.FC = () => {
     },
     {
       id: 2,
-      title: t('tutorial.gameModes.title'),
-      description: t('tutorial.gameModes.description'),
+      title: t('tutorial.combo.title'),
+      description: t('tutorial.combo.description'),
+      highlightTarget: '.game-board',
+      arrowDirection: null,
+      action: 'combo',
+      validation: () => true
+    },
+    {
+      id: 3,
+      title: isTimedMode ? t('tutorial.ready.timedTitle') : t('tutorial.ready.endlessTitle'),
+      description: isTimedMode ? t('tutorial.ready.timedDescription') : t('tutorial.ready.endlessDescription'),
       highlightTarget: null,
       arrowDirection: null,
       action: 'complete',
@@ -128,8 +140,9 @@ export const TutorialOverlay: React.FC = () => {
       setIdleTime(prev => {
         const newTime = prev + 1;
         
-        // Show contextual hint after 10 seconds of inactivity
-        if (newTime === 10) {
+        // Show contextual hint after 6 seconds of inactivity. First-run guidance
+        // should stay inside the first few seconds on mobile.
+        if (newTime === 6) {
           const hints: Record<string, string> = {
             'place': t('tutorial.hints.tryDragging') || 'Try dragging a piece to the board',
             'clear': t('tutorial.hints.fillLine') || 'Fill a complete row or column',
@@ -140,7 +153,7 @@ export const TutorialOverlay: React.FC = () => {
         }
         
         // Clear hint after 5 seconds
-        if (newTime === 15) {
+        if (newTime === 11) {
           setContextualHint(null);
         }
         
@@ -238,7 +251,7 @@ export const TutorialOverlay: React.FC = () => {
     
     const step = TUTORIAL_STEPS[currentStep];
     
-    // Auto-advance for info steps after 4 seconds
+    // Auto-advance for informational and final steps
     if (step.action === 'info' || step.action === 'complete') {
       const timer = setTimeout(() => {
         if (step.action === 'complete') {
@@ -248,7 +261,7 @@ export const TutorialOverlay: React.FC = () => {
           // Info step - auto advance
           nextStep();
         }
-      }, 4000);
+      }, step.action === 'complete' ? 2600 : 3200);
       
       return () => clearTimeout(timer);
     }
@@ -259,7 +272,8 @@ export const TutorialOverlay: React.FC = () => {
     const handleValidation = (event: CustomEvent) => {
       const validationMap: Record<string, string> = {
         'piece_placed': 'place',
-        'line_cleared': 'clear'
+        'line_cleared': 'clear',
+        'combo_achieved': 'combo'
       };
       
       const expectedAction = validationMap[event.detail.type];
@@ -283,7 +297,13 @@ export const TutorialOverlay: React.FC = () => {
           applyTutorialSetup(currentStep + 1);
           nextStep();
           setCelebrationParticles([]);
-          setHint(null);
+          const timedRewardHint = currentStep === 1 && isTimedMode
+            ? t('tutorial.hints.timeReward')
+            : null;
+          setHint(timedRewardHint);
+          if (timedRewardHint) {
+            window.setTimeout(() => setHint(null), 1700);
+          }
           trackStepComplete(currentStep);
         }, isLowEndDevice ? 120 : 600);
       } else {
@@ -296,7 +316,7 @@ export const TutorialOverlay: React.FC = () => {
     return () => {
       window.removeEventListener('tutorial-validation' as any, handleValidation as any);
     };
-  }, [isActive, currentStep, nextStep, complete, addAchievement, setHint, applyTutorialSetup]);
+  }, [isActive, currentStep, nextStep, complete, addAchievement, setHint, applyTutorialSetup, isTimedMode, t]);
   
   if (!isActive) {
     return null;
@@ -596,7 +616,7 @@ export const TutorialOverlay: React.FC = () => {
           background: linear-gradient(135deg, #10b981 0%, #059669 100%);
           color: white;
           padding: clamp(10px, 2vw, 12px) clamp(16px, 4vw, 24px);
-          border-radius: 16px;
+          border-radius: 12px;
           font-size: clamp(13px, 3.5vw, 16px);
           font-weight: 700;
           box-shadow: 0 8px 32px rgba(16, 185, 129, 0.5);
@@ -651,7 +671,7 @@ export const TutorialOverlay: React.FC = () => {
           display: flex;
           align-items: flex-start;
           justify-content: center;
-          padding-top: clamp(10vh, 15vh, 20vh);
+          padding-top: clamp(86px, 12vh, 140px);
           padding-left: clamp(12px, 3vw, 20px);
           padding-right: clamp(12px, 3vw, 20px);
           z-index: 9999;
@@ -673,21 +693,21 @@ export const TutorialOverlay: React.FC = () => {
             rgba(15, 23, 42, 0.98) 0%, 
             rgba(30, 41, 59, 0.98) 50%,
             rgba(15, 23, 42, 0.98) 100%);
-          border: 2px solid transparent;
+          border: 1px solid rgba(96, 165, 250, 0.28);
           background-clip: padding-box;
           position: relative;
-          border-radius: clamp(16px, 3vw, 24px);
-          padding: clamp(12px, 3vw, 20px) clamp(14px, 3.5vw, 24px);
-          max-width: min(90vw, 360px);
+          border-radius: clamp(12px, 2.5vw, 16px);
+          padding: clamp(10px, 2.5vw, 16px) clamp(12px, 3vw, 18px);
+          max-width: min(92vw, 340px);
           width: 100%;
           box-shadow: 
             0 0 0 1px rgba(148, 163, 184, 0.1),
-            0 20px 60px rgba(0, 0, 0, 0.5),
-            0 0 100px rgba(59, 130, 246, 0.3),
+            0 14px 38px rgba(0, 0, 0, 0.42),
+            0 0 42px rgba(59, 130, 246, 0.16),
             inset 0 1px 0 rgba(255, 255, 255, 0.1);
           pointer-events: auto;
           backdrop-filter: blur(20px) saturate(180%);
-          overflow: visible;
+          overflow: hidden;
         }
         
         /* Mobile optimizations */
@@ -695,7 +715,7 @@ export const TutorialOverlay: React.FC = () => {
           .tutorial-card {
             max-width: 95vw;
             padding: 12px 16px;
-            border-radius: 16px;
+            border-radius: 14px;
           }
           
           .tutorial-overlay {
@@ -722,7 +742,7 @@ export const TutorialOverlay: React.FC = () => {
           left: 0;
           right: 0;
           bottom: 0;
-          border-radius: 24px;
+          border-radius: clamp(12px, 2.5vw, 16px);
           padding: 2px;
           background: linear-gradient(135deg, 
             rgba(59, 130, 246, 0.6) 0%, 
@@ -733,6 +753,7 @@ export const TutorialOverlay: React.FC = () => {
           mask-composite: exclude;
           animation: tutorial-border-glow 3s ease-in-out infinite;
           pointer-events: none;
+          opacity: 0.55;
         }
         
         @keyframes tutorial-border-glow {
@@ -757,10 +778,10 @@ export const TutorialOverlay: React.FC = () => {
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
-          font-size: clamp(16px, 4vw, 20px);
+          font-size: clamp(15px, 3.7vw, 18px);
           font-weight: 800;
           margin: 0;
-          letter-spacing: -0.5px;
+          letter-spacing: 0;
           text-shadow: 0 0 30px rgba(96, 165, 250, 0.5);
           flex: 1;
           min-width: 0;
@@ -864,8 +885,8 @@ export const TutorialOverlay: React.FC = () => {
         
         .tutorial-description {
           color: #e2e8f0;
-          font-size: clamp(12px, 3vw, 14px);
-          line-height: 1.5;
+          font-size: clamp(12px, 3vw, 13px);
+          line-height: 1.42;
           margin: 0 0 clamp(8px, 2vw, 12px) 0;
           font-weight: 500;
           text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
@@ -976,8 +997,8 @@ export const TutorialOverlay: React.FC = () => {
           left: -50%;
           width: 200%;
           height: 200%;
-          background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%);
-          animation: tutorial-particle-rotate 20s linear infinite;
+          background: radial-gradient(circle, rgba(59, 130, 246, 0.055) 0%, transparent 70%);
+          animation: tutorial-particle-rotate 24s linear infinite;
           pointer-events: none;
         }
 

@@ -100,17 +100,21 @@
     "useBomb": "Bomba"
   },
   "tutorial": {
+    "drag": {
+      "title": "Parçayı sürükle",
+      "description": "Alttaki parçayı tut, tahtada uygun yere bırak."
+    },
     "welcome": {
       "title": "👋 Hoş Geldin!",
       "description": "Hadi başlayalım! Aşağıdaki parçalardan birini sürükle ve tahtaya yerleştir"
     },
     "firstClear": {
       "title": "🎯 Harika İş!",
-      "description": "Şimdi tam bir satır veya sütun doldur. Dolu satırlar otomatik temizlenir ve puan kazanırsın!"
+      "description": "Alt satırı tamamla. Satır temizlenince üstteki blokların aşağı düştüğünü göreceksin."
     },
     "combo": {
       "title": "🔥 Kombo Zamanı!",
-      "description": "Mükemmel! Şimdi ardışık satır temizle ve kombo yap. Her kombo daha fazla puan getirir!"
+      "description": "Hemen bir clear daha yap. Arka arkaya temizlersen combo canlı kalır."
     },
     "comboTimer": {
       "title": "⏰ Combo Timer",
@@ -119,6 +123,12 @@
     "gameModes": {
       "title": "🎮 Hazırsın!",
       "description": "Sonsuz moddasın. Rahat oyna, satırları temizle ve kendi rekorunu geliştir."
+    },
+    "ready": {
+      "endlessTitle": "Hazırsın",
+      "endlessDescription": "Satır veya sütun temizle, comboyu koru ve kendi rekorunu geliştir.",
+      "timedTitle": "Süre kazan",
+      "timedDescription": "Timed modda her clear +saniye verir. Hızlı temizle, turu uzat."
     },
     "skip": "Atla",
     "skipButton": "Tutorial'ı Atla",
@@ -139,7 +149,8 @@
       "speedDemon": "⚡ Hız Canavarı!",
       "tryDragging": "Bir parçayı tahtaya sürüklemeyi dene",
       "fillLine": "Tam bir satır veya sütun doldur",
-      "keepClearing": "Satırları hızlıca temizlemeye devam et"
+      "keepClearing": "Satırları hızlıca temizlemeye devam et",
+      "timeReward": "Clear yaptın, süre kazandın!"
     },
     "start": "Oynamaya Başla",
     "next": "Devam",
@@ -344,7 +355,7 @@
   "continueModal": {
     "title": "DEVAM ET?",
     "subtitle": "Oyunun bitmedi!",
-    "benefit1": "Grid kısmen temizlenecek",
+    "benefit1": "Tahtada güvenli alan açılacak",
     "benefit2": "3 yeni parça verilecek",
     "benefit3": "Mevcut skorun korunacak",
     "watchAd": "📺 Reklam İzle & Devam Et",

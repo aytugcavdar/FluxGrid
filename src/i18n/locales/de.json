@@ -100,6 +100,31 @@
     "useBomb": "Bomben"
   },
   "tutorial": {
+    "drag": {
+      "title": "Teil ziehen",
+      "description": "Ziehe ein Teil von unten auf ein freies Feld."
+    },
+    "firstClear": {
+      "title": "Linie raeumen",
+      "description": "Vervollstaendige die untere Reihe. Danach fallen die Bloecke darueber nach unten."
+    },
+    "combo": {
+      "title": "Combo halten",
+      "description": "Raeume sofort noch eine Linie. Schnelle Clears halten die Combo aktiv."
+    },
+    "ready": {
+      "endlessTitle": "Bereit",
+      "endlessDescription": "Raeume Reihen oder Spalten, halte die Combo und verbessere deinen eigenen Rekord.",
+      "timedTitle": "Zeit gewinnen",
+      "timedDescription": "Im Timed-Modus gibt jeder Clear +Sekunden. Raeume schnell und verlaengere den Lauf."
+    },
+    "hints": {
+      "tryDragging": "Ziehe ein Teil auf das Brett",
+      "fillLine": "Fuelle eine Reihe oder Spalte",
+      "keepClearing": "Raeume schnell weiter",
+      "perfectStart": "Perfekter Start!",
+      "timeReward": "Clear geschafft, Zeit gewonnen!"
+    },
     "start": "Spielen beginnen",
     "next": "Weiter",
     "skip": "Überspringen",

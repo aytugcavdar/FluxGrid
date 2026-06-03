@@ -7,6 +7,13 @@ import * as BABYLON from 'babylonjs';
 import { GridState } from '../../../types';
 import { TOTAL_CELL_SIZE } from '../constants';
 
+const LINE_CLEAR_TIMING = {
+  constrainedFlash: 88,
+  brightness: 132,
+  fade: 112,
+  collapse: 92,
+} as const;
+
 function getClearedCellMesh(
   anim: any,
   grid: GridState,
@@ -122,7 +129,7 @@ export function updateLineClearAnimation(
       });
     }
 
-    if (elapsed < 95) return;
+    if (elapsed < LINE_CLEAR_TIMING.constrainedFlash) return;
 
     anim.clearedCells.forEach((key: string) => {
       const [x, y] = key.split(',').map(Number);
@@ -141,8 +148,8 @@ export function updateLineClearAnimation(
   
   if (anim.phase === 'brightness') {
     // Stage 1: short confirmation flash before blocks disappear.
-    if (elapsed < 150) {
-      anim.progress = elapsed / 150;
+    if (elapsed < LINE_CLEAR_TIMING.brightness) {
+      anim.progress = elapsed / LINE_CLEAR_TIMING.brightness;
 
       ensureIntersectionPulses(anim, grid, meshMap);
       updateIntersectionPulses(anim, anim.progress);
@@ -173,8 +180,8 @@ export function updateLineClearAnimation(
     }
   } else if (anim.phase === 'particles') {
     // Stage 2: clean fade-out, no particle burst.
-    if (elapsed < 130) {
-      anim.progress = elapsed / 130;
+    if (elapsed < LINE_CLEAR_TIMING.fade) {
+      anim.progress = elapsed / LINE_CLEAR_TIMING.fade;
 
       updateIntersectionPulses(anim, Math.min(1, 0.78 + anim.progress * 0.22));
 
@@ -201,8 +208,8 @@ export function updateLineClearAnimation(
     }
   } else if (anim.phase === 'collapse') {
     // Stage 3: quick settle for affected blocks.
-    if (elapsed < 92) {
-      anim.progress = elapsed / 92;
+    if (elapsed < LINE_CLEAR_TIMING.collapse) {
+      anim.progress = elapsed / LINE_CLEAR_TIMING.collapse;
       const easedProgress = anim.progress * (2 - anim.progress); // ease-out-quad
       
       // Animate falling blocks

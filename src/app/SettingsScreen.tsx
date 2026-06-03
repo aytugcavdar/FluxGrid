@@ -12,6 +12,13 @@ import { GameMode } from '@shared/types';
 import { ToggleSwitch, SectionHeader } from '../shared/components';
 import { isAndroid } from '../utils/platform/platform';
 import { detectDeviceCapabilities } from '../utils/platform/deviceCapability';
+import {
+  getEngagementNotificationPreferences,
+  setEngagementNotificationPreferences,
+  notificationScheduler,
+  scheduleLocalNotification,
+  type EngagementNotificationPreferences,
+} from '../services/notifications/pushNotificationService';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -181,6 +188,38 @@ const hapticTestActions = [
   { label: 'Perfect clear', action: () => hapticEvents.perfectClear() },
 ];
 
+const notificationPreferenceOptions: Array<{
+  key: keyof Omit<EngagementNotificationPreferences, 'enabled'>;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: 'dailyReminder',
+    label: 'Gunluk hatirlatma',
+    description: 'Bugun oynamadiysan dusuk oncelikli tek hatirlatma planlar.',
+  },
+  {
+    key: 'streakReminder',
+    label: 'Seri hatirlatmasi',
+    description: 'Seri 2+ gunse ve bugun oynanmadiysa devreye girer.',
+  },
+  {
+    key: 'timedMode',
+    label: 'Timed cagri',
+    description: '60 saniyelik kisa tur icin oglen saatinde hatirlatir.',
+  },
+  {
+    key: 'nearRecord',
+    label: 'Rekora yakin',
+    description: 'Son skor rekora yakinsa tek deneme daha onerir.',
+  },
+  {
+    key: 'inactivity',
+    label: 'Geri donus',
+    description: '2+ gun sessizlikten sonra yumusak geri donus mesaji planlar.',
+  },
+];
+
 export const SettingsScreen: React.FC = () => {
   const { i18n, t } = useTranslation();
   const {
@@ -223,6 +262,23 @@ export const SettingsScreen: React.FC = () => {
   const [isIOS, setIsIOS] = useState(false);
   const [isPWAInstalled, setIsPWAInstalled] = useState(false);
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
+  const [notificationPrefs, setNotificationPrefs] = useState<EngagementNotificationPreferences>(() =>
+    getEngagementNotificationPreferences()
+  );
+
+  const updateNotificationPrefs = async (updates: Partial<EngagementNotificationPreferences>) => {
+    const next = setEngagementNotificationPreferences(updates);
+    setNotificationPrefs(next);
+
+    if (!androidPlatform) return;
+
+    if (!next.enabled) {
+      await notificationScheduler.cancelAllNotifications();
+      return;
+    }
+
+    await notificationScheduler.scheduleEngagementNotifications({}, { requestPermission: true });
+  };
   
   const handleLanguageChange = (lang: 'tr' | 'en' | 'de' | 'fr' | 'es') => {
     console.log('[Language] Changing language to:', lang);
@@ -662,6 +718,31 @@ export const SettingsScreen: React.FC = () => {
           </div>
 
           {/* DİL Section */}
+          {androidPlatform && (
+            <div className="mb-8">
+              <SectionHeader title="Bildirimler" />
+
+              <div className="space-y-3">
+                <ToggleSwitch
+                  label="Telefon bildirimleri"
+                  description="Ana sistem local bildirimdir; Firebase gunluk push kullanilmaz."
+                  value={notificationPrefs.enabled}
+                  onChange={(enabled) => updateNotificationPrefs({ enabled })}
+                />
+
+                {notificationPrefs.enabled && notificationPreferenceOptions.map((option) => (
+                  <ToggleSwitch
+                    key={option.key}
+                    label={option.label}
+                    description={option.description}
+                    value={notificationPrefs[option.key]}
+                    onChange={(enabled) => updateNotificationPrefs({ [option.key]: enabled })}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="mb-8">
             <SectionHeader title={t('settingsScreen.language')} />
             <p className="text-xs mb-4" style={{ color: colors.textTertiary }}>
@@ -1004,7 +1085,6 @@ export const SettingsScreen: React.FC = () => {
                 <button
                   onClick={async () => {
                     try {
-                      const { scheduleLocalNotification } = await import('../services/notifications/pushNotificationService');
                       await scheduleLocalNotification({
                         title: 'Test Bildirimi',
                         body: 'Bu bir test bildirimidir. Bildirimler çalışıyor! 🎮',

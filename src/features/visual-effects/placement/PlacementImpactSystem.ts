@@ -57,10 +57,10 @@ export class PlacementImpactSystem {
     // Default config
     this.config = {
       scaleFrom: 1.0,
-      scalePeak: 1.15,
+      scalePeak: 1.12,
       scaleTo: 1.0,
-      peakDuration: 80,
-      returnDuration: 120,
+      peakDuration: 58,
+      returnDuration: 96,
       particleCount: 6,
       particleSpeed: 300,
       hapticIntensity: 0.5

@@ -243,7 +243,7 @@ describe('gameHelpers', () => {
   });
 
   describe('createContinueGrid', () => {
-    it('should create completely empty grid', () => {
+    it('should create completely empty grid when no source grid is provided', () => {
       const result = createContinueGrid();
 
       // Check all cells are empty
@@ -252,6 +252,40 @@ describe('gameHelpers', () => {
           expect(result[y][x].filled).toBe(false);
           expect(result[y][x].color).toBe('');
           expect(result[y][x].type).toBe(CellType.NORMAL);
+        }
+      }
+    });
+
+    it('should preserve some cells when creating a rescue grid', () => {
+      const grid: GridState = Array(GRID_SIZE).fill(null).map(() =>
+        Array(GRID_SIZE).fill(null).map(() => ({
+          filled: true,
+          color: '#ff0000',
+          type: CellType.NORMAL
+        }))
+      );
+
+      const result = createContinueGrid(grid);
+      const filledCount = result.flat().filter(cell => cell.filled).length;
+
+      expect(filledCount).toBeGreaterThan(0);
+      expect(filledCount).toBeLessThan(GRID_SIZE * GRID_SIZE);
+    });
+
+    it('should clear the center rescue zone from a source grid', () => {
+      const grid: GridState = Array(GRID_SIZE).fill(null).map(() =>
+        Array(GRID_SIZE).fill(null).map(() => ({
+          filled: true,
+          color: '#ff0000',
+          type: CellType.NORMAL
+        }))
+      );
+
+      const result = createContinueGrid(grid);
+
+      for (let y = 3; y <= 6; y++) {
+        for (let x = 3; x <= 6; x++) {
+          expect(result[y][x].filled).toBe(false);
         }
       }
     });

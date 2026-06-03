@@ -34,6 +34,8 @@ export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
       setCountdown(COUNTDOWN_SECONDS);
       return;
     }
+    if (isLoading) return;
+
     const interval = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
@@ -45,7 +47,7 @@ export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [isVisible, onDecline]);
+  }, [isLoading, isVisible, onDecline]);
 
   // Pulse ad button after 1s
   useEffect(() => {
@@ -79,7 +81,7 @@ export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
               backdropFilter: 'blur(16px)',
               zIndex: 60,
             }}
-            onClick={onDecline}
+            onClick={isLoading ? undefined : onDecline}
           />
 
           {/* Modal */}
@@ -252,7 +254,8 @@ export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
 
                   {/* Decline button */}
                   <button
-                    onClick={onDecline}
+                    onClick={isLoading ? undefined : onDecline}
+                    disabled={isLoading}
                     style={{
                       flex: 1, padding: '11px 16px',
                       borderRadius: 12,
@@ -260,7 +263,8 @@ export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
                       background: 'rgba(255,255,255,0.04)',
                       color: 'rgba(255,255,255,0.4)',
                       fontSize: 13, fontWeight: 600,
-                      cursor: 'pointer',
+                      cursor: isLoading ? 'not-allowed' : 'pointer',
+                      opacity: isLoading ? 0.55 : 1,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     }}
                   >

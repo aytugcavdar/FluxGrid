@@ -91,17 +91,61 @@ export function clearTopRows(grid: GridState): GridState {
   return newGrid;
 }
 
-/**
- * Create a completely empty grid for continue feature
- * @returns Empty grid state
- */
-export function createContinueGrid(): GridState {
-  // Return completely empty grid
+const EMPTY_CELL: GridCell = {
+  filled: false,
+  color: '',
+  type: CellType.NORMAL
+};
+
+function emptyCell(): GridCell {
+  return { ...EMPTY_CELL };
+}
+
+function createEmptyContinueGrid(): GridState {
   return Array(GRID_SIZE).fill(null).map(() =>
-    Array(GRID_SIZE).fill(null).map(() => ({
-      filled: false,
-      color: '',
-      type: CellType.NORMAL
-    }))
+    Array(GRID_SIZE).fill(null).map(() => emptyCell())
   );
+}
+
+/**
+ * Create a rescue grid for rewarded continue.
+ * Keeps most of the board intact, but opens enough space to make the revive fair.
+ */
+export function createContinueGrid(grid?: GridState): GridState {
+  if (!grid) return createEmptyContinueGrid();
+
+  const rescueGrid = grid.map(row => row.map(cell => ({ ...cell, isClearing: false })));
+
+  const rowScores = rescueGrid.map((row, y) => ({
+    y,
+    filled: row.filter(cell => cell.filled).length,
+  }));
+  const colScores = Array.from({ length: GRID_SIZE }, (_, x) => ({
+    x,
+    filled: rescueGrid.reduce((count, row) => count + (row[x].filled ? 1 : 0), 0),
+  }));
+
+  const rowsToClear = new Set(
+    rowScores
+      .sort((a, b) => b.filled - a.filled || b.y - a.y)
+      .slice(0, 2)
+      .map(row => row.y)
+  );
+  const colsToClear = new Set(
+    colScores
+      .sort((a, b) => b.filled - a.filled || Math.abs(a.x - 4.5) - Math.abs(b.x - 4.5))
+      .slice(0, 2)
+      .map(col => col.x)
+  );
+
+  for (let y = 0; y < GRID_SIZE; y++) {
+    for (let x = 0; x < GRID_SIZE; x++) {
+      const inCenterRescueZone = x >= 3 && x <= 6 && y >= 3 && y <= 6;
+      if (rowsToClear.has(y) || colsToClear.has(x) || inCenterRescueZone) {
+        rescueGrid[y][x] = emptyCell();
+      }
+    }
+  }
+
+  return rescueGrid;
 }

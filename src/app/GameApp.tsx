@@ -52,6 +52,8 @@ const TIER_EVENT_LABELS: Record<number, string> = {
   6: 'VOID+',
 };
 
+const CONTINUE_TIMED_SECONDS = 15;
+
 const App: React.FC = () => {
   const { t, i18n } = useTranslation();
   const {
@@ -60,7 +62,8 @@ const App: React.FC = () => {
     dailyClearHistory, highScore, stats, highScores,
     maxCombo, timedBoostMovesLeft, finalSprintBonus, timedScoreBreakdown, difficultyTier, tierStartMove, totalMovesPlayed, grid,
     newRecordDiff, gameLogs,
-    timerStartTime, timerExpectedEnd
+    timerStartTime, timerExpectedEnd,
+    finalizeGameOver, markReviveUsed, reviveUsedThisRun
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors, getPieceColors } = useThemeStore();
   const colors = getThemeColors();
@@ -359,14 +362,15 @@ const App: React.FC = () => {
   // Show continue modal when game over and continue is available
   useEffect(() => {
     if (isGameOver && !prevGameOver) {
-      const canContinue = AdManager.canShowRewardedContinue();
+      const canContinue = !reviveUsedThisRun && AdManager.canShowRewardedContinue();
       if (canContinue) {
         setShowContinueModal(true);
-        const remaining = 3 - (parseInt(localStorage.getItem('flux_ad_rewarded_daily') || '0', 10));
-        setContinueUsesRemaining(Math.max(0, remaining));
+        setContinueUsesRemaining(AdManager.getRewardedContinueRemaining());
+      } else {
+        finalizeGameOver();
       }
     }
-  }, [isGameOver, prevGameOver]);
+  }, [finalizeGameOver, isGameOver, prevGameOver, reviveUsedThisRun]);
 
   // Handle continue feature
   const handleContinue = useCallback(async () => {
@@ -393,24 +397,39 @@ const App: React.FC = () => {
       if (result.success) {
         console.log('[GameApp] Ad successful, continuing game...');
         
-        // Create completely empty grid for fresh start
-        const emptyGrid = createContinueGrid();
+        const rescueGrid = createContinueGrid(grid);
+        const rescueTier = gameMode === GameMode.ENDLESS ? Math.max(0, difficultyTier - 1) : 0;
         
         const newPieces = getRandomPiecesSync(
           3,
-          emptyGrid,
+          rescueGrid,
           gameMode === GameMode.DAILY_CHALLENGE,
           useThemeStore.getState().getPieceColors(),
-          0, // Reset tier to 0 so easier pieces are generated
+          rescueTier,
           gameMode
         );
+
+        const now = Date.now();
+        const timedResumeState = gameMode === GameMode.TIMED
+          ? {
+              timeLeft: CONTINUE_TIMED_SECONDS,
+              timerStartTime: timerStartTime ?? now,
+              timerExpectedEnd: now + CONTINUE_TIMED_SECONDS * 1000,
+            }
+          : {};
+
+        markReviveUsed();
         
         useGameStore.setState({
-          grid: emptyGrid,
+          grid: rescueGrid,
           pieces: newPieces,
           isGameOver: false,
+          gameOverFinalized: false,
           combo: 0,
+          comboTimerStartTime: null,
+          comboTimeLeft: 0,
           lastAction: null,
+          ...timedResumeState,
         });
         
         setShowContinueModal(false);
@@ -421,17 +440,20 @@ const App: React.FC = () => {
         console.log('[GameApp] Ad failed:', result.error);
         setShowContinueModal(false);
         setIsLoadingAd(false);
+        finalizeGameOver();
       }
     } catch (error) {
       console.error('[GameApp] Continue failed:', error);
       setShowContinueModal(false);
       setIsLoadingAd(false);
+      finalizeGameOver();
     }
-  }, [isLoadingAd, gameMode]);
+  }, [difficultyTier, finalizeGameOver, gameMode, grid, isLoadingAd, markReviveUsed, timerStartTime]);
 
   const handleDecline = useCallback(() => {
     setShowContinueModal(false);
-  }, []);
+    finalizeGameOver();
+  }, [finalizeGameOver]);
 
   // Score popup on score change
   useEffect(() => {
@@ -678,7 +700,7 @@ const App: React.FC = () => {
             isVisible={showContinueModal}
             onContinue={handleContinue}
             onDecline={handleDecline}
-            canContinue={AdManager.canShowRewardedContinue()}
+            canContinue={!reviveUsedThisRun && AdManager.canShowRewardedContinue()}
             usesRemaining={continueUsesRemaining}
             isLoading={isLoadingAd}
           />

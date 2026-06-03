@@ -44,11 +44,7 @@ const STEP_0_PIECES: Piece[] = [
   }
 ];
 
-/**
- * Step 1: First Clear - Complete a line
- * Grid has 7 blocks in bottom row, user needs to place 3-block piece
- */
-const STEP_1_PIECES: Piece[] = [
+const CLEAR_LINE_PIECES: Piece[] = [
   {
     id: 'line_3h',
     instanceId: uuidv4(),
@@ -57,22 +53,26 @@ const STEP_1_PIECES: Piece[] = [
     type: CellType.NORMAL
   },
   {
-    id: 'line_2h',
+    id: 'line_3h_alt',
     instanceId: uuidv4(),
-    shape: [[1, 1]],
+    shape: [[1, 1, 1]],
     color: '#ec4899', // Pink
     type: CellType.NORMAL
   },
   {
-    id: 'single',
+    id: 'line_3h_teal',
     instanceId: uuidv4(),
-    shape: [[1]],
-    color: '#8b5cf6', // Violet
+    shape: [[1, 1, 1]],
+    color: '#34d399', // Green
     type: CellType.NORMAL
   }
 ];
 
-// Pre-filled grid for step 1: Bottom row has 7 blocks (needs 3 more to complete)
+/**
+ * Step 1: First Clear - Complete a line.
+ * Bottom row needs a 3-block piece. A few blocks above it will fall after clear,
+ * so the player learns gravity during the tutorial.
+ */
 const STEP_1_GRID: number[][] = [
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -80,10 +80,27 @@ const STEP_1_GRID: number[][] = [
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+  [0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+  [1, 1, 1, 1, 1, 1, 1, 0, 0, 0]
+];
+
+/**
+ * Step 2: Combo - Same simple setup, so the second clear happens quickly and
+ * teaches that consecutive clears keep the combo alive.
+ */
+const STEP_2_GRID: number[][] = [
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [1, 1, 1, 1, 1, 1, 1, 0, 0, 0] // Bottom row: 7 blocks filled
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+  [1, 1, 1, 1, 1, 1, 1, 0, 0, 0]
 ];
 
 /**
@@ -95,11 +112,15 @@ export const TUTORIAL_STEP_DATA: Record<number, TutorialStepData> = {
     description: 'Place your first piece on the board'
   },
   1: {
-    pieces: STEP_1_PIECES,
+    pieces: CLEAR_LINE_PIECES,
     targetGrid: STEP_1_GRID,
-    description: 'Complete the bottom row to clear it'
+    description: 'Complete the bottom row to clear it and show gravity'
+  },
+  2: {
+    pieces: CLEAR_LINE_PIECES,
+    targetGrid: STEP_2_GRID,
+    description: 'Clear another line quickly to keep combo'
   }
-  // Steps 3-5 are info/complete steps, no pieces needed
 };
 
 /**

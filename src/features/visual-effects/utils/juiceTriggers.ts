@@ -60,7 +60,15 @@ export class JuiceTriggers {
       return;
     }
     
-    // FULL MODE: All effects at combo < 5
+    const lineCount = this.getClearedLineCount(actions);
+
+    // SINGLE CLEAR: keep it clean. The 3D board sweep and haptic carry the feedback.
+    if (lineCount <= 1) {
+      this.addLineClearAnimations(actions, addLineClearAnimation);
+      return;
+    }
+
+    // MULTI CLEAR: line animation plus one small extra layer.
     // 1. Line clear animations (always enabled)
     this.addLineClearAnimations(actions, addLineClearAnimation);
     
@@ -214,5 +222,18 @@ export class JuiceTriggers {
     triggerPlacementFeedback('valid');
     
     gameFeelEvents.dragHover();
+  }
+
+  private static getClearedLineCount(actions: ClearAction[]): number {
+    const rows = new Set<number>();
+    const cols = new Set<number>();
+
+    actions.forEach((action) => {
+      if (action.type !== 'CELL_CLEAR') return;
+      action.rows?.forEach(row => rows.add(row));
+      action.cols?.forEach(col => cols.add(col));
+    });
+
+    return rows.size + cols.size;
   }
 }

@@ -100,6 +100,31 @@
     "useBomb": "Bombes"
   },
   "tutorial": {
+    "drag": {
+      "title": "Glisse une piece",
+      "description": "Prends une piece en bas et pose-la sur une case valide."
+    },
+    "firstClear": {
+      "title": "Efface une ligne",
+      "description": "Complete la ligne du bas. Les blocs au-dessus tomberont apres le clear."
+    },
+    "combo": {
+      "title": "Garde le combo",
+      "description": "Fais vite un autre clear. Les clears en chaine gardent ton combo actif."
+    },
+    "ready": {
+      "endlessTitle": "Tu es pret",
+      "endlessDescription": "Efface lignes ou colonnes, garde le combo et bats ton propre record.",
+      "timedTitle": "Gagne du temps",
+      "timedDescription": "En Timed, chaque clear donne +secondes. Efface vite et prolonge la partie."
+    },
+    "hints": {
+      "tryDragging": "Glisse une piece sur le plateau",
+      "fillLine": "Remplis une ligne ou colonne",
+      "keepClearing": "Continue a effacer vite",
+      "perfectStart": "Depart parfait!",
+      "timeReward": "Clear reussi, temps gagne!"
+    },
     "start": "Commencer à jouer",
     "next": "Suivant",
     "skip": "Passer",

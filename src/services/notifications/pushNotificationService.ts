@@ -61,6 +61,32 @@ const ENGAGEMENT_NOTIFICATION_IDS = [101, 102, 103, 104, 105];
 const ENGAGEMENT_CHANNEL_ID = 'daily_reminders';
 const MAX_CONTEXTUAL_NOTIFICATIONS = 2;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const RESCHEDULE_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const NOTIFICATION_PREFS_KEY = 'flux_engagement_notification_preferences_v1';
+const NOTIFICATION_SCHEDULE_STATE_KEY = 'flux_engagement_notification_schedule_state_v1';
+
+export interface EngagementNotificationPreferences {
+  enabled: boolean;
+  dailyReminder: boolean;
+  streakReminder: boolean;
+  nearRecord: boolean;
+  timedMode: boolean;
+  inactivity: boolean;
+}
+
+const DEFAULT_NOTIFICATION_PREFERENCES: EngagementNotificationPreferences = {
+  enabled: true,
+  dailyReminder: true,
+  streakReminder: true,
+  nearRecord: true,
+  timedMode: true,
+  inactivity: true,
+};
+
+interface EngagementScheduleState {
+  signature: string;
+  scheduledAt: number;
+}
 
 interface NotificationCopy {
   title: string;
@@ -87,6 +113,48 @@ function dateSeed(now: Date): string {
   return now.toISOString().slice(0, 10);
 }
 
+function readJson<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) as T : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeJson<T>(key: string, value: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+export function getEngagementNotificationPreferences(): EngagementNotificationPreferences {
+  const stored = readJson<Partial<EngagementNotificationPreferences>>(NOTIFICATION_PREFS_KEY);
+  return {
+    ...DEFAULT_NOTIFICATION_PREFERENCES,
+    ...(stored || {}),
+  };
+}
+
+export function setEngagementNotificationPreferences(
+  updates: Partial<EngagementNotificationPreferences>
+): EngagementNotificationPreferences {
+  const next = {
+    ...getEngagementNotificationPreferences(),
+    ...updates,
+  };
+  writeJson(NOTIFICATION_PREFS_KEY, next);
+  return next;
+}
+
+function buildScheduleSignature(plans: EngagementNotificationPlan[]): string {
+  return plans
+    .map(plan => `${plan.id}:${plan.type}:${plan.hour}:${plan.minute}:${plan.repeats ? 'r' : 'o'}:${plan.dayOffset || 0}`)
+    .join('|');
+}
+
 export function createEngagementNotificationCopy(
   type: NotificationType,
   context: EngagementNotificationContext = {},
@@ -101,16 +169,16 @@ export function createEngagementNotificationCopy(
     case NotificationType.STREAK_REMINDER:
       return pickCopy([
         {
-          title: `${streak} gunluk seri alarmi`,
-          body: 'Bu seri kendi kendini koruyamiyor. Kisa bir tur yeter.',
+          title: `${streak} gunluk seri masada`,
+          body: 'Seri icin uzun seans gerekmez. Kisa bir tur yeter.',
         },
         {
-          title: 'Serin seni bekliyor',
-          body: `${streak} gunluk emek var. Bugunu bos gecmeyelim.`,
+          title: 'Seri beklemede',
+          body: `${streak} gunluk ritim var. Bugunu tek turla kapatalim.`,
         },
         {
           title: 'Seri kirilmasin',
-          body: 'Bir mini tur at, sayac rahat nefes alsin.',
+          body: 'Bir mini tur at, sayac yerinde kalsin.',
         },
       ], seed);
 
@@ -118,31 +186,31 @@ export function createEngagementNotificationCopy(
       return pickCopy([
         {
           title: 'Rekor kapida',
-          body: `${recordGap.toLocaleString('tr-TR')} puan kalmisti. Bu kadar yakinken bir deneme daha.`,
+          body: `${recordGap.toLocaleString('tr-TR')} puan kalmisti. Bu mesafe bir iyi turla kapanir.`,
         },
         {
           title: 'Az kaldi',
-          body: `Son skorun rekora ${recordGap.toLocaleString('tr-TR')} puan uzakta. Tahta hazir.`,
+          body: `Son skorun rekora ${recordGap.toLocaleString('tr-TR')} puan uzakta. Tahta yine hazir.`,
         },
         {
-          title: 'Rekor seni gordu',
-          body: `${recordGap.toLocaleString('tr-TR')} puanlik fark kapanabilir. Bir tur daha?`,
+          title: 'Rekor yakin',
+          body: `${recordGap.toLocaleString('tr-TR')} puanlik fark kapanabilir. Bir tur daha mantikli.`,
         },
       ], seed);
 
     case NotificationType.TIMED_MODE:
       return pickCopy([
         {
-          title: '60 saniyelik meydan okuma',
-          body: 'Timed mod isinmis. Bir dakikada skor alalim.',
+          title: '60 saniyelik tur hazir',
+          body: 'Timed mod hizli karar istiyor. Bir dakikada skor alalim.',
         },
         {
           title: 'Bir dakika yeter',
-          body: 'Hizli tur hazir. Kronometre baslamayi bekliyor.',
+          body: 'Kronometre hazir. Ilk clear ritmi belirler.',
         },
         {
-          title: 'Kisa ve net',
-          body: '60 saniyelik tur, bahane kabul etmeyen tur.',
+          title: 'Kisa tur, net skor',
+          body: '60 saniye. Combo kur, final sprintte kapat.',
         },
       ], seed);
 
@@ -150,15 +218,15 @@ export function createEngagementNotificationCopy(
       return pickCopy([
         {
           title: 'Tahta seni unutmadi',
-          body: `${inactiveDays || 2} gundur sessiz. Geri donus turu 2 dakika.`,
+          body: `${inactiveDays || 2} gundur sessiz. Geri donus icin kisa bir tur yeter.`,
         },
         {
           title: 'Kucuk bir geri donus',
           body: 'Bir kisa tur at; ritmi yeniden yakalayalim.',
         },
         {
-          title: 'FluxGrid yoklama aliyor',
-          body: 'Bugun bir hamlelik isimiz var.',
+          title: 'Tahta bos kaldi',
+          body: 'Bugun bir oyunluk yer var. Dolduralim.',
         },
       ], seed);
 
@@ -166,16 +234,16 @@ export function createEngagementNotificationCopy(
     default:
       return pickCopy([
         {
-          title: 'FluxGrid seni bekliyor',
-          body: 'Bugunun mini turu hala bos. Bir hamleyle baslayalim.',
+          title: 'Bugunun turu bos',
+          body: 'Bir hamleyle basla, ritmi oyun soylesin.',
         },
         {
-          title: '2 dakika, sonra ozgursun',
-          body: 'Kisa bir tur at; gunluk ritim bozulmasin.',
+          title: 'Kisa tur zamani',
+          body: 'Gunluk ritim icin tek temiz tur yeter.',
         },
         {
           title: 'Tahta sessiz kaldi',
-          body: 'Bir oyunluk yer ayirdik. Gelip dolduralim mi?',
+          body: 'Bir oyunluk yer ayirdik. Gelip dolduralim.',
         },
       ], seed);
   }
@@ -203,12 +271,17 @@ function nextScheduledDate(hour: number, minute: number, now: Date, dayOffset = 
 
 export function createEngagementNotificationPlans(
   context: EngagementNotificationContext,
-  now: Date = new Date()
+  now: Date = new Date(),
+  preferences: EngagementNotificationPreferences = getEngagementNotificationPreferences()
 ): EngagementNotificationPlan[] {
   const plans: EngagementNotificationPlan[] = [];
   const todayPlayed = context.todayPlayed === true;
 
-  if (!todayPlayed) {
+  if (!preferences.enabled) {
+    return plans;
+  }
+
+  if (preferences.dailyReminder && !todayPlayed) {
     const copy = createEngagementNotificationCopy(NotificationType.DAILY_REMINDER, context, now);
     plans.push({
       id: 101,
@@ -224,7 +297,7 @@ export function createEngagementNotificationPlans(
 
   const contextualPlans: EngagementNotificationPlan[] = [];
 
-  if ((context.currentStreak || 0) >= 2 && !todayPlayed) {
+  if (preferences.streakReminder && (context.currentStreak || 0) >= 2 && !todayPlayed) {
     const copy = createEngagementNotificationCopy(NotificationType.STREAK_REMINDER, context, now);
     contextualPlans.push({
       id: 102,
@@ -239,7 +312,7 @@ export function createEngagementNotificationPlans(
 
   const recordGap = (context.bestScore || 0) - (context.lastScore || 0);
   const closeRecordLimit = Math.max(240, Math.round((context.bestScore || 0) * 0.1));
-  if ((context.bestScore || 0) > 0 && recordGap > 0 && recordGap <= closeRecordLimit) {
+  if (preferences.nearRecord && (context.bestScore || 0) > 0 && recordGap > 0 && recordGap <= closeRecordLimit) {
     const copy = createEngagementNotificationCopy(NotificationType.NEAR_RECORD, context, now);
     contextualPlans.push({
       id: 103,
@@ -253,7 +326,7 @@ export function createEngagementNotificationPlans(
   }
 
   const timedDaysSince = daysSince(context.lastTimedPlayedAt, now);
-  if (!todayPlayed && (timedDaysSince === null || timedDaysSince >= 1)) {
+  if (preferences.timedMode && !todayPlayed && (timedDaysSince === null || timedDaysSince >= 1)) {
     const copy = createEngagementNotificationCopy(NotificationType.TIMED_MODE, context, now);
     contextualPlans.push({
       id: 104,
@@ -267,7 +340,7 @@ export function createEngagementNotificationPlans(
   }
 
   const inactiveDays = daysSince(context.lastPlayedAt, now);
-  if (inactiveDays !== null && inactiveDays >= 2) {
+  if (preferences.inactivity && inactiveDays !== null && inactiveDays >= 2) {
     const copy = createEngagementNotificationCopy(NotificationType.INACTIVITY, context, now);
     contextualPlans.push({
       id: 105,
@@ -567,20 +640,43 @@ export const notificationScheduler = {
         return;
       }
 
+      const now = new Date();
+      const preferences = getEngagementNotificationPreferences();
+      const plans = createEngagementNotificationPlans(context, now, preferences);
       const pending = await LocalNotifications.getPending();
       const existingEngagementNotifications = pending.notifications.filter(notification =>
         ENGAGEMENT_NOTIFICATION_IDS.includes(notification.id)
       );
 
-      if (existingEngagementNotifications.length > 0) {
-        await LocalNotifications.cancel({ notifications: existingEngagementNotifications });
+      if (!preferences.enabled) {
+        if (existingEngagementNotifications.length > 0) {
+          await LocalNotifications.cancel({ notifications: existingEngagementNotifications });
+        }
+        console.log('[Notifications] Engagement notifications disabled by user preference');
+        return;
       }
 
-      const now = new Date();
-      const plans = createEngagementNotificationPlans(context, now);
       if (plans.length === 0) {
+        if (existingEngagementNotifications.length > 0) {
+          await LocalNotifications.cancel({ notifications: existingEngagementNotifications });
+        }
         console.log('[Notifications] No engagement notifications to schedule');
         return;
+      }
+
+      const signature = buildScheduleSignature(plans);
+      const scheduleState = readJson<EngagementScheduleState>(NOTIFICATION_SCHEDULE_STATE_KEY);
+      if (
+        existingEngagementNotifications.length > 0 &&
+        scheduleState?.signature === signature &&
+        now.getTime() - scheduleState.scheduledAt < RESCHEDULE_COOLDOWN_MS
+      ) {
+        console.log('[Notifications] Engagement schedule unchanged; keeping existing local notifications');
+        return;
+      }
+
+      if (existingEngagementNotifications.length > 0) {
+        await LocalNotifications.cancel({ notifications: existingEngagementNotifications });
       }
 
       await LocalNotifications.schedule({
@@ -602,6 +698,11 @@ export const notificationScheduler = {
             ...plan.data,
           },
         })),
+      });
+
+      writeJson<EngagementScheduleState>(NOTIFICATION_SCHEDULE_STATE_KEY, {
+        signature,
+        scheduledAt: now.getTime(),
       });
 
       console.log('[Notifications] Engagement notifications scheduled:', plans.map(plan => plan.type));

@@ -57,31 +57,31 @@ function getScheduledEngagementCopy(type: 'daily_reminder' | 'inactivity', date:
     return pickCopy(type, [
       {
         title: 'Tahta seni unutmadi',
-        body: 'Geri donus turu 2 dakika. Bir hamleyle ritmi yakalayalim.',
+        body: 'Geri donus icin kisa bir tur yeter. Ritim cabuk toparlanir.',
       },
       {
-        title: 'FluxGrid yoklama aliyor',
-        body: 'Bugun bir oyunluk isimiz var.',
+        title: 'Tahta bos kaldi',
+        body: 'Bugun bir oyunluk yer var. Dolduralim.',
       },
       {
-        title: 'Kucuk bir geri donus',
-        body: 'Bir kisa tur at; tahta tekrar canlansin.',
+        title: 'Kucuk geri donus',
+        body: 'Bir kisa tur at; ritmi yeniden yakalayalim.',
       },
     ], date);
   }
 
   return pickCopy(type, [
     {
-      title: 'FluxGrid seni bekliyor',
-      body: 'Bugunun mini turu hala bos. Bir hamleyle baslayalim.',
+      title: 'Bugunun turu bos',
+      body: 'Bir hamleyle basla, ritmi oyun soylesin.',
     },
     {
-      title: '2 dakika, sonra ozgursun',
-      body: 'Kisa bir tur at; gunluk ritim bozulmasin.',
+      title: 'Kisa tur zamani',
+      body: 'Gunluk ritim icin tek temiz tur yeter.',
     },
     {
       title: 'Tahta sessiz kaldi',
-      body: 'Bir oyunluk yer ayirdik. Gelip dolduralim mi?',
+      body: 'Bir oyunluk yer ayirdik. Gelip dolduralim.',
     },
   ], date);
 }

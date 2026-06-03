@@ -1415,12 +1415,13 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 if (lastAction.type === 'CLEAR') {
                     const lines = lastAction.lines || 1;
                     const cmb = lastAction.combo || 1;
+                    const isClearConstrainedDevice = isLowEndDevice || isLowMidDevice;
                     shakeIntensityRef.current = 0;
 
                     // ─── Haptic: Line clear feedback ───
                     // Single line = light short pulse, multi = double pulse
                     // ─── UI3D: Show floating score and update combo ───
-                    if (ui3dManagerRef.current) {
+                    if (ui3dManagerRef.current && !isClearConstrainedDevice && cmb < 5) {
                         const scoreValue = lines * 100;
                         const centerPos = new BABYLON.Vector3(5, 10, 0);
 
@@ -1445,6 +1446,12 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                     const movedCells = lastAction.movedCells || [];
                     const lockedIceCells = lastAction.lockedIceCells || [];
                     const bombClearCells = clearedCells.filter((cell: any) => cell.cellType === CellType.BOMB);
+                    const allowSpecialBlockFeedback = !isLowEndDevice;
+                    const allowEnhancedClearSystem = lineClearSystemRef.current
+                        && !isClearConstrainedDevice
+                        && (currentPerfectClear || (cmb < 5 && (lines >= 2 || lockedIceCells.length > 0)));
+                    const maxIceFeedback = isLowMidDevice ? 1 : (cmb >= 5 ? 2 : 4);
+                    const maxBombFeedback = isLowMidDevice ? 1 : (cmb >= 5 ? 1 : 3);
                     clearedCells.forEach((cell: any) => {
                         if (!cell.id || meshMapRef.current.has(cell.id)) return;
                         const mesh = createBlockMeshLocal(cell.color, cell.id, cell.cellType || CellType.NORMAL);
@@ -1463,8 +1470,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                             movedCells
                         );
 
-                        if (lockedIceCells.length > 0 && !isLowEndDevice) {
-                            lockedIceCells.slice(0, 4).forEach((cell: any) => {
+                        if (lockedIceCells.length > 0 && allowSpecialBlockFeedback) {
+                            lockedIceCells.slice(0, maxIceFeedback).forEach((cell: any) => {
                                 const meshId = cell.id || grid[cell.y]?.[cell.x]?.id;
                                 const targetMesh = meshId ? meshMapRef.current.get(meshId) : null;
                                 const position = targetMesh?.position.clone() || getVectorPos(cell.x, cell.y);
@@ -1503,8 +1510,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                             });
                         }
 
-                        if (bombClearCells.length > 0 && !isLowEndDevice) {
-                            bombClearCells.slice(0, 3).forEach((cell: any) => {
+                        if (bombClearCells.length > 0 && allowSpecialBlockFeedback) {
+                            bombClearCells.slice(0, maxBombFeedback).forEach((cell: any) => {
                                 const meshId = cell.id || grid[cell.y]?.[cell.x]?.id;
                                 const targetMesh = meshId ? meshMapRef.current.get(meshId) : null;
                                 const position = targetMesh?.position.clone() || getVectorPos(cell.x, cell.y);
@@ -1513,10 +1520,19 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                                     thickness: 0.03,
                                     tessellation: 20,
                                 }, scene);
+                                const blastRing = BABYLON.MeshBuilder.CreateTorus(`bomb-radius-${cell.x}-${cell.y}-${Date.now()}`, {
+                                    diameter: TOTAL_CELL_SIZE * 3.08,
+                                    thickness: 0.022,
+                                    tessellation: 24,
+                                }, scene);
                                 ring.position = position;
                                 ring.position.y += 0.56;
                                 ring.rotation.x = Math.PI / 2;
                                 ring.isPickable = false;
+                                blastRing.position = position;
+                                blastRing.position.y += 0.5;
+                                blastRing.rotation.x = Math.PI / 2;
+                                blastRing.isPickable = false;
 
                                 const mat = new BABYLON.StandardMaterial(`bomb-clear-mat-${cell.x}-${cell.y}-${Date.now()}`, scene);
                                 mat.diffuseColor = BABYLON.Color3.FromHexString('#fb923c').scale(0.35);
@@ -1525,17 +1541,26 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                                 mat.disableLighting = true;
                                 mat.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
                                 ring.material = mat;
+                                const blastMat = new BABYLON.StandardMaterial(`bomb-radius-mat-${cell.x}-${cell.y}-${Date.now()}`, scene);
+                                blastMat.diffuseColor = BABYLON.Color3.FromHexString('#fb923c').scale(0.16);
+                                blastMat.emissiveColor = BABYLON.Color3.FromHexString('#f97316').scale(0.45);
+                                blastMat.alpha = isLowMidDevice ? 0.22 : 0.34;
+                                blastMat.disableLighting = true;
+                                blastMat.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+                                blastRing.material = blastMat;
 
                                 setTimeout(() => {
                                     ring.dispose();
                                     mat.dispose();
+                                    blastRing.dispose();
+                                    blastMat.dispose();
                                 }, 300);
                             });
                         }
 
                         // Trigger enhanced line clear animation system
                         // Skip on weak devices and single-line clears to keep feedback focused.
-                        if (lineClearSystemRef.current && !isLowEndDevice && (lines >= 2 || currentPerfectClear || lockedIceCells.length > 0)) {
+                        if (allowEnhancedClearSystem && lineClearSystemRef.current) {
                             const clearedLineIndices = [...rows, ...cols];
                             const seenCellPositions = new Set<string>();
                             const cellPositions: BABYLON.Vector3[] = [];

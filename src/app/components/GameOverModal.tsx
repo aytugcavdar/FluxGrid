@@ -145,16 +145,16 @@ const TIER_NAMES: Record<number, string> = {
 export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
   isGameOver, score, displayScore, highScore, currentModeHighScore,
   isNewRecord, showRecordBadge, showButtons, gameMode,
-  combo, maxCombo, todayBestCombo, finalSprintBonus, timedScoreBreakdown, newRecordDiff, stats,
+  combo, maxCombo, todayBestCombo, newRecordDiff, stats,
   difficultyTier, tierMovesSurvived = 0, surgeWasUsed, dailyClearHistory,
   shareStatus, showPWAPrompt, showIOSInstructions,
-  timerStartTime, timerExpectedEnd,
   onClose, onPlayAgain, onTryMode, onShare, onInstallPWA, onCloseIOSInstructions,
 }) => {
   const [visibleStats, setVisibleStats] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
   const modeIsEndless = gameMode === GameMode.ENDLESS;
   const modeIsTimed = gameMode === GameMode.TIMED;
+  const useCompactGameOver = modeIsTimed || modeIsEndless;
 
   const scorePercentage = useMemo(() =>
     currentModeHighScore > 0 ? Math.round((score / currentModeHighScore) * 100) : 0,
@@ -163,16 +163,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
   const progressPercentage = useMemo(() =>
     currentModeHighScore > 0 ? Math.min((score / currentModeHighScore) * 100, 100) : 0,
     [score, currentModeHighScore]);
-
-  // Calculate game duration in MM:SS format
-  const gameDuration = useMemo(() => {
-    if (!timerStartTime || !timerExpectedEnd) return '0:00';
-    const durationMs = Date.now() - timerStartTime;
-    const totalSeconds = Math.floor(durationMs / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  }, [timerStartTime, timerExpectedEnd]);
 
   // Get personal best from stats
   const personalBest = useMemo(() => {
@@ -193,7 +183,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
   }, [currentModeHighScore, isNewRecord, score]);
 
   const lossReason = useMemo(() => {
-    if (modeIsTimed) return 'Son bölümde tempo düştü; süre ve alan baskısı oyunu bitirdi.';
+    if (modeIsTimed) return '';
     return 'Son yerleşimden sonra kalan parçalar için uygun alan kalmadı.';
   }, [modeIsTimed]);
 
@@ -201,15 +191,12 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
   const reachedTierLabel = modeIsEndless
     ? `T${difficultyTier} ${TIER_NAMES[difficultyTier] ?? `Tier ${difficultyTier}`}`
     : '';
-  const timedBreakdownRows = useMemo(() => {
-    if (!modeIsTimed) return [];
-    return [
-      { label: 'Yerleşim / satır', value: timedScoreBreakdown.placementAndLines, color: '#a855f7' },
-      { label: 'Combo', value: timedScoreBreakdown.combo, color: '#f59e0b' },
-      { label: 'Bonus', value: timedScoreBreakdown.bonus, color: '#60a5fa' },
-      { label: 'Final Sprint', value: timedScoreBreakdown.finalSprint, color: '#fb923c' },
-    ].filter(row => row.value > 0);
-  }, [modeIsTimed, timedScoreBreakdown]);
+  const runPrompt = useMemo(() => {
+    if (!useCompactGameOver) return null;
+    if (isNewRecord) return 'Yeni rekor. Bir tur daha.';
+    if (recordGap > 0) return `Rekora ${recordGap.toLocaleString('tr-TR')} puan kaldi.`;
+    return 'Bir tur daha.';
+  }, [isNewRecord, recordGap, useCompactGameOver]);
 
   useEffect(() => {
     if (isGameOver) {
@@ -442,12 +429,9 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
               }}
               aria-label="Oyun sonu özeti"
             >
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.74)', lineHeight: 1.35 }}>
-                {lossReason}
-              </div>
-              {modeIsEndless && (
-                <div style={{ fontSize: 12, color: '#fb923c', fontWeight: 800, lineHeight: 1.3 }}>
-                  {reachedTierLabel} seviyesinde {tierMovesSurvived} hamle dayandın.
+              {!useCompactGameOver && (
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.74)', lineHeight: 1.35 }}>
+                  {lossReason}
                 </div>
               )}
               {recordGap > 0 && (
@@ -455,65 +439,22 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
                   Rekora {recordGap.toLocaleString('tr-TR')} kaldı.
                 </div>
               )}
-              {todayBestCombo > 0 && (
+              {runPrompt && (
+                <div style={{ fontSize: 12, color: '#fbbf24', fontWeight: 800, lineHeight: 1.3 }}>
+                  {runPrompt}
+                </div>
+              )}
+              {!useCompactGameOver && todayBestCombo > 0 && (
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.58)', lineHeight: 1.3 }}>
                   Bugünün en iyi kombosu: {todayBestCombo}×
                 </div>
               )}
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.48)', lineHeight: 1.3 }}>
-                {retryTip}
-              </div>
-            </motion.div>
-
-            {/* Timed score breakdown */}
-            {modeIsTimed && timedScoreBreakdown.total > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.52 }}
-                style={{
-                  display: 'grid',
-                  gap: 7,
-                  marginBottom: 16,
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  background: 'rgba(245,158,11,0.07)',
-                  border: '1px solid rgba(245,158,11,0.16)',
-                }}
-                aria-label="Timed skor kırılımı"
-              >
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 10,
-                  fontSize: 10,
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  color: 'rgba(255,255,255,0.42)',
-                }}>
-                  <span>Skor kırılımı</span>
-                  <span style={{ color: '#fbbf24' }}>{timedScoreBreakdown.total.toLocaleString('tr-TR')}</span>
+              {!useCompactGameOver && (
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.48)', lineHeight: 1.3 }}>
+                  {retryTip}
                 </div>
-                {timedBreakdownRows.map(row => (
-                  <div
-                    key={row.label}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                      fontSize: 11,
-                      lineHeight: 1,
-                    }}
-                  >
-                    <span style={{ color: 'rgba(255,255,255,0.58)', fontWeight: 700 }}>{row.label}</span>
-                    <span style={{ color: row.color, fontWeight: 900 }}>+{row.value.toLocaleString('tr-TR')}</span>
-                  </div>
-                ))}
-              </motion.div>
-            )}
+              )}
+            </motion.div>
 
             {/* Stat chips */}
             {stats && (
@@ -526,15 +467,11 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
                   <>
                     <StatChip icon="▬" label="Satır" value={stats.linesCleared || 0} color="#a855f7" delay={0.12} show={visibleStats >= 1} />
                     <StatChip icon="×" label="MAX COMBO" value={maxCombo > 0 ? `×${maxCombo}` : '--'} color="#f59e0b" delay={0.22} show={visibleStats >= 2} />
-                    <StatChip icon="⏱" label="Süre" value={gameDuration} color="#34d399" delay={0.32} show={visibleStats >= 3} />
-                    <StatChip icon="+" label="FINAL SPRINT" value={`+${finalSprintBonus.toLocaleString()}`} color="#fb923c" delay={0.42} show={visibleStats >= 4} />
                   </>
                 ) : modeIsEndless ? (
                   <>
                     <StatChip icon="×" label="MAX COMBO" value={maxCombo > 0 ? `×${maxCombo}` : '--'} color="#f59e0b" delay={0.12} show={visibleStats >= 1} />
-                    <StatChip icon="▬" label="Satır" value={stats.linesCleared || 0} color="#a855f7" delay={0.22} show={visibleStats >= 2} />
-                    <StatChip icon="▲" label="MAX TIER" value={reachedTierLabel} color="#fb923c" delay={0.32} show={visibleStats >= 3} />
-                    <StatChip icon="T" label="TIER HAMLE" value={tierMovesSurvived} color="#34d399" delay={0.42} show={visibleStats >= 4} />
+                    <StatChip icon="▲" label="MAX TIER" value={reachedTierLabel} color="#fb923c" delay={0.22} show={visibleStats >= 2} />
                   </>
                 ) : (
                   <>
@@ -568,7 +505,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
                 aria-label="Tekrar oyna"
               >
                 <RotateCcw size={16} aria-hidden="true" />
-                Tekrar Oyna
+                {modeIsTimed ? 'Bir Tur Daha' : 'Tekrar Oyna'}
               </button>
 
               {/* Share */}

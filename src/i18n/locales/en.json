@@ -100,17 +100,21 @@
     "useBomb": "Bombs"
   },
   "tutorial": {
+    "drag": {
+      "title": "Drag a piece",
+      "description": "Hold a piece from the tray and drop it on a valid board spot."
+    },
     "welcome": {
       "title": "👋 Welcome!",
       "description": "Let's get started! Drag one of the pieces below and place it on the board"
     },
     "firstClear": {
       "title": "🎯 Great Job!",
-      "description": "Now fill a complete row or column. Full lines are automatically cleared and you earn points!"
+      "description": "Complete the bottom row. When it clears, watch the blocks above fall down."
     },
     "combo": {
       "title": "🔥 Combo Time!",
-      "description": "Perfect! Now clear consecutive lines to build a combo. Each combo brings more points!"
+      "description": "Clear one more line right away. Consecutive clears keep your combo alive."
     },
     "comboTimer": {
       "title": "⏰ Combo Timer",
@@ -119,6 +123,12 @@
     "gameModes": {
       "title": "🎮 You're Ready!",
       "description": "You are in Endless Mode. Play at your pace, clear lines, and build your best score."
+    },
+    "ready": {
+      "endlessTitle": "You're ready",
+      "endlessDescription": "Clear rows or columns, keep your combo alive, and build your own record.",
+      "timedTitle": "Earn time",
+      "timedDescription": "In Timed mode, every clear gives +seconds. Clear fast and extend the run."
     },
     "skip": "Skip",
     "skipButton": "Skip Tutorial",
@@ -139,7 +149,8 @@
       "speedDemon": "⚡ Speed Demon!",
       "tryDragging": "Try dragging a piece to the board",
       "fillLine": "Fill a complete row or column",
-      "keepClearing": "Keep clearing lines quickly"
+      "keepClearing": "Keep clearing lines quickly",
+      "timeReward": "Clear made, time earned!"
     },
     "start": "Start Playing",
     "next": "Next",
@@ -344,7 +355,7 @@
   "continueModal": {
     "title": "CONTINUE?",
     "subtitle": "Your game isn't over!",
-    "benefit1": "Grid will be partially cleared",
+    "benefit1": "A safe space opens on the board",
     "benefit2": "You'll get 3 new pieces",
     "benefit3": "Your current score is kept",
     "watchAd": "📺 Watch Ad & Continue",

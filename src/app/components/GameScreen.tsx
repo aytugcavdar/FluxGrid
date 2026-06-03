@@ -263,7 +263,7 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
             />
             <Grid grid={grid} />
           </div>
-          <ComboBar gridSize={gridSize} />
+          {gameMode !== GameMode.TIMED && <ComboBar gridSize={gridSize} />}
         </div>
       </main>
 
