@@ -57,6 +57,7 @@ export const EVENT_DURATIONS = {
 
 // Event cooldown (tier-based) - hamle sayısı event bitiminden sonra
 export const EVENT_COOLDOWNS: Record<number, number> = {
+  0: 99, // tier 0'da event yok — savunmacı default
   1: 5,  // tier 1'de 5 hamle cooldown
   2: 4,
   3: 3,

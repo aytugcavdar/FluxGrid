@@ -49,6 +49,26 @@ interface GameScreenProps {
 
 import { areGameScreenPropsEqual } from './GameScreenMemo';
 
+// Tier'a göre çok hafif ambient tonu (bilerek düşük opacity — rahatsız etmez)
+const TIER_GLOW: Record<number, string> = {
+  0: 'transparent',
+  1: 'rgba(59,130,246,0.06)',
+  2: 'rgba(16,185,129,0.06)',
+  3: 'rgba(245,158,11,0.07)',
+  4: 'rgba(239,68,68,0.08)',
+  5: 'rgba(168,85,247,0.10)',
+  6: 'rgba(220,38,38,0.13)',
+};
+
+// Event aktifken o event'e özgü ambient renk
+const EVENT_GLOW: Record<string, string> = {
+  ICE_STORM: 'rgba(56,189,248,0.11)',
+  QUAKE:     'rgba(249,115,22,0.11)',
+  MIRROR:    'rgba(244,114,182,0.10)',
+  CHAOS:     'rgba(168,85,247,0.13)',
+  VOID:      'rgba(239,68,68,0.13)',
+};
+
 export const GameScreen: React.FC<GameScreenProps> = React.memo(({
   grid,
   pieces,
@@ -73,6 +93,13 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
   const colors = getThemeColors();
   const isTutorialActive = useTutorialStore(state => state.isActive);
   const isGameOver = useGameStore(state => state.isGameOver);
+  const difficultyTier = useGameStore(state => state.difficultyTier);
+  const activeEvent    = useGameStore(state => state.activeEvent);
+
+  // Event aktifken event rengi, yoksa tier rengi
+  const ambientColor = activeEvent
+    ? (EVENT_GLOW[activeEvent] ?? 'transparent')
+    : (TIER_GLOW[difficultyTier] ?? 'transparent');
 
   // Track piece set refreshes (all 3 pieces replaced at once = reroll/new round)
   const prevPieceIdsRef = React.useRef<string>('');
@@ -124,6 +151,19 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
       exit={{ opacity: 0, scale: 0.95 }}
       className="fixed inset-0 flex flex-col z-30 overflow-hidden"
     >
+      {/* ── Atmosfer katmanı: tier + event ambient glow ── */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 0,
+          pointerEvents: 'none',
+          background: `radial-gradient(ellipse 85% 65% at 50% 54%, ${ambientColor}, transparent 75%)`,
+          transition: 'background 2s ease',
+        }}
+      />
+
       {/* HUD */}
       <header 
         className="flex-none w-full max-w-4xl mx-auto" 

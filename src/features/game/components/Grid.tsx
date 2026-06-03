@@ -740,6 +740,55 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             });
         });
 
+        // Grid tahtası atmosfer tonlaması: tier + event'e göre çok hafif renk değişimi
+        const TIER_GRID_TINT: Record<number, { hex: string; emissive: number }> = {
+            0: { hex: '#0a0f18', emissive: 0.60 }, // varsayılan
+            1: { hex: '#090f1c', emissive: 0.62 }, // hafif mavi
+            2: { hex: '#081410', emissive: 0.62 }, // hafif yeşil
+            3: { hex: '#140f08', emissive: 0.62 }, // hafif amber
+            4: { hex: '#150808', emissive: 0.65 }, // hafif kırmızı
+            5: { hex: '#110816', emissive: 0.65 }, // hafif mor
+            6: { hex: '#1a0606', emissive: 0.70 }, // koyu kırmızı / VOID
+        };
+        const EVENT_GRID_TINT: Record<string, { hex: string; emissive: number }> = {
+            ICE_STORM: { hex: '#080f1d', emissive: 0.65 },
+            QUAKE:     { hex: '#190c06', emissive: 0.65 },
+            MIRROR:    { hex: '#150810', emissive: 0.65 },
+            CHAOS:     { hex: '#120816', emissive: 0.65 },
+            VOID:      { hex: '#1a0606', emissive: 0.70 },
+        };
+
+        const applyGridAtmosphere = (tier: number, event: string | null) => {
+            const tint = event
+                ? (EVENT_GRID_TINT[event] ?? TIER_GRID_TINT[0])
+                : (TIER_GRID_TINT[tier] ?? TIER_GRID_TINT[0]);
+            const color = BABYLON.Color3.FromHexString(tint.hex);
+
+            if (gridBaseRef.current?.material) {
+                const mat = gridBaseRef.current.material as BABYLON.StandardMaterial;
+                mat.diffuseColor = color;
+                mat.emissiveColor = color.scale(tint.emissive);
+            }
+            gridSlotsRef.forEach(slot => {
+                if (slot.material) {
+                    const mat = slot.material as BABYLON.StandardMaterial;
+                    mat.diffuseColor = color;
+                    mat.emissiveColor = color.scale(tint.emissive);
+                }
+            });
+        };
+
+        let _lastTier = -1;
+        let _lastEvent: string | null = undefined as any;
+        const unsubscribeTier = useGameStore.subscribe((state) => {
+            const tier  = state.difficultyTier;
+            const event = state.activeEvent as string | null;
+            if (tier === _lastTier && event === _lastEvent) return; // değişmedişinde atla
+            _lastTier  = tier;
+            _lastEvent = event;
+            applyGridAtmosphere(tier, event);
+        });
+
         // --- Ambient Particles removed ---
         ambientParticlesRef.current = [];
 
@@ -2023,6 +2072,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
         return () => {
             unsubscribeTheme();
+            unsubscribeTier();
+
 
             // Task 3.2: Clear idle detection interval
             if (idleCheckIntervalRef.current !== null) {

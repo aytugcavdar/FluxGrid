@@ -3,14 +3,19 @@ import type { GameStore } from '../gameStore';
 import type { GridState, Piece, CellType } from '../../types';
 import { GRID_SIZE } from '../../types';
 import { processGrid } from './grid';
-import { EVENT_DURATIONS, EVENT_SCORE_MULTIPLIERS, EVENT_TRIGGER_INTERVALS, ICE_STORM_SPAWN_COUNT } from '../../constants';
+import {
+  TIER_THRESHOLDS,
+  EVENT_DURATIONS,
+  EVENT_SCORE_MULTIPLIERS,
+  EVENT_TRIGGER_INTERVALS,
+  ICE_STORM_SPAWN_COUNT,
+} from '../../constants';
 
 type GetFn = () => GameStore;
 type SetFn = (partial: Partial<GameStore>) => void;
 type EndlessEvent = 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID';
 
-// Tier thresholds and events for Endless mode
-const TIER_THRESHOLDS = [0, 5000, 15000, 30000, 55000, 90000, 140000];
+// Tier events for Endless mode (TIER_THRESHOLDS imported from constants — single source of truth)
 const TIER_EVENTS: Record<number, EndlessEvent> = {
   1: 'ICE_STORM',
   2: 'QUAKE',
