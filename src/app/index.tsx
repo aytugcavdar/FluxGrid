@@ -164,9 +164,9 @@ const RootApp: React.FC = () => {
     
     // Initialize push notifications
     if (Capacitor.isNativePlatform()) {
-      pushNotificationService.initialize()
+      pushNotificationService.initialize({ requestPermission: true })
         .then(() => {
-          return notificationScheduler.scheduleEngagementNotifications(getNotificationContext());
+          return notificationScheduler.scheduleEngagementNotifications(getNotificationContext(), { requestPermission: true });
         })
         .catch((error) => {
           console.error('[App] Failed to initialize push notifications:', error);

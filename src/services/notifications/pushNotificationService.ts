@@ -59,7 +59,6 @@ interface EngagementNotificationPlan {
 
 const ENGAGEMENT_NOTIFICATION_IDS = [101, 102, 103, 104, 105];
 const ENGAGEMENT_CHANNEL_ID = 'daily_reminders';
-const MAX_CONTEXTUAL_NOTIFICATIONS = 2;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RESCHEDULE_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 const NOTIFICATION_PREFS_KEY = 'flux_engagement_notification_preferences_v1';
@@ -269,6 +268,75 @@ function nextScheduledDate(hour: number, minute: number, now: Date, dayOffset = 
   return scheduledTime;
 }
 
+function isScheduleTimeLaterToday(hour: number, minute: number, now: Date): boolean {
+  const scheduledTime = new Date(now);
+  scheduledTime.setHours(hour, minute, 0, 0);
+  return scheduledTime > now;
+}
+
+function getEngagementNotificationData(
+  type: NotificationType,
+  context: EngagementNotificationContext,
+  recordGap = 0,
+  inactiveDays: number | null = null
+): Record<string, any> {
+  switch (type) {
+    case NotificationType.STREAK_REMINDER:
+      return { streak: context.currentStreak, target: 'game', mode: 'daily' };
+    case NotificationType.NEAR_RECORD:
+      return { recordGap, target: 'statistics' };
+    case NotificationType.TIMED_MODE:
+      return { target: 'game', mode: 'timed' };
+    case NotificationType.INACTIVITY:
+      return { inactiveDays, target: 'home' };
+    case NotificationType.DAILY_REMINDER:
+    default:
+      return { target: 'home' };
+  }
+}
+
+function selectEngagementNotificationType(
+  context: EngagementNotificationContext,
+  now: Date,
+  preferences: EngagementNotificationPreferences
+): { type: NotificationType; recordGap: number; inactiveDays: number | null } {
+  const todayPlayed = context.todayPlayed === true;
+  const inactiveDays = daysSince(context.lastPlayedAt, now);
+  const recordGap = (context.bestScore || 0) - (context.lastScore || 0);
+  const closeRecordLimit = Math.max(240, Math.round((context.bestScore || 0) * 0.1));
+  const timedDaysSince = daysSince(context.lastTimedPlayedAt, now);
+
+  // If the player already played, keep tomorrow's repeating reminder neutral.
+  if (todayPlayed) {
+    return { type: NotificationType.DAILY_REMINDER, recordGap, inactiveDays };
+  }
+
+  if (preferences.inactivity && inactiveDays !== null && inactiveDays >= 2) {
+    return { type: NotificationType.INACTIVITY, recordGap, inactiveDays };
+  }
+
+  if (preferences.streakReminder && (context.currentStreak || 0) >= 2) {
+    return { type: NotificationType.STREAK_REMINDER, recordGap, inactiveDays };
+  }
+
+  if (
+    preferences.nearRecord &&
+    (context.bestScore || 0) > 0 &&
+    recordGap > 0 &&
+    recordGap <= closeRecordLimit
+  ) {
+    return { type: NotificationType.NEAR_RECORD, recordGap, inactiveDays };
+  }
+
+  // Timed is now a persona for the single evening slot, not a separate noon push.
+  // Only use it after the player has actually tried Timed and skipped it for a bit.
+  if (preferences.timedMode && timedDaysSince !== null && timedDaysSince >= 2) {
+    return { type: NotificationType.TIMED_MODE, recordGap, inactiveDays };
+  }
+
+  return { type: NotificationType.DAILY_REMINDER, recordGap, inactiveDays };
+}
+
 export function createEngagementNotificationPlans(
   context: EngagementNotificationContext,
   now: Date = new Date(),
@@ -281,79 +349,24 @@ export function createEngagementNotificationPlans(
     return plans;
   }
 
-  if (preferences.dailyReminder && !todayPlayed) {
-    const copy = createEngagementNotificationCopy(NotificationType.DAILY_REMINDER, context, now);
-    plans.push({
-      id: 101,
-      type: NotificationType.DAILY_REMINDER,
-      title: copy.title,
-      body: copy.body,
-      hour: 20,
-      minute: 0,
-      repeats: true,
-      data: { target: 'home' },
-    });
+  if (!preferences.dailyReminder) {
+    return plans;
   }
 
-  const contextualPlans: EngagementNotificationPlan[] = [];
+  const selected = selectEngagementNotificationType(context, now, preferences);
+  const copy = createEngagementNotificationCopy(selected.type, context, now);
+  plans.push({
+    id: 101,
+    type: selected.type,
+    title: copy.title,
+    body: copy.body,
+    hour: 20,
+    minute: 0,
+    repeats: true,
+    dayOffset: todayPlayed && isScheduleTimeLaterToday(20, 0, now) ? 1 : 0,
+    data: getEngagementNotificationData(selected.type, context, selected.recordGap, selected.inactiveDays),
+  });
 
-  if (preferences.streakReminder && (context.currentStreak || 0) >= 2 && !todayPlayed) {
-    const copy = createEngagementNotificationCopy(NotificationType.STREAK_REMINDER, context, now);
-    contextualPlans.push({
-      id: 102,
-      type: NotificationType.STREAK_REMINDER,
-      title: copy.title,
-      body: copy.body,
-      hour: 18,
-      minute: 30,
-      data: { streak: context.currentStreak, target: 'game', mode: 'daily' },
-    });
-  }
-
-  const recordGap = (context.bestScore || 0) - (context.lastScore || 0);
-  const closeRecordLimit = Math.max(240, Math.round((context.bestScore || 0) * 0.1));
-  if (preferences.nearRecord && (context.bestScore || 0) > 0 && recordGap > 0 && recordGap <= closeRecordLimit) {
-    const copy = createEngagementNotificationCopy(NotificationType.NEAR_RECORD, context, now);
-    contextualPlans.push({
-      id: 103,
-      type: NotificationType.NEAR_RECORD,
-      title: copy.title,
-      body: copy.body,
-      hour: 19,
-      minute: 30,
-      data: { recordGap, target: 'statistics' },
-    });
-  }
-
-  const timedDaysSince = daysSince(context.lastTimedPlayedAt, now);
-  if (preferences.timedMode && !todayPlayed && (timedDaysSince === null || timedDaysSince >= 1)) {
-    const copy = createEngagementNotificationCopy(NotificationType.TIMED_MODE, context, now);
-    contextualPlans.push({
-      id: 104,
-      type: NotificationType.TIMED_MODE,
-      title: copy.title,
-      body: copy.body,
-      hour: 12,
-      minute: 30,
-      data: { target: 'game', mode: 'timed' },
-    });
-  }
-
-  const inactiveDays = daysSince(context.lastPlayedAt, now);
-  if (preferences.inactivity && inactiveDays !== null && inactiveDays >= 2) {
-    const copy = createEngagementNotificationCopy(NotificationType.INACTIVITY, context, now);
-    contextualPlans.push({
-      id: 105,
-      type: NotificationType.INACTIVITY,
-      title: copy.title,
-      body: copy.body,
-      hour: 17,
-      minute: 30,
-      data: { inactiveDays, target: 'home' },
-    });
-  }
-
-  plans.push(...contextualPlans.slice(0, MAX_CONTEXTUAL_NOTIFICATIONS));
   return plans;
 }
 
@@ -399,7 +412,7 @@ class PushNotificationService {
   private fcmToken: string | null = null;
   private isInitialized = false;
 
-  async initialize(): Promise<void> {
+  async initialize(options: { requestPermission?: boolean } = {}): Promise<void> {
     if (!Capacitor.isNativePlatform()) {
       console.log('[PushNotifications] Not available on web platform');
       return;
@@ -412,8 +425,17 @@ class PushNotificationService {
 
     try {
       const permission = await PushNotifications.checkPermissions();
+      let receivePermission = permission.receive;
 
-      if (permission.receive === 'granted') {
+      if (
+        options.requestPermission &&
+        (receivePermission === 'prompt' || receivePermission === 'prompt-with-rationale')
+      ) {
+        const request = await PushNotifications.requestPermissions();
+        receivePermission = request.receive;
+      }
+
+      if (receivePermission === 'granted') {
         await PushNotifications.register();
         this.setupListeners();
         this.isInitialized = true;

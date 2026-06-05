@@ -53,14 +53,14 @@ export class JuiceTriggers {
       return;
     }
     
-    // MINIMAL MODE: Only line animations at combo >= 5
+    const lineCount = this.getClearedLineCount(actions);
+
+    // PERFECT/HIGH COMBO: keep one clean sweep layer and let the 3D perfect
+    // celebration own the moment.
     if (combo >= 5) {
-      // Only add line clear animations (minimal cost)
       this.addLineClearAnimations(actions, addLineClearAnimation);
       return;
     }
-    
-    const lineCount = this.getClearedLineCount(actions);
 
     // SINGLE CLEAR: keep it clean. The 3D board sweep and haptic carry the feedback.
     if (lineCount <= 1) {
@@ -69,14 +69,11 @@ export class JuiceTriggers {
     }
 
     // MULTI CLEAR: line animation plus one small extra layer.
-    // 1. Line clear animations (always enabled)
     this.addLineClearAnimations(actions, addLineClearAnimation);
-    
-    // 2. Particle effects
     this.addParticleEffects(actions, addParticleExplosion);
-    
-    // 3. Combo glow
-    if (combo >= 3) {
+
+    // Combo glow is reserved for clear moments that already feel distinct.
+    if (combo >= 3 && lineCount >= 3) {
       const glowIntensity = Math.min(combo * 0.2, 1);
       const glowColor = this.getComboColor(combo);
       triggerComboGlow(glowIntensity, glowColor);

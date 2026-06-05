@@ -169,7 +169,7 @@ function initializeAchievementData(): Record<AchievementId, Achievement> {
         const title = String(ach.title || '');
         const description = String(ach.description || '');
         // Check for common mojibake characters from UTF-8 corruption
-        const mojibakePattern = /[ÃÄÅâ]/;
+        const mojibakePattern = /[\u00c3\u00c4\u00c5\u00e2\uFFFD]/;
         return mojibakePattern.test(title) || mojibakePattern.test(description);
       });
     } catch (error) {

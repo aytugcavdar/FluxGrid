@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="64" y1="32" x2="448" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#16243a"/>
+      <stop offset="0.55" stop-color="#081321"/>
+      <stop offset="1" stop-color="#030811"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="42%" r="58%">
+      <stop stop-color="#38bdf8" stop-opacity="0.28"/>
+      <stop offset="0.52" stop-color="#8b5cf6" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="22" stdDeviation="18" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+    <filter id="glow" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.25 0 0 0 0 0.78 0 0 0 0 1 0 0 0 0.45 0"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <linearGradient id="cyanTop" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#e0f2fe"/>
+      <stop offset="1" stop-color="#67e8f9"/>
+    </linearGradient>
+    <linearGradient id="cyanLeft" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#0891b2"/>
+    </linearGradient>
+    <linearGradient id="cyanRight" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#075985"/>
+    </linearGradient>
+    <linearGradient id="violetTop" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#f5d0fe"/>
+      <stop offset="1" stop-color="#c084fc"/>
+    </linearGradient>
+    <linearGradient id="violetLeft" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#c084fc"/>
+      <stop offset="1" stop-color="#7e22ce"/>
+    </linearGradient>
+    <linearGradient id="violetRight" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#a855f7"/>
+      <stop offset="1" stop-color="#581c87"/>
+    </linearGradient>
+    <linearGradient id="amberTop" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#fef3c7"/>
+      <stop offset="1" stop-color="#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="amberLeft" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#f59e0b"/>
+      <stop offset="1" stop-color="#b45309"/>
+    </linearGradient>
+    <linearGradient id="amberRight" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#d97706"/>
+      <stop offset="1" stop-color="#78350f"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#halo)"/>
+  <circle cx="256" cy="258" r="184" fill="none" stroke="#67e8f9" stroke-width="2" opacity="0.18"/>
+  <circle cx="256" cy="258" r="132" fill="none" stroke="#a78bfa" stroke-width="2" opacity="0.12"/>
+
+  <g filter="url(#shadow)">
+    <ellipse cx="258" cy="384" rx="140" ry="32" fill="#000814" opacity="0.5"/>
+  </g>
+
+  <g filter="url(#glow)">
+    <!-- Main cyan cube -->
+    <g transform="translate(158 150)">
+      <path d="M0 44L72 0L144 44L72 88Z" fill="url(#cyanTop)"/>
+      <path d="M0 44L72 88V172L0 128Z" fill="url(#cyanLeft)"/>
+      <path d="M144 44L72 88V172L144 128Z" fill="url(#cyanRight)"/>
+      <path d="M0 44L72 88L144 44" fill="none" stroke="#ffffff" stroke-opacity="0.38" stroke-width="3"/>
+    </g>
+
+    <!-- Violet cube, attached to right -->
+    <g transform="translate(272 196)">
+      <path d="M0 36L58 0L116 36L58 72Z" fill="url(#violetTop)"/>
+      <path d="M0 36L58 72V140L0 104Z" fill="url(#violetLeft)"/>
+      <path d="M116 36L58 72V140L116 104Z" fill="url(#violetRight)"/>
+      <path d="M0 36L58 72L116 36" fill="none" stroke="#ffffff" stroke-opacity="0.3" stroke-width="2.5"/>
+    </g>
+
+    <!-- Amber cube, attached below -->
+    <g transform="translate(194 286)">
+      <path d="M0 34L54 0L108 34L54 68Z" fill="url(#amberTop)"/>
+      <path d="M0 34L54 68V132L0 98Z" fill="url(#amberLeft)"/>
+      <path d="M108 34L54 68V132L108 98Z" fill="url(#amberRight)"/>
+      <path d="M0 34L54 68L108 34" fill="none" stroke="#ffffff" stroke-opacity="0.32" stroke-width="2.5"/>
+    </g>
+  </g>
+
+  <path d="M122 118C154 78 327 70 390 118" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" opacity="0.28"/>
+  <path d="M111 412C156 445 344 448 400 408" fill="none" stroke="#14b8a6" stroke-width="5" stroke-linecap="round" opacity="0.24"/>
+</svg>

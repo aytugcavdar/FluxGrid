@@ -11,6 +11,8 @@ export interface AdConfig {
   interstitial_frequency: number;
   rewarded_daily_limit: number;
   banner_enabled: boolean;
+  interstitial_enabled: boolean;
+  rewarded_enabled: boolean;
   ad_free_grace_period_games: number;
 }
 
@@ -19,6 +21,8 @@ const DEFAULT_AD_CONFIG: AdConfig = {
   interstitial_frequency: 3,
   rewarded_daily_limit: 3,
   banner_enabled: true,
+  interstitial_enabled: true,
+  rewarded_enabled: true,
   ad_free_grace_period_games: 0,
 };
 
@@ -68,11 +72,18 @@ export async function fetchAndActivateAdConfig(): Promise<AdConfig> {
     // Fetch and activate
     await fetchAndActivate(remoteConfig);
     
+    const getBooleanValue = (key: string, fallback: boolean): boolean => {
+      const value = getValue(remoteConfig, key);
+      return value.getSource() === 'static' ? fallback : value.asBoolean();
+    };
+
     // Get values
     const config: AdConfig = {
       interstitial_frequency: getValue(remoteConfig, 'interstitial_frequency').asNumber() || DEFAULT_AD_CONFIG.interstitial_frequency,
       rewarded_daily_limit: getValue(remoteConfig, 'rewarded_daily_limit').asNumber() || DEFAULT_AD_CONFIG.rewarded_daily_limit,
-      banner_enabled: getValue(remoteConfig, 'banner_enabled').asBoolean() ?? DEFAULT_AD_CONFIG.banner_enabled,
+      banner_enabled: getBooleanValue('banner_enabled', DEFAULT_AD_CONFIG.banner_enabled),
+      interstitial_enabled: getBooleanValue('interstitial_enabled', DEFAULT_AD_CONFIG.interstitial_enabled),
+      rewarded_enabled: getBooleanValue('rewarded_enabled', DEFAULT_AD_CONFIG.rewarded_enabled),
       ad_free_grace_period_games: getValue(remoteConfig, 'ad_free_grace_period_games').asNumber() || DEFAULT_AD_CONFIG.ad_free_grace_period_games,
     };
     

@@ -98,6 +98,15 @@ describe('AdManager', () => {
       
       expect(result.success).toBe(true);
     });
+
+    it('should not show when no-ads is active', async () => {
+      AdManager.activateNoAds();
+
+      const result = await AdManager.showInterstitial();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('No-ads active');
+    });
   });
 
   describe('canShowRewardedContinue', () => {

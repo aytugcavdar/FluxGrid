@@ -15,9 +15,6 @@ export const LineClearAnimations: React.FC = React.memo(() => {
       if (gridElement) {
         const bounds = gridElement.getBoundingClientRect();
         setGridBounds(bounds);
-        console.log('[LineClearAnimations] Grid bounds updated:', bounds);
-      } else {
-        console.warn('[LineClearAnimations] Grid element not found');
       }
     };
 
@@ -35,10 +32,7 @@ export const LineClearAnimations: React.FC = React.memo(() => {
     }
   }, [lineClearAnimations.length, cleanup]);
 
-  if (!gridBounds) {
-    console.warn('[LineClearAnimations] No grid bounds available');
-    return null;
-  }
+  if (!gridBounds) return null;
 
   const cellSize = gridBounds.width / 10; // Grid is 10x10
   const gridOffsetX = gridBounds.left;

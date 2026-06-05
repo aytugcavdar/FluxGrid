@@ -13,8 +13,7 @@ import { useGameSync } from '../features/game/hooks/useGameSync';
 import { TIER_SCORE_MULTIPLIERS, TIER_THRESHOLDS } from '../features/game/constants';
 import { playSkill, hapticEvents, unlockAudio, playGameOver, playClick } from '@utils/audio';
 import { AdManager } from '@core/services/ads/AdManager';
-import { createContinueGrid } from '@features/game/utils/game/gameHelpers';
-import { getRandomPiecesSync } from '../features/game/store/helpers/pieces';
+import { createRewardedContinueState } from '@features/game/utils/game/reviveService';
 import { GameScreen } from './components/GameScreen';
 import { DragOverlay } from '../features/hud/components/DragOverlay';
 import { ParticleExplosionOverlay } from '../features/visual-effects/components/ParticleExplosionOverlay';
@@ -51,8 +50,6 @@ const TIER_EVENT_LABELS: Record<number, string> = {
   5: 'VOID',
   6: 'VOID+',
 };
-
-const CONTINUE_TIMED_SECONDS = 15;
 
 const App: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -396,41 +393,16 @@ const App: React.FC = () => {
       
       if (result.success) {
         console.log('[GameApp] Ad successful, continuing game...');
-        
-        const rescueGrid = createContinueGrid(grid);
-        const rescueTier = gameMode === GameMode.ENDLESS ? Math.max(0, difficultyTier - 1) : 0;
-        
-        const newPieces = getRandomPiecesSync(
-          3,
-          rescueGrid,
-          gameMode === GameMode.DAILY_CHALLENGE,
-          useThemeStore.getState().getPieceColors(),
-          rescueTier,
-          gameMode
-        );
-
-        const now = Date.now();
-        const timedResumeState = gameMode === GameMode.TIMED
-          ? {
-              timeLeft: CONTINUE_TIMED_SECONDS,
-              timerStartTime: timerStartTime ?? now,
-              timerExpectedEnd: now + CONTINUE_TIMED_SECONDS * 1000,
-            }
-          : {};
 
         markReviveUsed();
         
-        useGameStore.setState({
-          grid: rescueGrid,
-          pieces: newPieces,
-          isGameOver: false,
-          gameOverFinalized: false,
-          combo: 0,
-          comboTimerStartTime: null,
-          comboTimeLeft: 0,
-          lastAction: null,
-          ...timedResumeState,
-        });
+        useGameStore.setState(createRewardedContinueState({
+          grid,
+          gameMode,
+          difficultyTier,
+          timerStartTime,
+          pieceColors: useThemeStore.getState().getPieceColors(),
+        }));
         
         setShowContinueModal(false);
         setIsLoadingAd(false);

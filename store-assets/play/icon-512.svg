@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="74" y1="32" x2="438" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#122033"/>
+      <stop offset="0.52" stop-color="#07111d"/>
+      <stop offset="1" stop-color="#03070d"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="86" y1="72" x2="426" y2="432" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38bdf8"/>
+      <stop offset="0.48" stop-color="#8b5cf6"/>
+      <stop offset="1" stop-color="#14b8a6"/>
+    </linearGradient>
+    <linearGradient id="board" x1="122" y1="136" x2="404" y2="382" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#182538"/>
+      <stop offset="1" stop-color="#08111e"/>
+    </linearGradient>
+    <linearGradient id="cyanBlock" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#7dd3fc"/>
+      <stop offset="1" stop-color="#0891b2"/>
+    </linearGradient>
+    <linearGradient id="pinkBlock" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#f0abfc"/>
+      <stop offset="1" stop-color="#9333ea"/>
+    </linearGradient>
+    <linearGradient id="greenBlock" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#bef264"/>
+      <stop offset="1" stop-color="#65a30d"/>
+    </linearGradient>
+    <linearGradient id="goldBlock" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#fde68a"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <filter id="softShadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000000" flood-opacity="0.42"/>
+    </filter>
+    <filter id="blockShadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000000" flood-opacity="0.36"/>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="104" fill="url(#bg)"/>
+  <rect x="34" y="34" width="444" height="444" rx="88" fill="none" stroke="url(#rim)" stroke-width="3" opacity="0.5"/>
+  <path d="M88 390L146 126H386L438 390H88Z" fill="#020711" opacity="0.64" filter="url(#softShadow)"/>
+  <path d="M112 370L156 148H360L400 370H112Z" fill="url(#board)" stroke="#27405b" stroke-width="3"/>
+
+  <g opacity="0.32" stroke="#75a7ca" stroke-width="1">
+    <path d="M142 331H374"/>
+    <path d="M136 300H380"/>
+    <path d="M130 270H386"/>
+    <path d="M124 240H392"/>
+    <path d="M118 210H398"/>
+    <path d="M112 180H404"/>
+    <path d="M162 154L143 368"/>
+    <path d="M198 154L186 368"/>
+    <path d="M234 154L229 368"/>
+    <path d="M270 154L272 368"/>
+    <path d="M306 154L315 368"/>
+    <path d="M342 154L358 368"/>
+  </g>
+
+  <g filter="url(#blockShadow)">
+    <path d="M170 275H218L224 322H176L170 275Z" fill="url(#cyanBlock)"/>
+    <path d="M176 267H224L224 322H176V267Z" fill="url(#cyanBlock)" opacity="0.82"/>
+    <path d="M176 267H224L218 275H170L176 267Z" fill="#bae6fd" opacity="0.9"/>
+
+    <path d="M224 226H272L276 275H228L224 226Z" fill="url(#greenBlock)"/>
+    <path d="M228 218H276V275H228V218Z" fill="url(#greenBlock)" opacity="0.86"/>
+    <path d="M228 218H276L272 226H224L228 218Z" fill="#d9f99d" opacity="0.88"/>
+
+    <path d="M278 270H326L332 322H284L278 270Z" fill="url(#pinkBlock)"/>
+    <path d="M284 262H332V322H284V262Z" fill="url(#pinkBlock)" opacity="0.84"/>
+    <path d="M284 262H332L326 270H278L284 262Z" fill="#f5d0fe" opacity="0.88"/>
+
+    <path d="M242 314H290L296 362H248L242 314Z" fill="url(#goldBlock)"/>
+    <path d="M248 306H296V362H248V306Z" fill="url(#goldBlock)" opacity="0.88"/>
+    <path d="M248 306H296L290 314H242L248 306Z" fill="#fef3c7" opacity="0.9"/>
+
+    <path d="M296 206H344L348 252H300L296 206Z" fill="url(#cyanBlock)"/>
+    <path d="M300 198H348V252H300V198Z" fill="url(#cyanBlock)" opacity="0.8"/>
+    <path d="M300 198H348L344 206H296L300 198Z" fill="#bae6fd" opacity="0.88"/>
+  </g>
+
+  <circle cx="256" cy="256" r="154" fill="none" stroke="#67e8f9" stroke-width="2" opacity="0.12"/>
+  <path d="M150 132C181 100 315 92 362 128" fill="none" stroke="#93c5fd" stroke-width="4" stroke-linecap="round" opacity="0.22"/>
+</svg>

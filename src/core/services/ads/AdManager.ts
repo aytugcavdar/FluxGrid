@@ -155,6 +155,84 @@ let rewardedAdListener: any = null; // Current rewarded ad listener handle
 let remoteAdConfig: AdConfig | null = null; // Firebase Remote Config for ads
 let isShowingRewardedAd = false; // Prevent concurrent rewarded ad displays
 
+function getCurrentAdConfig(): AdConfig {
+  return remoteAdConfig || getFirebaseAdConfig();
+}
+
+function removeAdListener(listener: any): void {
+  try {
+    if (listener && typeof listener.then === 'function') {
+      listener
+        .then((handle: any) => handle?.remove?.())
+        .catch((error: unknown) => console.warn('[AdManager] Failed to remove async ad listener:', error));
+      return;
+    }
+    listener?.remove?.();
+  } catch (error) {
+    console.warn('[AdManager] Failed to remove ad listener:', error);
+  }
+}
+
+async function waitForRewardedAd(rewardType: 'continue' | 'shield'): Promise<AdMobRewardItem> {
+  if (rewardedAdListener) {
+    console.log('[AdManager] Removing old listener');
+    removeAdListener(rewardedAdListener);
+    rewardedAdListener = null;
+  }
+
+  console.log('[AdManager] Loading rewarded ad...');
+  await AdMob.prepareRewardVideoAd({
+    adId: AD_IDS.rewarded,
+  });
+
+  console.log('[AdManager] Rewarded ad loaded, showing...');
+
+  const rewardPromise = new Promise<AdMobRewardItem>((resolve, reject) => {
+    let isResolved = false;
+    let dismissListener: any = null;
+    let timeout: ReturnType<typeof setTimeout>;
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      removeAdListener(rewardedAdListener);
+      rewardedAdListener = null;
+      removeAdListener(dismissListener);
+      dismissListener = null;
+    };
+
+    timeout = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        console.log(`[AdManager] Rewarded ad timeout (${rewardType})`);
+        cleanup();
+        reject(new Error('Rewarded ad timed out without reward'));
+      }
+    }, 30000);
+
+    rewardedAdListener = AdMob.addListener(RewardAdPluginEvents.Rewarded, (reward: AdMobRewardItem) => {
+      if (!isResolved) {
+        isResolved = true;
+        console.log('[AdManager] Rewarded event received:', reward);
+        cleanup();
+        resolve(reward);
+      }
+    });
+
+    dismissListener = AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
+      if (!isResolved) {
+        isResolved = true;
+        console.log(`[AdManager] Rewarded ad dismissed without reward (${rewardType})`);
+        cleanup();
+        reject(new Error('Rewarded ad dismissed without reward'));
+      }
+    });
+  });
+
+  await AdMob.showRewardVideoAd();
+  console.log('[AdManager] showRewardVideoAd() called, waiting for reward...');
+  return rewardPromise;
+}
+
 // ============================================================================
 // localStorage Persistence Helpers
 // ============================================================================
@@ -486,14 +564,18 @@ export async function showBanner(): Promise<void> {
     console.log('[AdManager] Not native, skipping banner');
     return;
   }
-  
-  // TEMPORARY: Skip Remote Config check for testing
-  // const config = remoteAdConfig || getFirebaseAdConfig();
-  // if (!config.banner_enabled) {
-  //   console.log('[AdManager] Banner disabled by Remote Config');
-  //   return;
-  // }
-  
+
+  if (isNoAdsActive()) {
+    console.log('[AdManager] No-ads active, skipping banner');
+    return;
+  }
+
+  const config = getCurrentAdConfig();
+  if (!config.banner_enabled) {
+    console.log('[AdManager] Banner disabled by Remote Config');
+    return;
+  }
+
   console.log('[AdManager] Banner enabled, proceeding...');
   
   // Prevent duplicate banner display
@@ -603,10 +685,19 @@ export function recordGameEnd(): void {
   console.log('[AdManager] Game ended, count:', gamesPlayedSinceInterstitial);
   
   saveGameCount();
-  
-  // Get interstitial frequency from Remote Config
-  const config = remoteAdConfig || getFirebaseAdConfig();
-  const frequency = config.interstitial_frequency;
+
+  if (isNoAdsActive()) {
+    console.log('[AdManager] No-ads active, skipping interstitial');
+    return;
+  }
+
+  const config = getCurrentAdConfig();
+  if (!config.interstitial_enabled) {
+    console.log('[AdManager] Interstitial disabled by Remote Config');
+    return;
+  }
+
+  const frequency = Math.max(1, Math.floor(config.interstitial_frequency || 0));
   
   // Show interstitial every N games (3, 6, 9, 12...)
   if (gamesPlayedSinceInterstitial % frequency === 0) {
@@ -652,6 +743,17 @@ async function loadInterstitialWithRetry(config: AdRetryConfig = { maxRetries: 3
  */
 export async function showInterstitial(): Promise<AdResult> {
   console.log('[AdManager] Showing interstitial ad');
+
+  if (isNoAdsActive()) {
+    console.log('[AdManager] No-ads active, skipping interstitial');
+    return { success: false, error: 'No-ads active' };
+  }
+
+  const config = getCurrentAdConfig();
+  if (!config.interstitial_enabled) {
+    console.log('[AdManager] Interstitial disabled by Remote Config');
+    return { success: false, error: 'Interstitial disabled' };
+  }
   
   if (!isNative()) {
     console.log('[AdManager] Not on native platform, using mock delay');
@@ -713,17 +815,18 @@ export async function showInterstitial(): Promise<AdResult> {
  * Returns true if daily limit (from Remote Config, default: 3) not reached
  */
 export function canShowRewardedContinue(): boolean {
-  const config = remoteAdConfig || getFirebaseAdConfig();
-  const dailyLimit = config.rewarded_daily_limit;
+  const config = getCurrentAdConfig();
+  const dailyLimit = Math.max(0, Math.floor(config.rewarded_daily_limit || 0));
   
-  const canShow = dailyRewardedCount < dailyLimit;
+  const canShow = config.rewarded_enabled && dailyRewardedCount < dailyLimit;
   console.log('[AdManager] Can show rewarded continue:', canShow, `(${dailyRewardedCount}/${dailyLimit})`);
   return canShow;
 }
 
 export function getRewardedContinueRemaining(): number {
-  const config = remoteAdConfig || getFirebaseAdConfig();
-  return Math.max(0, config.rewarded_daily_limit - dailyRewardedCount);
+  const config = getCurrentAdConfig();
+  if (!config.rewarded_enabled) return 0;
+  return Math.max(0, Math.floor(config.rewarded_daily_limit || 0) - dailyRewardedCount);
 }
 
 /**
@@ -731,6 +834,13 @@ export function getRewardedContinueRemaining(): number {
  */
 export async function showRewardedContinue(): Promise<AdResult> {
   console.log('[AdManager] showRewardedContinue() called');
+
+  if (!canShowRewardedContinue()) {
+    return {
+      success: false,
+      error: 'Rewarded continue unavailable',
+    };
+  }
   
   // CRITICAL: Prevent concurrent ad displays
   if (isShowingRewardedAd) {
@@ -766,134 +876,38 @@ export async function showRewardedContinue(): Promise<AdResult> {
   
   try {
     console.log('[AdManager] Preparing rewarded ad...');
-    
-    // Remove any existing rewarded ad listener to prevent memory leaks
-    if (rewardedAdListener) {
-      console.log('[AdManager] Removing old listener');
-      rewardedAdListener.remove();
-      rewardedAdListener = null;
-    }
-    
-    // Log analytics event for ad shown
+
     logAdEvent('ad_rewarded_show', { 
       reward_type: 'continue',
       daily_count: dailyRewardedCount
     });
-    
-    console.log('[AdManager] Loading rewarded ad...');
-    await AdMob.prepareRewardVideoAd({
-      adId: AD_IDS.rewarded,
+
+    await waitForRewardedAd('continue');
+    console.log('[AdManager] Reward promise resolved!');
+
+    dailyRewardedCount++;
+    dailyRewardedDate = getTodayISO();
+    saveDailyRewardedState();
+
+    logAdEvent('ad_rewarded_complete', { 
+      reward_type: 'continue',
+      daily_count: dailyRewardedCount
     });
-    
-    console.log('[AdManager] Rewarded ad loaded, showing...');
-    
-    // Set up reward listener with timeout
-    const rewardPromise = new Promise<AdMobRewardItem>((resolve, reject) => {
-      let isResolved = false;
-      let dismissListener: any = null;
-      
-      // Timeout after 30 seconds. In production this must not grant a reward.
-      const timeout = setTimeout(() => {
-        if (!isResolved) {
-          isResolved = true;
-          console.log('[AdManager] Rewarded ad timeout (30s)');
-          
-          // Clean up listeners
-          if (rewardedAdListener) {
-            rewardedAdListener.remove();
-            rewardedAdListener = null;
-          }
-          if (dismissListener) {
-            dismissListener.remove();
-            dismissListener = null;
-          }
-          
-          reject(new Error('Rewarded ad timed out without reward'));
-        }
-      }, 30000); // 30 second timeout
-      
-      // Listen for reward event
-      rewardedAdListener = AdMob.addListener(RewardAdPluginEvents.Rewarded, (reward: AdMobRewardItem) => {
-        if (!isResolved) {
-          isResolved = true;
-          clearTimeout(timeout);
-          console.log('[AdManager] Rewarded event received:', reward);
-          
-          // Clean up dismiss listener
-          if (dismissListener) {
-            dismissListener.remove();
-            dismissListener = null;
-          }
-          
-          resolve(reward);
-        }
-      });
-      
-      // Listen for ad dismissal
-      dismissListener = AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
-        if (!isResolved) {
-          isResolved = true;
-          clearTimeout(timeout);
-          console.log('[AdManager] Rewarded ad dismissed without reward');
-          
-          if (rewardedAdListener) {
-            rewardedAdListener.remove();
-            rewardedAdListener = null;
-          }
-          reject(new Error('Rewarded ad dismissed without reward'));
-        }
-      });
+
+    console.log('[AdManager] Rewarded ad completed (continue):', {
+      dailyRewardedCount,
+      dailyRewardedDate,
     });
-    
-    await AdMob.showRewardVideoAd();
-    console.log('[AdManager] showRewardVideoAd() called, waiting for reward...');
-    
-    try {
-      await rewardPromise;
-      console.log('[AdManager] Reward promise resolved!');
-      
-      // Update state
-      dailyRewardedCount++;
-      dailyRewardedDate = getTodayISO();
-      saveDailyRewardedState();
-      
-      // Log analytics event for reward earned
-      logAdEvent('ad_rewarded_complete', { 
-        reward_type: 'continue',
-        daily_count: dailyRewardedCount
-      });
-      
-      console.log('[AdManager] Rewarded ad completed (continue):', {
-        dailyRewardedCount,
-        dailyRewardedDate,
-      });
-      
-      return {
-        success: true,
-        reward: {
-          type: 'continue',
-          amount: 1,
-        },
-      };
-    } finally {
-      // Always clean up listener and reset flag
-      if (rewardedAdListener) {
-        rewardedAdListener.remove();
-        rewardedAdListener = null;
-      }
-      isShowingRewardedAd = false;
-    }
+
+    return {
+      success: true,
+      reward: {
+        type: 'continue',
+        amount: 1,
+      },
+    };
   } catch (error) {
     console.error('[AdManager] Failed to show rewarded ad (continue):', error);
-    
-    // Clean up listener on error
-    if (rewardedAdListener) {
-      rewardedAdListener.remove();
-      rewardedAdListener = null;
-    }
-    
-    // Reset flag
-    isShowingRewardedAd = false;
     
     // Log analytics event for skip/failure
     logAdEvent('ad_rewarded_skip', { 
@@ -905,6 +919,10 @@ export async function showRewardedContinue(): Promise<AdResult> {
       success: false,
       error: String(error),
     };
+  } finally {
+    removeAdListener(rewardedAdListener);
+    rewardedAdListener = null;
+    isShowingRewardedAd = false;
   }
 }
 
@@ -913,6 +931,13 @@ export async function showRewardedContinue(): Promise<AdResult> {
  */
 export async function showRewardedStreakShield(): Promise<AdResult> {
   console.log('[AdManager] Showing rewarded ad: streak shield');
+
+  if (!getCurrentAdConfig().rewarded_enabled) {
+    return {
+      success: false,
+      error: 'Rewarded ads disabled',
+    };
+  }
 
   // CRITICAL: Prevent concurrent ad displays
   if (isShowingRewardedAd) {
@@ -942,75 +967,28 @@ export async function showRewardedStreakShield(): Promise<AdResult> {
   isShowingRewardedAd = true;
 
   try {
-    // Remove any existing rewarded ad listener to prevent memory leaks
-    if (rewardedAdListener) {
-      rewardedAdListener.remove();
-      rewardedAdListener = null;
-    }
-
-    // Log ad shown event (not complete — ad hasn't been watched yet)
     logAdEvent('ad_rewarded_show', {
       reward_type: 'shield',
     });
 
-    await AdMob.prepareRewardVideoAd({
-      adId: AD_IDS.rewarded,
+    await waitForRewardedAd('shield');
+
+    logAdEvent('ad_rewarded_complete', {
+      reward_type: 'shield',
     });
-    
-    // Set up reward listener
-    const rewardPromise = new Promise<AdMobRewardItem>((resolve, reject) => {
-      rewardedAdListener = AdMob.addListener(RewardAdPluginEvents.Rewarded, (reward: AdMobRewardItem) => {
-        resolve(reward);
-      });
-      
-      // Also listen for ad dismissal/failure
-      // @ts-ignore - addListener returns Promise in newer versions but works fine
-      const dismissListener = AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
-        dismissListener.remove();
-        reject(new Error('Ad dismissed without reward'));
-      });
-    });
-    
-    await AdMob.showRewardVideoAd();
-    
-    try {
-      await rewardPromise;
-      
-      // Log analytics event for reward earned
-      logAdEvent('ad_rewarded_complete', { 
-        reward_type: 'shield'
-      });
-      
-      console.log('[AdManager] Rewarded ad completed (streak shield)');
-      
-      return {
-        success: true,
-        reward: {
-          type: 'shield',
-          amount: 1,
-        },
-      };
-    } finally {
-      // Always clean up listener and reset flag
-      if (rewardedAdListener) {
-        rewardedAdListener.remove();
-        rewardedAdListener = null;
-      }
-      isShowingRewardedAd = false;
-    }
+
+    console.log('[AdManager] Rewarded ad completed (streak shield)');
+
+    return {
+      success: true,
+      reward: {
+        type: 'shield',
+        amount: 1,
+      },
+    };
   } catch (error) {
     console.error('[AdManager] Failed to show rewarded ad (streak shield):', error);
 
-    // Clean up listener on error
-    if (rewardedAdListener) {
-      rewardedAdListener.remove();
-      rewardedAdListener = null;
-    }
-
-    // Reset flag
-    isShowingRewardedAd = false;
-
-    // Log analytics event for skip/failure
     logAdEvent('ad_rewarded_skip', {
       reward_type: 'shield',
       error: String(error),
@@ -1020,6 +998,10 @@ export async function showRewardedStreakShield(): Promise<AdResult> {
       success: false,
       error: String(error),
     };
+  } finally {
+    removeAdListener(rewardedAdListener);
+    rewardedAdListener = null;
+    isShowingRewardedAd = false;
   }
 }
 
@@ -1034,8 +1016,8 @@ export function isNoAdsActive(): boolean {
     }
     
     // Check grace period from Remote Config
-    const config = remoteAdConfig || getFirebaseAdConfig();
-    const gracePeriodGames = config.ad_free_grace_period_games;
+    const config = getCurrentAdConfig();
+    const gracePeriodGames = Math.max(0, Math.floor(config.ad_free_grace_period_games || 0));
     
     if (gracePeriodGames > 0 && gamesPlayedSinceInterstitial < gracePeriodGames) {
       console.log(`[AdManager] Grace period active: ${gamesPlayedSinceInterstitial}/${gracePeriodGames} games`);

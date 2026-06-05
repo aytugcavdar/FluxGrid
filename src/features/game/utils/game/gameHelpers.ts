@@ -114,7 +114,7 @@ function createEmptyContinueGrid(): GridState {
 export function createContinueGrid(grid?: GridState): GridState {
   if (!grid) return createEmptyContinueGrid();
 
-  const rescueGrid = grid.map(row => row.map(cell => ({ ...cell, isClearing: false })));
+  const rescueGrid: GridState = grid.map(row => row.map(cell => ({ ...cell, isClearing: false })));
 
   const rowScores = rescueGrid.map((row, y) => ({
     y,

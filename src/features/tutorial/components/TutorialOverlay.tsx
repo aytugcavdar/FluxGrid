@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { GameMode } from '@shared/types';
 import { useTutorialStore } from '../store/tutorialStore';
 import { useGameStore } from '../../game/store/gameStore';
-import { getTutorialGridState, getTutorialPieces } from '../data/tutorialPieces';
+import { getTutorialGridState, getTutorialGuidance, getTutorialPieces } from '../data/tutorialPieces';
 import type { TutorialStep } from '../types';
 
 export const TutorialOverlay: React.FC = () => {
@@ -80,6 +80,8 @@ export const TutorialOverlay: React.FC = () => {
   const [arrowPosition, setArrowPosition] = useState<{ x: number; y: number; direction: 'up' | 'down' | 'left' | 'right' } | null>(null);
   const [contextualHint, setContextualHint] = useState<string | null>(null);
   const [idleTime, setIdleTime] = useState(0);
+  const [tutorialGridBounds, setTutorialGridBounds] = useState<DOMRect | null>(null);
+  const guidance = React.useMemo(() => getTutorialGuidance(currentStep), [currentStep]);
 
   const applyTutorialSetup = React.useCallback((stepId: number) => {
     const tutorialPieces = getTutorialPieces(stepId);
@@ -226,6 +228,35 @@ export const TutorialOverlay: React.FC = () => {
       }
     };
   }, [isActive, currentStep, reducedTutorialMotion]);
+
+  useEffect(() => {
+    if (!isActive) {
+      setTutorialGridBounds(null);
+      return;
+    }
+
+    const hasCellGuidance = Boolean(guidance.targetLines?.length || guidance.fallingCells?.length);
+    if (!hasCellGuidance) {
+      setTutorialGridBounds(null);
+      return;
+    }
+
+    let rafId = 0;
+    const updateGridBounds = () => {
+      const gridElement = document.querySelector('[data-grid-container]') as HTMLElement | null;
+      setTutorialGridBounds(gridElement ? gridElement.getBoundingClientRect() : null);
+    };
+
+    rafId = window.requestAnimationFrame(updateGridBounds);
+    window.addEventListener('resize', updateGridBounds);
+    window.addEventListener('orientationchange', updateGridBounds);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', updateGridBounds);
+      window.removeEventListener('orientationchange', updateGridBounds);
+    };
+  }, [isActive, guidance.targetLines, guidance.fallingCells]);
   
   // Handle step validation with achievements
   useEffect(() => {
@@ -358,11 +389,58 @@ export const TutorialOverlay: React.FC = () => {
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
             transition={{ type: "spring", damping: 20 }}
           >
-            💡 {contextualHint}
+            {contextualHint}
           </motion.div>
         )}
       </AnimatePresence>
       
+      {/* Tutorial board cell guidance */}
+      <AnimatePresence>
+        {tutorialGridBounds && (guidance.targetLines?.length || guidance.fallingCells?.length) && (
+          <div className="tutorial-board-guidance" aria-hidden="true">
+            {guidance.targetLines?.map((line) => {
+              const cellSize = tutorialGridBounds.width / 10;
+              const isRow = line.type === 'row';
+              return (
+                <motion.div
+                  key={`line-${line.type}-${line.index}`}
+                  className={`tutorial-target-line tutorial-target-line-${line.type}`}
+                  initial={reducedTutorialMotion ? { opacity: 0 } : { opacity: 0 }}
+                  animate={reducedTutorialMotion ? { opacity: 0.55 } : { opacity: [0.26, 0.56, 0.32] }}
+                  exit={{ opacity: 0 }}
+                  transition={reducedTutorialMotion ? { duration: 0.08 } : { duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+                  style={{
+                    left: tutorialGridBounds.left + (isRow ? 0 : line.index * cellSize + cellSize * 0.5 - 1),
+                    top: tutorialGridBounds.top + (isRow ? line.index * cellSize + cellSize * 0.5 - 1 : 0),
+                    width: isRow ? tutorialGridBounds.width : 2,
+                    height: isRow ? 2 : tutorialGridBounds.height,
+                  }}
+                />
+              );
+            })}
+            {guidance.fallingCells?.map((cell) => {
+              const cellSize = tutorialGridBounds.width / 10;
+              return (
+                <motion.div
+                  key={`fall-${cell.x}-${cell.y}`}
+                  className="tutorial-falling-cell"
+                  initial={{ opacity: 0 }}
+                  animate={reducedTutorialMotion ? { opacity: 0.75 } : { opacity: [0.38, 0.85, 0.38], y: [0, cellSize * 0.32, 0] }}
+                  exit={{ opacity: 0 }}
+                  transition={reducedTutorialMotion ? { duration: 0.08 } : { duration: 1.15, repeat: Infinity, ease: 'easeInOut' }}
+                  style={{
+                    left: tutorialGridBounds.left + cell.x * cellSize + cellSize * 0.2,
+                    top: tutorialGridBounds.top + cell.y * cellSize + cellSize * 0.12,
+                    width: cellSize * 0.6,
+                    height: cellSize * 0.72,
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Achievement Badges */}
       <AnimatePresence>
         {achievements.map((achievement, index) => (
@@ -467,7 +545,7 @@ export const TutorialOverlay: React.FC = () => {
                   ease: "easeInOut"
                 }}
               >
-                👆
+                ^
               </motion.span>
               <motion.span 
                 className="hand-text"
@@ -500,7 +578,7 @@ export const TutorialOverlay: React.FC = () => {
               animate={{ scale: 1, rotate: 0 }}
               transition={reducedTutorialMotion ? { duration: 0.08 } : { type: "spring", damping: 15 }}
             >
-              🎮
+              ✓
             </motion.div>
           )}
           
@@ -660,6 +738,67 @@ export const TutorialOverlay: React.FC = () => {
           pointer-events: none;
           max-width: 45vw;
           word-wrap: break-word;
+        }
+
+        .tutorial-board-guidance {
+          position: fixed;
+          inset: 0;
+          z-index: 9998;
+          pointer-events: none;
+        }
+
+        .tutorial-target-line {
+          position: fixed;
+          border-radius: 999px;
+          background: linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(147, 197, 253, 0.24) 12%,
+            rgba(219, 234, 254, 0.7) 76%,
+            transparent 100%
+          );
+          box-shadow: 0 0 10px rgba(147, 197, 253, 0.22);
+        }
+
+        .tutorial-target-line-column {
+          background: linear-gradient(
+            180deg,
+            transparent 0%,
+            rgba(147, 197, 253, 0.24) 12%,
+            rgba(219, 234, 254, 0.7) 76%,
+            transparent 100%
+          );
+        }
+
+        .tutorial-falling-cell {
+          position: fixed;
+        }
+
+        .tutorial-falling-cell::before,
+        .tutorial-falling-cell::after {
+          content: '';
+          position: absolute;
+          left: 50%;
+          transform: translateX(-50%);
+        }
+
+        .tutorial-falling-cell::before {
+          top: 0;
+          width: 2px;
+          height: 68%;
+          border-radius: 999px;
+          background: linear-gradient(180deg, rgba(96, 165, 250, 0.1), rgba(96, 165, 250, 0.86));
+          box-shadow: 0 0 10px rgba(96, 165, 250, 0.35);
+        }
+
+        .tutorial-falling-cell::after {
+          bottom: 0;
+          width: 9px;
+          height: 9px;
+          border-right: 2px solid rgba(147, 197, 253, 0.9);
+          border-bottom: 2px solid rgba(147, 197, 253, 0.9);
+          transform: translateX(-50%) rotate(45deg);
+          filter: drop-shadow(0 0 6px rgba(96, 165, 250, 0.5));
         }
         
         .tutorial-overlay {

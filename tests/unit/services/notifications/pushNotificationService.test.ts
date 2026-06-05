@@ -34,7 +34,7 @@ import {
 } from '@services/notifications/pushNotificationService';
 
 describe('createEngagementNotificationPlans', () => {
-  it('limits phone notification plans to engagement types and caps contextual reminders', () => {
+  it('schedules a single evening engagement notification even with multiple context signals', () => {
     const now = new Date('2026-05-16T10:00:00.000Z');
     const plans = createEngagementNotificationPlans({
       currentStreak: 4,
@@ -45,12 +45,14 @@ describe('createEngagementNotificationPlans', () => {
       lastTimedPlayedAt: new Date('2026-05-14T10:00:00.000Z').getTime(),
     }, now);
 
-    expect(plans).toHaveLength(3);
-    expect(plans.map(plan => plan.type)).toEqual([
-      NotificationType.DAILY_REMINDER,
-      NotificationType.STREAK_REMINDER,
-      NotificationType.NEAR_RECORD,
-    ]);
+    expect(plans).toHaveLength(1);
+    expect(plans[0]).toMatchObject({
+      id: 101,
+      type: NotificationType.INACTIVITY,
+      hour: 20,
+      minute: 0,
+      repeats: true,
+    });
   });
 
   it('always includes only one repeating daily reminder', () => {
@@ -61,27 +63,54 @@ describe('createEngagementNotificationPlans', () => {
     expect(repeatingPlans[0].type).toBe(NotificationType.DAILY_REMINDER);
   });
 
-  it('does not schedule play reminders after the user has already played today', () => {
+  it('keeps the reminder neutral after the user has already played today', () => {
     const plans = createEngagementNotificationPlans({
       todayPlayed: true,
       currentStreak: 4,
       lastTimedPlayedAt: new Date('2026-05-14T10:00:00.000Z').getTime(),
     }, new Date('2026-05-16T10:00:00.000Z'));
 
-    expect(plans.map(plan => plan.type)).not.toContain(NotificationType.DAILY_REMINDER);
-    expect(plans.map(plan => plan.type)).not.toContain(NotificationType.STREAK_REMINDER);
-    expect(plans.map(plan => plan.type)).not.toContain(NotificationType.TIMED_MODE);
+    expect(plans).toHaveLength(1);
+    expect(plans[0].type).toBe(NotificationType.DAILY_REMINDER);
   });
 
-  it('uses playful contextual copy for streak reminders', () => {
+  it('keeps tomorrow daily reminder when the user has already played today', () => {
+    const plans = createEngagementNotificationPlans({
+      todayPlayed: true,
+    }, new Date('2026-05-16T10:00:00.000Z'));
+
+    const dailyPlan = plans.find(plan => plan.type === NotificationType.DAILY_REMINDER);
+    expect(dailyPlan).toMatchObject({
+      repeats: true,
+      dayOffset: 1,
+    });
+  });
+
+  it('uses playful contextual copy for streak reminders in the evening slot', () => {
     const plans = createEngagementNotificationPlans({
       currentStreak: 7,
       todayPlayed: false,
     }, new Date('2026-05-16T10:00:00.000Z'));
 
-    const streakPlan = plans.find(plan => plan.type === NotificationType.STREAK_REMINDER);
-    expect(streakPlan?.title).toMatch(/7 gunluk seri|Serin|Seri/);
-    expect(streakPlan?.body).not.toContain('bozulmadan kisa bir oyun at');
+    expect(plans).toHaveLength(1);
+    expect(plans[0].type).toBe(NotificationType.STREAK_REMINDER);
+    expect(plans[0].hour).toBe(20);
+    expect(plans[0].title).toMatch(/7 gunluk seri|Serin|Seri/);
+    expect(plans[0].body).not.toContain('bozulmadan kisa bir oyun at');
+  });
+
+  it('uses timed mode only as a single evening persona for players who tried it before', () => {
+    const plans = createEngagementNotificationPlans({
+      todayPlayed: false,
+      lastTimedPlayedAt: new Date('2026-05-13T10:00:00.000Z').getTime(),
+    }, new Date('2026-05-16T10:00:00.000Z'));
+
+    expect(plans).toHaveLength(1);
+    expect(plans[0]).toMatchObject({
+      type: NotificationType.TIMED_MODE,
+      hour: 20,
+      minute: 0,
+    });
   });
 
   it('creates deterministic near-record copy with score gap', () => {

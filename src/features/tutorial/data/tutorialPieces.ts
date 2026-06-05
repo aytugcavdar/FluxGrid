@@ -10,6 +10,8 @@ import { v4 as uuidv4 } from 'uuid';
 export interface TutorialStepData {
   pieces: Piece[];
   targetGrid?: number[][]; // Optional pre-filled grid state (1 = filled, 0 = empty)
+  targetLines?: Array<{ type: 'row' | 'column'; index: number }>;
+  fallingCells?: Array<{ x: number; y: number }>;
   description?: string;
 }
 
@@ -114,11 +116,18 @@ export const TUTORIAL_STEP_DATA: Record<number, TutorialStepData> = {
   1: {
     pieces: CLEAR_LINE_PIECES,
     targetGrid: STEP_1_GRID,
+    targetLines: [{ type: 'row', index: 9 }],
+    fallingCells: [
+      { x: 1, y: 7 },
+      { x: 4, y: 6 },
+      { x: 8, y: 8 },
+    ],
     description: 'Complete the bottom row to clear it and show gravity'
   },
   2: {
     pieces: CLEAR_LINE_PIECES,
     targetGrid: STEP_2_GRID,
+    targetLines: [{ type: 'row', index: 9 }],
     description: 'Clear another line quickly to keep combo'
   }
 };
@@ -169,6 +178,14 @@ export function getTutorialGridState(step: number): GridState | null {
         : { filled: false, color: '' };
     })
   );
+}
+
+export function getTutorialGuidance(step: number): Pick<TutorialStepData, 'targetLines' | 'fallingCells'> {
+  const stepData = TUTORIAL_STEP_DATA[step];
+  return {
+    targetLines: stepData?.targetLines || [],
+    fallingCells: stepData?.fallingCells || [],
+  };
 }
 
 /**
