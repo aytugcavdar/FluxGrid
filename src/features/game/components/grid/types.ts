@@ -23,6 +23,7 @@ export interface FragmentPool {
 // Line Clear Animation
 export interface LineClearAnimation {
   active: boolean;
+  lineCount: number;
   phase: 'brightness' | 'particles' | 'collapse';
   progress: number;
   startTime: number;
@@ -36,6 +37,8 @@ export interface LineClearAnimation {
   clearOrderSpan?: number;
   intersectionCells?: Set<string>;
   intersectionPulseMeshes?: BABYLON.Mesh[];
+  constrainedSparkCreated?: boolean;
+  constrainedSparkMeshes?: BABYLON.Mesh[];
   affectedBlocks: Map<string, { startPosition: BABYLON.Vector3; targetPosition: BABYLON.Vector3 }>;
   originalColors: Map<string, BABYLON.Color3>;
 }

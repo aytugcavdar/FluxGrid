@@ -136,6 +136,10 @@ export class FloatingScoreManager {
       }
     }
   }
+
+  public hasActiveAnimations(): boolean {
+    return this.activeScores.length > 0;
+  }
   
   /**
    * Dispose all floating scores

@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App'; // New UI for menu
 import AppWithErrorBoundary from './GameApp'; // Old App for game
+import { MarketingSite } from './MarketingSite';
 import { useGameStore } from '../features/game/store/gameStore';
 import { AppState, GameMode } from '@shared/types';
 import { AdManager } from '@core/services/ads/AdManager';
@@ -33,6 +34,16 @@ import { PageTransition } from '../shared/components/PageTransition';
 
 // Get app version from package.json
 const APP_VERSION = '1.0.0';
+
+const getNormalizedPath = () => {
+  const path = window.location.pathname.replace(/\/+$/, '');
+  return path || '/';
+};
+
+const MARKETING_ROUTES = new Set(['/', '/privacy', '/privacy-policy', '/support', '/contact']);
+const isNativeRuntime = Capacitor.isNativePlatform();
+const normalizedPath = getNormalizedPath();
+const isMarketingRoute = !isNativeRuntime && MARKETING_ROUTES.has(normalizedPath);
 
 /**
  * Configure StatusBar for native Android app
@@ -70,7 +81,7 @@ const getNotificationContext = () => {
 };
 
 // Root component that switches between menu and game
-const RootApp: React.FC = () => {
+const RuntimeApp: React.FC = () => {
   const appState = useGameStore(state => state.appState);
   const { i18n } = useTranslation();
   const [updateDialogConfig, setUpdateDialogConfig] = useState<UpdateDialogConfig | null>(null);
@@ -259,20 +270,30 @@ const RootApp: React.FC = () => {
   );
 };
 
+const RootRouter: React.FC = () => {
+  if (isMarketingRoute) {
+    return <MarketingSite />;
+  }
+
+  return <RuntimeApp />;
+};
+
 // Initialize Sentry for error tracking (before React render)
 initializeSentry();
 
-// Initialize performance monitoring
-initializePerformanceMonitoring();
+if (!isMarketingRoute) {
+  // Initialize performance monitoring
+  initializePerformanceMonitoring();
 
-// Start measuring game load time
-startGameLoadMeasure();
+  // Start measuring game load time
+  startGameLoadMeasure();
 
-// Initialize lazy loading for non-critical resources
-initializeLazyLoading();
+  // Initialize lazy loading for non-critical resources
+  initializeLazyLoading();
 
-// Initialize memory optimization
-initializeMemoryOptimization();
+  // Initialize memory optimization
+  initializeMemoryOptimization();
+}
 
 // Set up global error handlers
 window.addEventListener('error', (event) => {
@@ -292,12 +313,16 @@ window.addEventListener('unhandledrejection', (event) => {
   });
 });
 
-// Apply safe area CSS synchronously before React render (prevents layout jump)
-applySafeAreaCSS();
+if (!isMarketingRoute) {
+  // Apply safe area CSS synchronously before React render (prevents layout jump)
+  applySafeAreaCSS();
+}
 
 // Initialize splash coordinator before React render
 const splashCoordinator = getSplashCoordinator();
-splashCoordinator.initialize();
+if (!isMarketingRoute) {
+  splashCoordinator.initialize();
+}
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -308,14 +333,21 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <SentryErrorBoundary>
-      <RootApp />
+      <RootRouter />
     </SentryErrorBoundary>
   </React.StrictMode>
 );
 
-// Dismiss splash screen after React renders (for menu screen)
-// For game screen, Grid component will handle it via Babylon.js ready event
-setTimeout(() => {
-  const coordinator = getSplashCoordinator();
-  coordinator.dismissWebSplash();
-}, 1500); // Increased from 500ms to 1500ms to ensure full initialization
+if (isMarketingRoute) {
+  const splash = document.getElementById('splash');
+  if (splash) {
+    splash.style.display = 'none';
+  }
+} else {
+  // Dismiss splash screen after React renders (for menu screen)
+  // For game screen, Grid component will handle it via Babylon.js ready event
+  setTimeout(() => {
+    const coordinator = getSplashCoordinator();
+    coordinator.dismissWebSplash();
+  }, 1500); // Increased from 500ms to 1500ms to ensure full initialization
+}

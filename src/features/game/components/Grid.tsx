@@ -1,18 +1,19 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as BABYLON from 'babylonjs';
+import { Capacitor } from '@capacitor/core';
 import { useGameStore } from '../store/gameStore';
 import { useThemeStore } from '../../../shared/store/themeStore';
 import { useSettingsStore } from '@core/state/settingsStore';
 import { useVisualEffectStore } from '../../visual-effects/store/visualEffectStore';
 import { GRID_SIZE, CellType, GridState, Piece } from '../types';
 import { GameMode } from '@shared/types';
+import { FIXED_GRID_TIER } from '../constants';
 import { getDragYOffset, setCanvasRect } from '../../../utils/responsive/responsive';
 import { gameFeelEvents } from '../../../utils/audio';
 import { detectDeviceCapabilities, getPerformanceConfig } from '../../../utils/platform/deviceCapability';
-import { isAndroid as isAndroidPlatform } from '../../../utils/platform/platform';
-import { useFPSLimiter } from '../hooks/useFPSLimiter';
 import { useBackgroundPause } from '../hooks/useBackgroundPause';
 import { usePerformanceStore } from '../store/performanceStore';
+import { usePerformanceStore as usePerformanceMetricsStore } from '../../performance/store/performanceStore';
 import { injectAndroidTouchCSS, addOptimizedTouchListener } from '../../../utils/device/touchOptimizer';
 import clsx from 'clsx';
 import {
@@ -38,7 +39,7 @@ import {
   FRAGMENT_LIFETIME
 } from './grid/constants';
 
-import { GameOverAnimation } from './grid/types';
+import { GameOverAnimation, LineClearAnimation } from './grid/types';
 
 import {
   getVectorPos,
@@ -58,6 +59,8 @@ import {
   updateGameOverAnimation,
   updateTierFlash,
   updateTimedModeAtmosphere,
+  getNativeRenderTargetFps,
+  NATIVE_ACTIVE_FPS,
   syncGridMeshes
 } from './grid/helpers';
 
@@ -93,8 +96,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
     const { getThemeColors } = useThemeStore();
     const { ghostBlockEnabled } = useSettingsStore();
     // Platform detection - calculate once at initialization
-    const isNativeApp = !!(window as any).Capacitor?.isNativePlatform?.();
-    const isAndroid = isNativeApp && /Android/i.test(navigator.userAgent);
+    const isNativeApp = Capacitor.isNativePlatform();
+    const isAndroid = Capacitor.getPlatform() === 'android';
 
     // Refs for Babylon.js engine and scene (needed for hooks)
     const engineRef = useRef<BABYLON.Engine | null>(null);
@@ -129,51 +132,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
     // Battery saver manager ref
     const batterySaverManagerRef = useRef<any | null>(null);
 
-    // Task 9.1: Integrate useFPSLimiter hook
-    const { state: fpsState } = useFPSLimiter(engineRef.current, true);
-
     // Task 9.2: Integrate useBackgroundPause hook
-    const { state: bgPauseState } = useBackgroundPause(true);
-
-    // Local FPS limiter for render loop (syncs with hook's target FPS)
-    const fpsLimiterRef = useRef<{
-        lastFrameTime: number;
-        targetFrameTime: number;
-        shouldRenderFrame: () => boolean;
-        updateFrameTime: () => void;
-        setTargetFPS: (fps: number) => void;
-    }>({
-        lastFrameTime: 0,
-        targetFrameTime: 1000 / 60,
-        shouldRenderFrame: function() {
-            const now = performance?.now?.() ?? Date.now();
-            const elapsed = now - this.lastFrameTime;
-            return elapsed >= this.targetFrameTime;
-        },
-        updateFrameTime: function() {
-            this.lastFrameTime = performance?.now?.() ?? Date.now();
-        },
-        setTargetFPS: function(fps: number) {
-            this.targetFrameTime = 1000 / fps;
-        }
-    });
-
-    // Sync FPS limiter with hook's target FPS
-    useEffect(() => {
-        fpsLimiterRef.current.setTargetFPS(fpsState.targetFPS);
-    }, [fpsState.targetFPS]);
-
-    // Task 9.3: Record FPS metrics every second
-    useEffect(() => {
-        if (!engineRef.current) return;
-
-        const recordFPSInterval = setInterval(() => {
-            const currentFPS = engineRef.current?.getFps() ?? 60;
-            usePerformanceStore.getState().recordFPS(currentFPS);
-        }, 1000);
-
-        return () => clearInterval(recordFPSInterval);
-    }, []);
+    useBackgroundPause(true);
 
     // Task 9.5: Inject Android touch CSS on mount
     useEffect(() => {
@@ -184,7 +144,15 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
     }, []);
 
     const stateRef = useRef({ grid: gridProp, draggedPiece, score, combo, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected });
-    useEffect(() => { stateRef.current = { grid: gridProp, draggedPiece, score, combo, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected }; }, [gridProp, draggedPiece, score, combo, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected]);
+    const previousGridPropRef = useRef(gridProp);
+    const gridSyncDirtyRef = useRef(true);
+    useEffect(() => {
+        stateRef.current = { grid: gridProp, draggedPiece, score, combo, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected };
+        if (previousGridPropRef.current !== gridProp) {
+            previousGridPropRef.current = gridProp;
+            gridSyncDirtyRef.current = true;
+        }
+    }, [gridProp, draggedPiece, score, combo, lastAction, pieces, activeEvent, gameMode, timeLeft, isGameOver, difficultyTier, perfectClearDetected]);
 
     // Track previous score to detect game reset
     const prevScoreRef = useRef(score);
@@ -333,21 +301,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
     const perfectClearHandledRef = useRef(false);
 
     // Line clear animation state
-    const lineClearAnimationRef = useRef<{
-        active: boolean;
-        phase: 'brightness' | 'particles' | 'collapse';
-        progress: number;
-        startTime: number;
-        clearedCells: Set<string>;
-        clearedCellIds?: Map<string, string>;
-        clearedCellData?: Map<string, { color: string; cellType?: CellType }>;
-        clearOrder?: Map<string, number>;
-        clearOrderSpan?: number;
-        intersectionCells?: Set<string>;
-        intersectionPulseMeshes?: BABYLON.Mesh[];
-        affectedBlocks: Map<string, { startPosition: BABYLON.Vector3; targetPosition: BABYLON.Vector3 }>;
-        originalColors: Map<string, BABYLON.Color3>;
-    } | null>(null);
+    const lineClearAnimationRef = useRef<LineClearAnimation | null>(null);
 
     // Placement animation state (Juice System)
     const placementAnimationRef = useRef<{
@@ -381,9 +335,14 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
     const lastTouchTimeRef = useRef(Date.now());
     const lastHoverHapticTimeRef = useRef(0);
     const idleCheckIntervalRef = useRef<number | null>(null);
+    const wakeRenderLoopRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
-        if (!canvasRef.current) return;
+        const canvasElement = canvasRef.current;
+        if (!canvasElement) return;
+
+        let initializationCancelled = false;
+        let initializeSceneCleanup: (() => void) | null = null;
 
         // ─── CRITICAL: Register pointer event listeners IMMEDIATELY ───
         // Do NOT put these inside the async initializeScene — they must be
@@ -399,8 +358,20 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             if (e.pointerType === 'touch') {
                 lastTouchTimeRef.current = Date.now();
             }
+            if (!renderLoopActiveRef.current) {
+                wakeRenderLoopRef.current?.();
+            }
             if (stateRef.current.draggedPiece) {
                 recordPointerSample(e.clientX, e.clientY);
+            }
+        };
+
+        const handleGlobalPointerDown = (e: PointerEvent) => {
+            if (e.pointerType === 'touch') {
+                lastTouchTimeRef.current = Date.now();
+            }
+            if (!renderLoopActiveRef.current) {
+                wakeRenderLoopRef.current?.();
             }
         };
 
@@ -436,22 +407,29 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         };
 
         // Register listeners immediately (synchronously) before any async work
+        window.addEventListener('pointerdown', handleGlobalPointerDown);
         window.addEventListener('pointerup', handleWindowPointerUp);
         window.addEventListener('pointermove', handleGlobalPointerMove);
-        if (canvasRef.current) {
-            canvasRef.current.addEventListener('pointerup', handleCanvasPointerUp);
-        }
+        canvasElement.addEventListener('pointerup', handleCanvasPointerUp);
 
         // Device capability detection with performance config (async)
-        const initializeScene = async () => {
+        const initializeScene = async (): Promise<(() => void) | undefined> => {
             const deviceCapabilities = await detectDeviceCapabilities();
+            if (initializationCancelled) return undefined;
 
             const perfConfig = getPerformanceConfig(deviceCapabilities.tier);
+            usePerformanceMetricsStore.getState().updateDeviceInfo({
+                tier: deviceCapabilities.tier,
+                model: deviceCapabilities.deviceModel,
+                score: deviceCapabilities.score,
+                gpu: deviceCapabilities.gpuRenderer,
+                native: deviceCapabilities.isNative,
+            });
 
             console.log('[Grid] Performance config:', perfConfig);
 
             // Platform detection for Android-specific optimizations
-            const androidPlatform = isAndroidPlatform();
+            const androidPlatform = isAndroid;
             console.log('[Grid] Android platform:', androidPlatform);
 
             // Reduced motion preference
@@ -460,9 +438,17 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             // Low-end device flag for compatibility with existing code
             const isLowEndDevice = deviceCapabilities.tier === 'low';
             const isLowMidDevice = deviceCapabilities.tier === 'low-mid';
-            const isBackgroundLimitedDevice = isLowEndDevice || isLowMidDevice || deviceCapabilities.isNative;
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || deviceCapabilities.isNative;
-
+            const hapticThrottleLimit = isLowEndDevice ? 5
+                : isLowMidDevice ? 6
+                : deviceCapabilities.tier === 'mid-low' ? 7
+                : deviceCapabilities.tier === 'mid' ? 8
+                : 10;
+            const dragHoverHapticGapMs = isLowEndDevice ? 180
+                : isLowMidDevice ? 140
+                : deviceCapabilities.tier === 'mid-low' ? 110
+                : deviceCapabilities.tier === 'mid' ? 85
+                : 60;
             // Disable animations on low-end devices, native apps, or when reduced motion is preferred
             const disableAnimations = prefersReducedMotion || isLowEndDevice || deviceCapabilities.isNative;
 
@@ -470,13 +456,15 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         let engine: BABYLON.Engine;
         try {
           // Weak device optimizations
-          const devicePixelRatioLimit = isLowEndDevice ? 1.0 : Math.min(window.devicePixelRatio, 2);
+          const devicePixelRatioLimit = isLowEndDevice
+              ? 1.0
+              : Math.min(window.devicePixelRatio || 1, 2);
 
-          engine = new BABYLON.Engine(canvasRef.current!, true, {
+          engine = new BABYLON.Engine(canvasElement, true, {
               preserveDrawingBuffer: true,
               stencil: true,
               antialias: perfConfig.antialias,
-              adaptToDeviceRatio: !isLowEndDevice, // Disable on weak devices
+              adaptToDeviceRatio: !isLowEndDevice,
               limitDeviceRatio: devicePixelRatioLimit,
               doNotHandleContextLost: false,
               powerPreference: isLowEndDevice ? 'low-power' : 'high-performance',
@@ -508,6 +496,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             memory: deviceCapabilities.memory,
             cores: deviceCapabilities.cores,
             refreshRate: deviceCapabilities.refreshRate,
+            devicePixelRatio: window.devicePixelRatio || 1,
+            devicePixelRatioLimit,
             gpu: deviceCapabilities.gpuRenderer,
             isNative: deviceCapabilities.isNative,
             isAndroid: deviceCapabilities.isAndroid
@@ -547,10 +537,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             scene.imageProcessingConfiguration.grainEnabled = false;
             scene.imageProcessingConfiguration.chromaticAberrationEnabled = false;
 
-            // Apply Babylon's scene optimizer
-            BABYLON.SceneOptimizer.OptimizeAsync(scene, BABYLON.SceneOptimizerOptions.HighDegradationAllowed());
-
-            console.log('[Grid] AGGRESSIVE scene optimizations applied for low-end device');
+            console.log('[Grid] Manual scene optimizations applied for low-end device');
         }
 
         // Store references for theme updates
@@ -613,11 +600,6 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         dirLight.position = new BABYLON.Vector3(20, 40, 20);
         dirLight.intensity = isMobile ? 0.38 : 0.55; // Daha düşük directional
 
-        // Disable directional light on low-end devices
-        if (isLowEndDevice) {
-            dirLight.intensity = 0;
-        }
-
         // Bloom Effect - Glow layer for combo and special block effects
         // Disabled on low-end devices and native mobile apps for performance
         // IMPORTANT: Don't create GlowLayer at all on weak devices (not just intensity 0)
@@ -638,7 +620,6 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
         // Get theme colors
         const themeColors = getThemeColors();
-        const currentThemeName = useThemeStore.getState().currentTheme;
         const tableColors: Record<string, { diffuse: string; emissive: string; shadow: string; alpha: number }> = {
             dark:  { diffuse: '#1a2433', emissive: '#111a27', shadow: '#0b111b', alpha: 0.95 },
             light: { diffuse: '#8f7657', emissive: '#46311e', shadow: '#26170d', alpha: 0.92 },
@@ -660,18 +641,18 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             ctx.fillStyle = sheen;
             ctx.fillRect(0, 0, size, size);
 
-            ctx.globalAlpha = isBackgroundLimitedDevice ? 0.045 : (useThemeStore.getState().currentTheme === 'light' ? 0.10 : 0.08);
+            ctx.globalAlpha = useThemeStore.getState().currentTheme === 'light' ? 0.10 : 0.08;
             ctx.strokeStyle = 'rgba(255,255,255,0.5)';
             ctx.lineWidth = 1;
-            for (let i = -size; i < size * 2; i += isBackgroundLimitedDevice ? 28 : 18) {
+            for (let i = -size; i < size * 2; i += 18) {
                 ctx.beginPath();
                 ctx.moveTo(i, 0);
                 ctx.lineTo(i + size, size);
                 ctx.stroke();
             }
 
-            ctx.globalAlpha = isBackgroundLimitedDevice ? 0.045 : (useThemeStore.getState().currentTheme === 'light' ? 0.06 : 0.1);
-            const grainCount = isBackgroundLimitedDevice ? 55 : 180;
+            ctx.globalAlpha = useThemeStore.getState().currentTheme === 'light' ? 0.06 : 0.1;
+            const grainCount = 180;
             for (let i = 0; i < grainCount; i++) {
                 const x = Math.floor(Math.random() * size);
                 const y = Math.floor(Math.random() * size);
@@ -685,7 +666,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         const applyTableMaterial = (mat: BABYLON.StandardMaterial) => {
             const table = getTableColors();
             mat.diffuseColor = BABYLON.Color3.FromHexString(table.diffuse);
-            mat.emissiveColor = BABYLON.Color3.FromHexString(table.emissive).scale(isBackgroundLimitedDevice ? 0.14 : 0.28);
+            mat.emissiveColor = BABYLON.Color3.FromHexString(table.emissive).scale(0.28);
             mat.alpha = table.alpha;
         };
 
@@ -694,7 +675,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         tabletop.position.y = -0.74;
         tabletop.isPickable = false;
         const tabletopMat = new BABYLON.StandardMaterial("tabletopMat", scene);
-        const tabletopTextureSize = isBackgroundLimitedDevice ? 80 : 160;
+        const tabletopTextureSize = 160;
         const tabletopTexture = new BABYLON.DynamicTexture("tabletopTexture", { width: tabletopTextureSize, height: tabletopTextureSize }, scene, false);
         paintTableTexture(tabletopTexture);
         tabletopTexture.wrapU = BABYLON.Texture.WRAP_ADDRESSMODE;
@@ -707,6 +688,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         tabletopMat.specularPower = 0;
         tabletopMat.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
         tabletop.material = tabletopMat;
+        tabletop.freezeWorldMatrix();
 
         // Grid Base — themed
         const baseSize = (GRID_SIZE * TOTAL_CELL_SIZE) + 1.5;
@@ -719,18 +701,36 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         gridMat.specularPower = 0;
         gridBase.material = gridMat;
         gridBase.isPickable = false;
+        gridBase.freezeWorldMatrix();
         gridBaseRef.current = gridBase;
 
-        // Grid Slots - themed
-        // LOW tier: use brighter slot color since we skip edge rendering (no grid lines)
-        // Without edges the slots look like one flat dark surface — we add contrast via emissive
-        const lowTierSlotColors: Record<string, { slot: string; emissiveScale: number; alpha: number }> = {
-            dark:  { slot: '#1a2540', emissiveScale: 1.4, alpha: 0.95 },
-            light: { slot: '#fef9e7', emissiveScale: 1.0, alpha: 0.95 },
-            neon:  { slot: '#1e1050', emissiveScale: 1.5, alpha: 0.95 },
+        const staticGridLineMeshes: BABYLON.Mesh[] = [];
+        const staticGridLineMat = new BABYLON.StandardMaterial("staticGridLineMat", scene);
+        const applyStaticGridLineTheme = (colors: ReturnType<typeof getThemeColors>) => {
+            const edgeColor = BABYLON.Color3.FromHexString(colors.gridEdge);
+            staticGridLineMat.diffuseColor = edgeColor.scale(0.22);
+            staticGridLineMat.emissiveColor = edgeColor.scale(0.9);
+            staticGridLineMat.alpha = 0.56;
+            staticGridLineMat.specularColor = BABYLON.Color3.Black();
+            staticGridLineMat.disableLighting = true;
+            staticGridLineMat.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
         };
-        const lowSlot = lowTierSlotColors[currentThemeName] ?? lowTierSlotColors['dark'];
+        applyStaticGridLineTheme(themeColors);
 
+        // All static slots share one material. Their color and opacity always
+        // change together, so per-slot materials only add scene overhead.
+        const slotMat = new BABYLON.StandardMaterial('gridSlotSharedMat', scene);
+        const applyGridSlotTheme = (colors: ReturnType<typeof getThemeColors>) => {
+            slotMat.diffuseColor = BABYLON.Color3.FromHexString(colors.gridSlot);
+            slotMat.emissiveColor = BABYLON.Color3.FromHexString(colors.gridSlot).scale(0.8);
+            slotMat.alpha = 0.92;
+            slotMat.specularColor = BABYLON.Color3.Black();
+        };
+        applyGridSlotTheme(themeColors);
+
+        // Grid slots are static and share one material. Merge them so the
+        // board contributes one mesh instead of 100 separate draw entries.
+        const staticGridSlotMeshes: BABYLON.Mesh[] = [];
         for (let y = 0; y < GRID_SIZE; y++) {
             for (let x = 0; x < GRID_SIZE; x++) {
                 const slot = BABYLON.MeshBuilder.CreateBox(`slot-${x}-${y}`, { width: SLOT_SIZE, depth: SLOT_SIZE, height: 0.05 }, scene);
@@ -738,34 +738,81 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 slot.position.z = -((y * TOTAL_CELL_SIZE) - GRID_OFFSET);
                 slot.position.y = -0.5;
                 slot.isPickable = false;
-
-                const slotMat = new BABYLON.StandardMaterial(`slotMat-${x}-${y}`, scene);
-
-                if (isLowEndDevice) {
-                    // Brighter color so cells are distinguishable without edges
-                    slotMat.diffuseColor = BABYLON.Color3.FromHexString(lowSlot.slot);
-                    slotMat.emissiveColor = BABYLON.Color3.FromHexString(lowSlot.slot).scale(lowSlot.emissiveScale);
-                    slotMat.alpha = lowSlot.alpha;
-                } else {
-                    slotMat.diffuseColor = BABYLON.Color3.FromHexString(themeColors.gridSlot);
-                    slotMat.emissiveColor = BABYLON.Color3.FromHexString(themeColors.gridSlot).scale(0.8);
-                    slotMat.alpha = 0.92;
-                }
-
-                slotMat.specularColor = BABYLON.Color3.Black();
                 slot.material = slotMat;
 
                 // Grid lines — themed
                 // CRITICAL: Skip edges on LOW devices - 100 slots * edges = MASSIVE performance hit
-                if (!isLowEndDevice) {
-                    slot.enableEdgesRendering();
-                    slot.edgesWidth = isMobile ? 2.0 : 2.5;
-                    const edgeColor = BABYLON.Color3.FromHexString(themeColors.gridEdge);
-                    slot.edgesColor = new BABYLON.Color4(edgeColor.r, edgeColor.g, edgeColor.b, 0.5);
-                }
-
-                gridSlotsRef.push(slot);
+                slot.computeWorldMatrix(true);
+                staticGridSlotMeshes.push(slot);
             }
+        }
+
+        const staticGridSlotMesh = BABYLON.Mesh.MergeMeshes(
+            staticGridSlotMeshes,
+            true,
+            true,
+            undefined,
+            false,
+            false
+        );
+        if (staticGridSlotMesh) {
+            staticGridSlotMesh.name = 'static-grid-slots';
+            staticGridSlotMesh.material = slotMat;
+            staticGridSlotMesh.isPickable = false;
+            staticGridSlotMesh.freezeWorldMatrix();
+            gridSlotsRef.push(staticGridSlotMesh);
+        } else {
+            staticGridSlotMeshes.forEach((slot) => {
+                slot.freezeWorldMatrix();
+                gridSlotsRef.push(slot);
+            });
+        }
+
+        const lineLength = GRID_SIZE * TOTAL_CELL_SIZE;
+        const firstLine = -GRID_OFFSET - TOTAL_CELL_SIZE / 2;
+        const lineThickness = 0.026;
+        const lineHeight = 0.032;
+        const lineY = -0.43;
+
+        for (let i = 0; i <= GRID_SIZE; i++) {
+            const position = firstLine + i * TOTAL_CELL_SIZE;
+
+            const vertical = BABYLON.MeshBuilder.CreateBox(`static-grid-v-${i}`, {
+                width: lineThickness,
+                depth: lineLength,
+                height: lineHeight,
+            }, scene);
+            vertical.position.set(position, lineY, 0);
+            vertical.material = staticGridLineMat;
+            vertical.isPickable = false;
+            vertical.computeWorldMatrix(true);
+            staticGridLineMeshes.push(vertical);
+
+            const horizontal = BABYLON.MeshBuilder.CreateBox(`static-grid-h-${i}`, {
+                width: lineLength,
+                depth: lineThickness,
+                height: lineHeight,
+            }, scene);
+            horizontal.position.set(0, lineY, position);
+            horizontal.material = staticGridLineMat;
+            horizontal.isPickable = false;
+            horizontal.computeWorldMatrix(true);
+            staticGridLineMeshes.push(horizontal);
+        }
+
+        const staticGridLineMesh = BABYLON.Mesh.MergeMeshes(
+            staticGridLineMeshes,
+            true,
+            true,
+            undefined,
+            false,
+            false
+        );
+        if (staticGridLineMesh) {
+            staticGridLineMesh.name = 'static-grid-lines';
+            staticGridLineMesh.material = staticGridLineMat;
+            staticGridLineMesh.isPickable = false;
+            staticGridLineMesh.freezeWorldMatrix();
         }
 
         // Subscribe to theme changes
@@ -781,18 +828,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
             applyTableMaterial(tabletopMat);
             paintTableTexture(tabletopTexture);
-
-            // Update grid slots
-            gridSlotsRef.forEach((slot) => {
-                if (slot.material) {
-                    const mat = slot.material as BABYLON.StandardMaterial;
-                    mat.diffuseColor = BABYLON.Color3.FromHexString(colors.gridSlot);
-                    mat.emissiveColor = BABYLON.Color3.FromHexString(colors.gridSlot).scale(0.8);
-
-                    const edgeColor = BABYLON.Color3.FromHexString(colors.gridEdge);
-                    slot.edgesColor = new BABYLON.Color4(edgeColor.r, edgeColor.g, edgeColor.b, 0.5);
-                }
-            });
+            applyStaticGridLineTheme(colors);
+            applyGridSlotTheme(colors);
 
             // Update all NORMAL type piece meshes (not ICE or BOMB which have fixed colors)
             meshMapRef.current.forEach((mesh) => {
@@ -836,6 +873,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         let kineticAnimation: KineticAnimationController | null = null;
         let performanceMonitor: PerformanceMonitor | null = null;
         let adaptiveQuality: AdaptiveQualitySystem | null = null;
+        const hapticManager = getHapticManager();
+        hapticManager.setThrottle(hapticThrottleLimit);
 
         if (!isLowEndDevice) {
             animationCoordinator = new AnimationCoordinator({
@@ -859,9 +898,6 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             // Task 20: Initialize particle emitter for line clear particles
             particleEmitter = new ParticleEmitter(particlePoolManager);
 
-            // Use the shared haptic manager so settings and throttling stay consistent.
-            const hapticManager = getHapticManager();
-
             // Task 24.7: Initialize battery saver manager
             // Requirements: 14.6
             batterySaverManagerRef.current = getBatterySaverManager({
@@ -876,10 +912,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                         glowLayerRef.current.intensity = 0;
                     }
                 },
-                onFPSChange: (targetFPS) => {
-                    console.log('[Grid] Battery saver FPS change:', targetFPS);
-                    fpsLimiterRef.current.setTargetFPS(targetFPS);
-                },
+                onFPSChange: () => {},
                 onHapticsChange: (enabled) => {
                     console.log('[Grid] Battery saver haptics change:', enabled);
                     hapticManager.setEnabled(enabled);
@@ -926,12 +959,12 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             }
 
             // Initialize line clear animation system with SPS particle manager
-            // SPS capacity based on device tier: LOW=500, MID=1200, HIGH=2000
+            // SPS capacity based on device tier: LOW=disabled, MID=600, HIGH=1000
             // Initialize SPS Particle Pool Manager (disabled on LOW tier)
             if (!isLowEndDevice) {
                 spsParticleManager = new SPSParticlePoolManager({
                     scene,
-                    capacity: deviceCapabilities.tier === 'high' ? 2000 : 1200, // MID or HIGH only
+                    capacity: deviceCapabilities.tier === 'high' ? 1000 : 600, // MID or HIGH only
                     particleSize: 0.1,
                 });
                 spsParticleManagerRef.current = spsParticleManager;
@@ -963,12 +996,21 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 specialBlockManagerRef.current = null;
             }
 
-            // Initialize kinetic animation controller and trail manager
-            trailManager = new TrailMeshManager(scene);
-            kineticAnimation = new KineticAnimationController();
-            kineticAnimation.setTrailManager(trailManager);
+            // Initialize kinetic animation controller. Trail is disabled on low-mid
+            // devices to keep drag/placement smoother without losing the core snap.
+            const enableTrailEffects = !isLowMidDevice;
+            kineticAnimation = new KineticAnimationController({
+                trailEnabled: enableTrailEffects,
+            });
+            if (enableTrailEffects) {
+                trailManager = new TrailMeshManager(scene);
+                kineticAnimation.setTrailManager(trailManager);
+                trailManagerRef.current = trailManager;
+            } else {
+                trailManagerRef.current = null;
+                console.log('[Grid] Trail effects disabled for low-mid device');
+            }
             kineticAnimationRef.current = kineticAnimation;
-            trailManagerRef.current = trailManager;
 
             // Initialize performance monitor and adaptive quality system
             performanceMonitor = new PerformanceMonitor();
@@ -991,6 +1033,9 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 qualityPreset: currentQualityPreset,
                 prefersReducedMotion,
             });
+            // Grid already owns adaptive quality and battery decisions. Running
+            // a second frame-time monitor inside the juice manager duplicates work.
+            juiceEffectsManager.setAutoQuality(false);
             juiceEffectsManagerRef.current = juiceEffectsManager;
 
             // Inject juice effects manager into animation systems
@@ -1157,7 +1202,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
                         // Magnetic haptic feedback, throttled to avoid buzzing on dense drag moves.
                         const now = performance.now();
-                        if (now - lastHoverHapticTimeRef.current >= 60) {
+                        if (now - lastHoverHapticTimeRef.current >= dragHoverHapticGapMs) {
                             gameFeelEvents.dragHover();
                             lastHoverHapticTimeRef.current = now;
                         }
@@ -1231,9 +1276,15 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         let time = 0;
         let frameCount = 0; // Frame counter for throttling animations
         let hoverUpdateCounter = 0; // Counter for throttling hover updates on weak devices
+        let lastAppliedGlowCombo = Number.NaN;
+        let gridSyncNeedsFollowUp = true;
 
         // Adaptive throttling based on device tier - MORE AGGRESSIVE
         const animationThrottle = deviceCapabilities.tier === 'low' ? 10 : deviceCapabilities.tier === 'mid' ? 4 : 2;
+        const materialPulseThrottle = deviceCapabilities.tier === 'high' || deviceCapabilities.tier === 'mid-high'
+            ? 4
+            : 6;
+        const timedAtmosphereThrottle = 6;
         const hoverThrottle = deviceCapabilities.tier === 'low' ? 8 : deviceCapabilities.tier === 'mid' ? 4 : 1;
         const gridSyncThrottle = deviceCapabilities.tier === 'low' ? 4 : deviceCapabilities.tier === 'mid' ? 2 : 1;
 
@@ -1244,6 +1295,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             animation: `every ${animationThrottle} frames`,
             hover: `every ${hoverThrottle} frames`,
             gridSync: `every ${gridSyncThrottle} frames`,
+            haptic: `max ${hapticThrottleLimit}/sec, drag gap ${dragHoverHapticGapMs}ms`,
             tier: deviceCapabilities.tier
         });
 
@@ -1261,37 +1313,59 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             // Throttle on MID tier devices (every 3 frames = 20fps)
             const shouldUpdateAnimations = deviceCapabilities.tier === 'high' || (frameCount % animationThrottle === 0);
 
-            if (animationCoordinatorRef.current && !isLowEndDevice && shouldUpdateAnimations) {
+            if (
+                animationCoordinatorRef.current
+                && animationCoordinatorRef.current.hasActiveWork()
+                && !isLowEndDevice
+                && shouldUpdateAnimations
+            ) {
                 animationCoordinatorRef.current.update(deltaTime);
             }
 
             // ─── Juice Effects Manager: Update all juice effects ───
             // Throttle on MID tier devices
-            if (juiceEffectsManagerRef.current && !isLowEndDevice && shouldUpdateAnimations) {
+            if (
+                juiceEffectsManagerRef.current?.hasActiveEffects?.()
+                && !isLowEndDevice
+                && shouldUpdateAnimations
+            ) {
                 juiceEffectsManagerRef.current.update(deltaTime, camera);
             }
 
             // ─── SPS Particle Manager: Update particle physics ───
             // Throttle on MID tier devices
-            if (spsParticleManagerRef.current && !isLowEndDevice && shouldUpdateAnimations) {
+            if (
+                spsParticleManagerRef.current
+                && spsParticleManagerRef.current.getActiveCount() > 0
+                && !isLowEndDevice
+                && shouldUpdateAnimations
+            ) {
                 spsParticleManagerRef.current.update(deltaTime * 1000, camera); // Convert to milliseconds
             }
 
             // ─── UI3D Manager: Update all UI elements ───
             // Throttle on MID tier devices
-            if (ui3dManagerRef.current && !isLowEndDevice && shouldUpdateAnimations) {
+            if (
+                ui3dManagerRef.current?.hasActiveAnimations()
+                && !isLowEndDevice
+                && shouldUpdateAnimations
+            ) {
                 ui3dManagerRef.current.update(deltaTime * 1000); // Convert to milliseconds
             }
 
             // ─── Special Block Manager: Update all special block effects ───
             // Throttle on MID tier devices
-            if (specialBlockManagerRef.current && !isLowEndDevice && shouldUpdateAnimations) {
+            if (
+                specialBlockManagerRef.current?.hasActiveEffects()
+                && !isLowEndDevice
+                && shouldUpdateAnimations
+            ) {
                 specialBlockManagerRef.current.update(deltaTime * 1000); // Convert to milliseconds
             }
 
             // ─── Performance Monitor: Update FPS tracking ───
             // Keep this for all devices to monitor performance
-            if (performanceMonitorRef.current) {
+            if (performanceMonitorRef.current && frameCount % 10 === 0) {
                 performanceMonitorRef.current.update(deltaTime);
 
                 // Update metrics (skip particle counting on weak devices)
@@ -1304,7 +1378,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
             // ─── Kinetic Animation Controller: Update squash/stretch animations ───
             // Skip on weak devices to save CPU
-            if (kineticAnimationRef.current && !isLowEndDevice) {
+            if (kineticAnimationRef.current?.hasActiveAnimations() && !isLowEndDevice) {
                 const scales = kineticAnimationRef.current.update(deltaTime * 1000); // Convert to milliseconds
 
                 // Apply scales to meshes
@@ -1365,7 +1439,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
             // ─── Tier Transition Flash ───
             // Skip on weak devices to save CPU
-            if (!isLowEndDevice && currentTier > prevTierRef.current && currentTier > 0) {
+            if (!isLowEndDevice && !isLowMidDevice && currentTier > prevTierRef.current && currentTier > 0) {
                 // Tier increased - trigger flash
                 const tierColor = currentTier >= 9 ? new BABYLON.Color3(0.937, 0.267, 0.267) // red (tier 9-10)
                     : currentTier >= 7 ? new BABYLON.Color3(0.976, 0.451, 0.086) // orange (tier 7-8)
@@ -1383,18 +1457,29 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             prevTierRef.current = currentTier;
 
             // Animate tier flash (skip on weak devices)
-            if (!isLowEndDevice) {
+            if (!isLowEndDevice && !isLowMidDevice) {
                 updateTierFlash(tierFlashRef, meshMapRef.current);
             }
 
             // ─── Last 10 Seconds Atmosphere (Timed Mode) ───
             // Skip on weak devices to save CPU
-            if (currentGameMode === GameMode.TIMED && !isLowEndDevice) {
+            if (
+                currentGameMode === GameMode.TIMED
+                && !isLowEndDevice
+                && frameCount % timedAtmosphereThrottle === 0
+            ) {
                 updateTimedModeAtmosphere(currentTimeLeft, meshMapRef.current, gridBaseRef, light, isMobile);
             }
 
             // ─── Game Over Animation ───
-            updateGameOverAnimation(gameOverAnimationRef, meshMapRef.current, gridBaseRef, gridSlotsRef, shakeIntensityRef);
+            updateGameOverAnimation(
+                gameOverAnimationRef,
+                meshMapRef.current,
+                gridBaseRef,
+                gridSlotsRef,
+                staticGridLineMat,
+                shakeIntensityRef
+            );
 
             // Trigger game over animation when game ends
             if (isGameOver && !gameOverAnimationRef.current?.active) {
@@ -1406,7 +1491,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 lineClearAnimationRef,
                 grid,
                 meshMapRef.current,
-                isLowEndDevice,
+                isLowEndDevice || isLowMidDevice,
                 useVisualEffectStore
             );
 
@@ -1467,7 +1552,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                             meshMapRef.current,
                             lineClearAnimationRef,
                             clearedCells,
-                            movedCells
+                            movedCells,
+                            currentGameMode !== GameMode.ENDLESS || currentTier < FIXED_GRID_TIER
                         );
 
                         if (lockedIceCells.length > 0 && allowSpecialBlockFeedback) {
@@ -1629,10 +1715,11 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             // Dynamic Bloom Effect based on Combo
             // Intensity increases with combo level for visual feedback
             // Skip on weak devices to save GPU
-            if (glowLayerRef.current && !isLowEndDevice) {
+            if (glowLayerRef.current && !isLowEndDevice && combo !== lastAppliedGlowCombo) {
                 const baseIntensity = 0.3;
                 const comboBonus = Math.min(combo * 0.05, 0.4); // Max +0.4 at combo 8+
                 glowLayerRef.current.intensity = baseIntensity + comboBonus;
+                lastAppliedGlowCombo = combo;
             }
 
             // Camera Shake System
@@ -1659,9 +1746,11 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
             // 1. Sync Active Grid
             // Throttle grid sync on weak/mid devices - VERY AGGRESSIVE for LOW
-            const shouldSyncGrid = frameCount % gridSyncThrottle === 0;
+            const shouldSyncGrid = (gridSyncDirtyRef.current || gridSyncNeedsFollowUp)
+                && frameCount % gridSyncThrottle === 0;
 
             if (shouldSyncGrid) {
+                let needsFollowUp = false;
                 const activeIds = new Set<string>();
                 const newlyCreatedIds: string[] = []; // Track newly created blocks for placement animation
 
@@ -1715,16 +1804,25 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                             const isBeingAnimated = lineClearAnimationRef.current?.clearedCells.has(cellKey) ||
                                                    lineClearAnimationRef.current?.affectedBlocks.has(cellKey);
 
-                            if (!isBeingAnimated) {
-                                mesh.position = BABYLON.Vector3.Lerp(mesh.position, targetPos, 0.8);
-                            }
+                             if (!isBeingAnimated) {
+                                 mesh.position = BABYLON.Vector3.Lerp(mesh.position, targetPos, 0.8);
+                                 if (BABYLON.Vector3.DistanceSquared(mesh.position, targetPos) > 0.0004) {
+                                     needsFollowUp = true;
+                                 } else {
+                                     mesh.position.copyFrom(targetPos);
+                                 }
+                             }
                         } else {
                             // LOW device: Instant snap to position
                             mesh.position = targetPos;
                         }
 
                         // Skip ALL emissive animations on LOW devices
-                        if (!skipEmissive && shouldUpdateAnimations && !isLowEndDevice) {
+                        if (
+                            !skipEmissive
+                            && !isLowEndDevice
+                            && frameCount % materialPulseThrottle === 0
+                        ) {
                             const cellKey = `${x},${y}`;
                             const isBeingCleared = lineClearAnimationRef.current?.clearedCells.has(cellKey);
 
@@ -1781,20 +1879,22 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             } else {
                 // MID/HIGH: Animated disposal then return to pool
                 for (const [id, mesh] of meshMap.entries()) {
-                    if (!activeIds.has(id)) {
-                        mesh.scaling.scaleInPlace(0.7);
-                        mesh.rotation.y += 0.3;
-                        if (mesh.scaling.x < 0.05) {
+                     if (!activeIds.has(id)) {
+                         mesh.scaling.scaleInPlace(0.7);
+                         mesh.rotation.y += 0.3;
+                         if (mesh.scaling.x < 0.05) {
                             // Animation complete, return to pool
                             const cellInfo = getCellInfoFromMesh(mesh, grid);
                             if (cellInfo) {
                                 meshPoolRef.current!.returnMesh(mesh, cellInfo.color, cellInfo.type, cellInfo.health);
                             } else {
                                 mesh.dispose();
-                            }
-                            meshMap.delete(id);
-                        }
-                    }
+                             }
+                             meshMap.delete(id);
+                         } else {
+                             needsFollowUp = true;
+                         }
+                     }
                 }
             }
 
@@ -1810,6 +1910,8 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                     });
                 }
             }
+            gridSyncDirtyRef.current = false;
+            gridSyncNeedsFollowUp = needsFollowUp;
             } // End of shouldSyncGrid
 
             // 2. Holographic Ghost (The Wireframe Preview) - Pool-based
@@ -1882,8 +1984,6 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             }
 
             // Render loop continues...
-            // Task 3.1: FPS limiter frame time update moved to render loop
-            // This ensures updateFrameTime() is only called when frame is actually rendered
         });
 
         const handleCanvasPointerUpTouch = (e: PointerEvent) => {
@@ -1923,37 +2023,154 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         }
 
         // Task 3.2: Idle detection helper functions
-        const hasActiveAnimations = (): boolean => {
+        const getActiveAnimationCount = (): number => {
             // Check animation refs
             const hasLineClear = lineClearAnimationRef.current?.active ?? false;
             const hasPlacement = placementAnimationRef.current?.active ?? false;
             const hasGameOver = gameOverAnimationRef.current?.active ?? false;
             const hasTierFlash = tierFlashRef.current?.active ?? false;
 
-            // Check animation coordinator
-            const hasCoordinatorAnimations = (animationCoordinatorRef.current?.getActiveAnimationCount() ?? 0) > 0;
+            const coordinatorAnimationCount = animationCoordinatorRef.current?.getActiveAnimationCount() ?? 0;
 
-            return hasLineClear || hasPlacement || hasGameOver || hasTierFlash || hasCoordinatorAnimations;
+            return Number(hasLineClear)
+                + Number(hasPlacement)
+                + Number(hasGameOver)
+                + Number(hasTierFlash)
+                + coordinatorAnimationCount;
+        };
+
+        const getIdleState = () => {
+            const activeAnimations = getActiveAnimationCount();
+            const lastTouchAgeMs = Date.now() - lastTouchTimeRef.current;
+
+            if (stateRef.current.draggedPiece !== null) {
+                return {
+                    idle: false,
+                    activeAnimations,
+                    lastTouchAgeMs,
+                    reason: 'dragging',
+                };
+            }
+
+            if (activeAnimations > 0) {
+                return {
+                    idle: false,
+                    activeAnimations,
+                    lastTouchAgeMs,
+                    reason: `animations:${activeAnimations}`,
+                };
+            }
+
+            if (lastTouchAgeMs < 2000) {
+                return {
+                    idle: false,
+                    activeAnimations,
+                    lastTouchAgeMs,
+                    reason: lastTouchAgeMs < 1000
+                        ? `active-60fps:${Math.ceil((1000 - lastTouchAgeMs) / 100) / 10}s`
+                        : `settled-30fps:${Math.ceil((2000 - lastTouchAgeMs) / 100) / 10}s`,
+                };
+            }
+
+            return {
+                idle: true,
+                activeAnimations,
+                lastTouchAgeMs,
+                reason: 'idle',
+            };
+        };
+
+        const publishRenderLoopState = (active: boolean, idleState = getIdleState()) => {
+            const performanceStore = usePerformanceMetricsStore.getState();
+            if (!performanceStore.isMonitoring) {
+                return;
+            }
+
+            performanceStore.updateRenderLoopState({
+                active,
+                idle: idleState.idle,
+                activeAnimations: idleState.activeAnimations,
+                lastTouchAgeMs: idleState.lastTouchAgeMs,
+                reason: idleState.reason,
+            });
         };
 
         const isIdle = (): boolean => {
-            // Check if user is dragging a piece
-            if (stateRef.current.draggedPiece !== null) {
-                return false;
+            return getIdleState().idle;
+        };
+
+        const stopNativeRenderLoop = () => {
+            const animationFrameId = (engine as any)._nativeAnimationFrameId;
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            (engine as any)._nativeAnimationFrameId = null;
+        };
+
+        const startNativeRenderLoop = () => {
+            if ((engine as any)._nativeAnimationFrameId) {
+                return;
             }
 
-            // Check if any animations are active
-            if (hasActiveAnimations()) {
-                return false;
-            }
+            const nativeFrameToleranceMs = 1.1;
+            let lastNativeRenderTime = 0;
+            let nativeMetricsWindowStart = 0;
+            let nativeRafFrames = 0;
+            let nativeRenderFrames = 0;
+            let nativeSkippedFrames = 0;
+            let currentNativeFrameRate = NATIVE_ACTIVE_FPS;
 
-            // Check if touch occurred within last 2 seconds
-            const timeSinceLastTouch = Date.now() - lastTouchTimeRef.current;
-            if (timeSinceLastTouch < 2000) {
-                return false;
-            }
+            const renderFrame = (timestamp: number) => {
+                if (!renderLoopActiveRef.current) {
+                    (engine as any)._nativeAnimationFrameId = null;
+                    return;
+                }
 
-            return true;
+                if (nativeMetricsWindowStart === 0) {
+                    nativeMetricsWindowStart = timestamp;
+                }
+                nativeRafFrames++;
+
+                const activeAnimationCount = getActiveAnimationCount();
+                currentNativeFrameRate = getNativeRenderTargetFps({
+                    lastTouchAgeMs: Date.now() - lastTouchTimeRef.current,
+                    isDragging: stateRef.current.draggedPiece !== null,
+                    activeAnimationCount,
+                });
+                const minNativeFrameTime = 1000 / currentNativeFrameRate;
+
+                if (timestamp - lastNativeRenderTime >= minNativeFrameTime - nativeFrameToleranceMs) {
+                    scene.render();
+                    lastNativeRenderTime = timestamp;
+                    nativeRenderFrames++;
+                } else {
+                    nativeSkippedFrames++;
+                }
+
+                const metricsElapsed = timestamp - nativeMetricsWindowStart;
+                if (metricsElapsed >= 1000) {
+                    const multiplier = 1000 / metricsElapsed;
+                    const performanceStore = usePerformanceMetricsStore.getState();
+                    if (performanceStore.isMonitoring) {
+                        performanceStore.updateRenderLoopMetrics({
+                            rafFps: nativeRafFrames * multiplier,
+                            renderFps: nativeRenderFrames * multiplier,
+                            skippedFps: nativeSkippedFrames * multiplier,
+                            nativeFpsCap: currentNativeFrameRate,
+                        });
+                        publishRenderLoopState(true);
+                    }
+
+                    nativeMetricsWindowStart = timestamp;
+                    nativeRafFrames = 0;
+                    nativeRenderFrames = 0;
+                    nativeSkippedFrames = 0;
+                }
+
+                (engine as any)._nativeAnimationFrameId = requestAnimationFrame(renderFrame);
+            };
+
+            (engine as any)._nativeAnimationFrameId = requestAnimationFrame(renderFrame);
         };
 
         const pauseRenderLoop = () => {
@@ -1964,13 +2181,20 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             console.log('[Grid] Pausing render loop (idle detected)');
             renderLoopActiveRef.current = false;
 
+            const performanceStore = usePerformanceMetricsStore.getState();
+            if (performanceStore.isMonitoring) {
+                const idleState = getIdleState();
+                performanceStore.updateRenderLoopMetrics({
+                    rafFps: 0,
+                    renderFps: 0,
+                    skippedFps: 0,
+                    nativeFpsCap: isNativeApp ? NATIVE_ACTIVE_FPS : 0,
+                });
+                publishRenderLoopState(false, idleState);
+            }
+
             if (isNativeApp) {
-                // Cancel animation frame for native apps
-                const animationFrameId = (engine as any)._nativeAnimationFrameId;
-                if (animationFrameId) {
-                    cancelAnimationFrame(animationFrameId);
-                    (engine as any)._nativeAnimationFrameId = null;
-                }
+                stopNativeRenderLoop();
             } else {
                 // Stop render loop for web
                 engine.stopRenderLoop();
@@ -1984,74 +2208,37 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
 
             console.log('[Grid] Resuming render loop (activity detected)');
             renderLoopActiveRef.current = true;
+            publishRenderLoopState(true);
 
             if (isNativeApp) {
-                // Restart animation frame for native apps
-                const renderFrame = () => {
-                    if (fpsLimiterRef.current.shouldRenderFrame()) {
-                        scene.render();
-                        fpsLimiterRef.current.updateFrameTime();
-                    }
-                    (engine as any)._nativeAnimationFrameId = requestAnimationFrame(renderFrame);
-                };
-
-                (engine as any)._nativeAnimationFrameId = requestAnimationFrame(renderFrame);
+                startNativeRenderLoop();
             } else {
                 // Restart render loop for web
                 engine.runRenderLoop(() => {
-                    if (fpsLimiterRef.current.shouldRenderFrame()) {
-                        scene.render();
-                        fpsLimiterRef.current.updateFrameTime();
-                    }
+                    scene.render();
                 });
             }
         };
+        wakeRenderLoopRef.current = resumeRenderLoop;
 
         // Start render loop with proper frame rate control
         if (isNativeApp) {
             // Native apps: Use requestAnimationFrame for proper vsync
             // This prevents Android's setRequestedFrameRate warnings
-            let animationFrameId: number;
-
-            const renderFrame = () => {
-                // Task 3.1: Check FPS limiter before rendering
-                if (fpsLimiterRef.current.shouldRenderFrame()) {
-                    scene.render();
-                    fpsLimiterRef.current.updateFrameTime();
-                }
-                animationFrameId = requestAnimationFrame(renderFrame);
-            };
-
-            animationFrameId = requestAnimationFrame(renderFrame);
-
-            // Store the animation frame ID for cleanup
-            (engine as any)._nativeAnimationFrameId = animationFrameId;
+            startNativeRenderLoop();
 
             // Listen for pause/resume events from useBackgroundPause hook
             const handlePause = () => {
                 console.log('[Grid] Pause event received, canceling animation frame');
-                if (animationFrameId) {
-                    cancelAnimationFrame(animationFrameId);
-                    (engine as any)._nativeAnimationFrameId = null;
-                }
+                renderLoopActiveRef.current = false;
+                stopNativeRenderLoop();
             };
 
             const handleResume = () => {
                 console.log('[Grid] Resume event received, restarting animation frame');
-                // Only restart if not already running
-                if (!(engine as any)._nativeAnimationFrameId) {
-                    const renderFrame = () => {
-                        // Task 3.1: Check FPS limiter before rendering
-                        if (fpsLimiterRef.current.shouldRenderFrame()) {
-                            scene.render();
-                            fpsLimiterRef.current.updateFrameTime();
-                        }
-                        animationFrameId = requestAnimationFrame(renderFrame);
-                    };
-
-                    animationFrameId = requestAnimationFrame(renderFrame);
-                    (engine as any)._nativeAnimationFrameId = animationFrameId;
-                }
+                renderLoopActiveRef.current = true;
+                lastTouchTimeRef.current = Date.now();
+                startNativeRenderLoop();
             };
 
             window.addEventListener('fluxgrid-pause', handlePause);
@@ -2062,18 +2249,17 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             (engine as any)._resumeListener = handleResume;
         } else {
             // Web: Use default render loop
-            // Task 3.1: Wrap scene.render() with FPS limiter check
             engine.runRenderLoop(() => {
-                if (fpsLimiterRef.current.shouldRenderFrame()) {
-                    scene.render();
-                    fpsLimiterRef.current.updateFrameTime();
-                }
+                scene.render();
             });
         }
 
         // Task 3.2: Start idle detection interval
         idleCheckIntervalRef.current = window.setInterval(() => {
-            if (isIdle()) {
+            const idleState = getIdleState();
+            publishRenderLoopState(renderLoopActiveRef.current, idleState);
+
+            if (idleState.idle) {
                 pauseRenderLoop();
             } else if (!renderLoopActiveRef.current) {
                 // Resume if not idle and render loop is paused
@@ -2141,6 +2327,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
         // window.addEventListener('resize', resize); // Handled by custom handler above
 
         return () => {
+            renderLoopActiveRef.current = false;
             unsubscribeTheme();
 
             // Task 3.2: Clear idle detection interval
@@ -2148,6 +2335,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
                 clearInterval(idleCheckIntervalRef.current);
                 idleCheckIntervalRef.current = null;
             }
+            wakeRenderLoopRef.current = null;
 
             // Background pause cleanup is now handled by useBackgroundPause hook
 
@@ -2155,6 +2343,7 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             const nativeAnimationFrameId = (engine as any)._nativeAnimationFrameId;
             if (nativeAnimationFrameId) {
                 cancelAnimationFrame(nativeAnimationFrameId);
+                (engine as any)._nativeAnimationFrameId = null;
             }
 
             // Remove pause/resume event listeners
@@ -2168,9 +2357,10 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             }
 
             window.removeEventListener('resize', handleResize);
+            window.removeEventListener('pointerdown', handleGlobalPointerDown);
             window.removeEventListener('pointerup', handleWindowPointerUp);
             window.removeEventListener('pointermove', handleGlobalPointerMove);
-            if (canvasRef.current) canvasRef.current.removeEventListener('pointerup', handleCanvasPointerUp);
+            canvasElement.removeEventListener('pointerup', handleCanvasPointerUp);
 
             // Cleanup touch optimization
             if (touchOptimizationCleanup) {
@@ -2257,25 +2447,57 @@ const GridComponent: React.FC<GridProps> = ({ grid: gridProp }) => {
             // Finally dispose scene and engine
             scene.dispose();
             engine.dispose();
+            if (sceneRef.current === scene) sceneRef.current = null;
+            if (engineRef.current === engine) engineRef.current = null;
         };
         }; // End of initializeScene async function
 
         // Call the async initialization function
-        initializeScene();
+        void initializeScene()
+            .then((cleanup) => {
+                if (!cleanup) return;
+                if (initializationCancelled) {
+                    cleanup();
+                    return;
+                }
+                initializeSceneCleanup = cleanup;
+            })
+            .catch((error) => {
+                console.error('[Grid] Scene initialization failed', error);
+            });
 
-        // CRITICAL: Return synchronous cleanup from useEffect.
-        // The cleanup inside initializeScene was never called by React
-        // because async functions can't return React cleanup functions.
-        // We use refs (engineRef, sceneRef) set during async init to clean up.
         return () => {
-            console.log('[Grid] useEffect cleanup — disposing engine via ref');
+            initializationCancelled = true;
+            console.log('[Grid] useEffect cleanup - disposing scene resources');
             setSharedHoverCoord(null); // Clear shared state immediately
             setSharedPointerPosition(null);
             setActiveDragPointerId(null);
+            window.removeEventListener('pointerdown', handleGlobalPointerDown);
             window.removeEventListener('pointerup', handleWindowPointerUp);
             window.removeEventListener('pointermove', handleGlobalPointerMove);
-            if (canvasRef.current) {
-                canvasRef.current.removeEventListener('pointerup', handleCanvasPointerUp);
+            canvasElement.removeEventListener('pointerup', handleCanvasPointerUp);
+
+            if (initializeSceneCleanup) {
+                initializeSceneCleanup();
+                initializeSceneCleanup = null;
+                return;
+            }
+
+            // Initialization may still be pending or may have failed part-way.
+            renderLoopActiveRef.current = false;
+            wakeRenderLoopRef.current = null;
+            if (idleCheckIntervalRef.current !== null) {
+                clearInterval(idleCheckIntervalRef.current);
+                idleCheckIntervalRef.current = null;
+            }
+            const nativeAnimationFrameId = (engineRef.current as any)?._nativeAnimationFrameId;
+            if (nativeAnimationFrameId) {
+                cancelAnimationFrame(nativeAnimationFrameId);
+                (engineRef.current as any)._nativeAnimationFrameId = null;
+            }
+            if (batterySaverManagerRef.current) {
+                batterySaverManagerRef.current.dispose();
+                batterySaverManagerRef.current = null;
             }
             if (sceneRef.current) {
                 sceneRef.current.dispose();

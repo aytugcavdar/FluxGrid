@@ -219,6 +219,10 @@ export class KineticAnimationController {
     const state = this.animationStates.get(pieceId);
     return state?.isAnimating ?? false;
   }
+
+  public hasActiveAnimations(): boolean {
+    return this.animationStates.size > 0;
+  }
   
   /**
    * Linear interpolation

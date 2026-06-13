@@ -10,9 +10,11 @@ export default defineConfig(({ mode }) => {
     // Generate build-time version for service worker cache busting
     const buildVersion = new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).slice(2,6);
     
-    // Determine base path based on mode and Capacitor build flag
+    // Determine base path based on mode and Capacitor build flag.
+    // Firebase Hosting serves FluxGrid from the domain root. Use VITE_BASE_PATH
+    // only for alternate hosts such as a subfolder-based static preview.
     const isCapacitorBuild = env.CAPACITOR_BUILD === 'true';
-    const basePath = isCapacitorBuild ? '/' : (mode === 'production' ? '/FluxGrid/' : '/');
+    const basePath = isCapacitorBuild ? '/' : (env.VITE_BASE_PATH || '/');
     
     return {
       base: basePath,

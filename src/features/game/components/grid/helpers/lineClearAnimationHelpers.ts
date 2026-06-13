@@ -8,7 +8,9 @@ import { GridState } from '../../../types';
 import { TOTAL_CELL_SIZE } from '../constants';
 
 const LINE_CLEAR_TIMING = {
-  constrainedFlash: 88,
+  constrainedFlash: 140,
+  constrainedFade: 120,
+  constrainedCollapse: 96,
   brightness: 132,
   fade: 112,
   collapse: 92,
@@ -47,6 +49,74 @@ function getDirectionalWave(progress: number, order: number, span: number): numb
 function disposeIntersectionPulses(anim: any): void {
   anim.intersectionPulseMeshes?.forEach((mesh: BABYLON.Mesh) => mesh.dispose());
   anim.intersectionPulseMeshes = [];
+}
+
+function disposeConstrainedSparks(anim: any): void {
+  anim.constrainedSparkMeshes?.forEach((mesh: BABYLON.Mesh) => {
+    mesh.material?.dispose();
+    mesh.dispose();
+  });
+  anim.constrainedSparkMeshes = [];
+}
+
+function ensureConstrainedSparks(
+  anim: any,
+  grid: GridState,
+  meshMap: Map<string, BABYLON.Mesh>,
+  orderedCells: Array<{ key: string; x: number; y: number; order: number }>
+): void {
+  if (anim.constrainedSparkCreated || orderedCells.length === 0) return;
+
+  anim.constrainedSparkCreated = true;
+  anim.constrainedSparkMeshes = [];
+
+  const intersectionKeys = new Set<string>(anim.intersectionCells ? Array.from(anim.intersectionCells) : []);
+  const prioritizedCells = [
+    ...orderedCells.filter((cell) => intersectionKeys.has(cell.key)),
+    ...orderedCells.filter((cell) => !intersectionKeys.has(cell.key)),
+  ];
+  const maxSparkCount = Math.min(4, Math.max(2, Math.ceil(orderedCells.length / 6)));
+  const step = Math.max(1, Math.floor(prioritizedCells.length / maxSparkCount));
+  const sampledCells = prioritizedCells.filter((_, index) => index % step === 0).slice(0, maxSparkCount);
+
+  sampledCells.forEach((cellData, index) => {
+    const targetMesh = getClearedCellMesh(anim, grid, meshMap, cellData.key, cellData.x, cellData.y);
+    if (!targetMesh) return;
+
+    const scene = targetMesh.getScene();
+    const spark = BABYLON.MeshBuilder.CreatePlane(`line-clear-lite-spark-${cellData.key}-${index}`, {
+      width: 0.18,
+      height: 0.18,
+    }, scene);
+    spark.position = targetMesh.position.clone();
+    spark.position.y += 0.54;
+    spark.rotation.x = Math.PI / 2;
+    spark.rotation.z = Math.PI / 4;
+    spark.isPickable = false;
+
+    const originalColor = anim.originalColors.get(cellData.key) || BABYLON.Color3.FromHexString('#7dd3fc');
+    const material = new BABYLON.StandardMaterial(`line-clear-lite-spark-mat-${cellData.key}-${index}`, scene);
+    material.diffuseColor = originalColor.scale(0.18);
+    material.emissiveColor = originalColor.scale(0.72);
+    material.alpha = 0.56;
+    material.disableLighting = true;
+    material.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+    spark.material = material;
+
+    anim.constrainedSparkMeshes.push(spark);
+  });
+}
+
+function updateConstrainedSparks(anim: any, progress: number): void {
+  anim.constrainedSparkMeshes?.forEach((mesh: BABYLON.Mesh, index: number) => {
+    const mat = mesh.material as BABYLON.StandardMaterial | null;
+    const delayedProgress = Math.max(0, Math.min(1, progress * 1.18 - index * 0.045));
+    const scale = 0.74 + delayedProgress * 0.9;
+    mesh.scaling.set(scale, scale, scale);
+    if (mat) {
+      mat.alpha = Math.max(0, 0.56 * (1 - delayedProgress));
+    }
+  });
 }
 
 function ensureIntersectionPulses(
@@ -115,21 +185,70 @@ export function updateLineClearAnimation(
   const elapsed = Date.now() - anim.startTime;
 
   if (isConstrainedDevice) {
-    if (!anim.constrainedFlashApplied) {
-      anim.constrainedFlashApplied = true;
-      anim.clearedCells.forEach((key: string) => {
-        const [x, y] = key.split(',').map(Number);
-        const mesh = getClearedCellMesh(anim, grid, meshMap, key, x, y);
+    const flashEnd = LINE_CLEAR_TIMING.constrainedFlash;
+    const fadeEnd = flashEnd + LINE_CLEAR_TIMING.constrainedFade;
+    const collapseEnd = fadeEnd + LINE_CLEAR_TIMING.constrainedCollapse;
+    const cellsArray = getOrderedCells(anim);
+    const span = anim.clearOrderSpan || 10;
+
+    if (elapsed < flashEnd) {
+      anim.progress = elapsed / flashEnd;
+      if (anim.lineCount >= 2) {
+        ensureConstrainedSparks(anim, grid, meshMap, cellsArray);
+        updateConstrainedSparks(anim, anim.progress);
+      }
+
+      cellsArray.forEach((cellData) => {
+        const mesh = getClearedCellMesh(anim, grid, meshMap, cellData.key, cellData.x, cellData.y);
         if (mesh?.material) {
           const mat = mesh.material as BABYLON.StandardMaterial;
-          const originalColor = anim.originalColors.get(key) || mat.diffuseColor;
-          mat.emissiveColor = originalColor.scale(0.42);
-          mat.alpha = 0.82;
+          const originalColor = anim.originalColors.get(cellData.key) || mat.diffuseColor;
+          const clampedProgress = getDirectionalWave(anim.progress, cellData.order, span);
+          const brightness = Math.sin(clampedProgress * Math.PI);
+          const isIntersection = anim.intersectionCells?.has(cellData.key);
+          const glowStrength = isIntersection ? 0.64 : 0.48;
+
+          mat.emissiveColor = originalColor.scale(0.18 + brightness * glowStrength);
+          (mat as any).emissiveIntensity = 0.9 + brightness * 0.1;
+          mat.alpha = 1;
         }
       });
+      return;
     }
 
-    if (elapsed < LINE_CLEAR_TIMING.constrainedFlash) return;
+    if (elapsed < fadeEnd) {
+      anim.progress = (elapsed - flashEnd) / LINE_CLEAR_TIMING.constrainedFade;
+      if (anim.lineCount >= 2) {
+        updateConstrainedSparks(anim, Math.min(1, 0.72 + anim.progress * 0.28));
+      }
+
+      cellsArray.forEach((cellData) => {
+        const mesh = getClearedCellMesh(anim, grid, meshMap, cellData.key, cellData.x, cellData.y);
+        if (mesh?.material) {
+          const mat = mesh.material as BABYLON.StandardMaterial;
+          const originalColor = anim.originalColors.get(cellData.key) || mat.diffuseColor;
+          mat.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+          mat.emissiveColor = BABYLON.Color3.Lerp(originalColor.scale(0.42), BABYLON.Color3.Black(), anim.progress);
+          mat.alpha = 1 - anim.progress * 0.86;
+        }
+      });
+      return;
+    }
+
+    if (elapsed < collapseEnd) {
+      anim.progress = (elapsed - fadeEnd) / LINE_CLEAR_TIMING.constrainedCollapse;
+      const easedProgress = anim.progress * (2 - anim.progress);
+
+      anim.affectedBlocks.forEach((data: any, key: string) => {
+        const [x, y] = key.split(',').map(Number);
+        const cell = grid[y]?.[x];
+        const mesh = cell?.id ? meshMap.get(cell.id) : undefined;
+        if (mesh && data.startPosition && data.targetPosition) {
+          mesh.position = BABYLON.Vector3.Lerp(data.startPosition, data.targetPosition, easedProgress);
+        }
+      });
+      return;
+    }
 
     anim.clearedCells.forEach((key: string) => {
       const [x, y] = key.split(',').map(Number);
@@ -142,6 +261,7 @@ export function updateLineClearAnimation(
     });
 
     disposeIntersectionPulses(anim);
+    disposeConstrainedSparks(anim);
     lineClearAnimationRef.current = null;
     return;
   }
@@ -156,6 +276,11 @@ export function updateLineClearAnimation(
 
       const cellsArray = getOrderedCells(anim);
       const span = anim.clearOrderSpan || 10;
+
+      if (anim.lineCount >= 2) {
+        ensureConstrainedSparks(anim, grid, meshMap, cellsArray);
+        updateConstrainedSparks(anim, anim.progress);
+      }
 
       cellsArray.forEach((cellData) => {
         const mesh = getClearedCellMesh(anim, grid, meshMap, cellData.key, cellData.x, cellData.y);
@@ -184,6 +309,9 @@ export function updateLineClearAnimation(
       anim.progress = elapsed / LINE_CLEAR_TIMING.fade;
 
       updateIntersectionPulses(anim, Math.min(1, 0.78 + anim.progress * 0.22));
+      if (anim.lineCount >= 2) {
+        updateConstrainedSparks(anim, Math.min(1, 0.72 + anim.progress * 0.28));
+      }
 
       const cellsArray = getOrderedCells(anim);
       const span = anim.clearOrderSpan || 10;
@@ -237,6 +365,7 @@ export function updateLineClearAnimation(
       });
 
       disposeIntersectionPulses(anim);
+      disposeConstrainedSparks(anim);
       lineClearAnimationRef.current = null;
     }
   }

@@ -11,13 +11,13 @@ type EndlessEvent = 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID';
 
 // Tier thresholds and events for Endless mode
 const TIER_THRESHOLDS = [0, 5000, 15000, 30000, 55000, 90000, 140000];
-const TIER_EVENTS: Record<number, EndlessEvent> = {
+const TIER_EVENTS: Record<number, EndlessEvent | null> = {
   1: 'ICE_STORM',
   2: 'QUAKE',
   3: 'MIRROR',
   4: 'CHAOS',
   5: 'VOID',
-  6: 'VOID',
+  6: null,
 };
 
 // Return type for checkTierEvent
@@ -124,7 +124,7 @@ export function checkTierEvent(
   if (newTier >= nextTier && nextTier >= 1 && nextTier <= 6) {
     const eventName = TIER_EVENTS[nextTier];
     
-    const duration = EVENT_DURATIONS[eventName];
+    const duration = eventName ? EVENT_DURATIONS[eventName] : 0;
     
     const tierNames: Record<number, string> = {
       1: 'Gelişmiş',
@@ -132,7 +132,7 @@ export function checkTierEvent(
       3: 'Usta',
       4: 'Efsane',
       5: 'Kaos',
-      6: 'VOID+',
+      6: 'Sabit Alan',
     };
     
     const result: TierEventResult = {

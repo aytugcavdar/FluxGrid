@@ -14,7 +14,6 @@ export { ComboRushFlash } from './ComboRushFlash';
 export { TierDisplay } from './TierDisplay';
 export { EventStartVisual } from './EventStartVisual';
 export { TierMilestoneNotification } from './TierMilestoneNotification';
-export { TierCelebrationOverlay } from './TierCelebrationOverlay';
 export { ComboMilestone } from './ComboMilestone';
 export { LineCountDisplay } from './LineCountDisplay';
 export { ComboDisplay } from './ComboDisplay';

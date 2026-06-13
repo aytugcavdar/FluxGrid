@@ -23,9 +23,23 @@ import {
   cleanupPerformanceMonitoring as cleanupPerf 
 } from './store/performanceStore';
 
+const isPerformanceDebugEnabled = (): boolean => {
+  if (import.meta.env.DEV) return true;
+
+  try {
+    return localStorage.getItem('enablePerformanceOverlay') === 'true';
+  } catch {
+    return false;
+  }
+};
+
 export const initializePerformanceSystem = () => {
-  // Always enable in production for testing
-  console.log('[Performance] Initializing performance system');
+  if (!isPerformanceDebugEnabled()) {
+    console.log('[Performance] Debug monitoring disabled');
+    return () => {};
+  }
+
+  console.log('[Performance] Initializing performance debug system');
   return initPerf();
 };
 

@@ -358,6 +358,8 @@
     "benefit1": "A safe space opens on the board",
     "benefit2": "You'll get 3 new pieces",
     "benefit3": "Your current score is kept",
+    "summaryTitle": "Safe space + 3 new pieces",
+    "summarySubtitle": "Your score stays safe.",
     "watchAd": "📺 Watch Ad & Continue",
     "loading": "Loading ad...",
     "limitReached": "Daily limit reached",

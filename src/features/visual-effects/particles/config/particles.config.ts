@@ -13,7 +13,7 @@ import * as BABYLON from 'babylonjs';
  */
 export const PARTICLE_CONFIG = {
   /** Maximum number of particles in the SPS pool */
-  spsCapacity: 2000,
+  spsCapacity: 1000,
   
   /** Size of each particle cube (world units) */
   particleSize: 0.1,
@@ -76,7 +76,7 @@ export interface SPSParticlePoolConfig {
   /** Babylon.js scene reference */
   scene: any; // BABYLON.Scene
   
-  /** Maximum particle capacity (default: 2000) */
+  /** Maximum particle capacity (default: 1000) */
   capacity?: number;
   
   /** Size of each particle (default: 0.1) */

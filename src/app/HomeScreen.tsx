@@ -67,6 +67,8 @@ export const HomeScreen: React.FC = () => {
 
   const [deviceCapabilities, setDeviceCapabilities] = useState<any>(null);
   const isLowEndDevice = deviceCapabilities?.tier === 'low';
+  const isNativeDevice = deviceCapabilities?.isNative === true;
+  const shouldUseDecorativeMotion = Boolean(deviceCapabilities) && !isNativeDevice && !isLowEndDevice && deviceCapabilities?.tier !== 'low-mid';
 
   useEffect(() => {
     const loadDeviceCapabilities = async () => {
@@ -111,7 +113,7 @@ export const HomeScreen: React.FC = () => {
   const stagger = (i: number) => ({ duration: 0.5, delay: 0.08 * i, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] });
 
   return (
-    <MotionConfig reducedMotion={isLowEndDevice ? 'always' : 'user'}>
+    <MotionConfig reducedMotion={isNativeDevice || isLowEndDevice ? 'always' : 'user'}>
       <div
         className="fixed inset-0 flex flex-col overflow-hidden"
         style={{
@@ -140,7 +142,7 @@ export const HomeScreen: React.FC = () => {
         )}
 
         {/* ── Background gradient orbs + falling blocks ── */}
-        {!isLowEndDevice && deviceCapabilities?.tier !== 'low-mid' && (
+        {shouldUseDecorativeMotion && (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <motion.div animate={{ x: [0, 80, 0], y: [0, -60, 0], scale: [1, 1.3, 1] }}
               transition={{ duration: 30, repeat: Infinity, ease: 'easeInOut' }}
@@ -169,7 +171,7 @@ export const HomeScreen: React.FC = () => {
 
               {/* Logo */}
               <div className="flex items-center gap-2.5">
-                <GridLogo isLowEnd={isLowEndDevice} />
+                <GridLogo isLowEnd={isNativeDevice || isLowEndDevice} />
                 <div>
                   <h1 className="text-[22px] font-black tracking-tight leading-none">
                     <span style={{
@@ -210,7 +212,7 @@ export const HomeScreen: React.FC = () => {
                   }}
                 >
                   {/* Shimmer - Disabled on low/mid devices */}
-                  {!isLowEndDevice && deviceCapabilities?.tier !== 'low-mid' && (
+                  {shouldUseDecorativeMotion && (
                     <motion.div animate={{ x: ['-150%', '250%'] }}
                       transition={{ duration: 3, repeat: Infinity, repeatDelay: 5, ease: 'easeInOut' }}
                       className="absolute top-0 left-0 w-1/3 h-full"

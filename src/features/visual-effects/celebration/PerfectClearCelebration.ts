@@ -104,11 +104,11 @@ export class PerfectClearCelebration {
    */
   private emitConfetti(): void {
     // Adjust count based on quality
-    let count = 100;
+    let count = 70;
     if (this.qualityPreset === 'medium') {
-      count = 60;
+      count = 42;
     } else if (this.qualityPreset === 'low') {
-      count = 40;
+      count = 28;
     }
     
     this.particleEmitter.emitCelebration(count, RAINBOW_COLORS);

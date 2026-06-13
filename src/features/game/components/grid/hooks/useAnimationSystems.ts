@@ -128,7 +128,7 @@ export function initAnimationSystems(opts: InitAnimationSystemsOptions): () => v
   if (!isLowEndDevice) {
     spsParticleManager = new SPSParticlePoolManager({
       scene,
-      capacity: tier === 'high' ? 2000 : 1200,
+      capacity: tier === 'high' ? 1000 : 600,
       particleSize: 0.1,
     });
     lineClearSystem = new LineClearAnimationSystem(scene, spsParticleManager);

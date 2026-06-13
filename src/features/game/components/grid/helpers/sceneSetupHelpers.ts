@@ -66,7 +66,6 @@ export const initializeScene = (
     scene.skipPointerMovePicking = true;
     scene.autoClear = true;
     scene.autoClearDepthAndStencil = true;
-    BABYLON.SceneOptimizer.OptimizeAsync(scene, BABYLON.SceneOptimizerOptions.LowDegradationAllowed());
   }
 
   return scene;

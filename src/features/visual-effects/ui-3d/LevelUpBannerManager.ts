@@ -169,6 +169,10 @@ export class LevelUpBannerManager {
       }
     }
   }
+
+  public hasActiveAnimations(): boolean {
+    return this.activeBanners.length > 0;
+  }
   
   /**
    * Dispose all banners

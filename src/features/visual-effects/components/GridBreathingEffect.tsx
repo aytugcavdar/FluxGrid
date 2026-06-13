@@ -12,17 +12,15 @@ export const GridBreathingEffect: React.FC = React.memo(() => {
 
   return (
     <motion.div
+      key={combo}
       className="fixed inset-0 pointer-events-none z-40"
-      animate={{
-        background: [
-          `radial-gradient(circle at center, rgba(59, 130, 246, ${intensity * 0.1}) 0%, transparent 60%)`,
-          `radial-gradient(circle at center, rgba(59, 130, 246, ${intensity * 0.2}) 0%, transparent 60%)`,
-          `radial-gradient(circle at center, rgba(59, 130, 246, ${intensity * 0.1}) 0%, transparent 60%)`,
-        ],
+      initial={{ opacity: 0 }}
+      animate={{ opacity: [0, 1, 0] }}
+      style={{
+        background: `radial-gradient(circle at center, rgba(59, 130, 246, ${intensity * 0.16}) 0%, transparent 60%)`,
       }}
       transition={{
-        duration: 2,
-        repeat: Infinity,
+        duration: 0.65,
         ease: "easeInOut",
       }}
     />

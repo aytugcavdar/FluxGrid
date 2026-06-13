@@ -1,34 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <group
-        android:scaleX="0.8"
-        android:scaleY="0.8"
-        android:translateX="10.8"
-        android:translateY="10.8">
-        <!-- Grid background -->
-        <path
-            android:fillColor="#3B82F6"
-            android:pathData="M20,20h68v68h-68z"/>
-        
-        <!-- Grid lines -->
-        <path
-            android:strokeColor="#1F2937"
-            android:strokeWidth="2"
-            android:pathData="M20,37h68M20,54h68M20,71h68M37,20v68M54,20v68M71,20v68"/>
-        
-        <!-- Accent blocks -->
-        <path
-            android:fillColor="#A855F7"
-            android:pathData="M37,37h17v17h-17z"/>
-        <path
-            android:fillColor="#F59E0B"
-            android:pathData="M54,54h17v17h-17z"/>
-        <path
-            android:fillColor="#10B981"
-            android:pathData="M71,37h17v17h-17z"/>
-    </group>
-</vector>
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@mipmap/ic_launcher_foreground"
+    android:gravity="center" />

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getTierProgress } from '../../game/store/helpers/progressionSystem';
 import { TIER_THRESHOLDS } from '../../game/constants';
+import { usePerformanceStore } from '../../performance/store/performanceStore';
 
 interface TierProgressBarProps {
   tier: number;
@@ -20,7 +21,7 @@ const TIER_GRADIENTS: Record<number, { bar: string; glow: string; border: string
 
 const TIER_NAMES: Record<number, string> = {
   0: 'Başlangıç', 1: 'Gelişmiş', 2: 'Uzman',
-  3: 'Usta', 4: 'Efsane', 5: 'Kaos', 6: 'VOID+',
+  3: 'Usta', 4: 'Efsane', 5: 'Kaos', 6: 'Sabit Alan',
 };
 
 const TIER_ICONS: Record<number, string> = {
@@ -32,6 +33,8 @@ export const TierProgressBar: React.FC<TierProgressBarProps> = React.memo(({ tie
   const isMaxTier   = tier >= 6;
   const scoreNeeded = !isMaxTier ? TIER_THRESHOLDS[tier + 1] - score : 0;
   const theme       = TIER_GRADIENTS[tier] ?? TIER_GRADIENTS[0];
+  const deviceTier = usePerformanceStore(state => state.deviceTier);
+  const isConstrainedDevice = deviceTier === 'low' || deviceTier === 'low-mid';
 
   // Track tier changes for flash animation
   const prevTierRef      = useRef(tier);
@@ -39,13 +42,13 @@ export const TierProgressBar: React.FC<TierProgressBarProps> = React.memo(({ tie
 
   useEffect(() => {
     if (tier > prevTierRef.current) {
-      setTierFlash(true);
-      const t = setTimeout(() => setTierFlash(false), 900);
+      setTierFlash(!isConstrainedDevice);
+      const t = setTimeout(() => setTierFlash(false), isConstrainedDevice ? 120 : 900);
       prevTierRef.current = tier;
       return () => clearTimeout(t);
     }
     prevTierRef.current = tier;
-  }, [tier]);
+  }, [isConstrainedDevice, tier]);
 
   // Milestone dots at 25%, 50%, 75%
   const milestones = [25, 50, 75];
@@ -60,7 +63,7 @@ export const TierProgressBar: React.FC<TierProgressBarProps> = React.memo(({ tie
         background: tierFlash ? `${theme.glow}18` : theme.bg,
         borderRadius: 12,
         border: `1px solid ${tierFlash ? theme.glow + '60' : theme.border}`,
-        boxShadow: tierFlash
+        boxShadow: tierFlash && !isConstrainedDevice
           ? `0 0 20px ${theme.glow}40`
           : `0 2px 8px rgba(0,0,0,0.12)`,
         transition: 'background 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease',
@@ -70,7 +73,7 @@ export const TierProgressBar: React.FC<TierProgressBarProps> = React.memo(({ tie
     >
       {/* Tier-up flash overlay */}
       <AnimatePresence>
-        {tierFlash && (
+        {tierFlash && !isConstrainedDevice && (
           <motion.div
             key="flash"
             initial={{ opacity: 0.6 }}
@@ -146,7 +149,7 @@ export const TierProgressBar: React.FC<TierProgressBarProps> = React.memo(({ tie
           {/* Filled bar */}
           <motion.div
             animate={{ width: `${isMaxTier ? 100 : progress}%` }}
-            transition={{ type: 'spring', stiffness: 45, damping: 14 }}
+            transition={isConstrainedDevice ? { duration: 0.12, ease: 'linear' } : { type: 'spring', stiffness: 45, damping: 14 }}
             style={{
               position: 'absolute',
               left: 0, top: 0,
@@ -158,7 +161,7 @@ export const TierProgressBar: React.FC<TierProgressBarProps> = React.memo(({ tie
           />
 
           {/* Shimmer sweep */}
-          {!isMaxTier && (
+          {!isMaxTier && !isConstrainedDevice && (
             <motion.div
               animate={{ x: ['-120%', '220%'] }}
               transition={{
@@ -179,7 +182,7 @@ export const TierProgressBar: React.FC<TierProgressBarProps> = React.memo(({ tie
           )}
 
           {/* MAX TIER rainbow shimmer */}
-          {isMaxTier && (
+          {isMaxTier && !isConstrainedDevice && (
             <motion.div
               animate={{ x: ['-100%', '200%'] }}
               transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
@@ -218,7 +221,7 @@ export const TierProgressBar: React.FC<TierProgressBarProps> = React.memo(({ tie
         {!isMaxTier && progress > 2 && progress < 99 && (
           <motion.div
             animate={{ left: `${progress}%` }}
-            transition={{ type: 'spring', stiffness: 45, damping: 14 }}
+            transition={isConstrainedDevice ? { duration: 0.12, ease: 'linear' } : { type: 'spring', stiffness: 45, damping: 14 }}
             style={{
               position: 'absolute',
               top: '50%',

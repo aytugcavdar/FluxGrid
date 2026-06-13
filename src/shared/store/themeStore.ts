@@ -118,6 +118,8 @@ const THEMES: Record<ThemeType, ThemeColors> = {
   }
 };
 
+const ACTIVE_THEME: ThemeType = 'dark';
+
 export const THEME_SWATCHES: Record<ThemeType, string[]> = {
   dark: ['#a855f7', '#3b82f6', '#f59e0b'],
   light: ['#f59e0b', '#2563eb', '#059669'],
@@ -125,10 +127,13 @@ export const THEME_SWATCHES: Record<ThemeType, string[]> = {
 };
 
 const isThemeType = (theme: string | null): theme is ThemeType => {
-  return theme === 'dark' || theme === 'light' || theme === 'neon';
+  return theme === ACTIVE_THEME;
 };
 
 const savedTheme = localStorage.getItem('flux_theme');
+if (savedTheme !== ACTIVE_THEME) {
+  localStorage.setItem('flux_theme', ACTIVE_THEME);
+}
 
 interface ThemeStore {
   currentTheme: ThemeType;
@@ -139,11 +144,15 @@ interface ThemeStore {
 }
 
 export const useThemeStore = create<ThemeStore>((set, get) => ({
-  currentTheme: isThemeType(savedTheme) ? savedTheme : 'dark',
+  currentTheme: isThemeType(savedTheme) ? savedTheme : ACTIVE_THEME,
   
-  setTheme: (theme: ThemeType) => {
-    set({ currentTheme: theme });
-    localStorage.setItem('flux_theme', theme);
+  setTheme: () => {
+    if (get().currentTheme === ACTIVE_THEME) {
+      return;
+    }
+
+    set({ currentTheme: ACTIVE_THEME });
+    localStorage.setItem('flux_theme', ACTIVE_THEME);
   },
   
   getThemeColors: () => {

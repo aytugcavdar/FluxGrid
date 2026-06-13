@@ -24,44 +24,13 @@ const EVENT_CONFIG: Record<
     VOID:         { label: 'Void — satırlar siliniyor!', color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   icon: '🕳️' },
 };
 
-/* ─── Floating score delta popup ─── */
-interface ScoreDelta { id: number; value: number; combo: number }
-
-const FloatingDelta: React.FC<{ delta: ScoreDelta }> = ({ delta }) => {
-    const isCombo  = delta.combo >= 3;
-    const isBig    = delta.value >= 500;
-    const color    = delta.combo >= 8 ? '#f472b6' : delta.combo >= 5 ? '#f59e0b' : '#34d399';
-
-    return (
-        <motion.span
-            key={delta.id}
-            initial={{ opacity: 1, y: 0, scale: 0.85 }}
-            animate={{ opacity: 0, y: -28, scale: 1.05 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: isBig ? 1.1 : 0.85, ease: 'easeOut' }}
-            style={{
-                position: 'absolute',
-                top: 0, right: 0,
-                pointerEvents: 'none',
-                fontSize: isBig ? 13 : 11,
-                fontWeight: 800,
-                color: isCombo ? color : 'rgba(255,255,255,0.7)',
-                textShadow: isCombo ? `0 0 12px ${color}CC` : 'none',
-                whiteSpace: 'nowrap',
-                lineHeight: 1,
-                zIndex: 20,
-                letterSpacing: '-0.3px',
-            }}
-        >
-            +{delta.value.toLocaleString()}
-        </motion.span>
-    );
-};
-
 /* ─── Animated score number ─── */
 const AnimatedScore: React.FC<{ value: number; color: string }> = ({ value, color }) => {
     const prevRef  = useRef(value);
     const [bump, setBump] = useState(false);
+    const formatted = value.toLocaleString();
+    const digitCount = String(Math.max(0, Math.floor(value))).length;
+    const fontSize = digitCount >= 9 ? 16 : digitCount >= 8 ? 18 : digitCount >= 7 ? 20 : 24;
 
     useEffect(() => {
         if (value > prevRef.current) {
@@ -78,15 +47,21 @@ const AnimatedScore: React.FC<{ value: number; color: string }> = ({ value, colo
             animate={bump ? { scale: [1, 1.06, 1] } : { scale: 1 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
             style={{
-                fontSize: 24,
+                fontSize,
                 fontWeight: 800,
                 color,
-                letterSpacing: '-0.8px',
+                letterSpacing: 0,
                 lineHeight: 1,
-                display: 'inline-block',
+                display: 'block',
+                flex: '1 1 auto',
+                maxWidth: '100%',
+                minWidth: 0,
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+                fontVariantNumeric: 'tabular-nums',
             }}
         >
-            {value.toLocaleString()}
+            {formatted}
         </motion.span>
     );
 };
@@ -106,23 +81,6 @@ export const HUD: React.FC = React.memo(() => {
     const colors = useThemeStore(state => state.getThemeColors());
     const [muted, setMuted]           = useState(getMuted);
     const [showShieldModal, setShowShieldModal] = useState(false);
-
-    /* ── Score delta tracking ── */
-    const prevScoreRef       = useRef(score);
-    const prevComboRef       = useRef(combo);
-    const deltaIdRef         = useRef(0);
-    const [deltas, setDeltas] = useState<ScoreDelta[]>([]);
-
-    useEffect(() => {
-        const diff = score - prevScoreRef.current;
-        if (diff > 0) {
-            const id = ++deltaIdRef.current;
-            setDeltas(d => [...d.slice(-4), { id, value: diff, combo: prevComboRef.current }]);
-            setTimeout(() => setDeltas(d => d.filter(x => x.id !== id)), 1200);
-        }
-        prevScoreRef.current  = score;
-        prevComboRef.current  = combo;
-    }, [score]);
 
     const handleMute = () => { const v = toggleMute(); setMuted(v); };
     const handleShieldPress = () => { playClick(); setShowShieldModal(true); };
@@ -190,59 +148,25 @@ export const HUD: React.FC = React.memo(() => {
                             ? `0 0 18px ${combo >= 8 ? 'rgba(244,114,182,0.2)' : 'rgba(251,191,36,0.15)'}`
                             : '0 2px 8px rgba(0,0,0,0.12)',
                         transition: 'box-shadow 0.4s ease',
-                        minWidth: 0, overflow: 'visible',
+                        minWidth: 0, overflow: 'hidden',
                         height: 44,
                     }}>
-                        {/* Floating score deltas */}
-                        <AnimatePresence>
-                            {deltas.map(d => <FloatingDelta key={d.id} delta={d} />)}
-                        </AnimatePresence>
-
-                        {/* Sol: Score + Combo */}
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                        {/* Score only; combo uses the dedicated side bar. */}
+                        <div style={{ flex: '1 1 0', display: 'flex', alignItems: 'center', minWidth: 0, overflow: 'hidden' }}>
                             <AnimatedScore value={score} color={scoreColor} />
 
-                            <AnimatePresence>
-                                {combo >= 2 && (
-                                    <motion.span
-                                        key={combo}
-                                        initial={{ scale: 0.6, opacity: 0, y: -6 }}
-                                        animate={{ scale: 1, opacity: 1, y: 0 }}
-                                        exit={{ scale: 0.6, opacity: 0, y: 4 }}
-                                        transition={{ type: 'spring', stiffness: 300, damping: 18 }}
-                                        style={{
-                                            fontSize: 11, fontWeight: 800, lineHeight: 1,
-                                            color: combo >= 8 ? '#f472b6' : combo >= 5 ? '#f59e0b' : '#34d399',
-                                            background: combo >= 8
-                                                ? 'rgba(244,114,182,0.15)'
-                                                : combo >= 5 ? 'rgba(245,158,11,0.15)'
-                                                : 'rgba(52,211,153,0.15)',
-                                            border: `1px solid ${combo >= 8
-                                                ? 'rgba(244,114,182,0.45)'
-                                                : combo >= 5 ? 'rgba(245,158,11,0.45)'
-                                                : 'rgba(52,211,153,0.45)'}`,
-                                            padding: '2px 7px', borderRadius: 6,
-                                            boxShadow: combo >= 8
-                                                ? '0 0 10px rgba(244,114,182,0.3)'
-                                                : combo >= 5 ? '0 0 10px rgba(245,158,11,0.25)' : 'none',
-                                        }}
-                                    >
-                                        {combo}×
-                                    </motion.span>
-                                )}
-                            </AnimatePresence>
                         </div>
 
                         {/* Dikey ayırıcı */}
                         <div style={{
                             width: 1, alignSelf: 'stretch',
-                            margin: '10px 10px 10px 4px',
+                            margin: '10px 8px 10px 4px',
                             background: 'rgba(255,255,255,0.07)',
                             flexShrink: 0,
                         }} />
 
                         {/* Sağ: EN İYİ */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, gap: 2 }}>
+                        <div style={{ width: 58, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, gap: 2, overflow: 'hidden' }}>
                             <span style={{
                                 fontSize: 9, fontWeight: 700, lineHeight: 1,
                                 letterSpacing: '0.5px', textTransform: 'uppercase',
@@ -253,6 +177,10 @@ export const HUD: React.FC = React.memo(() => {
                             <span style={{
                                 fontSize: 13, fontWeight: 800, lineHeight: 1,
                                 color: colors.textTertiary,
+                                maxWidth: '100%',
+                                overflow: 'hidden',
+                                whiteSpace: 'nowrap',
+                                fontVariantNumeric: 'tabular-nums',
                             }}>
                                 {highScore.toLocaleString()}
                             </span>

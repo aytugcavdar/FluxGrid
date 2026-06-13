@@ -10,15 +10,13 @@ import { useCountUp } from '@shared/hooks/useCountUp';
 import { useBrowserHistory } from './hooks/useBrowserHistory';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { useGameSync } from '../features/game/hooks/useGameSync';
-import { TIER_SCORE_MULTIPLIERS, TIER_THRESHOLDS } from '../features/game/constants';
-import { playSkill, hapticEvents, unlockAudio, playGameOver, playClick } from '@utils/audio';
+import { hapticEvents, unlockAudio, playGameOver, playClick } from '@utils/audio';
 import { AdManager } from '@core/services/ads/AdManager';
 import { createRewardedContinueState } from '@features/game/utils/game/reviveService';
 import { GameScreen } from './components/GameScreen';
 import { DragOverlay } from '../features/hud/components/DragOverlay';
 import { ParticleExplosionOverlay } from '../features/visual-effects/components/ParticleExplosionOverlay';
 import { ScreenShakeEffect, LineClearAnimations, PlacementFeedbackEffect, GridBreathingEffect, PlacementImpactEffect, TierTransitionAnimation, ScoreMilestoneCelebration, AbilityUnlockAnimation, StreakIndicator, NearMissWarning, PauseResumeAnimation, GameOverSequence, VictoryCelebration, ModeChangeTransition } from '../features/visual-effects/components';
-import { TierCelebrationOverlay } from '../features/hud/components/TierCelebrationOverlay';
 import { ExitConfirmDialog } from '../shared/components/ExitConfirmDialog';
 import { generateShareText, shareResult } from '../utils/sharing/shareResult';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -41,15 +39,6 @@ interface TimePopup {
   id: number;
   value: number;
 }
-
-const TIER_EVENT_LABELS: Record<number, string> = {
-  1: 'Buz Fırtınası',
-  2: 'Deprem',
-  3: 'Ayna Modu',
-  4: 'Kaos',
-  5: 'VOID',
-  6: 'VOID+',
-};
 
 const App: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -113,15 +102,6 @@ const App: React.FC = () => {
   }, [difficultyTier, gameMode, tierStartMove, totalMovesPlayed]);
   const [showRecordBadge, setShowRecordBadge] = useState(false);
   const [showButtons, setShowButtons] = useState(false);
-  
-  // Tier celebration state
-  const [tierCelebration, setTierCelebration] = useState<{
-    tier: number;
-    tierName: string;
-    multiplier: number;
-    eventLabel: string;
-    nextGoal: number | null;
-  } | null>(null);
   
   // Grid sizing with ResizeObserver for safe area compatibility
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -524,27 +504,6 @@ const App: React.FC = () => {
     prevActiveEventRef.current = activeEvent;
   }, [activeEvent]);
 
-  // Tier celebration detection
-  useEffect(() => {
-    if (lastAction?.type === 'MILESTONE' && lastAction.tier && lastAction.tierName) {
-      const multiplier = TIER_SCORE_MULTIPLIERS[lastAction.tier] || 1.0;
-      
-      setTierCelebration({
-        tier: lastAction.tier,
-        tierName: lastAction.tierName,
-        multiplier,
-        eventLabel: TIER_EVENT_LABELS[lastAction.tier] ?? 'Tier baskısı',
-        nextGoal: TIER_THRESHOLDS[lastAction.tier + 1] ?? null,
-      });
-      
-      playSkill();
-      hapticEvents.surge();
-      
-      const timer = setTimeout(() => setTierCelebration(null), 2800);
-      return () => clearTimeout(timer);
-    }
-  }, [lastAction]);
-
   // Time popups for TIMED mode (removed BLITZ)
   // Note: BLITZ mechanics can be integrated into TIMED mode with a speed parameter in the future
 
@@ -645,26 +604,6 @@ const App: React.FC = () => {
       <Suspense fallback={null}>
         <AchievementNotification />
       </Suspense>
-
-      {/* Tier Celebration Overlay */}
-      <AnimatePresence>
-        {tierCelebration && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[65] flex items-center justify-center pointer-events-none"
-          >
-            <TierCelebrationOverlay
-              tier={tierCelebration.tier}
-              tierName={tierCelebration.tierName}
-              multiplier={tierCelebration.multiplier}
-              eventLabel={tierCelebration.eventLabel}
-              nextGoal={tierCelebration.nextGoal}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         <Suspense fallback={null}>

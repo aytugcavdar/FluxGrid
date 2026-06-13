@@ -385,6 +385,13 @@ export class SpecialBlockEffectsManager {
       }
     }
   }
+
+  public hasActiveEffects(): boolean {
+    return this.bombExplosions.length > 0
+      || this.iceFrosts.length > 0
+      || this.fireBurns.length > 0
+      || this.lightningChains.length > 0;
+  }
   
   /**
    * Dispose all effects

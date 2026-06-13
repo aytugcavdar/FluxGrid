@@ -85,34 +85,9 @@ export class LineClearAnimationSystem {
     
     console.log(`[LineClearAnimationSystem] Line clear: ${lineCount} lines, tier: ${this.deviceTier}, particle multiplier: ${particleMultiplier}`);
     
-    // Emit juice effects with particle multiplier
+    // Regular clears use the board mesh fade and lightweight spark meshes.
+    // Reserve particles for special blocks and perfect-clear celebrations.
     if (this.juiceEffectsManager && params.cellPositions.length > 0) {
-      // Single clears get a small centered snap; multi clears burst from sampled cells.
-      if (lineCount === 1) {
-        const center = params.cellPositions
-          .reduce((sum, position) => sum.add(position), BABYLON.Vector3.Zero())
-          .scale(1 / params.cellPositions.length);
-
-        this.juiceEffectsManager.emitExplosionParticles(
-          [center],
-          [new BABYLON.Color3(1, 1, 1)],
-          lineCount,
-          { particleMultiplier: 0.8 }
-        );
-      } else if (lineCount >= 2) {
-        const colors = params.cellPositions.map(() => new BABYLON.Color3(1, 1, 1));
-        const sampleCount = Math.ceil(params.cellPositions.length * particleMultiplier);
-        const reducedPositions = params.cellPositions.slice(0, sampleCount);
-        const reducedColors = colors.slice(0, sampleCount);
-
-        this.juiceEffectsManager.emitExplosionParticles(
-          reducedPositions,
-          reducedColors,
-          lineCount,
-          { particleMultiplier }
-        );
-      }
-      
       // Icy particles for ice blocks
       if (params.iceBlockPositions && params.iceBlockPositions.length > 0) {
         // Apply particle multiplier to ice particles
@@ -312,17 +287,17 @@ export class LineClearAnimationSystem {
     
     if (this.prefersReducedMotion) {
       // Reduced motion: minimal particles
-      confettiCount = 10;
+        confettiCount = 7;
     } else {
       // Tier-based confetti count
       if (this.deviceTier === 'low' || this.deviceTier === 'low-mid') {
-        confettiCount = 15; // Minimal
+        confettiCount = 11; // Minimal
       } else if (this.deviceTier === 'mid-low' || this.deviceTier === 'mid') {
-        confettiCount = 25; // Moderate
+        confettiCount = 18; // Moderate
       } else if (this.deviceTier === 'mid-high') {
-        confettiCount = 35; // Good
+        confettiCount = 25; // Good
       } else {
-        confettiCount = 50; // Full effect for HIGH tier
+        confettiCount = 35; // Full effect for HIGH tier
       }
     }
     

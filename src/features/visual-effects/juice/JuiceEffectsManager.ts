@@ -85,7 +85,9 @@ export class JuiceEffectsManager {
     const reducedMotionMult = this.prefersReducedMotion
       ? REDUCED_MOTION_MULTIPLIERS.explosionParticles
       : 1.0;
-    const particleMultiplier = reducedMotionMult * (options.particleMultiplier ?? 1);
+    const particleMultiplier = reducedMotionMult
+      * EXPLOSION_PARTICLE_CONFIG.globalMultiplier
+      * (options.particleMultiplier ?? 1);
 
     positions.forEach((position, index) => {
       const color = colors[index] || colors[0];
@@ -100,19 +102,6 @@ export class JuiceEffectsManager {
 
       this.particleEmitter.emitExplosion(config);
 
-      // Secondary burst for 3+ lines
-      if (lineCount >= 3 && !this.prefersReducedMotion && EXPLOSION_PARTICLE_CONFIG.secondaryBurst.enabled) {
-        setTimeout(() => {
-          const secondaryConfig: ExplosionEmissionConfig = {
-            position,
-            color,
-            lineCount,
-            isSecondaryBurst: true,
-            particleMultiplier,
-          };
-          this.particleEmitter.emitExplosion(secondaryConfig);
-        }, EXPLOSION_PARTICLE_CONFIG.secondaryBurst.delay);
-      }
     });
   }
 
@@ -128,7 +117,12 @@ export class JuiceEffectsManager {
       : 1.0;
 
     const baseCount = 10; // per ice block
-    const count = Math.round(baseCount * qualityMult.particleCount * reducedMotionMult);
+    const count = Math.round(
+      baseCount
+      * qualityMult.particleCount
+      * reducedMotionMult
+      * EXPLOSION_PARTICLE_CONFIG.globalMultiplier
+    );
 
     positions.forEach(position => {
       const config: IcyEmissionConfig = {
@@ -187,6 +181,10 @@ export class JuiceEffectsManager {
       this.performanceMonitor.update();
     }
     this.meshDeformationManager.update(camera);
+  }
+
+  hasActiveEffects(): boolean {
+    return this.meshDeformationManager.hasActiveEffects();
   }
 
   /**

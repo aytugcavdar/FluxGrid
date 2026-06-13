@@ -65,6 +65,7 @@ export interface PerfectClearCelebrationLike extends QualityAwareAnimationSystem
 
 export interface ParticlePoolManagerLike {
   update: (deltaTime: number) => void;
+  getTotalActiveCount?: () => number;
 }
 
 export interface ParticleEmitterLike {
@@ -243,6 +244,11 @@ export class AnimationCoordinator {
   getActiveAnimationCount(): number {
     return this.activeAnimationCount;
   }
+
+  hasActiveWork(): boolean {
+    return this.activeAnimationCount > 0
+      || (this.particlePoolManager?.getTotalActiveCount?.() ?? 0) > 0;
+  }
   
   /**
    * Set reduced motion preference
@@ -279,9 +285,7 @@ export class AnimationCoordinator {
       this.particlePoolManager.update(deltaTime);
     }
     
-    if (this.juiceEffectsManager?.update) {
-      this.juiceEffectsManager.update(deltaTime / 1000);
-    }
+    // Juice effects are updated centrally by Grid to avoid duplicate work.
   }
   
 

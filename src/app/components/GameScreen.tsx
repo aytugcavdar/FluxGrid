@@ -102,6 +102,8 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
     !isTutorialActive &&
     !isGameOver &&
     !AdManager.isNoAdsActive();
+  const bottomSafeArea = 'max(env(safe-area-inset-bottom, 0px), var(--safe-area-bottom, 0px))';
+  const bannerReserve = shouldRenderBanner ? 'var(--native-banner-reserve, clamp(76px, 10vh, 96px))' : '0px';
 
   const trayDecisionSupport = React.useMemo(
     () => getTrayDecisionSupport(grid, pieces),
@@ -243,21 +245,9 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
               aria-hidden="true"
               style={{
                 position: 'absolute',
-                inset: '-6%',
-                background: backgroundLayers.boardFocus,
-                filter: 'blur(10px)',
-                opacity: currentTheme === 'light' ? 0.82 : 0.9,
-                pointerEvents: 'none',
-              }}
-            />
-            <div
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                inset: '-10%',
-                background: backgroundLayers.boardHalo,
-                filter: 'blur(18px)',
-                opacity: currentTheme === 'light' ? 0.72 : 0.86,
+                inset: '-16%',
+                background: `${backgroundLayers.boardFocus}, ${backgroundLayers.boardHalo}`,
+                opacity: currentTheme === 'light' ? 0.76 : 0.84,
                 pointerEvents: 'none',
               }}
             />
@@ -269,9 +259,9 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
 
       {/* ══ Piece Tray — glassmorphism ══ */}
       <div style={{
-        height: `calc(var(--tray-height, 72px) + env(safe-area-inset-bottom, 0px))`,
+        height: `calc(var(--tray-height, 72px) + ${bottomSafeArea} + ${bannerReserve})`,
         marginBottom: '0px',
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6px)',
+        paddingBottom: `calc(${bottomSafeArea} + 6px + ${bannerReserve})`,
         flexShrink: 0,
         position: 'relative',
       }}>

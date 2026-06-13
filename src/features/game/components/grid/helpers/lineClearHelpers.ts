@@ -67,7 +67,8 @@ export function startLineClearAnimation(
   meshMap: Map<string, BABYLON.Mesh>,
   lineClearAnimationRef: { current: LineClearAnimation | null },
   cells?: LineClearCellData[],
-  movedCells?: LineClearMovedCellData[]
+  movedCells?: LineClearMovedCellData[],
+  gravityEnabled = true
 ): void {
   if (lineClearAnimationRef.current?.active) return; // Prevent concurrent animations
 
@@ -148,7 +149,9 @@ export function startLineClearAnimation(
     });
   });
 
-  if (!movedCells?.length) {
+  // Older callers can reconstruct gravity movement from cleared rows. Fixed-grid
+  // tiers must explicitly skip this fallback or the visuals show a fake drop.
+  if (gravityEnabled && !movedCells?.length) {
     const clearedRowsSorted = [...rows].sort((a, b) => b - a);
 
     for (let x = 0; x < GRID_SIZE; x++) {
@@ -173,6 +176,7 @@ export function startLineClearAnimation(
   
   lineClearAnimationRef.current = {
     active: true,
+    lineCount: rows.length + cols.length,
     phase: 'brightness',
     progress: 0,
     startTime: Date.now(),
@@ -183,6 +187,8 @@ export function startLineClearAnimation(
     clearOrderSpan: GRID_SIZE,
     intersectionCells,
     intersectionPulseMeshes: [],
+    constrainedSparkCreated: false,
+    constrainedSparkMeshes: [],
     affectedBlocks,
     originalColors
   };

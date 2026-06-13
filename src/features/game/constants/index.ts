@@ -38,6 +38,7 @@ export const SHAPES: PieceShape[] = [
 // Tier progression constants (rebalanced for smoother curve)
 export const TIER_THRESHOLDS = [0, 5000, 15000, 30000, 55000, 90000, 140000] as const;
 export const TIER_SCORE_MULTIPLIERS = [1.0, 1.2, 1.5, 1.8, 2.2, 2.6, 3.0] as const;
+export const FIXED_GRID_TIER = 5;
 
 // Rescue mechanism thresholds (tier-based)
 export const RESCUE_DENSITY_THRESHOLDS = {

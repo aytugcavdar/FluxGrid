@@ -256,6 +256,10 @@ export class AchievementPopupManager {
       }
     }
   }
+
+  public hasActiveAnimations(): boolean {
+    return this.activePopups.length > 0 || this.popupQueue.length > 0;
+  }
   
   /**
    * Dispose all popups

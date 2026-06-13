@@ -19,6 +19,9 @@ export interface PerformanceExport {
     fps: { current: number; avg: number; min: number; max: number };
     memory: { current: number; avg: number; peak: number };
     renderCount: number;
+    renderLoop: { rafFps: number; renderFps: number; skippedFps: number; cap: number };
+    renderLoopState: { active: boolean; idle: boolean; activeAnimations: number; lastTouchAgeMs: number; reason: string };
+    device: { tier: string; model: string; score: number; gpu: string; native: boolean };
     frameTime: { current: number; avg: number; max: number };
   };
   warnings: PerformanceWarning[];
@@ -29,6 +32,20 @@ interface PerformanceState {
   fps: number;
   memory: number;
   renderCount: number;
+  renderFps: number;
+  rafFps: number;
+  skippedFps: number;
+  nativeFpsCap: number;
+  renderLoopActive: boolean;
+  renderLoopIdle: boolean;
+  activeAnimationCount: number;
+  lastTouchAgeMs: number;
+  renderLoopReason: string;
+  deviceTier: string;
+  deviceModel: string;
+  deviceScore: number;
+  deviceGpu: string;
+  deviceIsNative: boolean;
   frameTime: number;
   
   // Historical data
@@ -46,6 +63,26 @@ interface PerformanceState {
   // Actions
   updateFPS: (fps: number) => void;
   updateMemory: (memory: number) => void;
+  updateRenderLoopMetrics: (metrics: {
+    renderFps: number;
+    rafFps: number;
+    skippedFps: number;
+    nativeFpsCap: number;
+  }) => void;
+  updateRenderLoopState: (state: {
+    active: boolean;
+    idle: boolean;
+    activeAnimations: number;
+    lastTouchAgeMs: number;
+    reason: string;
+  }) => void;
+  updateDeviceInfo: (device: {
+    tier: string;
+    model?: string | null;
+    score?: number | null;
+    gpu?: string | null;
+    native?: boolean;
+  }) => void;
   incrementRenderCount: () => void;
   updateFrameTime: (frameTime: number) => void;
   addWarning: (warning: PerformanceWarning) => void;
@@ -66,6 +103,20 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
   fps: 60,
   memory: 0,
   renderCount: 0,
+  renderFps: 0,
+  rafFps: 0,
+  skippedFps: 0,
+  nativeFpsCap: 0,
+  renderLoopActive: false,
+  renderLoopIdle: false,
+  activeAnimationCount: 0,
+  lastTouchAgeMs: 0,
+  renderLoopReason: 'not-started',
+  deviceTier: 'unknown',
+  deviceModel: 'unknown',
+  deviceScore: 0,
+  deviceGpu: 'unknown',
+  deviceIsNative: false,
   frameTime: 0,
   fpsHistory: [],
   memoryHistory: [],
@@ -127,6 +178,35 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
         memory,
         memoryHistory: newHistory,
       };
+    });
+  },
+
+  updateRenderLoopMetrics: ({ renderFps, rafFps, skippedFps, nativeFpsCap }) => {
+    set({
+      renderFps,
+      rafFps,
+      skippedFps,
+      nativeFpsCap,
+    });
+  },
+
+  updateRenderLoopState: ({ active, idle, activeAnimations, lastTouchAgeMs, reason }) => {
+    set({
+      renderLoopActive: active,
+      renderLoopIdle: idle,
+      activeAnimationCount: activeAnimations,
+      lastTouchAgeMs,
+      renderLoopReason: reason,
+    });
+  },
+
+  updateDeviceInfo: ({ tier, model, score, gpu, native }) => {
+    set({
+      deviceTier: tier,
+      deviceModel: model || 'unknown',
+      deviceScore: score ?? 0,
+      deviceGpu: gpu || 'unknown',
+      deviceIsNative: native ?? false,
     });
   },
 
@@ -227,6 +307,26 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
           peak: Math.max(...state.memoryHistory, 0),
         },
         renderCount: state.renderCount,
+        renderLoop: {
+          rafFps: state.rafFps,
+          renderFps: state.renderFps,
+          skippedFps: state.skippedFps,
+          cap: state.nativeFpsCap,
+        },
+        renderLoopState: {
+          active: state.renderLoopActive,
+          idle: state.renderLoopIdle,
+          activeAnimations: state.activeAnimationCount,
+          lastTouchAgeMs: state.lastTouchAgeMs,
+          reason: state.renderLoopReason,
+        },
+        device: {
+          tier: state.deviceTier,
+          model: state.deviceModel,
+          score: state.deviceScore,
+          gpu: state.deviceGpu,
+          native: state.deviceIsNative,
+        },
         frameTime: calculateStats(state.frameTimeHistory),
       },
       warnings: state.warnings,
@@ -239,6 +339,20 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
       fps: 60,
       memory: 0,
       renderCount: 0,
+      renderFps: 0,
+      rafFps: 0,
+      skippedFps: 0,
+      nativeFpsCap: 0,
+      renderLoopActive: false,
+      renderLoopIdle: false,
+      activeAnimationCount: 0,
+      lastTouchAgeMs: 0,
+      renderLoopReason: 'reset',
+      deviceTier: 'unknown',
+      deviceModel: 'unknown',
+      deviceScore: 0,
+      deviceGpu: 'unknown',
+      deviceIsNative: false,
       frameTime: 0,
       fpsHistory: [],
       memoryHistory: [],
@@ -326,10 +440,10 @@ export const stopMemoryTracker = () => {
 // Initialize performance monitoring system
 export const initializePerformanceMonitoring = () => {
   console.log('[Performance] Initializing performance monitoring system');
-  
-  usePerformanceStore.getState().toggleMonitoring();
-  startFPSTracker();
-  startMemoryTracker();
+
+  if (!usePerformanceStore.getState().isMonitoring) {
+    usePerformanceStore.getState().toggleMonitoring();
+  }
   
   return () => {
     stopFPSTracker();
@@ -343,5 +457,7 @@ export const cleanupPerformanceMonitoring = () => {
   
   stopFPSTracker();
   stopMemoryTracker();
-  usePerformanceStore.getState().toggleMonitoring();
+  if (usePerformanceStore.getState().isMonitoring) {
+    usePerformanceStore.getState().toggleMonitoring();
+  }
 };

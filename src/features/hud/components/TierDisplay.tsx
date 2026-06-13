@@ -14,7 +14,7 @@ const TIER_NAMES: Record<number, string> = {
   3: 'Usta',
   4: 'Efsane',
   5: 'Kaos',
-  6: 'VOID+',
+  6: 'Sabit Alan',
 };
 
 const TIER_COLORS: Record<number, { primary: string; bg: string; border: string }> = {

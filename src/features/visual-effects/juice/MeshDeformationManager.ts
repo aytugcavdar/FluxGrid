@@ -379,6 +379,14 @@ export class MeshDeformationManager {
    * Update all mesh deformations (called in render loop)
    */
   update(camera?: BABYLON.Camera): void {
+    if (
+      !this.gridPulseState
+      && this.activeRipples.size === 0
+      && this.activeImplodes.size === 0
+    ) {
+      return;
+    }
+
     // Update grid pulse
     this.updateGridPulse();
     
@@ -394,6 +402,12 @@ export class MeshDeformationManager {
     if (camera) {
       this.applyFrustumCulling(camera);
     }
+  }
+
+  hasActiveEffects(): boolean {
+    return Boolean(this.gridPulseState?.isActive)
+      || this.activeRipples.size > 0
+      || this.activeImplodes.size > 0;
   }
   
   /**

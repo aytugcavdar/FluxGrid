@@ -92,6 +92,13 @@ export class UI3DManager {
     this.levelUpBannerManager.update(deltaTime);
     this.achievementPopupManager.update(deltaTime);
   }
+
+  public hasActiveAnimations(): boolean {
+    return this.floatingScoreManager.hasActiveAnimations()
+      || this.comboMeterManager.hasActiveAnimations()
+      || this.levelUpBannerManager.hasActiveAnimations()
+      || this.achievementPopupManager.hasActiveAnimations();
+  }
   
   /**
    * Dispose all UI elements

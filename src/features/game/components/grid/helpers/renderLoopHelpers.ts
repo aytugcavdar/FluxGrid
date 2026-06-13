@@ -5,6 +5,32 @@
 
 import * as BABYLON from 'babylonjs';
 
+export const NATIVE_ACTIVE_FPS = 60;
+export const NATIVE_SETTLED_FPS = 30;
+export const NATIVE_SETTLE_DELAY_MS = 1000;
+
+interface NativeRenderTargetParams {
+  lastTouchAgeMs: number;
+  isDragging: boolean;
+  activeAnimationCount: number;
+}
+
+/**
+ * Keep interactions and visual feedback at 60 FPS, then lower the GPU load
+ * while the player is briefly thinking. Full sleep is handled separately.
+ */
+export function getNativeRenderTargetFps({
+  lastTouchAgeMs,
+  isDragging,
+  activeAnimationCount,
+}: NativeRenderTargetParams): number {
+  if (isDragging || activeAnimationCount > 0 || lastTouchAgeMs < NATIVE_SETTLE_DELAY_MS) {
+    return NATIVE_ACTIVE_FPS;
+  }
+
+  return NATIVE_SETTLED_FPS;
+}
+
 /**
  * Update tier flash animation
  */

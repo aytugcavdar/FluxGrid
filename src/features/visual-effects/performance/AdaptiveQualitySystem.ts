@@ -24,7 +24,7 @@ export interface AdaptiveQualityConfig {
 export class AdaptiveQualitySystem {
   private config: AdaptiveQualityConfig;
   private performanceModeEnabled: boolean = false;
-  private originalParticleCapacity: number = 2000;
+  private originalParticleCapacity: number = 1000;
 
   constructor(config: AdaptiveQualityConfig) {
     this.config = config;

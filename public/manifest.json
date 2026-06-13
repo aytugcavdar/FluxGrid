@@ -1,84 +1,59 @@
 {
-    "name": "FluxGrid: Kuantum Blok Bulmacası",
-    "short_name": "FluxGrid",
-    "description": "Cyberpunk tarzı blok bulmaca oyunu — yerçekimi mekanikleri ve neon estetiği ile.",
-    "start_url": "/FluxGrid/",
-    "scope": "/FluxGrid/",
-    "display": "standalone",
-    "display_override": ["window-controls-overlay", "standalone"],
-    "orientation": "portrait",
-    "theme_color": "#06b6d4",
-    "background_color": "#050b14",
-    "icons": [
+  "name": "FluxGrid - 3D Block Puzzle",
+  "short_name": "FluxGrid",
+  "description": "A 3D block puzzle game with drag placement, line clears, combos, and timed runs.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "portrait",
+  "theme_color": "#0d1117",
+  "background_color": "#050b14",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": [
+    "games",
+    "entertainment",
+    "puzzle"
+  ],
+  "shortcuts": [
+    {
+      "name": "Play FluxGrid",
+      "short_name": "Play",
+      "description": "Open FluxGrid game",
+      "url": "/play",
+      "icons": [
         {
-            "src": "/FluxGrid/icon-192.svg",
-            "sizes": "192x192",
-            "type": "image/svg+xml",
-            "purpose": "any maskable"
-        },
-        {
-            "src": "/FluxGrid/icon-512.svg",
-            "sizes": "512x512",
-            "type": "image/svg+xml",
-            "purpose": "any maskable"
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
-    ],
-    "categories": [
-        "games",
-        "entertainment"
-    ],
-    "shortcuts": [
+      ]
+    },
+    {
+      "name": "Timed Mode",
+      "short_name": "Timed",
+      "description": "Start a timed run",
+      "url": "/play?mode=timed",
+      "icons": [
         {
-            "name": "Sonsuz Mod",
-            "short_name": "Sonsuz",
-            "description": "Limit yok, sadece skor",
-            "url": "/FluxGrid/?mode=endless",
-            "icons": [
-                {
-                    "src": "/FluxGrid/icon-192.svg",
-                    "sizes": "192x192",
-                    "type": "image/svg+xml"
-                }
-            ]
-        },
-        {
-            "name": "Günlük Bulmaca",
-            "short_name": "Günlük",
-            "description": "Günün bulmacası",
-            "url": "/FluxGrid/?mode=daily",
-            "icons": [
-                {
-                    "src": "/FluxGrid/icon-192.svg",
-                    "sizes": "192x192",
-                    "type": "image/svg+xml"
-                }
-            ]
-        },
-        {
-            "name": "Quantum Rush",
-            "short_name": "Rush",
-            "description": "Hızlı ol, süre kazan",
-            "url": "/FluxGrid/?mode=timed",
-            "icons": [
-                {
-                    "src": "/FluxGrid/icon-192.svg",
-                    "sizes": "192x192",
-                    "type": "image/svg+xml"
-                }
-            ]
-        },
-        {
-            "name": "Zen Modu",
-            "short_name": "Zen",
-            "description": "Hedef yok, süre yok",
-            "url": "/FluxGrid/?mode=zen",
-            "icons": [
-                {
-                    "src": "/FluxGrid/icon-192.svg",
-                    "sizes": "192x192",
-                    "type": "image/svg+xml"
-                }
-            ]
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
-    ]
+      ]
+    }
+  ]
 }

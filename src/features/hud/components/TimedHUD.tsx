@@ -138,6 +138,10 @@ const CircularTimer: React.FC<{
 const AnimatedScore: React.FC<{ value: number; color: string }> = ({ value, color }) => {
   const prevRef = useRef(value);
   const [bump, setBump] = useState(false);
+  const formatted = value.toLocaleString();
+  const digitCount = String(Math.max(0, Math.floor(value))).length;
+  const fontSize = digitCount >= 9 ? 18 : digitCount >= 8 ? 20 : digitCount >= 7 ? 22 : 24;
+
   useEffect(() => {
     if (value > prevRef.current) {
       setBump(true);
@@ -152,16 +156,20 @@ const AnimatedScore: React.FC<{ value: number; color: string }> = ({ value, colo
       animate={bump ? { scale: [1, 1.08, 1], y: [0, -2, 0] } : { scale: 1 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
       style={{
-        fontSize: 24,
+        fontSize,
         fontWeight: 900,
         color,
-        letterSpacing: '-0.05em',
+        letterSpacing: digitCount >= 8 ? '-0.05em' : '-0.04em',
         lineHeight: 1,
         display: 'inline-block',
+        maxWidth: '100%',
+        minWidth: 0,
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
         fontVariantNumeric: 'tabular-nums',
       }}
     >
-      {value.toLocaleString()}
+      {formatted}
     </motion.span>
   );
 };
@@ -303,7 +311,7 @@ export const TimedHUD: React.FC = React.memo(() => {
               border: '1px solid rgba(255,255,255,0.07)',
               backdropFilter: 'blur(12px)',
               position: 'relative',
-              overflow: 'visible',
+              overflow: 'hidden',
             }}
           >
             {/* Personal Best Display */}
@@ -338,7 +346,7 @@ export const TimedHUD: React.FC = React.memo(() => {
               </span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, overflow: 'hidden' }}>
               <AnimatedScore value={score} color={scoreColor} />
 
               {/* Combo badge */}

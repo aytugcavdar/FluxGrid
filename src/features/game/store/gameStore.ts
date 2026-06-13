@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { GridState, Piece, GRID_SIZE, GridCell, CellType, Achievement, MultiplierBreakdown, ProgressionState } from '../types';
 import { AppState, GameStats, GameMode } from '@shared/types';
-import { POINTS, EXPANDED_ACHIEVEMENTS, TIER_SCORE_MULTIPLIERS, TIMED_MODE, COMBO_TIMER } from '../constants';
+import { POINTS, EXPANDED_ACHIEVEMENTS, TIER_SCORE_MULTIPLIERS, TIMED_MODE, COMBO_TIMER, FIXED_GRID_TIER } from '../constants';
 import { playPlace, playInvalid, playClear, playCombo, playSkill, playSurgeStart, playSurgeEnd, gameFeelEvents } from '../../../utils/audio';
 import { safeExecute, ErrorCategory } from '../../../utils/managers/errorHandler';
 import { safeLocalStorageGet, safeParseInt, safeJSONParse } from './helpers/localStorage';
@@ -517,10 +517,8 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       const justPlacedPiece = piece;
 
-      // Increment move counter (Endless only)
-      if (gameMode === GameMode.ENDLESS) {
-        set({ totalMovesPlayed: get().totalMovesPlayed + 1 });
-      }
+      // Increment move counter for streak eligibility and Endless progression.
+      set({ totalMovesPlayed: get().totalMovesPlayed + 1 });
 
       // Update grid
       const tempGrid = grid.map(row => row.map(cell => ({ ...cell })));
@@ -551,7 +549,10 @@ export const useGameStore = create<GameStore>((set, get) => {
       const dropHeight = startY;
 
       // Process grid (line clear, bombs, ice)
-      const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken, actions } = processGrid(tempGrid);
+      const gravityEnabled = gameMode !== GameMode.ENDLESS || get().difficultyTier < FIXED_GRID_TIER;
+      const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken, actions } = processGrid(tempGrid, {
+        applyGravity: gravityEnabled,
+      });
 
       if (linesCleared > 0) {
         JuiceTriggers.onLinesCleared(actions as any, combo + linesCleared);
@@ -804,7 +805,11 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
 
       // Active event tick
-      const eventUpdates = tickActiveEvent(newGrid, justPlacedPiece, get, set);
+      // Tier 6 is a fixed-grid challenge only. End any previous event instead
+      // of carrying VOID/CHAOS effects into the final tier.
+      const eventUpdates = tierResult?.difficultyTier === 6
+        ? null
+        : tickActiveEvent(newGrid, justPlacedPiece, get, set);
       const tierUpdates = tierResult ?? {};
       let finalGrid = (eventUpdates as any)?.grid ?? (tierUpdates as any)?.grid ?? newGrid;
 
@@ -817,7 +822,9 @@ export const useGameStore = create<GameStore>((set, get) => {
       let maxChainCount = chainCount;
 
       if ((eventUpdates as any)?.grid || (tierUpdates as any)?.grid) {
-        const processResult = processGrid(finalGrid);
+        const effectiveTier = (tierResult as any)?.difficultyTier ?? get().difficultyTier;
+        const eventGravityEnabled = gameMode !== GameMode.ENDLESS || effectiveTier < FIXED_GRID_TIER;
+        const processResult = processGrid(finalGrid, { applyGravity: eventGravityEnabled });
         finalGrid = processResult.grid;
         eventLinesCleared = processResult.totalLinesCleared;
 

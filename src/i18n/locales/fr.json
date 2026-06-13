@@ -123,7 +123,9 @@
       "fillLine": "Remplis une ligne ou colonne",
       "keepClearing": "Continue a effacer vite",
       "perfectStart": "Depart parfait!",
-      "timeReward": "Clear reussi, temps gagne!"
+      "timeReward": "Clear reussi, temps gagne!",
+      "comboMaster": "Maitre du combo!",
+      "speedDemon": "Depart rapide!"
     },
     "start": "Commencer à jouer",
     "next": "Suivant",
@@ -142,7 +144,7 @@
     },
     "step4": {
       "title": "Construis des combos",
-      "description": "Efface des lignes ? la suite pour garder ton combo et augmenter ton score."
+      "description": "Efface des lignes à la suite pour garder ton combo et augmenter ton score."
     },
     "step5": {
       "title": "Utilise une compétence",
@@ -153,7 +155,31 @@
       "description": "Tu as appris les bases. Maintenant va construire ton meilleur score!"
     },
     "wrongPlacement": "Pas ici!",
-    "correctPlacement": "Super!"
+    "correctPlacement": "Super!",
+    "welcome": {
+      "title": "Bienvenue!",
+      "description": "Commencons. Fais glisser une piece du bas et pose-la sur le plateau."
+    },
+    "comboTimer": {
+      "title": "Minuteur de combo",
+      "description": "Attention au temps. Si tu attends trop longtemps, ton combo revient a zero."
+    },
+    "gameModes": {
+      "title": "Tu es pret!",
+      "description": "Tu es en mode Infini. Joue a ton rythme, efface des lignes et bats ton record."
+    },
+    "skipButton": "Passer le tutoriel",
+    "progress": "{{current}} / {{total}}",
+    "handPointer": "Glisser et deposer",
+    "autoAdvance": {
+      "completing": "Finalisation...",
+      "continuing": "Suite..."
+    },
+    "achievements": {
+      "speed": "Apprentissage rapide",
+      "perfect": "Depart parfait",
+      "combo": "Maitre du combo"
+    }
   },
   "settings": {
     "title": "Choisir le thème",
@@ -320,5 +346,26 @@
     "androidStep2": "Trouvez l'option \"Ajouter à l'écran d'accueil\" ou \"Installer\"",
     "androidStep3": "Suivez les instructions pour installer l'application",
     "understood": "Compris"
+  },
+  "update": {
+    "button": "Mettre a jour",
+    "later": "Plus tard",
+    "required": "Cette mise a jour est requise pour continuer a utiliser l app"
+  },
+  "continueModal": {
+    "title": "CONTINUER?",
+    "subtitle": "Ta partie n est pas terminee!",
+    "benefit1": "Un espace sur apparait sur le plateau",
+    "benefit2": "Tu obtiens 3 nouvelles pieces",
+    "benefit3": "Ton score actuel est conserve",
+    "summaryTitle": "Espace sur + 3 nouvelles pieces",
+    "summarySubtitle": "Ton score est conserve.",
+    "watchAd": "Voir une pub & continuer",
+    "loading": "Chargement de la pub...",
+    "limitReached": "Limite quotidienne atteinte",
+    "remaining_one": "{{count}} utilisation restante aujourd hui",
+    "remaining_other": "{{count}} utilisations restantes aujourd hui",
+    "noThanks": "Non merci, quitter",
+    "adNote": "Regarde une courte pub pour continuer gratuitement"
   }
 }

@@ -137,13 +137,11 @@ export class ComboMeterManager {
     
     const currentTime = Date.now();
     
-    // Rotate meter
-    const rotationDelta = (UI3D_CONFIG.comboMeter.rotationSpeed * deltaTime) / 1000;
-    this.meterState.mesh.rotation.z += rotationDelta;
-    this.meterState.fillMesh.rotation.z += rotationDelta;
-    
     // Handle pulse animation
     if (this.meterState.isPulsing) {
+      const rotationDelta = (UI3D_CONFIG.comboMeter.rotationSpeed * deltaTime) / 1000;
+      this.meterState.mesh.rotation.z += rotationDelta;
+      this.meterState.fillMesh.rotation.z += rotationDelta;
       const elapsed = currentTime - this.meterState.pulseStartTime;
       const progress = Math.min(elapsed / UI3D_CONFIG.comboMeter.pulseDuration, 1.0);
       
@@ -165,6 +163,10 @@ export class ComboMeterManager {
         this.meterState.fillMesh.scaling.z = 1.0;
       }
     }
+  }
+
+  public hasActiveAnimations(): boolean {
+    return Boolean(this.isVisible && this.meterState?.isPulsing);
   }
   
   /**

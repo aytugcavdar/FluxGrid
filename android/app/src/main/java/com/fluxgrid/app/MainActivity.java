@@ -21,6 +21,7 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.SharedPreferences;
+import androidx.core.splashscreen.SplashScreen;
 
 public class MainActivity extends BridgeActivity {
     
@@ -29,6 +30,7 @@ public class MainActivity extends BridgeActivity {
     
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
         
         // Enable immersive fullscreen mode

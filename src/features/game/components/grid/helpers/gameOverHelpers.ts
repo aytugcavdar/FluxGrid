@@ -38,6 +38,7 @@ export function updateGameOverAnimation(
   meshMap: Map<string, BABYLON.Mesh>,
   gridBaseRef: { current: BABYLON.Mesh | null },
   gridSlotsRef: BABYLON.Mesh[],
+  gridLineMaterial: BABYLON.StandardMaterial | null,
   shakeIntensityRef: { current: number }
 ): void {
   if (!gameOverAnimationRef.current?.active) return;
@@ -100,6 +101,10 @@ export function updateGameOverAnimation(
           mat.alpha = 0.92 * (1.0 - anim.progress);
         }
       });
+
+      if (gridLineMaterial) {
+        gridLineMaterial.alpha = 0.56 * (1.0 - anim.progress);
+      }
     } else {
       // Animation complete
       gameOverAnimationRef.current = null;

@@ -123,7 +123,9 @@
       "fillLine": "Fuelle eine Reihe oder Spalte",
       "keepClearing": "Raeume schnell weiter",
       "perfectStart": "Perfekter Start!",
-      "timeReward": "Clear geschafft, Zeit gewonnen!"
+      "timeReward": "Clear geschafft, Zeit gewonnen!",
+      "comboMaster": "Combo-Meister!",
+      "speedDemon": "Schneller Start!"
     },
     "start": "Spielen beginnen",
     "next": "Weiter",
@@ -142,7 +144,7 @@
     },
     "step4": {
       "title": "Kombos aufbauen",
-      "description": "R?ume Linien nacheinander ab, um deinen Kombo zu halten und mehr Punkte zu erzielen."
+      "description": "Räume Linien nacheinander ab, um deinen Kombo zu halten und mehr Punkte zu erzielen."
     },
     "step5": {
       "title": "Verwende eine Fähigkeit",
@@ -153,7 +155,31 @@
       "description": "Du hast die Grundlagen gelernt. Jetzt geh und baue deinen Highscore auf!"
     },
     "wrongPlacement": "Nicht hier!",
-    "correctPlacement": "Großartig!"
+    "correctPlacement": "Großartig!",
+    "welcome": {
+      "title": "Willkommen!",
+      "description": "Lass uns starten. Ziehe eines der Teile unten und lege es auf das Brett."
+    },
+    "comboTimer": {
+      "title": "Combo-Timer",
+      "description": "Achte auf die Zeit. Wenn du zu lange wartest, wird deine Combo zurueckgesetzt."
+    },
+    "gameModes": {
+      "title": "Du bist bereit!",
+      "description": "Du spielst im Endlos-Modus. Spiele in deinem Tempo, raeume Linien und verbessere deinen Rekord."
+    },
+    "skipButton": "Tutorial ueberspringen",
+    "progress": "{{current}} / {{total}}",
+    "handPointer": "Ziehen und ablegen",
+    "autoAdvance": {
+      "completing": "Wird abgeschlossen...",
+      "continuing": "Weiter..."
+    },
+    "achievements": {
+      "speed": "Schnell gelernt",
+      "perfect": "Perfekter Start",
+      "combo": "Combo-Meister"
+    }
   },
   "settings": {
     "title": "Thema wählen",
@@ -205,7 +231,7 @@
   "guided": {
     "step1": "Ziehe das Teil unten und lege es auf dem Raster ab",
     "step2": "Fülle eine vollständige Reihe",
-    "step3": "R?ume schnell Linien ab, um den Kombo zu halten",
+    "step3": "Räume schnell Linien ab, um den Kombo zu halten",
     "step4": "Perfekt! Du bist jetzt bereit",
     "skip": "ÜBERSPRINGEN"
   },
@@ -320,5 +346,26 @@
     "androidStep2": "Finden Sie die Option \"Zum Startbildschirm hinzufügen\" oder \"Installieren\"",
     "androidStep3": "Folgen Sie den Anweisungen zur Installation der App",
     "understood": "Verstanden"
+  },
+  "update": {
+    "button": "Jetzt aktualisieren",
+    "later": "Spaeter",
+    "required": "Dieses Update ist erforderlich, um die App weiter zu nutzen"
+  },
+  "continueModal": {
+    "title": "WEITERMACHEN?",
+    "subtitle": "Dein Spiel ist noch nicht vorbei!",
+    "benefit1": "Auf dem Brett wird ein sicherer Platz frei",
+    "benefit2": "Du bekommst 3 neue Teile",
+    "benefit3": "Deine aktuelle Punktzahl bleibt erhalten",
+    "summaryTitle": "Sicherer Platz + 3 neue Teile",
+    "summarySubtitle": "Dein Score bleibt erhalten.",
+    "watchAd": "Werbung ansehen & weitermachen",
+    "loading": "Werbung wird geladen...",
+    "limitReached": "Tageslimit erreicht",
+    "remaining_one": "Heute noch {{count}} Nutzung uebrig",
+    "remaining_other": "Heute noch {{count}} Nutzungen uebrig",
+    "noThanks": "Nein danke, beenden",
+    "adNote": "Sieh dir eine kurze Werbung an, um kostenlos weiterzuspielen"
   }
 }

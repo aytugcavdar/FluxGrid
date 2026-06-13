@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { performanceMonitor } from '@core/services/performance/PerformanceMonitor';
 
 export interface VisualEffect {
   id: string;
@@ -57,26 +56,6 @@ export const useVisualEffectStore = create<VisualEffectStore>((set, get) => {
   
   mediaQuery.addEventListener('change', handleReducedMotionChange);
   
-  // Initialize performance monitor if not already initialized
-  if (!performanceMonitor.isInitialized()) {
-    performanceMonitor.initialize().catch(err => {
-      console.warn('[VisualEffectStore] Failed to initialize performance monitor:', err);
-    });
-  }
-  
-  // Start automatic cleanup of completed effects
-  setInterval(() => {
-    get().clearCompletedEffects();
-  }, 1000); // Clean up every second
-  
-  // Monitor FPS periodically
-  setInterval(() => {
-    const metrics = performanceMonitor.getMetrics();
-    if (metrics.avgFps > 0) {
-      get().updatePerformanceMode(metrics.avgFps);
-    }
-  }, 2000); // Check every 2 seconds
-  
   return {
     // Initial state
     activeEffects: [],
@@ -113,6 +92,18 @@ export const useVisualEffectStore = create<VisualEffectStore>((set, get) => {
       }
       
       set({ activeEffects: updatedEffects });
+
+      // Effects are short-lived. A per-effect timeout avoids permanent store
+      // intervals and the hidden FPS tracking loop when debug monitoring is off.
+      window.setTimeout(() => {
+        const isStillActive = get().activeEffects.some((activeEffect) => activeEffect.id === newEffect.id);
+        if (!isStillActive) return;
+
+        window.dispatchEvent(new CustomEvent('dispose-effect', {
+          detail: { effectId: newEffect.id }
+        }));
+        get().removeEffect(newEffect.id);
+      }, Math.max(0, newEffect.duration));
     },
     
     removeEffect: (id) => {

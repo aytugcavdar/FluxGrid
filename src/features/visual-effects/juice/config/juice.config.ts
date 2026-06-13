@@ -59,6 +59,7 @@ export const TRAIL_PARTICLE_CONFIG = {
  * FURTHER OPTIMIZED: Reduced counts for large line clears (5+ lines)
  */
 export const EXPLOSION_PARTICLE_CONFIG = {
+  globalMultiplier: 0.7,  // 30% fewer clear particles on every quality tier
   countPerLine: {
     single: 4,             // Reduced from 8 to 4
     double: 6,             // Reduced from 12 to 6
@@ -71,7 +72,7 @@ export const EXPLOSION_PARTICLE_CONFIG = {
   lifetime: 600,           // Reduced from 800ms to 600ms
   gravityDelay: 200,       // milliseconds
   secondaryBurst: {
-    enabled: true,         // Smaller delayed burst for 3+ line clears
+    enabled: false,        // One clear event gets one readable particle response
     delay: 150,            // milliseconds
     countPercent: 0.45,    // 45% of primary count
   },

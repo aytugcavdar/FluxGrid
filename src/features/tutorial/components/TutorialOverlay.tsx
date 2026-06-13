@@ -97,14 +97,25 @@ export const TutorialOverlay: React.FC = () => {
   }, []);
   
   // Check for reduced motion preference
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const prefersReducedMotion = typeof window !== 'undefined'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    : false;
   
-  // Performance optimization: treat Honor 9X-class 4GB devices as constrained.
+  // Keep first-run tutorial light on low and low-mid Android phones.
   const isLowEndDevice = React.useMemo(() => {
     const memory = (navigator as any).deviceMemory;
+    const cores = navigator.hardwareConcurrency;
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    const isAndroidNative = /Android/i.test(navigator.userAgent) ||
+      !!(typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.());
+
     if (memory && memory <= 4) return true;
     
-    if (navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4) return true;
+    if (cores && cores <= 4) return true;
+
+    if (isAndroidNative && memory && memory <= 6 && cores && cores <= 6) return true;
+
+    if (isAndroidNative && dpr >= 2.5 && (!memory || memory <= 6)) return true;
     
     return false;
   }, []);
@@ -230,7 +241,7 @@ export const TutorialOverlay: React.FC = () => {
   }, [isActive, currentStep, reducedTutorialMotion]);
 
   useEffect(() => {
-    if (!isActive) {
+    if (!isActive || isLowEndDevice) {
       setTutorialGridBounds(null);
       return;
     }
@@ -256,7 +267,7 @@ export const TutorialOverlay: React.FC = () => {
       window.removeEventListener('resize', updateGridBounds);
       window.removeEventListener('orientationchange', updateGridBounds);
     };
-  }, [isActive, guidance.targetLines, guidance.fallingCells]);
+  }, [isActive, isLowEndDevice, guidance.targetLines, guidance.fallingCells]);
   
   // Handle step validation with achievements
   useEffect(() => {
@@ -396,7 +407,7 @@ export const TutorialOverlay: React.FC = () => {
       
       {/* Tutorial board cell guidance */}
       <AnimatePresence>
-        {tutorialGridBounds && (guidance.targetLines?.length || guidance.fallingCells?.length) && (
+        {!isLowEndDevice && tutorialGridBounds && (guidance.targetLines?.length || guidance.fallingCells?.length) && (
           <div className="tutorial-board-guidance" aria-hidden="true">
             {guidance.targetLines?.map((line) => {
               const cellSize = tutorialGridBounds.width / 10;
@@ -448,10 +459,10 @@ export const TutorialOverlay: React.FC = () => {
             key={achievement}
             className="tutorial-achievement-badge"
             style={{ top: `${80 + index * 60}px` }}
-            initial={{ opacity: 0, x: 100, scale: 0.5 }}
+            initial={reducedTutorialMotion ? false : { opacity: 0, x: 100, scale: 0.5 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 100, scale: 0.5 }}
-            transition={{ type: "spring", damping: 15 }}
+            exit={reducedTutorialMotion ? { opacity: 0 } : { opacity: 0, x: 100, scale: 0.5 }}
+            transition={reducedTutorialMotion ? { duration: 0.08 } : { type: "spring", damping: 15 }}
           >
             {t(`tutorial.achievements.${achievement}`)}
           </motion.div>

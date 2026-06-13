@@ -257,6 +257,13 @@ export class ParticlePoolManager {
     const pool = this.getPool(type);
     return pool.filter(p => p.isActive).length;
   }
+
+  getTotalActiveCount(): number {
+    return Object.values(this.pools).reduce(
+      (total, pool) => total + pool.reduce((count, particle) => count + Number(particle.isActive), 0),
+      0
+    );
+  }
   
   /**
    * Get available particle count for a type

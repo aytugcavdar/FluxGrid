@@ -423,6 +423,7 @@ export const StatisticsScreen: React.FC = () => {
   const { t } = useTranslation();
   const colors = getThemeColors();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const currentDailyStreak = useStreakStore(state => state.currentStreak);
 
   const sortedGameLogs = useMemo(() => (
     Array.isArray(gameLogs) ? [...gameLogs].sort((a, b) => b.timestamp - a.timestamp) : []
@@ -438,6 +439,7 @@ export const StatisticsScreen: React.FC = () => {
 
   const sonsuzBestScore = highScores?.[GameMode.ENDLESS] || 0;
   const timedBestScore  = highScores?.[GameMode.TIMED]   || 0;
+  const bestOverallScore = Math.max(sonsuzBestScore, timedBestScore);
 
   const achievements: Achievement[] = (Array.isArray(gameAchievements) ? gameAchievements : []).map(ach => {
     const progress = ach.targetValue > 0 ? Math.floor((ach.currentValue / ach.targetValue) * 100) : 0;
@@ -473,11 +475,11 @@ export const StatisticsScreen: React.FC = () => {
   };
 
   /* ── shared stat hero numbers ── */
-  const heroStats = [
-    { label: 'Toplam Oyun',  value: stats.gamesPlayed   || 0, icon: '🎮', color: '#818cf8' },
-    { label: 'Satır',        value: stats.linesCleared   || 0, icon: '⚡', color: '#34d399' },
-    { label: 'Blok',         value: stats.blocksPlaced   || 0, icon: '🧱', color: '#f472b6' },
-    { label: 'Bomba',        value: stats.bombsExploded  || 0, icon: '💣', color: '#fb923c' },
+  const primaryHeroStats = [
+    { label: 'Toplam Oyun', value: stats.gamesPlayed || 0, icon: '🎮', color: '#818cf8' },
+    { label: 'Clear', value: stats.linesCleared || 0, icon: '⚡', color: '#34d399' },
+    { label: 'En İyi', value: bestOverallScore, icon: '🏆', color: '#f59e0b' },
+    { label: 'Seri', value: currentDailyStreak, icon: '🔥', color: '#fb923c' },
   ];
 
   return (
@@ -564,7 +566,7 @@ export const StatisticsScreen: React.FC = () => {
 
                 {/* ─ Hero stat grid ─ */}
                 <div className="grid grid-cols-4 gap-2">
-                  {heroStats.map((s, idx) => (
+                  {primaryHeroStats.map((s, idx) => (
                     <HeroStatCard key={s.label} stat={s} index={idx} />
                   ))}
                 </div>

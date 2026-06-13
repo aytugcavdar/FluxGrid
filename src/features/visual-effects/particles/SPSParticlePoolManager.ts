@@ -5,7 +5,7 @@
  * Combines all particles into a single mesh for optimal rendering (1 draw call).
  * 
  * Key features:
- * - 2000 particle capacity with single draw call
+ * - Tier-scaled particle capacity with a single draw call
  * - Dead/active particle lifecycle management
  * - CPU-based physics updates
  * - Frustum culling for off-screen particles
@@ -24,6 +24,7 @@ import {
 export class SPSParticlePoolManager {
   private scene: BABYLON.Scene;
   private sps: BABYLON.SolidParticleSystem;
+  private spsMesh: BABYLON.Mesh;
   private particles: SPSParticle[];
   private deadParticles: number[]; // Stack of dead particle indices
   private activeParticles: number[]; // List of active particle indices
@@ -73,6 +74,7 @@ export class SPSParticlePoolManager {
     
     // Build the SPS mesh
     const spsMesh = this.sps.buildMesh();
+    this.spsMesh = spsMesh;
     
     // Create material
     const material = new BABYLON.StandardMaterial('particleMaterial', this.scene);
@@ -111,6 +113,11 @@ export class SPSParticlePoolManager {
       
       return particle;
     };
+
+    // Apply the initial dead/off-screen state once, then remove the SPS mesh
+    // from rendering until a particle is actually emitted.
+    this.sps.setParticles();
+    this.spsMesh.setEnabled(false);
   }
   
   /**
@@ -124,6 +131,10 @@ export class SPSParticlePoolManager {
     
     const idx = this.deadParticles.pop()!;
     const particle = this.particles[idx];
+
+    if (this.activeParticles.length === 0) {
+      this.spsMesh.setEnabled(true);
+    }
     
     // Mark as active
     particle.isDead = false;
@@ -154,6 +165,10 @@ export class SPSParticlePoolManager {
     // Move off-screen
     particle.position.set(0, -100, 0);
     particle.color.a = 0;
+
+    if (this.activeParticles.length === 0) {
+      this.spsMesh.setEnabled(false);
+    }
   }
   
   /**
@@ -210,6 +225,12 @@ export class SPSParticlePoolManager {
    * @param camera Optional camera for frustum culling
    */
   public update(deltaTime: number, camera?: BABYLON.Camera): void {
+    // setParticles() walks the entire SPS capacity, not only active particles.
+    // Avoid that CPU/GPU upload while the pool is empty.
+    if (this.activeParticles.length === 0) {
+      return;
+    }
+
     const deltaSeconds = deltaTime / 1000;
     
     // Update each active particle

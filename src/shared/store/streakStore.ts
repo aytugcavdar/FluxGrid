@@ -31,10 +31,16 @@ const DEFAULT_STATE = {
 };
 
 // Date Utility Functions
+function formatLocalISODate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function getTodayISO(): string {
   try {
-    const now = new Date();
-    return now.toISOString().split('T')[0];
+    return formatLocalISODate(new Date());
   } catch (error) {
     console.error('[StreakStore] Failed to get today\'s date:', error);
     return '1970-01-01';
@@ -44,8 +50,8 @@ export function getTodayISO(): string {
 export function getYesterdayISO(): string {
   try {
     const now = new Date();
-    now.setUTCDate(now.getUTCDate() - 1);
-    return now.toISOString().split('T')[0];
+    now.setDate(now.getDate() - 1);
+    return formatLocalISODate(now);
   } catch (error) {
     console.error('[StreakStore] Failed to get yesterday\'s date:', error);
     return '1970-01-01';

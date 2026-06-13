@@ -19,14 +19,12 @@ export const ComboBar: React.FC<ComboBarProps> = React.memo(({ gridSize = 0, sid
   React.useEffect(() => {
     if (combo <= 0 || isGameOver || comboTimerStartTime === null) return;
 
-    let frameId = 0;
-    const tick = () => {
+    setNow(Date.now());
+    const intervalId = window.setInterval(() => {
       setNow(Date.now());
-      frameId = window.requestAnimationFrame(tick);
-    };
+    }, 100);
 
-    frameId = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frameId);
+    return () => window.clearInterval(intervalId);
   }, [combo, comboTimerStartTime, isGameOver]);
 
   if (combo <= 0 || isGameOver) return null;

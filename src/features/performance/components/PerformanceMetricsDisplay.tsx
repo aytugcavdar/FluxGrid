@@ -7,19 +7,53 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { usePerformanceStore } from '../store/performanceStore';
+import {
+  startFPSTracker,
+  startMemoryTracker,
+  stopFPSTracker,
+  stopMemoryTracker,
+  usePerformanceStore,
+} from '../store/performanceStore';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const PerformanceMetricsDisplay: React.FC = () => {
   const { 
     fps, 
+    renderFps,
+    rafFps,
+    skippedFps,
+    nativeFpsCap,
+    renderLoopActive,
+    renderLoopIdle,
+    activeAnimationCount,
+    lastTouchAgeMs,
+    renderLoopReason,
+    deviceTier,
+    deviceModel,
+    deviceScore,
     memory, 
     frameTime, 
     warnings, 
+    isMonitoring,
     isOverlayVisible,
     toggleOverlay,
     exportMetrics,
   } = usePerformanceStore();
+  const displayedRafFps = nativeFpsCap > 0 ? rafFps : fps;
+
+  useEffect(() => {
+    if (isOverlayVisible && isMonitoring) {
+      startFPSTracker();
+      startMemoryTracker();
+      return () => {
+        stopFPSTracker();
+        stopMemoryTracker();
+      };
+    }
+
+    stopFPSTracker();
+    stopMemoryTracker();
+  }, [isOverlayVisible, isMonitoring]);
 
   // Toggle visibility with keyboard shortcut (Ctrl+Shift+P) or mobile gesture
   useEffect(() => {
@@ -175,6 +209,7 @@ export const PerformanceMetricsDisplay: React.FC = () => {
     if (frameTime < 20) return '#f59e0b'; // orange
     return '#ef4444'; // red
   };
+  const latestWarning = warnings[warnings.length - 1];
 
   return (
     <AnimatePresence>
@@ -182,18 +217,35 @@ export const PerformanceMetricsDisplay: React.FC = () => {
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: 20 }}
-        className="fixed top-4 right-4 bg-black/90 text-white p-4 rounded-lg z-[9999] backdrop-blur-sm"
+        className="fixed top-2 right-2 bg-black/90 text-white p-2 rounded-md z-[9999] backdrop-blur-sm"
         style={{
-          minWidth: '220px',
+          width: 'min(176px, calc(100vw - 16px))',
           fontFamily: 'monospace',
-          fontSize: '12px',
+          fontSize: '9px',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
           border: '1px solid rgba(255, 255, 255, 0.1)',
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/20">
-          <h3 className="font-bold text-sm">Performance Metrics</h3>
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center gap-1.5">
+            <h3 className="font-bold text-[10px]">Perf</h3>
+            {warnings.length > 0 && (
+              <span
+                className="rounded bg-yellow-400/15 px-1 text-[8px] font-bold text-yellow-300"
+                title={latestWarning?.message}
+              >
+                W{warnings.length}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={handleExport}
+            className="ml-auto mr-1 rounded bg-blue-600/80 px-1.5 py-0.5 text-[8px] font-semibold text-white transition-colors hover:bg-blue-500"
+            title="Export metrics JSON"
+          >
+            JSON
+          </button>
           <button
             onClick={toggleOverlay}
             className="text-white/60 hover:text-white transition-colors"
@@ -204,19 +256,47 @@ export const PerformanceMetricsDisplay: React.FC = () => {
         </div>
 
         {/* Metrics */}
-        <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1">
           <div className="flex justify-between items-center">
-            <span className="text-white/70">FPS:</span>
+            <span className="text-white/70">RAF</span>
             <span 
               className="font-bold"
-              style={{ color: getFPSColor(fps) }}
+              style={{ color: getFPSColor(displayedRafFps) }}
             >
-              {fps.toFixed(1)}
+              {displayedRafFps.toFixed(1)}
             </span>
           </div>
 
+          {nativeFpsCap > 0 && (
+            <>
+              <div className="flex justify-between items-center">
+                <span className="text-white/70">Render</span>
+                <span
+                  className="font-bold"
+                  style={{ color: getFPSColor(renderFps) }}
+                >
+                  {renderFps.toFixed(1)}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-white/70">Skip</span>
+                <span className="font-bold text-white/80">
+                  {skippedFps.toFixed(1)}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-white/70">Cap</span>
+                <span className="font-bold text-blue-300">
+                  {nativeFpsCap}
+                </span>
+              </div>
+            </>
+          )}
+
           <div className="flex justify-between items-center">
-            <span className="text-white/70">Memory:</span>
+            <span className="text-white/70">Mem</span>
             <span 
               className="font-bold"
               style={{ color: getMemoryColor(memory) }}
@@ -226,7 +306,7 @@ export const PerformanceMetricsDisplay: React.FC = () => {
           </div>
 
           <div className="flex justify-between items-center">
-            <span className="text-white/70">Frame Time:</span>
+            <span className="text-white/70">Frame</span>
             <span 
               className="font-bold"
               style={{ color: getFrameTimeColor(frameTime) }}
@@ -234,19 +314,55 @@ export const PerformanceMetricsDisplay: React.FC = () => {
               {frameTime.toFixed(2)} ms
             </span>
           </div>
+
+          <div className="flex justify-between items-center">
+            <span className="text-white/70">Loop</span>
+            <span className="font-bold" style={{ color: renderLoopActive ? '#10b981' : '#60a5fa' }}>
+              {renderLoopActive ? 'ON' : 'SLEEP'}
+            </span>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <span className="text-white/70">Idle</span>
+            <span className="font-bold" style={{ color: renderLoopIdle ? '#60a5fa' : '#f59e0b' }}>
+              {renderLoopIdle ? 'YES' : 'NO'}
+            </span>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <span className="text-white/70">Anim</span>
+            <span className="font-bold text-white/80">
+              {activeAnimationCount}
+            </span>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <span className="text-white/70">Touch</span>
+            <span className="font-bold text-white/80">
+              {(lastTouchAgeMs / 1000).toFixed(1)}s
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-1 truncate border-t border-white/10 pt-1 text-[8px] text-white/45" title={renderLoopReason}>
+          {renderLoopReason}
+        </div>
+
+        <div className="mt-1 truncate text-[8px] text-blue-200/75" title={`${deviceModel} / score ${deviceScore}`}>
+          {deviceTier} · {deviceScore}
         </div>
 
         {/* Warnings */}
         {warnings.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-white/20">
-            <h4 className="font-bold text-xs mb-2 text-yellow-400">
+          <div className="mt-1.5 border-t border-white/10 pt-1.5">
+            <h4 className="hidden">
               ⚠ Warnings ({warnings.length})
             </h4>
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {warnings.slice(-3).map((warning, i) => (
+            <div className="max-h-4 overflow-hidden">
+              {warnings.slice(-1).map((warning, i) => (
                 <div 
                   key={i} 
-                  className="text-xs text-yellow-400/90 leading-tight"
+                  className="truncate text-[8px] leading-tight text-yellow-300/80"
                   title={new Date(warning.timestamp).toLocaleTimeString()}
                 >
                   {warning.message}
@@ -256,17 +372,9 @@ export const PerformanceMetricsDisplay: React.FC = () => {
           </div>
         )}
 
-        {/* Export Button */}
-        <button
-          onClick={handleExport}
-          className="mt-3 w-full py-1.5 px-3 bg-blue-600 hover:bg-blue-500 rounded text-xs font-semibold transition-colors"
-        >
-          Export Metrics (JSON)
-        </button>
-
         {/* Keyboard/Touch Hint */}
-        <div className="mt-2 text-[10px] text-white/40 text-center">
-          Desktop: Ctrl+Shift+P | Mobile: Tap top-right corner 5x
+        <div className="mt-1 text-center text-[8px] text-white/35">
+          Ctrl+Shift+P / 5 tap
         </div>
       </motion.div>
     </AnimatePresence>
