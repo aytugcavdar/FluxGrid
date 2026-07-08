@@ -7,6 +7,7 @@ import { createProgressionState } from '../helpers/progressionSystem';
  */
 export interface ProgressionSlice {
   difficultyTier: number;
+  tier6GravityCharge: number;
   totalMovesPlayed: number;
   tierStartMove: number;
   activeEvent: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
@@ -18,6 +19,7 @@ export interface ProgressionSlice {
 
 export const PROGRESSION_INITIAL: ProgressionSlice = {
   difficultyTier: 0,
+  tier6GravityCharge: 0,
   totalMovesPlayed: 0,
   tierStartMove: 0,
   activeEvent: null,

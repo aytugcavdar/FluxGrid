@@ -5,9 +5,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>FluxGrid: Kuantum Blok Bulmacası</title>
+  <title>FluxGrid - 2D Gravity Block Puzzle</title>
   <meta name="description"
-    content="Cyberpunk tarzı blok bulmaca oyunu — yerçekimi mekanikleri, aktif yetenekler ve neon estetiği ile." />
+    content="FluxGrid is a mobile 2D block puzzle where line clears trigger gravity, special blocks, combos, and fast timed runs." />
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.json" />
@@ -17,7 +17,21 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="FluxGrid" />
   <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
-  <link rel="apple-touch-icon" href="icon-192.svg" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+
+  <script>
+    (function() {
+      var path = window.location.pathname.replace(/\/+$/, '') || '/';
+      var marketingRoutes = ['/', '/privacy', '/privacy-policy', '/support', '/contact'];
+      var isNativeRuntime =
+        !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+        /FluxGrid\/|Capacitor|; wv\)/i.test(window.navigator.userAgent);
+
+      if (!isNativeRuntime && marketingRoutes.indexOf(path) >= 0) {
+        document.documentElement.classList.add('marketing-entry');
+      }
+    })();
+  </script>
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,7 +39,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=DM+Sans:wght@300;400;500&family=Inter:wght@400;500;600;700;800&family=Rajdhani:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-  
+
   <!-- Safe Area Support -->
   <style>
     html, body {
@@ -34,140 +48,99 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      /* Prevent overscroll bounce on iOS */
       overscroll-behavior: none;
       -webkit-overflow-scrolling: touch;
+      background: #0f0e17;
     }
-    
+
     #root {
       width: 100%;
       height: 100%;
       overflow: hidden;
+      background: #0f0e17;
+    }
+
+    html.marketing-entry #splash {
+      display: none !important;
     }
   </style>
 </head>
 
 <body>
-  <div id="splash" style="position: fixed;inset: 0;background: #0d1117;display: flex;flex-direction: column;align-items: center;justify-content: center;z-index: 9999;transition: opacity 0.4s ease;">
-    <!-- Logo -->
-    <div style="text-align:center; margin-bottom: 48px;">
-      <div style="font-family: 'Inter', system-ui, sans-serif;font-size: 48px;font-weight: 800;color: #e0f2fe;letter-spacing: -0.03em;line-height: 1;">
-        FLUX<span style="color:#3b82f6">GRID</span>
+  <div id="splash" style="position: fixed;inset: 0;background: #0f0e17;display: flex;flex-direction: column;align-items: center;justify-content: center;z-index: 9999;visibility:visible;opacity:1;transition:opacity 0.18s ease;">
+    <div style="text-align:center; margin-bottom: 42px;">
+      <div style="font-family: 'Inter', system-ui, sans-serif;font-size: 50px;font-weight: 900;color: #e0f2fe;letter-spacing: -0.04em;line-height: 1;text-shadow: 0 10px 32px rgba(59,130,246,0.20);">
+        Flux<span style="color:#3b82f6">Grid</span>
       </div>
-      <div style="font-size: 10px;color: rgba(224,242,254,0.25);letter-spacing: 0.15em;margin-top: 8px;font-family: 'Inter', system-ui, sans-serif;">
-        3D BLOK BULMACA
-      </div>
-    </div>
-
-    <!-- Loading bar container -->
-    <div style="width: 160px;">
-      <div style="width: 100%;height: 2px;background: rgba(255,255,255,0.08);border-radius: 2px;overflow: hidden;">
-        <div id="splash-bar" style="height: 100%;width: 0%;background: #3b82f6;border-radius: 2px;transition: width 0.3s ease;"></div>
-      </div>
-      <div id="splash-text" style="text-align: center;font-size: 10px;color: rgba(255,255,255,0.2);margin-top: 8px;font-family: 'Inter', system-ui, sans-serif;letter-spacing: 0.05em;">
-        YÜKLENİYOR
+      <div style="font-size: 10px;color: rgba(224,242,254,0.35);letter-spacing: 0.18em;margin-top: 10px;font-family: 'Inter', system-ui, sans-serif;font-weight:700;">
+        2D GRAVITY PUZZLE
       </div>
     </div>
 
-    <!-- Dekoratif grid noktaları -->
-    <div style="position: absolute;bottom: 60px;display: flex;gap: 6px;opacity: 0.15;">
-      <div id="dot1" style="width:6px;height:6px;border-radius:2px;background:#3b82f6"></div>
-      <div id="dot2" style="width:6px;height:6px;border-radius:2px;background:#a78bfa"></div>
-      <div id="dot3" style="width:6px;height:6px;border-radius:2px;background:#06b6d4"></div>
-      <div id="dot4" style="width:6px;height:6px;border-radius:2px;background:#10b981"></div>
-      <div id="dot5" style="width:6px;height:6px;border-radius:2px;background:#f59e0b"></div>
+    <div id="splash-text" style="text-align:center;font-size:10px;color:rgba(255,255,255,0.28);font-family:'Inter',system-ui,sans-serif;letter-spacing:0.08em;">
+      HAZIRLANIYOR
+    </div>
+
+    <div style="position: absolute;bottom: 60px;display: flex;gap: 6px;opacity: 0.22;">
+      <div style="width:6px;height:6px;border-radius:2px;background:#3b82f6"></div>
+      <div style="width:6px;height:6px;border-radius:2px;background:#a78bfa"></div>
+      <div style="width:6px;height:6px;border-radius:2px;background:#06b6d4"></div>
+      <div style="width:6px;height:6px;border-radius:2px;background:#10b981"></div>
+      <div style="width:6px;height:6px;border-radius:2px;background:#f59e0b"></div>
     </div>
   </div>
 
-  <!-- Loading bar animasyonu -->
   <script>
     (function() {
-      var bar = document.getElementById('splash-bar');
-      var text = document.getElementById('splash-text');
-      var progress = 0;
-      var messages = ['YÜKLENİYOR', 'HAZIRLANIYOR', 'BAŞLIYOR'];
-      var msgIndex = 0;
+      var splash = document.getElementById('splash');
+      var completed = false;
 
-      // Dots pulse animasyonu
-      var dots = ['dot1','dot2','dot3','dot4','dot5'];
-      var dotIndex = 0;
-      var dotInterval = setInterval(function() {
-        dots.forEach(function(id) {
-          document.getElementById(id).style.opacity = '0.15';
-        });
-        document.getElementById(dots[dotIndex % dots.length]).style.opacity = '1';
-        dotIndex++;
-      }, 200);
-
-      // Bar ilerleme simülasyonu
-      var phases = [
-        { target: 30, duration: 500 },   // HTML parse hızlı
-        { target: 60, duration: 1000 },  // JS parse
-        { target: 85, duration: 1500 },  // Babylon.js init
-        { target: 95, duration: 500 },   // Scene setup
-      ];
-      var phaseIndex = 0;
-
-      function runPhase() {
-        if (phaseIndex >= phases.length) return;
-        var phase = phases[phaseIndex++];
-        var start = progress;
-        var startTime = Date.now();
-
-        if (msgIndex < messages.length - 1) {
-          text.textContent = messages[msgIndex++];
+      function releaseNativeLaunchSplash() {
+        var nativeSplash = window.FluxGridSplash;
+        if (nativeSplash && typeof nativeSplash.hide === 'function') {
+          nativeSplash.hide();
+          return true;
         }
-
-        function tick() {
-          var elapsed = Date.now() - startTime;
-          var t = Math.min(1, elapsed / phase.duration);
-          progress = start + (phase.target - start) * (1 - Math.pow(1 - t, 2));
-          bar.style.width = progress + '%';
-
-          if (t < 1) {
-            requestAnimationFrame(tick);
-          } else {
-            setTimeout(runPhase, 100);
-          }
-        }
-        requestAnimationFrame(tick);
+        return false;
       }
-      runPhase();
 
-      // Global fonksiyon — React mount olunca çağrılacak
+      requestAnimationFrame(function() {
+        var releaseAttempts = 0;
+        setTimeout(function retryNativeSplashRelease() {
+          if (releaseNativeLaunchSplash()) return;
+          releaseAttempts += 1;
+          if (releaseAttempts >= 20) return;
+          setTimeout(retryNativeSplashRelease, 50);
+        }, 120);
+      });
+
       window.splashComplete = function() {
-        clearInterval(dotInterval);
-        bar.style.width = '100%';
-        text.textContent = 'HAZIR';
+        if (completed) return;
+        completed = true;
+        if (!splash) return;
+
+        splash.style.opacity = '0';
         setTimeout(function() {
-          var splash = document.getElementById('splash');
-          if (splash) {
-            splash.style.opacity = '0';
-            setTimeout(function() {
-              splash.style.display = 'none';
-            }, 400);
-          }
-        }, 300);
+          splash.style.display = 'none';
+        }, 180);
       };
     })();
   </script>
 
   <div id="root"></div>
   <script type="module" src="/src/app/index.tsx"></script>
-  
-  <!-- Service Worker Registration -->
+
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        // Service worker is always at /sw.js relative to base
         const swPath = new URL('sw.js', document.baseURI).href;
-        
+
         navigator.serviceWorker.register(swPath)
           .then((registration) => {
-            console.log('✅ SW registered:', registration.scope);
+            console.log('SW registered:', registration.scope);
           })
           .catch((error) => {
-            console.error('❌ SW registration failed:', error);
+            console.error('SW registration failed:', error);
           });
       });
     }

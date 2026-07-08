@@ -1,6 +1,7 @@
 import { StateCreator } from 'zustand';
 import { GameStore } from '../gameStore';
 import { COMBO_TIMER } from '../../constants';
+import type { Coord } from '../../types';
 
 /**
  * Timed Mode slice — timer, boost, milestones, sprint bonus, record tracking.
@@ -13,6 +14,22 @@ export interface TimedModeSlice {
   timedBoostMovesLeft: number;
   maxCombo: number;
   finalSprintBonus: number;
+  timedTargets: Coord[];
+  timedMomentum: number;
+  timedLastClearAt: number | null;
+  timedFreezeUntil: number | null;
+  timedLastChanceAvailable: boolean;
+  timedLastChanceActive: boolean;
+  timedBonusSecondsEarned: number;
+  timedFinalRushLocked: boolean;
+  lastTimedEvent: {
+    id: number;
+    type: 'TARGET' | 'FREEZE' | 'LAST_CHANCE' | 'FINAL_RUSH' | 'CLEAR_TIME';
+    label: string;
+    seconds?: number;
+    score?: number;
+    targetCount?: number;
+  } | null;
   timedMilestones: Set<string>;
   lastMilestoneShown: { id: string; label: string } | null;
   showNewRecordNotification: boolean;
@@ -30,6 +47,15 @@ export const TIMED_MODE_INITIAL: TimedModeSlice = {
   timedBoostMovesLeft: 0,
   maxCombo: 0,
   finalSprintBonus: 0,
+  timedTargets: [],
+  timedMomentum: 0,
+  timedLastClearAt: null,
+  timedFreezeUntil: null,
+  timedLastChanceAvailable: true,
+  timedLastChanceActive: false,
+  timedBonusSecondsEarned: 0,
+  timedFinalRushLocked: false,
+  lastTimedEvent: null,
   timedMilestones: new Set<string>(),
   lastMilestoneShown: null,
   showNewRecordNotification: false,

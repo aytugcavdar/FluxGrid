@@ -1,26 +1,26 @@
-import { TIER_THRESHOLDS, TIER_SCORE_MULTIPLIERS } from '../../constants';
+import { ENDLESS_LOOP_THRESHOLDS, TIER_THRESHOLDS, TIER_SCORE_MULTIPLIERS } from '../../constants';
 
 /**
  * Calculate current tier based on score
  * 
  * Determines the player's current tier level by comparing their score against
- * the tier thresholds [0, 1500, 4000, 9000, 18000, 35000, 60000]. The tier
- * system uses logarithmic progression to ensure balanced difficulty scaling.
+ * the tier thresholds [0, 15000, 40000, 80000, 130000, 190000, 260000]. The
+ * first tier is a warm-up band before special block pressure starts.
  * 
  * @param score - The player's current score (must be >= 0)
  * @returns Tier value from 0 to 6, where:
- *   - Tier 0: 0-1499 points (Beginner)
- *   - Tier 1: 1500-3999 points (Advanced)
- *   - Tier 2: 4000-8999 points (Expert)
- *   - Tier 3: 9000-17999 points (Master)
- *   - Tier 4: 18000-34999 points (Legend)
- *   - Tier 5: 35000-59999 points (Chaos)
- *   - Tier 6: 60000+ points (Void)
+ *   - Tier 0: 0-14999 points (Warm-up)
+ *   - Tier 1: 15000-39999 points (Ice unlock)
+ *   - Tier 2: 40000-79999 points (Bomb unlock)
+ *   - Tier 3: 80000-129999 points (Quake)
+ *   - Tier 4: 130000-189999 points (Ice storm)
+ *   - Tier 5: 190000-259999 points (Strong quake)
+ *   - Tier 6: 260000+ points (Fixed Grid)
  * 
  * @example
  * calculateTier(0)     // Returns 0 (Beginner)
- * calculateTier(1500)  // Returns 1 (Advanced)
- * calculateTier(5000)  // Returns 2 (Expert)
+ * calculateTier(15000) // Returns 1 (Ice unlock)
+ * calculateTier(40000) // Returns 2 (Bomb unlock)
  * calculateTier(-100)  // Returns 0 (negative scores default to tier 0)
  * 
  * @remarks
@@ -40,16 +40,16 @@ export function calculateTier(score: number): number {
  * 
  * Returns the score multiplier for a given tier level. Score multipliers
  * increase progressively to reward players for reaching higher tiers:
- * [1.0, 1.15, 1.35, 1.6, 2.0, 2.5, 3.0]
+ * [1.0, 1.2, 1.5, 1.8, 2.2, 2.6, 3.0]
  * 
  * @param tier - The tier level (0-6)
  * @returns Score multiplier for the tier:
  *   - Tier 0: 1.0x (no bonus)
- *   - Tier 1: 1.15x
- *   - Tier 2: 1.35x
- *   - Tier 3: 1.6x
- *   - Tier 4: 2.0x
- *   - Tier 5: 2.5x
+ *   - Tier 1: 1.2x
+ *   - Tier 2: 1.5x
+ *   - Tier 3: 1.8x
+ *   - Tier 4: 2.2x
+ *   - Tier 5: 2.6x
  *   - Tier 6: 3.0x
  *   - Invalid tier: 1.0x (safe default)
  * 
@@ -72,6 +72,11 @@ export function getTierScoreMultiplier(tier: number): number {
   return TIER_SCORE_MULTIPLIERS[tier] ?? 1.0;
 }
 
+export function calculateEndlessLoop(score: number): number {
+  if (score < 0) return 0;
+  return ENDLESS_LOOP_THRESHOLDS.filter(threshold => score >= threshold).length;
+}
+
 /**
  * Migrate old save data to new tier system
  * 
@@ -85,11 +90,11 @@ export function getTierScoreMultiplier(tier: number): number {
  * 
  * @example
  * // Old system: tier 2 at 2000 points
- * // New system: 2000 points = tier 1 (threshold 1500-3999)
- * migrateTierData(2, 2000)  // Returns 1
+ * // New system: 2000 points = tier 0
+ * migrateTierData(2, 2000)  // Returns 0
  * 
  * // Player at 50000 points
- * migrateTierData(5, 50000) // Returns 5 (tier 5: 35000-59999)
+ * migrateTierData(5, 50000) // Returns 2
  * 
  * @remarks
  * - The oldTier parameter is ignored; migration is purely score-based

@@ -21,7 +21,7 @@ interface UseBackgroundPauseReturn {
  * - Adjusts TIMED mode timer by pause duration
  * - Android only
  * 
- * Grid.tsx listens to these events to control render loop
+ * Grid2D listens to these events to control its render loop.
  * 
  * @param enabled - Whether background pause is enabled
  * @returns Background pause state
@@ -68,7 +68,7 @@ export function useBackgroundPause(
             isBackground: true
           }));
 
-          // Dispatch pause event for Grid.tsx to handle render loop
+          // Dispatch pause event for Grid2D to handle its render loop.
           window.dispatchEvent(new CustomEvent('fluxgrid-pause'));
           
           console.log('[BackgroundPause] Pause event dispatched');

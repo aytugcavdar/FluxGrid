@@ -20,6 +20,10 @@ export type HapticPattern =
   | 'clear_single'        // [30] - Legacy single clear alias
   | 'line_clear_multi'    // [45, 30, 60] - Multiple lines
   | 'clear_multi'         // [45, 30, 60] - Legacy multi clear alias
+  | 'ice_hit'             // First ICE damage
+  | 'ice_break'           // ICE destroyed
+  | 'gravity_land'        // Gravity movement settled
+  | 'bomb_chain'          // One or more bombs detonated
   | 'combo_light'         // [20] - 3x combo
   | 'combo_medium'        // [40] - 5x+ combo
   | 'combo'               // [40] - Legacy combo alias
@@ -116,6 +120,30 @@ const HAPTIC_PATTERNS: Record<HapticPattern, HapticPatternConfig> = {
     vibration: [58, 26, 86],
     impactStyle: ImpactStyle.Medium,
     cooldownMs: 180,
+    priority: 'high'
+  },
+  ice_hit: {
+    vibration: [20],
+    impactStyle: ImpactStyle.Light,
+    cooldownMs: 160,
+    priority: 'gameplay'
+  },
+  ice_break: {
+    vibration: [28, 18, 42],
+    impactStyle: ImpactStyle.Medium,
+    cooldownMs: 190,
+    priority: 'high'
+  },
+  gravity_land: {
+    vibration: [30],
+    impactStyle: ImpactStyle.Medium,
+    cooldownMs: 160,
+    priority: 'gameplay'
+  },
+  bomb_chain: {
+    vibration: [38, 22, 62],
+    impactStyle: ImpactStyle.Medium,
+    cooldownMs: 240,
     priority: 'high'
   },
   combo_light: {
@@ -655,6 +683,14 @@ export const hapticEvents = {
   placement: () => getHapticManager().onPlacement(),
   invalidPlacement: () => getHapticManager().onInvalidPlacement(),
   lineClear: (clearedLines: number) => getHapticManager().onLineClear(clearedLines),
+  iceHit: () => getHapticManager().play('ice_hit'),
+  iceBreak: () => getHapticManager().play('ice_break', 1, 'high'),
+  gravityLand: (strength: number = 1) => getHapticManager().play('gravity_land', strength),
+  bombChain: (bombCount: number) => getHapticManager().play(
+    'bomb_chain',
+    Math.min(1.35, 1 + (Math.max(1, bombCount) - 1) * 0.08),
+    'high'
+  ),
   combo: (comboLevel: number) => getHapticManager().onCombo(comboLevel),
   surge: () => getHapticManager().onSurge(),
   perfectClear: () => getHapticManager().playPerfectClear(),

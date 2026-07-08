@@ -125,7 +125,7 @@ export const FAST_SWIPE_THRESHOLD = 0.8;
 
 /* ──────────────────────────────────────────────────────────── */
 /* Shared Hover Coord                                           */
-/* Grid.tsx'in render loop'u bu değeri yazar,                  */
+/* Grid2D render döngüsü bu değeri yazar.                      */
 /* Piece.tsx'in handlePointerUp'ı buradan okur.                */
 /* Bu sayede window.pointerup listener'a gerek kalmaz.         */
 /* ──────────────────────────────────────────────────────────── */
@@ -133,6 +133,7 @@ export const FAST_SWIPE_THRESHOLD = 0.8;
 let _sharedHoverCoord: { x: number; y: number } | null = null;
 let _activeDragPointerId: number | null = null;
 let _sharedPointerPosition: { x: number; y: number } | null = null;
+let _sharedDragSnapPosition: { x: number; y: number } | null = null;
 
 export function setSharedHoverCoord(coord: { x: number; y: number } | null): void {
   _sharedHoverCoord = coord;
@@ -156,4 +157,36 @@ export function setSharedPointerPosition(position: { x: number; y: number } | nu
 
 export function getSharedPointerPosition(): { x: number; y: number } | null {
   return _sharedPointerPosition;
+}
+
+export function setSharedDragSnapPosition(position: { x: number; y: number } | null): void {
+  _sharedDragSnapPosition = position;
+}
+
+export function getSharedDragSnapPosition(): { x: number; y: number } | null {
+  return _sharedDragSnapPosition;
+}
+
+export function getMagnetizedDragPosition(
+  pointerPosition: { x: number; y: number },
+  snapPosition: { x: number; y: number } | null,
+  snapDistance = 12,
+  fullSnapDistance = 4
+): { x: number; y: number } {
+  if (!snapPosition) return pointerPosition;
+
+  const dx = snapPosition.x - pointerPosition.x;
+  const dy = snapPosition.y - pointerPosition.y;
+  const distance = Math.sqrt((dx * dx) + (dy * dy));
+  if (distance > snapDistance || distance <= 0) return pointerPosition;
+  if (distance <= fullSnapDistance) return snapPosition;
+
+  const range = Math.max(1, snapDistance - fullSnapDistance);
+  const t = Math.max(0, Math.min(1, (snapDistance - distance) / range));
+  const strength = 1 - Math.pow(1 - t, 2);
+
+  return {
+    x: pointerPosition.x + (dx * strength),
+    y: pointerPosition.y + (dy * strength),
+  };
 }

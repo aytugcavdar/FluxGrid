@@ -23,6 +23,7 @@ import { RemoteLogger } from '../utils/debug/RemoteLogger';
 import { cleanupLegacyStorage } from '../utils/storage/cleanupLegacyStorage';
 
 export const App: React.FC = () => {
+  const hasMountedRef = useRef(false);
   const { i18n } = useTranslation();
   const { currentScreen, navigateTo } = useUnifiedNavigationStore();
   const { loadSettings, language } = useSettingsStore();
@@ -171,12 +172,17 @@ export const App: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    hasMountedRef.current = true;
+  }, []);
+
   // Check for reduced motion preference or use faster animations
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const shouldAnimate = !prefersReducedMotion;
+  const shouldAnimate = !prefersReducedMotion && hasMountedRef.current;
 
   return (
     <div 
+      data-app-shell-ready="true"
       className="relative w-full h-full overflow-hidden" 
       style={{ 
         background: colors.background,

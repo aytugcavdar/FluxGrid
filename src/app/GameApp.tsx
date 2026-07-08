@@ -10,20 +10,18 @@ import { useCountUp } from '@shared/hooks/useCountUp';
 import { useBrowserHistory } from './hooks/useBrowserHistory';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { useGameSync } from '../features/game/hooks/useGameSync';
-import { TIER_SCORE_MULTIPLIERS, TIER_THRESHOLDS } from '../features/game/constants';
-import { playSkill, hapticEvents, unlockAudio, playGameOver, playClick } from '@utils/audio';
+import { useUnifiedNavigationStore } from '../shared/store/unifiedNavigationStore';
+import { hapticEvents, unlockAudio, playGameOver, playClick } from '@utils/audio';
 import { AdManager } from '@core/services/ads/AdManager';
 import { createRewardedContinueState } from '@features/game/utils/game/reviveService';
 import { GameScreen } from './components/GameScreen';
 import { DragOverlay } from '../features/hud/components/DragOverlay';
-import { ParticleExplosionOverlay } from '../features/visual-effects/components/ParticleExplosionOverlay';
-import { ScreenShakeEffect, LineClearAnimations, PlacementFeedbackEffect, GridBreathingEffect, PlacementImpactEffect, TierTransitionAnimation, ScoreMilestoneCelebration, AbilityUnlockAnimation, StreakIndicator, NearMissWarning, PauseResumeAnimation, GameOverSequence, VictoryCelebration, ModeChangeTransition } from '../features/visual-effects/components';
-import { TierCelebrationOverlay } from '../features/hud/components/TierCelebrationOverlay';
 import { ExitConfirmDialog } from '../shared/components/ExitConfirmDialog';
 import { generateShareText, shareResult } from '../utils/sharing/shareResult';
 import { ErrorBoundary } from './ErrorBoundary';
-import { PerformanceMetricsDisplay } from '@features/performance';
-import { initializePerformanceSystem, cleanupPerformanceSystem } from '@features/performance';
+import { initializePerformanceSystem } from '@features/performance';
+import { usePerformanceStore } from '@features/performance/store/performanceStore';
+import { detectDeviceCapabilities } from '@utils/platform/deviceCapability';
 import { initializeTutorialSystem, handleGameEnd } from '@features/tutorial';
 
 // Lazy load modals for better initial bundle size
@@ -37,29 +35,25 @@ interface ScorePopup {
   combo: number;
 }
 
-interface TimePopup {
-  id: number;
-  value: number;
-}
+type AppLanguage = 'tr' | 'en' | 'de' | 'fr' | 'es';
 
-const TIER_EVENT_LABELS: Record<number, string> = {
-  1: 'Buz Fırtınası',
-  2: 'Deprem',
-  3: 'Ayna Modu',
-  4: 'Kaos',
-  5: 'VOID',
-  6: 'VOID+',
-};
+const GAME_APP_LANGUAGE_OPTIONS: Array<{ code: AppLanguage; label: string }> = [
+  { code: 'tr', label: 'TR Turkce' },
+  { code: 'en', label: 'EN English' },
+  { code: 'de', label: 'DE Deutsch' },
+  { code: 'fr', label: 'FR Francais' },
+  { code: 'es', label: 'ES Espanol' },
+];
 
 const App: React.FC = () => {
   const { t, i18n } = useTranslation();
   const {
     initGame, pieces, isGameOver, resetGame, score, combo, lastAction,
-    achievements, unlockedAchievementId, appState, setAppState, gameMode, tickTimer, timeLeft,
+    achievements, unlockedAchievementId, appState, setAppState, gameMode, timeLeft,
     dailyClearHistory, highScore, stats, highScores,
     maxCombo, timedBoostMovesLeft, finalSprintBonus, timedScoreBreakdown, difficultyTier, tierStartMove, totalMovesPlayed, grid,
     newRecordDiff, gameLogs,
-    timerStartTime, timerExpectedEnd,
+    timerStartTime, timerExpectedEnd, comboTimerStartTime, comboTimerDuration,
     finalizeGameOver, markReviveUsed, reviveUsedThisRun
   } = useGameStore();
   const { currentTheme, setTheme, getThemeColors, getPieceColors } = useThemeStore();
@@ -73,9 +67,6 @@ const App: React.FC = () => {
   const [showPerfect, setShowPerfect] = useState(false);
   const [showSurgeFlash, setShowSurgeFlash] = useState(false);
   const lastActionRef = useRef<typeof lastAction>(null);
-  const [timePopups, setTimePopups] = useState<TimePopup[]>([]);
-  const timePopupIdRef = useRef(0);
-  const prevTimeLeftRef = useRef(timeLeft);
   const prevComboRef = useRef(combo);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared'>('idle');
   const [surgeWasUsed, setSurgeWasUsed] = useState(false);
@@ -111,17 +102,12 @@ const App: React.FC = () => {
     if (difficultyTier <= 0) return totalMovesPlayed || 0;
     return Math.max(1, (totalMovesPlayed || 0) - (tierStartMove || 0));
   }, [difficultyTier, gameMode, tierStartMove, totalMovesPlayed]);
+  const canUseRewardedContinue = useMemo(
+    () => gameMode !== GameMode.TIMED && !reviveUsedThisRun && AdManager.canShowRewardedContinue(),
+    [gameMode, reviveUsedThisRun]
+  );
   const [showRecordBadge, setShowRecordBadge] = useState(false);
   const [showButtons, setShowButtons] = useState(false);
-  
-  // Tier celebration state
-  const [tierCelebration, setTierCelebration] = useState<{
-    tier: number;
-    tierName: string;
-    multiplier: number;
-    eventLabel: string;
-    nextGoal: number | null;
-  } | null>(null);
   
   // Grid sizing with ResizeObserver for safe area compatibility
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -147,15 +133,20 @@ const App: React.FC = () => {
   const [showContinueModal, setShowContinueModal] = useState(false);
   const [continueUsesRemaining, setContinueUsesRemaining] = useState(3);
   const [isLoadingAd, setIsLoadingAd] = useState(false);
+  const continueRequestIdRef = useRef(0);
   
   // Custom hooks
-  useBrowserHistory();
   const { showPWAPrompt, showIOSInstructions, setShowIOSInstructions, triggerInstall } = usePWAInstall(isGameOver, score);
   useGameSync();
   
   // Get exit dialog state from useBrowserHistory
   const browserHistory = useBrowserHistory();
-  const { showExitDialog, handleConfirm: handleExitConfirm, handleCancel: handleExitCancel } = browserHistory;
+  const {
+    showExitDialog,
+    handleConfirm: handleExitConfirm,
+    handleCancel: handleExitCancel,
+    requestGameExit,
+  } = browserHistory;
 
   // Memoized event handlers for performance
   const handlePlayAgain = useCallback(() => {
@@ -191,10 +182,11 @@ const App: React.FC = () => {
     setTheme(theme);
   }, [setTheme]);
 
-  const handleLanguageChange = useCallback((lang: 'tr' | 'en') => {
+  const handleLanguageChange = useCallback((lang: AppLanguage) => {
     playClick();
-    changeLanguage(lang);
-  }, []);
+    i18n.changeLanguage(lang);
+    localStorage.setItem('flux_language', lang);
+  }, [i18n]);
 
   const handleThemeSelectorClose = useCallback(() => {
     playClick();
@@ -307,6 +299,26 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    detectDeviceCapabilities().then(capabilities => {
+      if (!active) return;
+      usePerformanceStore.getState().updateDeviceInfo({
+        tier: capabilities.tier,
+        model: capabilities.deviceModel,
+        score: capabilities.score,
+        gpu: capabilities.gpuRenderer,
+        native: capabilities.isNative,
+      });
+    }).catch(error => {
+      console.warn('[GameApp] Device capability detection failed:', error);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     // We don't call initGame() here anymore to allow starting on the HOME screen.
     window.addEventListener('pointerdown', handleFirstTouch);
     return () => window.removeEventListener('pointerdown', handleFirstTouch);
@@ -336,14 +348,64 @@ const App: React.FC = () => {
     }
   }, [initGame]);
 
-  // Global Timer Loop
+  // Align updates to visible second boundaries instead of waking React four times per second.
   useEffect(() => {
-    if (appState !== AppState.GAME || isGameOver) return;
-    const interval = setInterval(() => {
-      tickTimer();
-    }, 250); // 250ms for more accurate timer updates
-    return () => clearInterval(interval);
-  }, [gameMode, appState, isGameOver, tickTimer]);
+    if (appState !== AppState.GAME || isGameOver || gameMode !== GameMode.TIMED) return;
+    let timeoutId: number | null = null;
+    let stopped = false;
+
+    const runTick = () => {
+      const current = useGameStore.getState();
+      if (
+        stopped ||
+        current.appState !== AppState.GAME ||
+        current.isGameOver ||
+        current.gameMode !== GameMode.TIMED
+      ) return;
+
+      current.tickTimer();
+
+      const next = useGameStore.getState();
+      if (next.isGameOver || !next.timerExpectedEnd) return;
+
+      const remainingMs = Math.max(0, next.timerExpectedEnd - Date.now());
+      const boundaryDelay = remainingMs % 1000;
+      const delay = Math.max(50, boundaryDelay === 0 ? 1000 : boundaryDelay) + 16;
+      timeoutId = window.setTimeout(runTick, delay);
+    };
+
+    runTick();
+    return () => {
+      stopped = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+    };
+  }, [gameMode, appState, isGameOver, timerExpectedEnd]);
+
+  // Every mode only needs one state update when the combo actually expires.
+  useEffect(() => {
+    if (
+      appState !== AppState.GAME ||
+      isGameOver ||
+      combo <= 0 ||
+      comboTimerStartTime === null
+    ) return;
+
+    const remainingMs = Math.max(
+      0,
+      comboTimerStartTime + comboTimerDuration - Date.now()
+    );
+    const timeoutId = window.setTimeout(() => {
+      const current = useGameStore.getState();
+      if (current.comboTimerStartTime !== comboTimerStartTime || current.combo <= 0) return;
+      useGameStore.setState({
+        combo: 0,
+        comboTimerStartTime: null,
+        comboTimeLeft: 0,
+      });
+    }, remainingMs + 16);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [appState, combo, comboTimerDuration, comboTimerStartTime, isGameOver]);
 
   // Play game over sound + haptic
   useEffect(() => {
@@ -359,19 +421,24 @@ const App: React.FC = () => {
   // Show continue modal when game over and continue is available
   useEffect(() => {
     if (isGameOver && !prevGameOver) {
-      const canContinue = !reviveUsedThisRun && AdManager.canShowRewardedContinue();
-      if (canContinue) {
+      if (canUseRewardedContinue) {
         setShowContinueModal(true);
         setContinueUsesRemaining(AdManager.getRewardedContinueRemaining());
       } else {
         finalizeGameOver();
       }
     }
-  }, [finalizeGameOver, isGameOver, prevGameOver, reviveUsedThisRun]);
+  }, [canUseRewardedContinue, finalizeGameOver, isGameOver, prevGameOver]);
 
   // Handle continue feature
   const handleContinue = useCallback(async () => {
     console.log('[GameApp] handleContinue called');
+
+    if (gameMode === GameMode.TIMED) {
+      setShowContinueModal(false);
+      finalizeGameOver();
+      return;
+    }
     
     // CRITICAL: Prevent multiple clicks
     if (isLoadingAd) {
@@ -381,6 +448,8 @@ const App: React.FC = () => {
     
     // Set loading state immediately to prevent rapid clicks
     setIsLoadingAd(true);
+    const requestId = continueRequestIdRef.current + 1;
+    continueRequestIdRef.current = requestId;
     
     // Small delay to ensure state update propagates
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -390,6 +459,11 @@ const App: React.FC = () => {
       const result = await AdManager.showRewardedContinue();
       
       console.log('[GameApp] Rewarded ad result:', result);
+
+      if (continueRequestIdRef.current !== requestId) {
+        console.log('[GameApp] Stale rewarded continue result ignored');
+        return;
+      }
       
       if (result.success) {
         console.log('[GameApp] Ad successful, continuing game...');
@@ -423,9 +497,78 @@ const App: React.FC = () => {
   }, [difficultyTier, finalizeGameOver, gameMode, grid, isLoadingAd, markReviveUsed, timerStartTime]);
 
   const handleDecline = useCallback(() => {
+    continueRequestIdRef.current += 1;
     setShowContinueModal(false);
+    setIsLoadingAd(false);
     finalizeGameOver();
   }, [finalizeGameOver]);
+
+  const handleNativeBack = useCallback(() => {
+    if (showThemeSelector) {
+      setShowThemeSelector(false);
+      return true;
+    }
+
+    if (showIOSInstructions) {
+      handleCloseIOSInstructions();
+      return true;
+    }
+
+    if (showExitDialog) {
+      handleExitCancel();
+      return true;
+    }
+
+    if (showContinueModal) {
+      if (!isLoadingAd) {
+        handleDecline();
+      }
+      return true;
+    }
+
+    if (isGameOver) {
+      handleClose();
+      return true;
+    }
+
+    if (appState === AppState.GAME) {
+      requestGameExit();
+      return true;
+    }
+
+    if (appState !== AppState.HOME) {
+      setAppState(AppState.HOME);
+      return true;
+    }
+
+    return false;
+  }, [
+    appState,
+    handleClose,
+    handleCloseIOSInstructions,
+    handleDecline,
+    handleExitCancel,
+    isGameOver,
+    isLoadingAd,
+    requestGameExit,
+    setAppState,
+    showContinueModal,
+    showExitDialog,
+    showIOSInstructions,
+    showThemeSelector,
+  ]);
+
+  useEffect(() => {
+    const setNativeBackHandler = useUnifiedNavigationStore.getState().setNativeBackHandler;
+    setNativeBackHandler(handleNativeBack);
+
+    return () => {
+      const navigationStore = useUnifiedNavigationStore.getState();
+      if (navigationStore.nativeBackHandler === handleNativeBack) {
+        navigationStore.setNativeBackHandler(null);
+      }
+    };
+  }, [handleNativeBack]);
 
   // Score popup on score change
   useEffect(() => {
@@ -491,22 +634,8 @@ const App: React.FC = () => {
     }
   }, [lastAction]);
 
-  // Track previous timeLeft for combo break detection
+  // Combo milestone detection for small feedback at meaningful growth points.
   useEffect(() => {
-    prevTimeLeftRef.current = timeLeft;
-  }, [timeLeft]);
-
-  // Combo break penalty visual feedback for TIMED mode
-  useEffect(() => {
-    if (gameMode === GameMode.TIMED && prevComboRef.current > 0 && combo === 0) {
-      // Show -1 second popup
-      setTimePopups(prev => [...prev, {
-        id: timePopupIdRef.current++,
-        value: -1,
-      }]);
-    }
-    
-    // Combo milestone detection: small feedback at meaningful growth points.
     if ((combo === 2 || combo === 5 || combo === 8 || (combo > 8 && combo % 5 === 0)) && combo > prevComboRef.current) {
       setShowComboMilestone(true);
       const timer = setTimeout(() => setShowComboMilestone(false), 800);
@@ -523,27 +652,6 @@ const App: React.FC = () => {
     }
     prevActiveEventRef.current = activeEvent;
   }, [activeEvent]);
-
-  // Tier celebration detection
-  useEffect(() => {
-    if (lastAction?.type === 'MILESTONE' && lastAction.tier && lastAction.tierName) {
-      const multiplier = TIER_SCORE_MULTIPLIERS[lastAction.tier] || 1.0;
-      
-      setTierCelebration({
-        tier: lastAction.tier,
-        tierName: lastAction.tierName,
-        multiplier,
-        eventLabel: TIER_EVENT_LABELS[lastAction.tier] ?? 'Tier baskısı',
-        nextGoal: TIER_THRESHOLDS[lastAction.tier + 1] ?? null,
-      });
-      
-      playSkill();
-      hapticEvents.surge();
-      
-      const timer = setTimeout(() => setTierCelebration(null), 2800);
-      return () => clearTimeout(timer);
-    }
-  }, [lastAction]);
 
   // Time popups for TIMED mode (removed BLITZ)
   // Note: BLITZ mechanics can be integrated into TIMED mode with a speed parameter in the future
@@ -597,12 +705,6 @@ const App: React.FC = () => {
     }
   }, [isGameOver]);
 
-  // Language change handler
-  const changeLanguage = (lang: 'tr' | 'en') => {
-    i18n.changeLanguage(lang);
-    localStorage.setItem('flux_language', lang);
-  };
-
   return (
     <div className="game-container" onPointerDown={unlockAudio} style={{ background: colors.background }}>
       <AnimatePresence mode="wait">
@@ -618,8 +720,6 @@ const App: React.FC = () => {
             scorePopups={scorePopups}
             showSurgeFlash={showSurgeFlash}
             timedBoostMovesLeft={timedBoostMovesLeft}
-            timePopups={timePopups}
-            setTimePopups={setTimePopups}
             shownChain={shownChain}
             showPerfect={showPerfect}
             eventStartVisual={eventStartVisual}
@@ -632,39 +732,12 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       {/* Persistence and Global Overlays */}
-      <ScreenShakeEffect>
-        <DragOverlay />
-      </ScreenShakeEffect>
-      <GridBreathingEffect />
-      <LineClearAnimations />
-      <PlacementFeedbackEffect />
-      <PlacementImpactEffect />
-      <ParticleExplosionOverlay />
+      <DragOverlay />
       
       {/* Achievement Notification */}
       <Suspense fallback={null}>
         <AchievementNotification />
       </Suspense>
-
-      {/* Tier Celebration Overlay */}
-      <AnimatePresence>
-        {tierCelebration && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[65] flex items-center justify-center pointer-events-none"
-          >
-            <TierCelebrationOverlay
-              tier={tierCelebration.tier}
-              tierName={tierCelebration.tierName}
-              multiplier={tierCelebration.multiplier}
-              eventLabel={tierCelebration.eventLabel}
-              nextGoal={tierCelebration.nextGoal}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         <Suspense fallback={null}>
@@ -672,7 +745,7 @@ const App: React.FC = () => {
             isVisible={showContinueModal}
             onContinue={handleContinue}
             onDecline={handleDecline}
-            canContinue={!reviveUsedThisRun && AdManager.canShowRewardedContinue()}
+            canContinue={canUseRewardedContinue}
             usesRemaining={continueUsesRemaining}
             isLoading={isLoadingAd}
           />
@@ -776,25 +849,24 @@ const App: React.FC = () => {
                 <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 8, textAlign: 'center' }}>
                   {t('settings.language')}
                 </p>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {(['tr', 'en'] as const).map(lang => (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                  {GAME_APP_LANGUAGE_OPTIONS.map(option => (
                     <button
-                      key={lang}
-                      onClick={() => handleLanguageChange(lang)}
+                      key={option.code}
+                      onClick={() => handleLanguageChange(option.code)}
                       style={{
-                        flex: 1,
                         padding: '10px 0',
                         borderRadius: 10,
-                        border: `1.5px solid ${i18n.language === lang ? 'rgba(59,130,246,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                        background: i18n.language === lang ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)',
-                        color: i18n.language === lang ? '#93c5fd' : 'rgba(255,255,255,0.4)',
-                        fontSize: 13,
+                        border: `1.5px solid ${i18n.language === option.code ? 'rgba(59,130,246,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                        background: i18n.language === option.code ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)',
+                        color: i18n.language === option.code ? '#93c5fd' : 'rgba(255,255,255,0.4)',
+                        fontSize: 12,
                         fontWeight: 600,
                         cursor: 'pointer',
                         transition: 'all 0.2s',
                       }}
                     >
-                      {lang === 'tr' ? '🇹🇷 Türkçe' : '🇬🇧 English'}
+                      {option.label}
                     </button>
                   ))}
                 </div>
@@ -818,16 +890,6 @@ const App: React.FC = () => {
         onCancel={handleExitCancel}
       />
       
-      {/* New Juice System Components */}
-      <TierTransitionAnimation />
-      <ScoreMilestoneCelebration />
-      <AbilityUnlockAnimation />
-      <StreakIndicator />
-      <NearMissWarning />
-      <PauseResumeAnimation />
-      <GameOverSequence />
-      <VictoryCelebration />
-      <ModeChangeTransition />
     </div>
   );
 };

@@ -4,25 +4,31 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group
-        android:scaleX="0.8"
-        android:scaleY="0.8"
-        android:translateX="10.8"
-        android:translateY="10.8">
-        <!-- Grid outline -->
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M20,20h68v68h-68z"/>
-        
-        <!-- Grid lines -->
-        <path
-            android:strokeColor="#000000"
-            android:strokeWidth="2"
-            android:pathData="M20,37h68M20,54h68M20,71h68M37,20v68M54,20v68M71,20v68"/>
-        
-        <!-- Blocks -->
-        <path
-            android:fillColor="#000000"
-            android:pathData="M37,37h17v17h-17zM54,54h17v17h-17zM71,37h17v17h-17z"/>
-    </group>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="
+            M23,24h12v12h-12z
+            M37,24h12v12h-12z
+            M51,24h12v12h-12z
+            M65,24h12v12h-12z
+            M79,24h12v12h-12z
+
+            M23,38h12v12h-12z
+            M37,38h12v12h-12z
+            M51,38h12v12h-12z
+            M65,38h12v12h-12z
+
+            M23,52h12v12h-12z
+            M37,52h12v12h-12z
+            M51,52h12v12h-12z
+            M79,52h12v12h-12z
+
+            M23,66h12v12h-12z
+            M37,66h12v12h-12z
+            M65,66h12v12h-12z
+            M79,66h12v12h-12z
+
+            M23,80h12v12h-12z
+            M65,80h12v12h-12z
+            M79,80h12v12h-12z" />
 </vector>

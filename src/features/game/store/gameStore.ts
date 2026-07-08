@@ -2,8 +2,20 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { GridState, Piece, GRID_SIZE, GridCell, CellType, Achievement, MultiplierBreakdown, ProgressionState } from '../types';
 import { AppState, GameStats, GameMode } from '@shared/types';
-import { POINTS, EXPANDED_ACHIEVEMENTS, TIER_SCORE_MULTIPLIERS, TIMED_MODE, COMBO_TIMER } from '../constants';
-import { playPlace, playInvalid, playClear, playCombo, playSkill, playSurgeStart, playSurgeEnd, gameFeelEvents } from '../../../utils/audio';
+import { POINTS, EXPANDED_ACHIEVEMENTS, TIER_SCORE_MULTIPLIERS, TIMED_MODE, COMBO_TIMER, FIXED_GRID_TIER } from '../constants';
+import {
+  playPlace,
+  playInvalid,
+  playClear,
+  playCombo,
+  playIceHit,
+  playIceBreak,
+  playBombChain,
+  playSkill,
+  playSurgeStart,
+  playSurgeEnd,
+  gameFeelEvents,
+} from '../../../utils/audio';
 import { safeExecute, ErrorCategory } from '../../../utils/managers/errorHandler';
 import { safeLocalStorageGet, safeParseInt, safeJSONParse } from './helpers/localStorage';
 import { createEmptyGrid, processGrid } from './helpers/grid';
@@ -13,12 +25,13 @@ import { useProfileStore } from '../../profile/store/profileStore';
 import { useTutorialStore } from '../../tutorial/store/tutorialStore';
 import { getTutorialGridState, getTutorialPieces } from '../../tutorial/data/tutorialPieces';
 import { tickTimerImpl } from './helpers/timerLogic';
-import { checkTierEvent, tickActiveEvent } from './helpers/eventSystem';
+import { checkTierEvent, removeVoidZones, tickActiveEvent } from './helpers/eventSystem';
 import { updateAchievements, syncNewAchievement } from './helpers/achievementSystem';
 import { createMiniEventState, checkMiniEvents, shouldPreventComboBreak, getMiniEventMultiplier, isPieceBlessingActive, tickMiniEvents } from './helpers/miniEventSystem';
 import { createProgressionState, updateStreak, getStreakMultiplier, checkMilestones, checkTimedMilestones } from './helpers/progressionSystem';
 import { JuiceTriggers } from '../../visual-effects/utils/juiceTriggers';
 import {
+  calculateComboScorePoints,
   calculateScore,
   calculateTurnScore,
   createEmptyTimedScoreBreakdown,
@@ -26,15 +39,32 @@ import {
 } from './helpers/scoreCalculator';
 import { migrateSaveData, SaveData } from './helpers/migration';
 import { storageService as LocalStorageService } from '@core/services/storage/StorageService';
-import { useVisualEffectStore } from '../../visual-effects/store/visualEffectStore';
 import { saveGameState, loadGameState, clearGameSave, hasSavedGame } from './helpers/gameSaveSystem';
 import { getTimedClearBonusSeconds } from './helpers/difficultyScaling';
-import { DIFFICULTY_SCALING } from '../constants/difficultyScaling';
 import { finalizeGameRun } from './helpers/runFinalizer';
+import {
+  clampTier6GravityCharge,
+  countImmediateCompletedLines,
+  getNextTier6GravityCharge,
+  shouldApplyGravityForTurn,
+} from './helpers/tier6Gravity';
+import {
+  getNextTimedMomentum,
+  resolveTimedTimeReward,
+} from './helpers/timedInnovations';
 
 // Re-export slice types for consumers
 export type { TimedModeSlice } from './slices/timedModeSlice';
 export type { ProgressionSlice } from './slices/progressionSlice';
+
+export interface TimedEventFeedback {
+  id: number;
+  type: 'TARGET' | 'FREEZE' | 'LAST_CHANCE' | 'FINAL_RUSH' | 'CLEAR_TIME';
+  label: string;
+  seconds?: number;
+  score?: number;
+  targetCount?: number;
+}
 
 /**
  * Synchronous stats save — ensures stats persist even when async
@@ -120,9 +150,24 @@ export interface GameStore {
       color: string;
       health?: number;
     }>;
+    damagedIceCells?: Array<{
+      id?: string;
+      x: number;
+      y: number;
+      color: string;
+      health: number;
+    }>;
+    bombCells?: Array<{
+      id?: string;
+      x: number;
+      y: number;
+      color: string;
+    }>;
     isPerfectClear?: boolean;
+    tier6GravityTriggered?: boolean;
     tier?: number;
     tierName?: string;
+    unlockLabel?: string;
     cellIds?: string[];
     dropHeight?: number;
   } | null;
@@ -157,12 +202,15 @@ export interface GameStore {
     metadata?: {
       tier?: number;
       skillsUsed?: string[];
+      statsVersion?: number;
     };
   }>;
 
   // ── Progression Slice ─────────────────────────────────────────────────────────
   difficultyTier: number;
+  tier6GravityCharge: number;
   totalMovesPlayed: number;
+  runLinesCleared: number;
   tierStartMove: number;
   activeEvent: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
   eventMovesRemaining: number;
@@ -178,6 +226,15 @@ export interface GameStore {
   maxCombo: number;
   finalSprintBonus: number;
   timedScoreBreakdown: TimedScoreBreakdown;
+  timedTargets: Array<{ x: number; y: number }>;
+  timedMomentum: number;
+  timedLastClearAt: number | null;
+  timedFreezeUntil: number | null;
+  timedLastChanceAvailable: boolean;
+  timedLastChanceActive: boolean;
+  timedBonusSecondsEarned: number;
+  timedFinalRushLocked: boolean;
+  lastTimedEvent: TimedEventFeedback | null;
   timedMilestones: Set<string>;
   lastMilestoneShown: { id: string; label: string } | null;
   showNewRecordNotification: boolean;
@@ -229,6 +286,11 @@ const INITIAL_STATS: GameStats = {
   timedSprintBonusTotal: 0,
   perfectClears: 0,
   recordsBroken: 0,
+  largePiecesPlaced: 0,
+  lineFivePiecesPlaced: 0,
+  hollow3x3PiecesPlaced: 0,
+  square3x3PiecesPlaced: 0,
+  largePieceClears: 0,
 };
 
 export const useGameStore = create<GameStore>((set, get) => {
@@ -301,7 +363,9 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     // ── Progression Slice Initial State ───────────────────────────────────────
     difficultyTier: 0,
+    tier6GravityCharge: 0,
     totalMovesPlayed: 0,
+    runLinesCleared: 0,
     tierStartMove: 0,
     activeEvent: null,
     eventMovesRemaining: 0,
@@ -317,6 +381,15 @@ export const useGameStore = create<GameStore>((set, get) => {
     maxCombo: 0,
     finalSprintBonus: 0,
     timedScoreBreakdown: createEmptyTimedScoreBreakdown(),
+    timedTargets: [],
+    timedMomentum: 0,
+    timedLastClearAt: null,
+    timedFreezeUntil: null,
+    timedLastChanceAvailable: true,
+    timedLastChanceActive: false,
+    timedBonusSecondsEarned: 0,
+    timedFinalRushLocked: false,
+    lastTimedEvent: null,
     timedMilestones: new Set<string>(),
     lastMilestoneShown: null,
     showNewRecordNotification: false,
@@ -348,6 +421,9 @@ export const useGameStore = create<GameStore>((set, get) => {
 
           const loadedScore = migratedData?.score ?? 0;
           const loadedTier = migratedData?.difficultyTier ?? 0;
+          const loadedTier6GravityCharge = loadedTier >= FIXED_GRID_TIER
+            ? clampTier6GravityCharge(migratedData?.tier6GravityCharge ?? 0)
+            : 0;
           const savedActiveEvent = migratedData?.activeEvent;
           const loadedActiveEvent =
             savedActiveEvent === 'ICE_STORM' ||
@@ -360,6 +436,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           const loadedEventMovesRemaining = migratedData?.eventMovesRemaining ?? 0;
           const loadedMiniEventState = migratedData?.miniEventState ?? createMiniEventState();
           const loadedTotalMovesPlayed = migratedData?.totalMovesPlayed ?? 0;
+          const loadedRunLinesCleared = migratedData?.runLinesCleared ?? 0;
           const loadedTierStartMove = migratedData?.tierStartMove ?? loadedTotalMovesPlayed;
 
           const currentHighScores = get().highScores;
@@ -401,6 +478,15 @@ export const useGameStore = create<GameStore>((set, get) => {
             maxCombo: 0,
             finalSprintBonus: 0,
             timedScoreBreakdown: createEmptyTimedScoreBreakdown(),
+            timedTargets: [],
+            timedMomentum: 0,
+            timedLastClearAt: null,
+            timedFreezeUntil: null,
+            timedLastChanceAvailable: isTimed,
+            timedLastChanceActive: false,
+            timedBonusSecondsEarned: 0,
+            timedFinalRushLocked: false,
+            lastTimedEvent: null,
             timedMilestones: new Set<string>(),
             lastMilestoneShown: null,
             showNewRecordNotification: false,
@@ -409,10 +495,12 @@ export const useGameStore = create<GameStore>((set, get) => {
             comboTimeLeft: 0,
             // Progression slice
             difficultyTier: loadedTier,
+            tier6GravityCharge: loadedTier6GravityCharge,
             activeEvent: loadedActiveEvent,
             eventMovesRemaining: loadedEventMovesRemaining,
             miniEventState: loadedMiniEventState,
             totalMovesPlayed: loadedTotalMovesPlayed,
+            runLinesCleared: loadedRunLinesCleared,
             tierStartMove: loadedTierStartMove,
             lastMultiplierBreakdown: null,
             // Daily challenge
@@ -420,15 +508,6 @@ export const useGameStore = create<GameStore>((set, get) => {
             // Piece state
             isPiecesLoading: false,
           });
-
-          const newStats = { ...get().stats, gamesPlayed: get().stats.gamesPlayed + 1 };
-          if (mode === GameMode.ENDLESS) {
-            newStats.endlessGamesPlayed = (newStats.endlessGamesPlayed || 0) + 1;
-          } else if (mode === GameMode.TIMED) {
-            newStats.timedGamesPlayed = (newStats.timedGamesPlayed || 0) + 1;
-          }
-          set({ stats: newStats });
-          syncSaveStats(newStats);
 
           if (shouldStartTutorial) {
             tutorialStore.start();
@@ -449,6 +528,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           isGameOver: false,
           gameOverFinalized: false,
           reviveUsedThisRun: false,
+          tier6GravityCharge: 0,
           appState: AppState.HOME
         });
       }
@@ -490,6 +570,8 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     placePiece: (piece, startX, startY) => {
       const { grid, score, combo, highScore, gameMode, timerStartTime } = get();
+      const isTimedMode = gameMode === GameMode.TIMED;
+      const wasTimedLastChanceActive = isTimedMode && get().timedLastChanceActive;
 
       if (!grid || grid.length !== GRID_SIZE) {
         console.error('placePiece: invalid grid state');
@@ -505,22 +587,22 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       JuiceTriggers.onValidPlacement();
 
-      // Start timer on first piece placement (Timed mode)
-      if (gameMode === GameMode.TIMED && timerStartTime === null && !useTutorialStore.getState().isActive) {
+      // Track real run duration in every mode; Timed also needs its deadline.
+      if (timerStartTime === null && !useTutorialStore.getState().isActive) {
         const now = Date.now();
-        set({
-          timerStartTime: now,
-          timerExpectedEnd: now + TIMED_MODE.DURATION_SECONDS * 1000,
-          timeLeft: TIMED_MODE.DURATION_SECONDS,
-        });
+        set(gameMode === GameMode.TIMED
+          ? {
+              timerStartTime: now,
+              timerExpectedEnd: now + TIMED_MODE.DURATION_SECONDS * 1000,
+              timeLeft: TIMED_MODE.DURATION_SECONDS,
+            }
+          : { timerStartTime: now });
       }
 
       const justPlacedPiece = piece;
 
-      // Increment move counter (Endless only)
-      if (gameMode === GameMode.ENDLESS) {
-        set({ totalMovesPlayed: get().totalMovesPlayed + 1 });
-      }
+      // Increment move counter for streak eligibility and Endless progression.
+      set({ totalMovesPlayed: get().totalMovesPlayed + 1 });
 
       // Update grid
       const tempGrid = grid.map(row => row.map(cell => ({ ...cell })));
@@ -550,42 +632,77 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       const dropHeight = startY;
 
-      // Process grid (line clear, bombs, ice)
-      const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken, actions } = processGrid(tempGrid);
+      // Tier 6 uses a predictable charge: the third successful clear gets gravity.
+      const turnDifficultyTier = get().difficultyTier;
+      const currentTier6GravityCharge = get().tier6GravityCharge;
+      const immediateCompletedLines = countImmediateCompletedLines(tempGrid);
+      const gravityEnabled = shouldApplyGravityForTurn(
+        gameMode,
+        turnDifficultyTier,
+        currentTier6GravityCharge,
+        immediateCompletedLines
+      );
+      const { grid: newGrid, totalLinesCleared: linesCleared, chainCount, colorBonus, bombsExploded, iceBroken, actions } = processGrid(tempGrid, {
+        applyGravity: gravityEnabled,
+      });
+      const nextTier6GravityCharge = getNextTier6GravityCharge(
+        gameMode,
+        turnDifficultyTier,
+        currentTier6GravityCharge,
+        immediateCompletedLines
+      );
+      const tier6GravityTriggered = gameMode === GameMode.ENDLESS
+        && turnDifficultyTier >= FIXED_GRID_TIER
+        && immediateCompletedLines > 0
+        && gravityEnabled;
+      const feedbackClearActions = actions.filter(action => action.type === 'CELL_CLEAR');
+      const damagedIceCount = feedbackClearActions.reduce(
+        (total, action) => total + (action.damagedIceCells?.length || 0),
+        0
+      );
+      const bombChainCount = feedbackClearActions.reduce(
+        (total, action) => total + (action.bombCells?.length || 0),
+        0
+      );
+      const now = Date.now();
+      const hitTimedTargets: Array<{ x: number; y: number }> = [];
+      const nextTimedTargets: Array<{ x: number; y: number }> = [];
+      const timedTargetReward = { seconds: 0, scoreMultiplier: 1 };
+      const timedMomentumResult = isTimedMode
+        ? getNextTimedMomentum(
+            get().timedMomentum,
+            linesCleared,
+            get().timedLastClearAt,
+            now
+          )
+        : {
+            momentum: get().timedMomentum,
+            lastClearAt: get().timedLastClearAt,
+            freezeTriggered: false,
+          };
 
       if (linesCleared > 0) {
         JuiceTriggers.onLinesCleared(actions as any, combo + linesCleared);
       }
 
-      const isPerfectClear = newGrid.every(row => row.every(cell => !cell.filled));
+      const isPerfectClear = newGrid.every(row =>
+        row.every(cell => !cell.filled || cell.type === CellType.VOID)
+      );
       if (isPerfectClear) {
         set({ perfectClearDetected: true });
       }
-
-      // Secondary cell bursts are reserved for multi, perfect and special clears.
-      // Single normal clears stay cleaner: board sweep + haptic + score feedback.
-      const shouldShowSecondaryClearBurst = linesCleared >= 2 || isPerfectClear || actions.some(action =>
-        action.type === 'CELL_CLEAR' &&
-        action.cells?.some((cell: any) => cell.cellType === CellType.BOMB || cell.cellType === CellType.ICE)
-      );
-      if (shouldShowSecondaryClearBurst && combo < 10) {
-        const maxExplosions = isPerfectClear ? 1 : (combo >= 5 ? 1 : (linesCleared >= 3 ? 2 : 1));
-        actions.forEach(action => {
-          if (action.type === 'CELL_CLEAR') {
-            const clearAction = action as any;
-            clearAction.cells.slice(0, maxExplosions).forEach((cell: any) => {
-              setTimeout(() => {
-                useVisualEffectStore.getState().addEffect({
-                  type: 'explosion',
-                  duration: 100,
-                  target: `cell-${cell.x}-${cell.y}`,
-                  props: { x: cell.x, y: cell.y, color: cell.color, blockSize: 20, cellType: cell.cellType },
-                });
-              }, 50);
-            });
-          }
-        });
-      }
+      const largeAchievementShapeIds = new Set([
+        'rect_2x3',
+        'rect_3x2',
+        'h5',
+        'v5',
+        'big_l_shape',
+        'big_j_shape',
+        'hollow_3x3',
+        'square_3x3',
+      ]);
+      const isLargeAchievementPiece = largeAchievementShapeIds.has(piece.id);
+      const isLineFivePiece = piece.id === 'h5' || piece.id === 'v5';
 
       // Mini-events (Endless only)
       let updatedMiniEventState = get().miniEventState;
@@ -597,7 +714,6 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       // Combo timer logic
       const comboShieldPrevented = gameMode === GameMode.ENDLESS && shouldPreventComboBreak(updatedMiniEventState, linesCleared);
-      const now = Date.now();
       const currentComboTimer = get().comboTimerStartTime;
       const comboTimerDuration = get().comboTimerDuration;
 
@@ -637,7 +753,6 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
 
       // COMBO_RUSH (Timed mode)
-      const isTimedMode = gameMode === GameMode.TIMED;
       const prevTimedBoostMoves = get().timedBoostMovesLeft;
       let newTimedBoostMoves = prevTimedBoostMoves;
 
@@ -653,13 +768,35 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
 
       const comboMultiplier = linesCleared > 0 ? newCombo : combo;
-      const isFinalSeconds = gameMode === GameMode.TIMED && get().timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD;
+      const finalRushLockedForTurn = isTimedMode && (
+        get().timedFinalRushLocked ||
+        get().timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD
+      );
+      const clearTimeBonus = isTimedMode && linesCleared > 0
+        ? (wasTimedLastChanceActive
+            ? TIMED_MODE.LAST_CHANCE_SECONDS
+            : getTimedClearBonusSeconds(linesCleared, isPerfectClear, isRushActive))
+        : 0;
+      const freezeTimeBonus = timedMomentumResult.freezeTriggered
+        ? TIMED_MODE.MOMENTUM_FREEZE_SECONDS
+        : 0;
+      const requestedTimeReward = clearTimeBonus + freezeTimeBonus;
+      const timedTimeReward = isTimedMode
+        ? resolveTimedTimeReward(
+            requestedTimeReward,
+            get().timedBonusSecondsEarned,
+            finalRushLockedForTurn,
+            get().timedLastChanceAvailable,
+            wasTimedLastChanceActive
+          )
+        : { grantedSeconds: 0, convertedScore: 0, totalBonusSeconds: 0 };
+      const isFinalSeconds = finalRushLockedForTurn;
 
       const {
         pointsGained,
-        scoreDelta: timedScoreDelta,
+        scoreDelta: baseTimedScoreDelta,
         sprintBonusGained,
-        timedScoreBreakdown,
+        timedScoreBreakdown: baseTimedScoreBreakdown,
         breakdown,
       } = calculateTurnScore({
         blocksPlaced,
@@ -675,6 +812,16 @@ export const useGameStore = create<GameStore>((set, get) => {
         previousTimedBreakdown: get().timedScoreBreakdown,
       });
 
+      const timedTargetScoreBonus = 0;
+      const timedRewardScoreBonus = timedTimeReward.convertedScore;
+      const timedScoreDelta = baseTimedScoreDelta + timedRewardScoreBonus;
+      const timedScoreBreakdown = timedRewardScoreBonus > 0
+        ? {
+            ...baseTimedScoreBreakdown,
+            bonus: baseTimedScoreBreakdown.bonus + timedRewardScoreBonus,
+            total: baseTimedScoreBreakdown.total + timedRewardScoreBonus,
+          }
+        : baseTimedScoreBreakdown;
       let newScore = score + timedScoreDelta;
 
       // Milestones (Endless only)
@@ -695,6 +842,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         const clearedCols = Array.from(new Set(clearActions.flatMap(action => action.cols || [])));
         const movedCells = clearActions.flatMap(action => action.movedCells || []);
         const lockedIceCells = clearActions.flatMap(action => action.lockedIceCells || []);
+        const damagedIceCells = clearActions.flatMap(action => action.damagedIceCells || []);
+        const bombCells = clearActions.flatMap(action => action.bombCells || []);
 
         set({
           lastAction: {
@@ -708,7 +857,10 @@ export const useGameStore = create<GameStore>((set, get) => {
             clearedCols,
             movedCells,
             lockedIceCells,
+            damagedIceCells,
+            bombCells,
             isPerfectClear,
+            tier6GravityTriggered,
           }
         });
         if (gameMode === GameMode.DAILY_CHALLENGE) {
@@ -719,12 +871,25 @@ export const useGameStore = create<GameStore>((set, get) => {
         set({ lastAction: { type: 'PLACE', cellIds: placedCellIds, dropHeight } });
       }
 
+      // Tier events (Endless). Calculate before tray refill so newly unlocked
+      // ICE/BOMB rates can affect the replacement tray immediately.
+      const prevDifficultyTier = get().difficultyTier;
+      let tierResult: ReturnType<typeof checkTierEvent> | null = null;
+      if (get().gameMode === GameMode.ENDLESS) {
+        tierResult = checkTierEvent(newScore, prevDifficultyTier, get, set);
+        if (tierResult) {
+          (tierResult as any).tierStartMove = get().totalMovesPlayed;
+        }
+      }
+
       // Refill tray
       let currentPieces = get().pieces.filter(p => p.instanceId !== piece.instanceId);
       if (currentPieces.length === 0) {
         set({ isPiecesLoading: true });
         const isDaily = get().gameMode === GameMode.DAILY_CHALLENGE;
-        const currentTier = get().gameMode === GameMode.ENDLESS ? get().difficultyTier : 0;
+        const currentTier = get().gameMode === GameMode.ENDLESS
+          ? tierResult?.difficultyTier ?? get().difficultyTier
+          : 0;
         try {
           currentPieces = getRandomPiecesSync(
             3, newGrid, isDaily,
@@ -740,7 +905,18 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       // Sounds
       if (linesCleared > 0) {
-        playClear(linesCleared);
+        playClear(linesCleared, comboMultiplier);
+        if (iceBroken > 0) {
+          playIceBreak();
+          gameFeelEvents.iceHit(true);
+        } else if (damagedIceCount > 0) {
+          playIceHit();
+          gameFeelEvents.iceHit(false);
+        }
+        if (bombChainCount > 0) {
+          playBombChain(bombChainCount);
+          gameFeelEvents.bombChain(bombChainCount);
+        }
         if ([2, 5, 8].includes(comboMultiplier) || (comboMultiplier > 8 && comboMultiplier % 5 === 0)) {
           playCombo(comboMultiplier);
         }
@@ -776,35 +952,93 @@ export const useGameStore = create<GameStore>((set, get) => {
       // Timed mode time reward
       let extraTime = 0;
       let timedTimeLeft = get().timeLeft;
-      if (get().gameMode === GameMode.TIMED && linesCleared > 0) {
-        extraTime = getTimedClearBonusSeconds(linesCleared, isPerfectClear, isRushActive);
+      let nextTimerExpectedEnd = get().timerExpectedEnd;
+      let nextTimedLastChanceActive = get().timedLastChanceActive;
+      let timedRunEndsAfterMove = false;
+      let nextTimedFreezeUntil = get().timedFreezeUntil;
+      let nextTimedEvent = get().lastTimedEvent;
 
-        const currentExpectedEnd = get().timerExpectedEnd;
+      if (isTimedMode && linesCleared > 0) {
+        extraTime = timedTimeReward.grantedSeconds;
+
+        const rewardNow = Date.now();
+        const currentExpectedEnd = wasTimedLastChanceActive
+          ? rewardNow
+          : nextTimerExpectedEnd;
         if (currentExpectedEnd) {
-          const nowTs = Date.now();
-          const maxTime = nowTs + DIFFICULTY_SCALING.TIMED_CLEAR_BONUS.MAX_TIME_SECONDS * 1000;
-          const newExpectedEnd = Math.min(maxTime, currentExpectedEnd + (extraTime * 1000));
-          const newTimeLeft = Math.max(0, Math.ceil((newExpectedEnd - nowTs) / 1000));
-          extraTime = newTimeLeft - get().timeLeft;
-          timedTimeLeft = newTimeLeft;
-          set({ timerExpectedEnd: newExpectedEnd });
+          nextTimerExpectedEnd = currentExpectedEnd + (extraTime * 1000);
+          timedTimeLeft = Math.max(0, Math.ceil((nextTimerExpectedEnd - rewardNow) / 1000));
         }
+
+        if (wasTimedLastChanceActive) {
+          nextTimedLastChanceActive = false;
+          nextTimedEvent = {
+            id: now,
+            type: 'LAST_CHANCE',
+            seconds: timedTimeReward.grantedSeconds,
+            label: `SON ŞANS · +${TIMED_MODE.LAST_CHANCE_SECONDS} sn`,
+          };
+        } else if (hitTimedTargets.length > 0) {
+          const scoreLabel = timedTargetReward.scoreMultiplier > 1 ? ' · 2× SKOR' : '';
+          const timeLabel = timedTimeReward.grantedSeconds > 0
+            ? ` · +${timedTimeReward.grantedSeconds} sn`
+            : '';
+          const convertedLabel = timedTimeReward.convertedScore > 0
+            ? ` · +${timedTimeReward.convertedScore} SKOR`
+            : '';
+          nextTimedEvent = {
+            id: now,
+            type: 'TARGET',
+            seconds: timedTimeReward.grantedSeconds,
+            score: timedTimeReward.convertedScore + timedTargetScoreBonus,
+            targetCount: hitTimedTargets.length,
+            label: `${hitTimedTargets.length} ZAMAN HEDEFİ${timeLabel}${convertedLabel}${scoreLabel}`,
+          };
+        } else if (timedMomentumResult.freezeTriggered && timedTimeReward.grantedSeconds > 0) {
+          nextTimedEvent = {
+            id: now,
+            type: 'FREEZE',
+            seconds: timedTimeReward.grantedSeconds,
+            label: `BOOST DOLDU · +${timedTimeReward.grantedSeconds} sn`,
+          };
+        } else if (timedTimeReward.grantedSeconds > 0) {
+          nextTimedEvent = {
+            id: now,
+            type: 'CLEAR_TIME',
+            seconds: timedTimeReward.grantedSeconds,
+            label: `+${timedTimeReward.grantedSeconds} sn`,
+          };
+        } else if (timedTimeReward.convertedScore > 0) {
+          nextTimedEvent = {
+            id: now,
+            type: 'FINAL_RUSH',
+            score: timedTimeReward.convertedScore,
+            label: `FINAL RUSH · +${timedTimeReward.convertedScore} SKOR`,
+          };
+        }
+
+        if (
+          timedMomentumResult.freezeTriggered &&
+          !finalRushLockedForTurn &&
+          timedTimeReward.grantedSeconds > 0
+        ) {
+          nextTimedFreezeUntil = now + (TIMED_MODE.MOMENTUM_FREEZE_SECONDS * 1000);
+        }
+      } else if (wasTimedLastChanceActive) {
+        nextTimedLastChanceActive = false;
+        nextTimerExpectedEnd = null;
+        timedTimeLeft = 0;
+        timedRunEndsAfterMove = true;
       }
 
       const newMaxCombo = Math.max(get().maxCombo, newCombo);
 
-      // Tier events (Endless)
-      const prevDifficultyTier = get().difficultyTier;
-      let tierResult: ReturnType<typeof checkTierEvent> | null = null;
-      if (get().gameMode === GameMode.ENDLESS) {
-        tierResult = checkTierEvent(newScore, prevDifficultyTier, get, set);
-        if (tierResult) {
-          (tierResult as any).tierStartMove = get().totalMovesPlayed;
-        }
-      }
-
       // Active event tick
-      const eventUpdates = tickActiveEvent(newGrid, justPlacedPiece, get, set);
+      // Tier 6 is a fixed-grid challenge only. End any previous event instead
+      // of carrying VOID/CHAOS effects into the final tier.
+      const eventUpdates = tierResult?.difficultyTier === 6
+        ? (get().activeEvent === 'VOID' ? { grid: removeVoidZones(newGrid) } : null)
+        : tickActiveEvent(newGrid, justPlacedPiece, get, set, currentPieces);
       const tierUpdates = tierResult ?? {};
       let finalGrid = (eventUpdates as any)?.grid ?? (tierUpdates as any)?.grid ?? newGrid;
 
@@ -817,14 +1051,16 @@ export const useGameStore = create<GameStore>((set, get) => {
       let maxChainCount = chainCount;
 
       if ((eventUpdates as any)?.grid || (tierUpdates as any)?.grid) {
-        const processResult = processGrid(finalGrid);
+        const effectiveTier = (tierResult as any)?.difficultyTier ?? get().difficultyTier;
+        const eventGravityEnabled = gameMode !== GameMode.ENDLESS || effectiveTier < FIXED_GRID_TIER;
+        const processResult = processGrid(finalGrid, { applyGravity: eventGravityEnabled });
         finalGrid = processResult.grid;
         eventLinesCleared = processResult.totalLinesCleared;
 
         if (eventLinesCleared > 0) {
           newCombo += eventLinesCleared;
           JuiceTriggers.onLinesCleared(processResult.actions as any, newCombo);
-          const eventBasePoints = (eventLinesCleared * POINTS.LINE_CLEARED) + (newCombo * POINTS.COMBO_MULTIPLIER);
+          const eventBasePoints = (eventLinesCleared * POINTS.LINE_CLEARED) + calculateComboScorePoints(newCombo);
           const { score: eventScore } = calculateScore(
             eventBasePoints, processResult.colorBonus, 1.0,
             gameMode === GameMode.ENDLESS ? get().difficultyTier : 0,
@@ -848,6 +1084,8 @@ export const useGameStore = create<GameStore>((set, get) => {
               clearedCols: Array.from(new Set(eventClearActions.flatMap(action => action.cols || []))),
               movedCells: eventClearActions.flatMap(action => action.movedCells || []),
               lockedIceCells: eventClearActions.flatMap(action => action.lockedIceCells || []),
+              damagedIceCells: eventClearActions.flatMap(action => action.damagedIceCells || []),
+              bombCells: eventClearActions.flatMap(action => action.bombCells || []),
             };
           }
         }
@@ -859,7 +1097,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         updatedMiniEventState = tickMiniEvents(updatedMiniEventState, totalLinesCleared, comboWouldBreak);
       }
 
-      const finalPerfectClear = finalGrid.every(row => row.every(cell => !cell.filled));
+      const finalPerfectClear = finalGrid.every(row =>
+        row.every(cell => !cell.filled || cell.type === CellType.VOID)
+      );
 
       set({
         ...tierUpdates,
@@ -874,12 +1114,25 @@ export const useGameStore = create<GameStore>((set, get) => {
         timedScoreBreakdown,
         maxCombo: newMaxCombo,
         timedBoostMovesLeft: newTimedBoostMoves,
+        timedTargets: nextTimedTargets,
+        timedMomentum: timedMomentumResult.momentum,
+        timedLastClearAt: timedMomentumResult.lastClearAt,
+        timedFreezeUntil: nextTimedFreezeUntil,
+        timedLastChanceActive: nextTimedLastChanceActive,
+        timedBonusSecondsEarned: timedTimeReward.totalBonusSeconds,
+        timedFinalRushLocked: finalRushLockedForTurn,
+        lastTimedEvent: nextTimedEvent,
+        timerExpectedEnd: nextTimerExpectedEnd,
         miniEventState: updatedMiniEventState,
         progressionState: updatedProgressionState,
         comboTimerStartTime: newComboTimerStart,
         comboTimeLeft: newComboTimeLeft,
         lastMultiplierBreakdown: breakdown,
         perfectClearDetected: get().perfectClearDetected || finalPerfectClear,
+        tier6GravityCharge: tierResult?.difficultyTier === FIXED_GRID_TIER
+          ? 0
+          : nextTier6GravityCharge,
+        ...(timedRunEndsAfterMove ? { isGameOver: true } : {}),
       });
 
       // Timed milestones + personal best
@@ -892,8 +1145,6 @@ export const useGameStore = create<GameStore>((set, get) => {
           set({ timedMilestones: updatedMilestones, lastMilestoneShown: newMilestone });
         }
         if (isNewPersonalBest(newScore)) {
-          const diff = newScore - (get().stats.timedHighScore || 0);
-          set({ showNewRecordNotification: true, newRecordDiff: diff });
           savePersonalBest(newScore);
         }
       }
@@ -908,6 +1159,11 @@ export const useGameStore = create<GameStore>((set, get) => {
         bombsExploded: currentStats.bombsExploded + totalBombsExploded,
         iceBroken: currentStats.iceBroken + totalIceBroken,
         perfectClears: (currentStats.perfectClears || 0) + (finalPerfectClear ? 1 : 0),
+        largePiecesPlaced: (currentStats.largePiecesPlaced || 0) + (isLargeAchievementPiece ? 1 : 0),
+        lineFivePiecesPlaced: (currentStats.lineFivePiecesPlaced || 0) + (isLineFivePiece ? 1 : 0),
+        hollow3x3PiecesPlaced: (currentStats.hollow3x3PiecesPlaced || 0) + (piece.id === 'hollow_3x3' ? 1 : 0),
+        square3x3PiecesPlaced: (currentStats.square3x3PiecesPlaced || 0) + (piece.id === 'square_3x3' ? 1 : 0),
+        largePieceClears: (currentStats.largePieceClears || 0) + (isLargeAchievementPiece && totalLinesCleared > 0 ? 1 : 0),
       };
 
       if (gameMode === GameMode.ENDLESS) {
@@ -923,7 +1179,10 @@ export const useGameStore = create<GameStore>((set, get) => {
         nextStats.timedSprintBonusTotal = (currentStats.timedSprintBonusTotal || 0) + sprintBonusGained;
       }
 
-      set({ stats: nextStats });
+      set({
+        stats: nextStats,
+        runLinesCleared: get().runLinesCleared + totalLinesCleared,
+      });
       syncSaveStats(nextStats);
 
       const previousAchievements = get().achievements;
@@ -988,15 +1247,27 @@ export const useGameStore = create<GameStore>((set, get) => {
         combo: state.combo,
         gameMode: state.gameMode,
         difficultyTier: state.difficultyTier,
+        tier6GravityCharge: state.tier6GravityCharge,
         timeLeft: state.timeLeft,
         timedBoostMovesLeft: state.timedBoostMovesLeft,
         maxCombo: state.maxCombo,
+        timedTargets: state.timedTargets,
+        timedMomentum: state.timedMomentum,
+        timedLastClearAt: state.timedLastClearAt,
+        timedLastChanceAvailable: state.timedLastChanceAvailable,
+        timedLastChanceActive: state.timedLastChanceActive,
+        timedBonusSecondsEarned: state.timedBonusSecondsEarned,
+        timedFinalRushLocked: state.timedFinalRushLocked,
         timedScoreBreakdown: state.timedScoreBreakdown,
         activeEvent: state.activeEvent,
         eventMovesRemaining: state.eventMovesRemaining,
         miniEventState: state.miniEventState,
         progressionState: state.progressionState,
         totalMovesPlayed: state.totalMovesPlayed,
+        runLinesCleared: state.runLinesCleared,
+        runElapsedSeconds: state.timerStartTime
+          ? Math.max(0, Math.floor((Date.now() - state.timerStartTime) / 1000))
+          : 0,
         tierStartMove: state.tierStartMove,
         savedAt: Date.now(),
       });
@@ -1021,6 +1292,7 @@ export const useGameStore = create<GameStore>((set, get) => {
             isClearing: false,
             type: cell.type,
             health: cell.health,
+            voidTurns: cell.voidTurns,
           }))
         );
 
@@ -1029,17 +1301,42 @@ export const useGameStore = create<GameStore>((set, get) => {
           score: savedState.score,
           combo: savedState.combo,
           difficultyTier: savedState.difficultyTier,
+          tier6GravityCharge: savedState.difficultyTier >= FIXED_GRID_TIER
+            ? clampTier6GravityCharge(savedState.tier6GravityCharge ?? 0)
+            : 0,
           timeLeft: savedState.timeLeft,
           timedBoostMovesLeft: savedState.timedBoostMovesLeft,
           maxCombo: savedState.maxCombo,
+          timedTargets: [],
+          timedMomentum: isTimed ? (savedState.timedMomentum ?? 0) : 0,
+          timedLastClearAt: isTimed ? (savedState.timedLastClearAt ?? null) : null,
+          timedFreezeUntil: null,
+          timedLastChanceAvailable: isTimed
+            ? (savedState.timedLastChanceAvailable ?? true)
+            : false,
+          timedLastChanceActive: isTimed
+            ? (savedState.timedLastChanceActive ?? false)
+            : false,
+          timedBonusSecondsEarned: isTimed
+            ? (savedState.timedBonusSecondsEarned ?? 0)
+            : 0,
+          timedFinalRushLocked: isTimed
+            ? (savedState.timedFinalRushLocked ?? savedState.timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD)
+            : false,
+          lastTimedEvent: null,
           activeEvent: savedState.activeEvent,
           eventMovesRemaining: savedState.eventMovesRemaining,
           miniEventState: createMiniEventState(),
           progressionState: createProgressionState(),
           totalMovesPlayed: savedState.totalMovesPlayed,
+          runLinesCleared: savedState.runLinesCleared ?? 0,
           tierStartMove: savedState.tierStartMove ?? savedState.totalMovesPlayed,
-          timerStartTime: isTimed ? now : null,
-          timerExpectedEnd: isTimed ? now + (savedState.timeLeft * 1000) : null,
+          timerStartTime: savedState.totalMovesPlayed > 0
+            ? now - ((savedState.runElapsedSeconds ?? 0) * 1000)
+            : null,
+          timerExpectedEnd: isTimed && !savedState.timedLastChanceActive
+            ? now + (savedState.timeLeft * 1000)
+            : null,
           timedScoreBreakdown: savedState.timedScoreBreakdown ?? createEmptyTimedScoreBreakdown(),
           isGameOver: false,
           draggedPiece: null,

@@ -1,15 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from '@shared/types';
 import { useGameStore } from '@features/game/store/gameStore';
-import { useTranslation } from 'react-i18next';
 
 export function useBrowserHistory() {
   const { appState, isGameOver, setAppState } = useGameStore();
-  const { t } = useTranslation();
   const isHandlingPopState = useRef(false);
   const historyDepth = useRef(0);
   const [showExitDialog, setShowExitDialog] = useState(false);
   const pendingNavigationRef = useRef<(() => void) | null>(null);
+
+  const requestGameExit = useCallback(() => {
+    pendingNavigationRef.current = () => {
+      setAppState(AppState.HOME);
+    };
+    setShowExitDialog(true);
+  }, [setAppState]);
 
   // Initialize history state with depth tracking
   useEffect(() => {
@@ -43,13 +48,7 @@ export function useBrowserHistory() {
       try {
         // If in GAME state, show confirmation dialog
         if (appState === AppState.GAME && !isGameOver) {
-          // Store the navigation action
-          pendingNavigationRef.current = () => {
-            setAppState(AppState.HOME);
-          };
-          
-          // Show custom dialog instead of window.confirm
-          setShowExitDialog(true);
+          requestGameExit();
           
           // Push state back immediately (will be handled by dialog)
           window.history.pushState({ depth: historyDepth.current, appState: AppState.GAME }, '');
@@ -70,10 +69,10 @@ export function useBrowserHistory() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [appState, isGameOver, setAppState, t]);
+  }, [appState, isGameOver, requestGameExit, setAppState]);
   
   // Handle dialog confirmation
-  const handleConfirm = () => {
+  const handleConfirm = useCallback(() => {
     setShowExitDialog(false);
     
     // Save game state before exiting
@@ -85,13 +84,13 @@ export function useBrowserHistory() {
       pendingNavigationRef.current();
       pendingNavigationRef.current = null;
     }
-  };
+  }, [appState, isGameOver]);
   
   // Handle dialog cancellation
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setShowExitDialog(false);
     pendingNavigationRef.current = null;
-  };
+  }, []);
   
-  return { showExitDialog, handleConfirm, handleCancel };
+  return { showExitDialog, handleConfirm, handleCancel, requestGameExit };
 }

@@ -7,10 +7,16 @@ interface LineCountDisplayProps {
 }
 
 const getLineCountColor = (count: number): string => {
-  if (count >= 4) return '#f59e0b'; // gold
-  if (count === 3) return '#a855f7'; // purple
-  if (count === 2) return '#3b82f6'; // blue
-  return '#ffffff';
+  if (count >= 4) return '#f59e0b';
+  if (count === 3) return '#a855f7';
+  if (count === 2) return '#38bdf8';
+  return '#94a3b8';
+};
+
+const getLineCountLabel = (count: number): string => {
+  if (count >= 4) return 'BÜYÜK TEMİZLİK';
+  if (count === 3) return 'SÜPER';
+  return 'ÇİFT TEMİZLİK';
 };
 
 export const LineCountDisplay: React.FC<LineCountDisplayProps> = React.memo(({ lineCount, show }) => {
@@ -19,34 +25,58 @@ export const LineCountDisplay: React.FC<LineCountDisplayProps> = React.memo(({ l
   if (!show || lineCount < 2) return null;
   
   const color = getLineCountColor(lineCount);
+  const label = getLineCountLabel(lineCount);
   
   return (
     <motion.div
-      key={`linecount-${lineCount}-${Date.now()}`}
-      initial={{ opacity: 0, scale: 0.5 }}
-      animate={{ opacity: [0, 1, 1, 0], scale: [0.5, 1.2, 1, 0.8] }}
-      transition={{ duration: 1.0, times: [0, 0.2, 0.7, 1], ease: 'easeOut' }}
-      className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none z-55"
+      key={`linecount-${lineCount}`}
+      initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -8, scale: 0.96 }}
+      animate={{ opacity: [0, 1, 1, 0], y: prefersReducedMotion ? 0 : [-8, 0, 0, -10], scale: [0.96, 1, 1, 0.98] }}
+      transition={{ duration: 0.68, times: [0, 0.2, 0.72, 1], ease: 'easeOut' }}
+      className="fixed left-1/2 pointer-events-none z-40"
+      style={{
+        top: 'calc(var(--safe-area-top, 0px) + var(--hud-height, 85px) + 8px)',
+        transform: 'translateX(-50%)',
+      }}
     >
-      <motion.span
-        className="text-5xl md:text-7xl font-black tracking-tight"
+      <div
         style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
+          padding: '6px 10px',
+          borderRadius: 999,
+          background: 'rgba(8, 12, 20, 0.78)',
+          border: `1px solid ${color}55`,
+          boxShadow: `0 6px 18px rgba(0,0,0,0.22), 0 0 10px ${color}22`,
           color,
-          textShadow: `0 0 20px ${color}80, 0 0 40px ${color}40`,
-          WebkitTextStroke: '2px rgba(0, 0, 0, 0.3)'
+          whiteSpace: 'nowrap',
+          backdropFilter: 'blur(8px)',
         }}
-        animate={
-          !prefersReducedMotion
-            ? {
-                scale: [1, 1.1, 1],
-                rotate: [0, 5, -5, 0]
-              }
-            : {}
-        }
-        transition={{ duration: 0.4, repeat: 2 }}
       >
-        {lineCount} SATIR!
-      </motion.span>
+        <span style={{ fontSize: 15, fontWeight: 950, lineHeight: 1 }}>
+          {lineCount}
+        </span>
+        <span
+          style={{
+            width: 1,
+            height: 14,
+            background: `${color}55`,
+            display: 'block',
+          }}
+        />
+        <span
+          style={{
+            fontSize: 9,
+            fontWeight: 850,
+            lineHeight: 1,
+            letterSpacing: '0.08em',
+            color: 'rgba(255,255,255,0.78)',
+          }}
+        >
+          {label}
+        </span>
+      </div>
     </motion.div>
   );
 }, (prevProps, nextProps) => {

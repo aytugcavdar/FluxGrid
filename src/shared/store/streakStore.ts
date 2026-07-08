@@ -7,8 +7,8 @@ interface StreakStore {
   longestStreak: number;
   lastPlayedDate: string | null; // ISO 8601: YYYY-MM-DD
   todayPlayed: boolean;
-  streakShields: number; // 0-2
-  streakBroken: boolean; // UI notification flag
+  streakShields: number; // legacy field kept for stored data compatibility
+  streakBroken: boolean; // legacy field kept false; no UI pressure
   
   // Actions
   initialize: () => void;
@@ -31,10 +31,16 @@ const DEFAULT_STATE = {
 };
 
 // Date Utility Functions
+function formatLocalISODate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function getTodayISO(): string {
   try {
-    const now = new Date();
-    return now.toISOString().split('T')[0];
+    return formatLocalISODate(new Date());
   } catch (error) {
     console.error('[StreakStore] Failed to get today\'s date:', error);
     return '1970-01-01';
@@ -44,8 +50,8 @@ export function getTodayISO(): string {
 export function getYesterdayISO(): string {
   try {
     const now = new Date();
-    now.setUTCDate(now.getUTCDate() - 1);
-    return now.toISOString().split('T')[0];
+    now.setDate(now.getDate() - 1);
+    return formatLocalISODate(now);
   } catch (error) {
     console.error('[StreakStore] Failed to get yesterday\'s date:', error);
     return '1970-01-01';
@@ -175,23 +181,15 @@ export const useStreakStore = create<StreakStore>((set, get) => ({
       const lastPlayed = state.lastPlayedDate;
       
       let newStreak = 1;
-      let newShields = state.streakShields;
-      let broken = false;
+      const newShields = state.streakShields;
+      const broken = false;
       
       if (lastPlayed === yesterday) {
         // Consecutive day - increment streak
         newStreak = Math.min(999, state.currentStreak + 1);
       } else if (lastPlayed && lastPlayed !== today) {
-        // Gap detected (2+ days)
-        if (state.streakShields > 0) {
-          // Use shield to protect streak
-          newStreak = state.currentStreak;
-          newShields = state.streakShields - 1;
-        } else {
-          // No shield - break streak
-          newStreak = 1;
-          broken = true;
-        }
+        // Gap detected (2+ days). Start a fresh streak quietly; no warning UI or penalty flow.
+        newStreak = 1;
       } else if (!lastPlayed) {
         // First game ever
         newStreak = 1;
@@ -224,25 +222,8 @@ export const useStreakStore = create<StreakStore>((set, get) => ({
   },
   
   addStreakShield: () => {
-    const state = get();
-    
-    // Guard: max 2 shields
-    if (state.streakShields >= 2) return;
-    
-    const newShields = state.streakShields + 1;
-    
-    // Persist to localStorage
-    saveToLocalStorage({
-      currentStreak: state.currentStreak,
-      longestStreak: state.longestStreak,
-      lastPlayedDate: state.lastPlayedDate,
-      streakShields: newShields,
-    });
-    
-    // Update state
-    set({
-      streakShields: newShields,
-    });
+    // Streak shield rewards were removed from the product flow.
+    // Keep this no-op so old callers/tests do not crash.
   },
   
   clearStreakBroken: () => {

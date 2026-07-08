@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Play, X, Tv2, CheckCircle2, Clock } from 'lucide-react';
+import { Play, X, Clock } from 'lucide-react';
 
 export interface ContinueModalProps {
   isVisible: boolean;
@@ -13,8 +13,6 @@ export interface ContinueModalProps {
 }
 
 const COUNTDOWN_SECONDS = 7;
-const RADIUS = 22;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
   isVisible,
@@ -56,15 +54,6 @@ export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
     return () => clearTimeout(t);
   }, [isVisible, canContinue]);
 
-  const progress = countdown / COUNTDOWN_SECONDS;
-  const dashOffset = CIRCUMFERENCE * (1 - progress);
-
-  const benefits = [
-    t('continueModal.benefit1'),
-    t('continueModal.benefit2'),
-    t('continueModal.benefit3'),
-  ];
-
   return (
     <AnimatePresence>
       {isVisible && (
@@ -81,7 +70,7 @@ export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
               backdropFilter: 'blur(16px)',
               zIndex: 60,
             }}
-            onClick={isLoading ? undefined : onDecline}
+            onClick={onDecline}
           />
 
           {/* Modal */}
@@ -144,42 +133,21 @@ export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
                   </div>
                 </div>
 
-                {/* Divider */}
-                <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '16px 0' }} />
-
-                {/* Benefits */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-                  {benefits.map((benefit, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.15 + i * 0.08 }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10 }}
-                    >
-                      <CheckCircle2 size={14} color="#a78bfa" strokeWidth={2.5} style={{ flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.3 }}>
-                        {benefit}
-                      </span>
-                    </motion.div>
-                  ))}
-                </div>
-
-                {/* Ad note */}
-                {canContinue && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '8px 12px', borderRadius: 10,
-                    background: 'rgba(99,102,241,0.08)',
-                    border: '1px solid rgba(99,102,241,0.18)',
-                    marginBottom: 16,
-                  }}>
-                    <Tv2 size={12} color="#818cf8" strokeWidth={2} style={{ flexShrink: 0 }} />
-                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', lineHeight: 1.4 }}>
-                      {t('continueModal.adNote')}
-                    </span>
+                <div style={{
+                  margin: '16px 0 18px',
+                  padding: '11px 12px',
+                  borderRadius: 13,
+                  background: 'rgba(255,255,255,0.045)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 850, color: 'rgba(255,255,255,0.82)', lineHeight: 1.25 }}>
+                    {t('continueModal.summaryTitle')}
                   </div>
-                )}
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', marginTop: 4, lineHeight: 1.25 }}>
+                    {t('continueModal.summarySubtitle')}
+                  </div>
+                </div>
 
                 {/* Watch Ad Button */}
                 <motion.button
@@ -217,59 +185,33 @@ export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
                   }
                 </motion.button>
 
-                {/* Uses remaining */}
-                <div style={{
-                  textAlign: 'center', fontSize: 11,
-                  color: 'rgba(255,255,255,0.3)',
-                  marginBottom: 14,
-                }}>
-                  {t('continueModal.remaining_other', { count: usesRemaining })}
-                </div>
-
-                {/* Bottom row: decline + countdown */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {/* Countdown ring */}
-                  <div style={{ position: 'relative', width: 44, height: 44, flexShrink: 0 }}>
-                    <svg width="44" height="44" viewBox="0 0 44 44" style={{ transform: 'rotate(-90deg)' }}>
-                      <circle cx="22" cy="22" r={RADIUS} fill="none"
-                        stroke="rgba(255,255,255,0.07)" strokeWidth="3" />
-                      <motion.circle cx="22" cy="22" r={RADIUS} fill="none"
-                        stroke={countdown <= 3 ? '#f87171' : '#6366f1'}
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeDasharray={CIRCUMFERENCE}
-                        animate={{ strokeDashoffset: dashOffset }}
-                        transition={{ duration: 0.8, ease: 'linear' }}
-                      />
-                    </svg>
-                    <div style={{
-                      position: 'absolute', inset: 0,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 13, fontWeight: 800,
-                      color: countdown <= 3 ? '#f87171' : 'rgba(255,255,255,0.7)',
-                    }}>
-                      {countdown}
-                    </div>
+                {canContinue && (
+                  <div style={{
+                    textAlign: 'center', fontSize: 11,
+                    color: 'rgba(255,255,255,0.3)',
+                    marginBottom: 12,
+                  }}>
+                    {t('continueModal.remaining_other', { count: usesRemaining })}
                   </div>
+                )}
 
-                  {/* Decline button */}
+                <div>
                   <button
-                    onClick={isLoading ? undefined : onDecline}
-                    disabled={isLoading}
+                    onClick={onDecline}
                     style={{
-                      flex: 1, padding: '11px 16px',
+                      width: '100%', padding: '11px 16px',
                       borderRadius: 12,
                       border: '1px solid rgba(255,255,255,0.08)',
                       background: 'rgba(255,255,255,0.04)',
-                      color: 'rgba(255,255,255,0.4)',
+                      color: isLoading ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.4)',
                       fontSize: 13, fontWeight: 600,
-                      cursor: isLoading ? 'not-allowed' : 'pointer',
-                      opacity: isLoading ? 0.55 : 1,
+                      cursor: 'pointer',
+                      opacity: 1,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     }}
                   >
                     <X size={13} />
-                    {t('continueModal.noThanks')}
+                    {t('continueModal.noThanks')} ({countdown})
                   </button>
                 </div>
               </div>

@@ -178,7 +178,7 @@ describe('StreakStore', () => {
   });
 
   describe('Shield Protection', () => {
-    it('should use shield and preserve streak when gap detected', () => {
+    it('should start a fresh streak quietly when gap detected even if legacy shields exist', () => {
       // Simulate 3 days ago
       const threeDaysAgo = new Date();
       threeDaysAgo.setUTCDate(threeDaysAgo.getUTCDate() - 3);
@@ -197,8 +197,8 @@ describe('StreakStore', () => {
       store.recordGameCompleted();
       
       const state = useStreakStore.getState();
-      expect(state.currentStreak).toBe(7); // Preserved
-      expect(state.streakShields).toBe(1); // Decremented
+      expect(state.currentStreak).toBe(1);
+      expect(state.streakShields).toBe(2);
       expect(state.streakBroken).toBe(false);
       expect(state.todayPlayed).toBe(true);
     });
@@ -224,31 +224,29 @@ describe('StreakStore', () => {
       const state = useStreakStore.getState();
       expect(state.currentStreak).toBe(1); // Reset
       expect(state.longestStreak).toBe(20); // Preserved
-      expect(state.streakBroken).toBe(true);
+      expect(state.streakBroken).toBe(false);
       expect(state.todayPlayed).toBe(true);
     });
 
-    it('should add shield up to maximum of 2', () => {
+    it('should keep legacy shield action as a no-op', () => {
       const store = useStreakStore.getState();
       
       store.addStreakShield();
-      expect(useStreakStore.getState().streakShields).toBe(1);
+      expect(useStreakStore.getState().streakShields).toBe(0);
       
       store.addStreakShield();
-      expect(useStreakStore.getState().streakShields).toBe(2);
+      expect(useStreakStore.getState().streakShields).toBe(0);
       
-      // Should not exceed 2
       store.addStreakShield();
-      expect(useStreakStore.getState().streakShields).toBe(2);
+      expect(useStreakStore.getState().streakShields).toBe(0);
     });
 
-    it('should persist shields to localStorage when added', () => {
+    it('should not persist shield changes from legacy no-op action', () => {
       const store = useStreakStore.getState();
       store.addStreakShield();
       
       const saved = localStorage.getItem('flux_streak');
-      const parsed = JSON.parse(saved!);
-      expect(parsed.streakShields).toBe(1);
+      expect(saved).toBeNull();
     });
   });
 
@@ -350,7 +348,7 @@ describe('StreakStore', () => {
       expect(state.longestStreak).toBe(0);
     });
 
-    it('should use defaults when state has invalid streakShields', () => {
+    it('should clamp legacy invalid streakShields without resetting streak', () => {
       localStorage.setItem('flux_streak', JSON.stringify({
         currentStreak: 5,
         longestStreak: 10,
@@ -362,8 +360,8 @@ describe('StreakStore', () => {
       store.loadStreak();
       
       const state = useStreakStore.getState();
-      expect(state.currentStreak).toBe(0);
-      expect(state.streakShields).toBe(0);
+      expect(state.currentStreak).toBe(5);
+      expect(state.streakShields).toBe(2);
     });
 
     it('should use defaults when longestStreak < currentStreak', () => {

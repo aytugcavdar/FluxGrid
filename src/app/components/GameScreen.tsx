@@ -1,29 +1,24 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
+import { useTranslation } from 'react-i18next';
 import { GameMode } from '@shared/types';
-import { Grid } from '../../features/game/components/Grid';
+import { Grid2D as Grid } from '../../features/game/components/Grid2D';
 import { Piece } from '../../features/game/components/Piece';
-import { HUD, ScorePopups, PerfectBonus, SurgeFlash, ComboFlash, ComboRushFlash, EventStartVisual, ComboMilestone, LineCountDisplay, FloatingScoreText, FloatingTimeText, LineClearFlash, ComboBar } from '@features/hud';
+import { HUD, PerfectBonus, SurgeFlash, EventStartVisual, LineCountDisplay, FloatingScoreText, FloatingTimeText } from '@features/hud';
 import { useThemeStore } from '@shared/store/themeStore';
-import { useTutorialStore } from '../../features/tutorial/store/tutorialStore';
 import { playClick } from '@utils/audio';
-import { AdBanner } from './AdBanner';
-import { AdManager } from '@core/services/ads/AdManager';
 import { useGameStore } from '../../features/game/store/gameStore';
 import { getTrayDecisionSupport } from '../../features/game/utils/trayDecisionSupport';
 import { TutorialOverlay } from '@features/tutorial';
-import { PerformanceMetricsDisplay } from '@features/performance';
+import { AdBanner } from './AdBanner';
+import { AdManager } from '@core/services/ads/AdManager';
+import { useTutorialStore } from '../../features/tutorial/store/tutorialStore';
 
 interface ScorePopup {
   id: number;
   value: number;
   combo: number;
-}
-
-interface TimePopup {
-  id: number;
-  value: number;
 }
 
 interface GameScreenProps {
@@ -36,8 +31,6 @@ interface GameScreenProps {
   scorePopups: ScorePopup[];
   showSurgeFlash: boolean;
   timedBoostMovesLeft: number;
-  timePopups: TimePopup[];
-  setTimePopups: React.Dispatch<React.SetStateAction<TimePopup[]>>;
   shownChain: number;
   showPerfect: boolean;
   eventStartVisual: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
@@ -49,6 +42,127 @@ interface GameScreenProps {
 
 import { areGameScreenPropsEqual } from './GameScreenMemo';
 
+const TIMED_INTRO_STORAGE_KEY = 'flux_timed_intro_v1';
+
+const TimedModeIntroCard: React.FC<{
+  visible: boolean;
+  onClose: () => void;
+  reducedMotion: boolean;
+}> = ({ visible, onClose, reducedMotion }) => {
+  const { t } = useTranslation();
+
+  React.useEffect(() => {
+    if (!visible) return;
+    const timer = window.setTimeout(onClose, 7000);
+    return () => window.clearTimeout(timer);
+  }, [onClose, visible]);
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          initial={reducedMotion ? false : { opacity: 0, y: -10, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }}
+          transition={{ duration: reducedMotion ? 0.12 : 0.24, ease: 'easeOut' }}
+          style={{
+            position: 'fixed',
+            top: 'calc(var(--safe-area-top, 0px) + 104px)',
+            left: 12,
+            right: 12,
+            zIndex: 46,
+            display: 'flex',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              width: 'min(360px, calc(100vw - 24px))',
+              borderRadius: 18,
+              padding: '12px 13px',
+              background: 'linear-gradient(135deg, rgba(15,23,42,0.94), rgba(30,41,59,0.9))',
+              border: '1px solid rgba(251,191,36,0.34)',
+              boxShadow: reducedMotion ? '0 8px 22px rgba(0,0,0,0.24)' : '0 12px 34px rgba(0,0,0,0.34), 0 0 22px rgba(251,191,36,0.12)',
+              pointerEvents: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <div
+                aria-hidden="true"
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(251,191,36,0.14)',
+                  border: '1px solid rgba(251,191,36,0.34)',
+                  color: '#fbbf24',
+                  fontSize: 18,
+                  fontWeight: 900,
+                  flexShrink: 0,
+                }}
+              >
+                ⏱
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: '#fef3c7', fontSize: 13, fontWeight: 950, letterSpacing: '0.02em' }}>
+                  {t('tutorial.timedIntro.title')}
+                </div>
+                <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 11, lineHeight: 1.35, marginTop: 3 }}>
+                  {t('tutorial.timedIntro.description')}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 9 }}>
+                  {[1, 2, 3].map((item) => (
+                    <span
+                      key={item}
+                      style={{
+                        padding: '4px 7px',
+                        borderRadius: 999,
+                        background: 'rgba(255,255,255,0.07)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        color: 'rgba(255,255,255,0.78)',
+                        fontSize: 9,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {t(`tutorial.timedIntro.tip${item}`)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label={t('tutorial.timedIntro.dismiss')}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 999,
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.06)',
+                  color: 'rgba(255,255,255,0.78)',
+                  fontSize: 16,
+                  fontWeight: 900,
+                  lineHeight: '28px',
+                  textAlign: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
 export const GameScreen: React.FC<GameScreenProps> = React.memo(({
   grid,
   pieces,
@@ -59,8 +173,6 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
   scorePopups,
   showSurgeFlash,
   timedBoostMovesLeft,
-  timePopups,
-  setTimePopups,
   shownChain,
   showPerfect,
   eventStartVisual,
@@ -71,9 +183,27 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
 }) => {
   const { getThemeColors, currentTheme } = useThemeStore();
   const colors = getThemeColors();
-  const isTutorialActive = useTutorialStore(state => state.isActive);
   const isGameOver = useGameStore(state => state.isGameOver);
   const timeLeft = useGameStore(state => state.timeLeft);
+  const isTutorialActive = useTutorialStore(state => state.isActive);
+  const isNativeApp = typeof window !== 'undefined' &&
+    !!(window as any).Capacitor?.isNativePlatform?.();
+  const [showTimedIntro, setShowTimedIntro] = React.useState(false);
+
+  React.useEffect(() => {
+    if (gameMode !== GameMode.TIMED || isGameOver || isTutorialActive) return;
+    try {
+      if (localStorage.getItem(TIMED_INTRO_STORAGE_KEY) === 'true') return;
+    } catch {}
+    setShowTimedIntro(true);
+  }, [gameMode, isGameOver, isTutorialActive]);
+
+  const dismissTimedIntro = React.useCallback(() => {
+    setShowTimedIntro(false);
+    try {
+      localStorage.setItem(TIMED_INTRO_STORAGE_KEY, 'true');
+    } catch {}
+  }, []);
 
   // Track piece set refreshes (all 3 pieces replaced at once = reroll/new round)
   const prevPieceIdsRef = React.useRef<string>('');
@@ -100,13 +230,53 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
     typeof window !== 'undefined' &&
     !!(window as any).Capacitor?.isNativePlatform?.() &&
     !isTutorialActive &&
+    !showTimedIntro &&
     !isGameOver &&
     !AdManager.isNoAdsActive();
+  const bottomSafeArea = 'max(env(safe-area-inset-bottom, 0px), var(--safe-area-bottom, 0px))';
+  const bannerReserve = shouldRenderBanner
+    ? 'var(--native-banner-reserve, clamp(76px, 10vh, 96px))'
+    : '0px';
 
   const trayDecisionSupport = React.useMemo(
     () => getTrayDecisionSupport(grid, pieces),
     [grid, pieces]
   );
+  const traySlotByIdRef = React.useRef<Record<string, number>>({});
+  const traySlots = React.useMemo(() => {
+    const activeIds = new Set(pieces.map((piece: any) => piece.instanceId));
+    Object.keys(traySlotByIdRef.current).forEach((id) => {
+      if (!activeIds.has(id)) {
+        delete traySlotByIdRef.current[id];
+      }
+    });
+
+    const usedSlots = new Set<number>();
+    pieces.forEach((piece: any) => {
+      const explicitSlot = Number.isInteger(piece.traySlot) ? piece.traySlot : undefined;
+      const rememberedSlot = traySlotByIdRef.current[piece.instanceId];
+      const slot = explicitSlot ?? rememberedSlot;
+      if (typeof slot === 'number' && slot >= 0 && slot < 3 && !usedSlots.has(slot)) {
+        traySlotByIdRef.current[piece.instanceId] = slot;
+        usedSlots.add(slot);
+      }
+    });
+
+    pieces.forEach((piece: any, fallbackIndex: number) => {
+      if (Number.isInteger(traySlotByIdRef.current[piece.instanceId])) return;
+      const fallbackSlot = !usedSlots.has(fallbackIndex)
+        ? fallbackIndex
+        : [0, 1, 2].find(slot => !usedSlots.has(slot));
+      if (typeof fallbackSlot === 'number') {
+        traySlotByIdRef.current[piece.instanceId] = fallbackSlot;
+        usedSlots.add(fallbackSlot);
+      }
+    });
+
+    return [0, 1, 2].map(slot => (
+      pieces.find((piece: any) => traySlotByIdRef.current[piece.instanceId] === slot) ?? null
+    ));
+  }, [pieces]);
 
   const isTimedPressure = gameMode === GameMode.TIMED && !isGameOver && timeLeft <= 10;
   const isHighCombo = combo >= 5;
@@ -147,7 +317,7 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
     }
 
     if (isTimedPressure) {
-      return 'radial-gradient(circle at 50% 40%, rgba(239,68,68,0.13) 0%, rgba(245,158,11,0.045) 34%, rgba(0,0,0,0.0) 74%)';
+      return 'transparent';
     }
 
     if (isHighCombo) {
@@ -162,16 +332,13 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
     setEventStartVisual(null);
   }, [setEventStartVisual]);
 
-  const handleTimePopupAnimationComplete = React.useCallback((popupId: number) => {
-    setTimePopups(prev => prev.filter(p => p.id !== popupId));
-  }, [setTimePopups]);
-
   return (
     <motion.div
+      data-game-screen-ready="true"
       key="game"
-      initial={{ opacity: 0, scale: 1.1 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
+      initial={false}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       className="fixed inset-0 flex flex-col z-30 overflow-hidden"
       style={{ background: backgroundLayers.base }}
     >
@@ -245,8 +412,8 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
                 position: 'absolute',
                 inset: '-6%',
                 background: backgroundLayers.boardFocus,
-                filter: 'blur(10px)',
-                opacity: currentTheme === 'light' ? 0.82 : 0.9,
+                filter: isNativeApp ? 'none' : 'blur(10px)',
+                opacity: isNativeApp ? 0.38 : currentTheme === 'light' ? 0.82 : 0.9,
                 pointerEvents: 'none',
               }}
             />
@@ -256,136 +423,93 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
                 position: 'absolute',
                 inset: '-10%',
                 background: backgroundLayers.boardHalo,
-                filter: 'blur(18px)',
-                opacity: currentTheme === 'light' ? 0.72 : 0.86,
+                filter: isNativeApp ? 'none' : 'blur(18px)',
+                opacity: isNativeApp ? 0.24 : currentTheme === 'light' ? 0.72 : 0.86,
                 pointerEvents: 'none',
               }}
             />
             <Grid grid={grid} />
           </div>
-          {gameMode !== GameMode.TIMED && <ComboBar gridSize={gridSize} />}
         </div>
       </main>
 
       {/* ══ Piece Tray — glassmorphism ══ */}
       <div style={{
-        height: `calc(var(--tray-height, 72px) + env(safe-area-inset-bottom, 0px))`,
+        height: `calc(var(--tray-height, 72px) + ${bottomSafeArea} + ${bannerReserve})`,
         marginBottom: '0px',
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6px)',
+        paddingBottom: `calc(${bottomSafeArea} + 6px + ${bannerReserve})`,
         flexShrink: 0,
         position: 'relative',
       }}>
         {/* Top gradient accent line — pulses on refresh */}
         <motion.div
-          animate={trayFlash
-            ? { opacity: [0.4, 1, 0.4], scaleX: [0.6, 1, 0.6] }
-            : { opacity: 1, scaleX: 1 }}
+          animate={trayFlash && !isNativeApp
+            ? { opacity: [0, 0, 0], scaleX: [0.6, 1, 0.6] }
+            : { opacity: 0, scaleX: 1 }}
           transition={{ duration: 0.45, ease: 'easeOut' }}
           style={{
             position: 'absolute', top: 0, left: 0, right: 0, height: 1,
-            background: 'linear-gradient(90deg, transparent 0%, rgba(129,140,248,0.4) 30%, rgba(168,85,247,0.5) 50%, rgba(244,114,182,0.4) 70%, transparent 100%)',
+            background: 'transparent',
             transformOrigin: 'center',
           }}
         />
         {/* Tray background */}
         <div style={{
           position: 'absolute', inset: 0,
-          background: currentTheme === 'neon'
-            ? 'linear-gradient(180deg, rgba(17,20,34,0.96) 0%, rgba(14,17,29,0.99) 100%)'
-            : 'linear-gradient(180deg, rgba(15,23,36,0.96) 0%, rgba(12,18,30,0.99) 100%)',
-          backdropFilter: 'blur(12px)',
+          background: 'transparent',
+          backdropFilter: 'none',
         }} />
 
-        <div className="max-w-2xl mx-auto h-full flex flex-col" style={{ padding: '6px 8px 0', position: 'relative' }}>
-          <div className="grid grid-cols-3 flex-1 min-h-0" style={{ gap: '6px' }}>
+        <div className="max-w-2xl mx-auto h-full flex flex-col" style={{ padding: '4px 6px 0', position: 'relative' }}>
+          <div className="grid grid-cols-3 flex-1 min-h-0" style={{ gap: '5px' }}>
             <AnimatePresence mode="popLayout">
-              {pieces.map((piece: any, index: number) => {
-                const isIce   = piece.type === 'ICE';
-                const isBomb  = piece.type === 'BOMB';
-                const decision = trayDecisionSupport[piece.instanceId] || { canPlace: true, canClear: false };
-                const borderColor = isIce
-                  ? 'rgba(56,189,248,0.45)'
-                  : isBomb
-                  ? 'rgba(239,68,68,0.45)'
-                  : decision.canClear
-                  ? 'rgba(34,197,94,0.56)'
-                  : decision.canPlace
-                  ? 'rgba(255,255,255,0.12)'
-                  : 'rgba(148,163,184,0.12)';
-                const bgColor = isIce
-                  ? 'rgba(56,189,248,0.06)'
-                  : isBomb
-                  ? 'rgba(239,68,68,0.06)'
-                  : decision.canClear
-                  ? 'rgba(34,197,94,0.075)'
-                  : decision.canPlace
-                  ? 'rgba(255,255,255,0.04)'
-                  : 'rgba(255,255,255,0.018)';
-                const glowColor = isIce
-                  ? '0 0 12px rgba(56,189,248,0.2)'
-                  : isBomb
-                  ? '0 0 12px rgba(239,68,68,0.2)'
-                  : decision.canClear
-                  ? '0 0 18px rgba(34,197,94,0.2), inset 0 0 0 1px rgba(74,222,128,0.18)'
-                  : decision.canPlace
-                  ? '0 0 10px rgba(255,255,255,0.035)'
-                  : 'none';
+              {traySlots.map((piece: any, slotIndex: number) => {
+                if (!piece) {
+                  return (
+                    <div
+                      key={`empty-tray-slot-${slotIndex}`}
+                      className="piece-slot h-full"
+                      style={{ pointerEvents: 'none' }}
+                    />
+                  );
+                }
 
+                const decision = trayDecisionSupport[piece.instanceId] || { canPlace: true, canClear: false };
                 // Stagger direction: full refresh → slide from right
                 // Single removal → pop upward
-                const enterX = 28 + index * 10;  // slight cascade from right
-                const enterDelay = index * 0.055;
+                const enterX = 28 + slotIndex * 10;  // slight cascade from right
+                const enterDelay = slotIndex * 0.055;
 
                 return (
                   <motion.div
                     key={piece.instanceId}
                     layout
-                    initial={{ x: enterX, opacity: 0, scale: 0.82, filter: 'blur(4px)' }}
-                    animate={{ x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                    initial={{ x: enterX, y: -4, opacity: 0, scale: 0.82, filter: isNativeApp ? 'none' : 'blur(4px)' }}
+                    animate={{ x: 0, y: -4, opacity: 1, scale: 1, filter: 'none' }}
                     exit={{
                       y: -18,
                       opacity: 0,
                       scale: 0.7,
-                      filter: 'blur(6px)',
+                      filter: 'none',
                       transition: { duration: 0.18, ease: 'easeIn' }
                     }}
-                    transition={{
-                      type: 'spring',
-                      stiffness: 320,
-                      damping: 24,
-                      delay: enterDelay,
-                    }}
+                    transition={isNativeApp
+                      ? { duration: 0.18, ease: 'easeOut', delay: enterDelay }
+                      : { type: 'spring', stiffness: 320, damping: 24, delay: enterDelay }}
                     className="piece-slot h-full"
                     style={{
-                      borderRadius: 10,
-                      border: `1px solid ${borderColor}`,
-                      background: bgColor,
-                      boxShadow: glowColor,
+                      border: '1px solid transparent',
+                      background: 'transparent',
+                      boxShadow: 'none',
                       position: 'relative',
                       opacity: decision.canPlace ? 1 : 0.52,
                       filter: decision.canPlace ? 'saturate(1)' : 'saturate(0.45)',
-                      transition: 'border-color 0.2s, box-shadow 0.2s, opacity 0.2s, filter 0.2s',
+                      transition: isNativeApp
+                        ? 'opacity 0.16s, filter 0.16s'
+                        : 'opacity 0.2s, filter 0.2s',
                     }}
                   >
-                    {decision.canClear && (
-                      <motion.div
-                        aria-hidden="true"
-                        animate={{ opacity: [0.35, 0.9, 0.35], scaleX: [0.72, 1, 0.72] }}
-                        transition={{ duration: 1.35, repeat: Infinity, ease: 'easeInOut' }}
-                        style={{
-                          position: 'absolute',
-                          left: 12,
-                          right: 12,
-                          top: 5,
-                          height: 2,
-                          borderRadius: 999,
-                          background: 'linear-gradient(90deg, transparent, rgba(74,222,128,0.95), transparent)',
-                          transformOrigin: 'center',
-                          pointerEvents: 'none',
-                        }}
-                      />
-                    )}
-                    <Piece piece={piece} index={index} />
+                    <Piece piece={piece} index={slotIndex} />
                   </motion.div>
                 );
               })}
@@ -395,7 +519,6 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
       </div>
 
       {/* Ad Banner */}
-      {shouldRenderBanner && <AdBanner position="bottom" />}
 
       {/* Game Visual Effects */}
       {/* ComboDisplay DISABLED - causes freeze at 10x combo */}
@@ -404,10 +527,6 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
       <FloatingTimeText />
       {/* ScorePopups DISABLED - replaced with FloatingScoreText */}
       {/* <ScorePopups popups={scorePopups} /> */}
-      {/* Combo edge glow — re-enabled */}
-      <ComboFlash combo={combo} />
-      {/* Line clear horizontal sweep flash */}
-      <LineClearFlash />
       <SurgeFlash active={showSurgeFlash} />
       {/* ComboMilestone DISABLED - causes crash at 10x combo */}
       {/* <ComboMilestone combo={combo} show={showComboMilestone} /> */}
@@ -419,34 +538,6 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
         onComplete={handleEventStartComplete} 
       />
 
-      {/* Time Popups */}
-      <AnimatePresence>
-        {timePopups.map(popup => (
-          <motion.div
-            key={popup.id}
-            initial={{ opacity: 0, x: 0 }}
-            animate={{ opacity: 1, x: 40 }}
-            exit={{ opacity: 0, x: 40 }}
-            transition={{ duration: 1.2, ease: 'easeOut' }}
-            style={{
-              position: 'fixed',
-              left: '50%',
-              top: `calc(var(--hud-height) + 8px + ${(popup.id % 3) * 28}px)`,
-              transform: 'translateX(-50%)',
-              fontSize: '24px',
-              fontWeight: 900,
-              color: '#ef4444',
-              textShadow: '0 2px 8px rgba(0,0,0,0.5)',
-              pointerEvents: 'none',
-              zIndex: 100
-            }}
-            onAnimationComplete={() => handleTimePopupAnimationComplete(popup.id)}
-          >
-            {popup.value > 0 ? `+${popup.value}s` : `${popup.value}s`}
-          </motion.div>
-        ))}
-      </AnimatePresence>
-
       <div className="fixed top-20 left-0 right-0 flex flex-col items-center gap-2 pointer-events-none z-10">
         <AnimatePresence mode="wait">
           {showPerfect && <PerfectBonus key="perfect" show={showPerfect} />}
@@ -455,9 +546,14 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
 
       {/* Tutorial Overlay */}
       <TutorialOverlay />
-      
-      {/* Performance Metrics Display */}
-      <PerformanceMetricsDisplay />
+
+      <TimedModeIntroCard
+        visible={showTimedIntro}
+        onClose={dismissTimedIntro}
+        reducedMotion={isNativeApp}
+      />
+
+      {shouldRenderBanner && <AdBanner position="bottom" />}
     </motion.div>
   );
 }, areGameScreenPropsEqual);

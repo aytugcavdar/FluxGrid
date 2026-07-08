@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { playCombo, unlockAudio } from './audio';
+import {
+  playBombChain,
+  playClear,
+  playCombo,
+  playGravityLand,
+  playIceBreak,
+  playIceHit,
+  unlockAudio,
+} from './audio';
 
 // Mock Web Audio API
 let mockOscillatorCalls: any[] = [];
@@ -11,6 +19,7 @@ const createMockOscillator = () => ({
   stop: vi.fn(),
   frequency: {
     setValueAtTime: vi.fn(),
+    exponentialRampToValueAtTime: vi.fn(),
   },
   type: 'sine',
 });
@@ -176,5 +185,31 @@ describe('playCombo', () => {
     mockGainCalls.forEach((gain) => {
       expect(gain.connect).toHaveBeenCalled();
     });
+  });
+
+  it('raises clear pitch with line and combo intensity', () => {
+    playClear(4, 8);
+
+    expect(mockOscillatorCalls).toHaveLength(3);
+    expect(mockOscillatorCalls[0].frequency.setValueAtTime.mock.calls[0][0]).toBeGreaterThan(400);
+    expect(mockOscillatorCalls[1].frequency.setValueAtTime.mock.calls[0][0]).toBeGreaterThan(1200);
+  });
+
+  it('caps staggered bomb audio at five impacts', () => {
+    playBombChain(9);
+
+    expect(mockOscillatorCalls).toHaveLength(5);
+    const startCalls = mockOscillatorCalls.map(osc => osc.start.mock.calls[0][0]);
+    expect(startCalls[0]).toBeCloseTo(0, 2);
+    expect(startCalls[4]).toBeCloseTo(0.24, 2);
+  });
+
+  it('uses short, bounded oscillator counts for ICE and gravity feedback', () => {
+    playIceHit();
+    playIceBreak();
+    playGravityLand();
+
+    expect(mockOscillatorCalls).toHaveLength(6);
+    expect(mockGainCalls).toHaveLength(6);
   });
 });

@@ -18,7 +18,8 @@ import type { QualityPreset } from '@core/services/performance/PerformanceMonito
 import { QUALITY_PRESETS } from '@core/services/performance/PerformanceMonitor';
 import { getHapticManager, type HapticIntensity } from '@utils/audio';
 
-export type LanguageType = 'tr' | 'en' | 'de' | 'fr' | 'es';
+const SUPPORTED_LANGUAGES = ['tr', 'en', 'de', 'fr', 'es'] as const;
+export type LanguageType = typeof SUPPORTED_LANGUAGES[number];
 export type ColorBlindMode = 'none' | 'protanopia' | 'deuteranopia' | 'tritanopia';
 export type MetricsPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
@@ -137,6 +138,13 @@ const DEFAULT_SETTINGS = {
   showMetrics: false,
   metricsPosition: 'top-right' as MetricsPosition,
 };
+
+function normalizeLanguage(value: string | null | undefined): LanguageType {
+  const normalized = (value || DEFAULT_SETTINGS.language).toLowerCase().split('-')[0];
+  return SUPPORTED_LANGUAGES.includes(normalized as LanguageType)
+    ? normalized as LanguageType
+    : DEFAULT_SETTINGS.language;
+}
 
 /**
  * Load performance settings from localStorage
@@ -268,12 +276,13 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
     
     // Language Actions
     setLanguage: (lang: LanguageType) => {
-      set({ language: lang });
-      localStorage.setItem(STORAGE_KEYS.LANGUAGE, lang);
+      const nextLanguage = normalizeLanguage(lang);
+      set({ language: nextLanguage });
+      localStorage.setItem(STORAGE_KEYS.LANGUAGE, nextLanguage);
       
       // Update i18n language
       if (typeof window !== 'undefined' && (window as any).i18n) {
-        (window as any).i18n.changeLanguage(lang);
+        (window as any).i18n.changeLanguage(nextLanguage);
       }
     },
     
@@ -385,7 +394,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
           ghostBlockEnabled: ghostBlockEnabled !== null ? JSON.parse(ghostBlockEnabled) : DEFAULT_SETTINGS.ghostBlockEnabled,
           performanceModeEnabled: performanceModeEnabled !== null ? JSON.parse(performanceModeEnabled) : DEFAULT_SETTINGS.performanceModeEnabled,
           colorBlindMode: (colorBlindMode as ColorBlindMode) || DEFAULT_SETTINGS.colorBlindMode,
-          language: (language as LanguageType) || DEFAULT_SETTINGS.language,
+          language: normalizeLanguage(language),
           ...performanceSettings,
         };
         

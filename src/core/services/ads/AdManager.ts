@@ -18,7 +18,7 @@ import type { AdConfig } from '../../../services/firebase/adConfig';
 export interface AdResult {
   success: boolean;
   reward?: {
-    type: 'continue' | 'shield';
+    type: 'continue' | 'shield' | 'theme_trial';
     amount: number;
   };
   error?: string;
@@ -128,6 +128,7 @@ const STORAGE_KEYS = {
   gdprConsent: 'flux_gdpr_consent',
   gdprConsentVersion: 'flux_gdpr_consent_version',
   gdprConsentTimestamp: 'flux_gdpr_consent_timestamp',
+  rewardedThemeTrialDate: 'flux_ad_rewarded_theme_trial_date',
 } as const;
 
 // GDPR Consent Version - increment when consent text changes
@@ -173,7 +174,7 @@ function removeAdListener(listener: any): void {
   }
 }
 
-async function waitForRewardedAd(rewardType: 'continue' | 'shield'): Promise<AdMobRewardItem> {
+async function waitForRewardedAd(rewardType: 'continue' | 'shield' | 'theme_trial'): Promise<AdMobRewardItem> {
   if (rewardedAdListener) {
     console.log('[AdManager] Removing old listener');
     removeAdListener(rewardedAdListener);
@@ -1005,6 +1006,61 @@ export async function showRewardedStreakShield(): Promise<AdResult> {
   }
 }
 
+export function canShowRewardedThemeTrial(): boolean {
+  if (!getCurrentAdConfig().rewarded_enabled) return false;
+
+  try {
+    return localStorage.getItem(STORAGE_KEYS.rewardedThemeTrialDate) !== getTodayISO();
+  } catch (error) {
+    console.warn('[AdManager] Failed to read theme trial reward state:', error);
+    return false;
+  }
+}
+
+export async function showRewardedThemeTrial(): Promise<AdResult> {
+  if (!canShowRewardedThemeTrial()) {
+    return { success: false, error: 'Theme trial reward unavailable today' };
+  }
+
+  if (isShowingRewardedAd) {
+    return { success: false, error: 'Ad already showing' };
+  }
+
+  const completeReward = (): AdResult => {
+    localStorage.setItem(STORAGE_KEYS.rewardedThemeTrialDate, getTodayISO());
+    return {
+      success: true,
+      reward: { type: 'theme_trial', amount: 24 },
+    };
+  };
+
+  if (!isNative()) {
+    return new Promise((resolve) => {
+      setTimeout(() => resolve(completeReward()), 1000);
+    });
+  }
+
+  isShowingRewardedAd = true;
+
+  try {
+    logAdEvent('ad_rewarded_show', { reward_type: 'theme_trial' });
+    await waitForRewardedAd('theme_trial');
+    const result = completeReward();
+    logAdEvent('ad_rewarded_complete', { reward_type: 'theme_trial' });
+    return result;
+  } catch (error) {
+    logAdEvent('ad_rewarded_skip', {
+      reward_type: 'theme_trial',
+      error: String(error),
+    });
+    return { success: false, error: String(error) };
+  } finally {
+    removeAdListener(rewardedAdListener);
+    rewardedAdListener = null;
+    isShowingRewardedAd = false;
+  }
+}
+
 /**
  * Check if no-ads premium feature is active
  */
@@ -1057,6 +1113,8 @@ export const AdManager = {
   getRewardedContinueRemaining,
   showRewardedContinue,
   showRewardedStreakShield,
+  canShowRewardedThemeTrial,
+  showRewardedThemeTrial,
   isNoAdsActive,
   activateNoAds,
   AD_IDS,

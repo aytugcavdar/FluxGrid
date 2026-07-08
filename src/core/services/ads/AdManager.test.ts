@@ -166,6 +166,19 @@ describe('AdManager', () => {
     });
   });
 
+  describe('showRewardedThemeTrial', () => {
+    it('grants one 24-hour theme trial reward per day', async () => {
+      const result = await AdManager.showRewardedThemeTrial();
+
+      expect(result).toEqual({
+        success: true,
+        reward: { type: 'theme_trial', amount: 24 },
+      });
+      expect(AdManager.canShowRewardedThemeTrial()).toBe(false);
+      expect(localStorage.getItem('flux_ad_rewarded_theme_trial_date')).toBeTruthy();
+    });
+  });
+
   describe('isNoAdsActive', () => {
     it('should return false by default', () => {
       expect(AdManager.isNoAdsActive()).toBe(false);

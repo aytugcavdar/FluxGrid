@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { calculateScore } from '@features/game/store/helpers/scoreCalculator';
+import {
+  calculateComboScorePoints,
+  calculateScore,
+  getEffectiveComboForScore,
+} from '@features/game/store/helpers/scoreCalculator';
 import { createMiniEventState } from '@features/game/store/helpers/miniEventSystem';
+import { POINTS } from '@features/game/constants';
 
 describe('scoreCalculator', () => {
   const miniEventState = createMiniEventState();
@@ -53,5 +58,13 @@ describe('scoreCalculator', () => {
 
     expect(result.score).toBe(100);
     expect(result.breakdown.miniEvents).toEqual([]);
+  });
+
+  it('soft-caps combo score impact after early combo levels', () => {
+    expect(getEffectiveComboForScore(3)).toBe(3);
+    expect(calculateComboScorePoints(3)).toBe(3 * POINTS.COMBO_MULTIPLIER);
+
+    expect(calculateComboScorePoints(10)).toBeLessThan(10 * POINTS.COMBO_MULTIPLIER);
+    expect(calculateComboScorePoints(30)).toBeLessThan(12 * POINTS.COMBO_MULTIPLIER);
   });
 });

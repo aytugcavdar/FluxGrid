@@ -40,7 +40,6 @@ export { SectionHeader } from './SectionHeader';
 export type { SectionHeaderProps } from './SectionHeader';
 
 // Monetization Components
-export { StreakBadge } from './StreakBadge';
 
 // Modern UI Components
 export { GradientCardBase } from './GradientCardBase';

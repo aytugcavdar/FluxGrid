@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 interface TierMilestoneNotificationProps {
   tier: number;
   tierName: string;
+  unlockLabel?: string;
   multiplier: number;
   onComplete?: () => void;
 }
@@ -11,6 +12,7 @@ interface TierMilestoneNotificationProps {
 export const TierMilestoneNotification: React.FC<TierMilestoneNotificationProps> = ({
   tier,
   tierName,
+  unlockLabel,
   multiplier,
   onComplete
 }) => {
@@ -118,7 +120,7 @@ export const TierMilestoneNotification: React.FC<TierMilestoneNotificationProps>
           textShadow: `0 2px 8px rgba(245,158,11,0.5)`
         }}
       >
-        Tier {tier}: {tierName}
+        TIER {tier} - {unlockLabel ?? tierName}
       </motion.div>
       
       {/* Multiplier */}
@@ -133,7 +135,7 @@ export const TierMilestoneNotification: React.FC<TierMilestoneNotificationProps>
           textShadow: `0 2px 8px rgba(245,158,11,0.5)`
         }}
       >
-        {multiplier.toFixed(2)}x Çarpan
+        {multiplier.toFixed(2)}x CARPAN
       </motion.div>
       
       {/* Subtitle */}
@@ -149,7 +151,7 @@ export const TierMilestoneNotification: React.FC<TierMilestoneNotificationProps>
           textShadow: `0 1px 4px rgba(0, 0, 0, 0.8)`
         }}
       >
-        YENİ ZOR SEVİYE
+        {tierName}
       </motion.div>
     </motion.div>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, MotionConfig, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../features/game/store/gameStore';
@@ -14,11 +14,11 @@ import { Clock3, Infinity as InfinityIcon, Timer } from 'lucide-react';
 /* Mini grid logo animation                        */
 /* ─────────────────────────────────────────────── */
 const GRID_COLORS = ['#6366f1', '#a855f7', '#3b82f6', '#10b981'];
-const GridLogo: React.FC<{ isLowEnd: boolean }> = ({ isLowEnd }) => {
+const GridLogo: React.FC<{ isStatic: boolean }> = ({ isStatic }) => {
   const [lit, setLit] = useState([true, false, false, true]);
   useEffect(() => {
-    // Disable animation on low-end devices to save battery
-    if (isLowEnd) return;
+    // Keep the menu logo static unless the device is explicitly cleared for decorative motion.
+    if (isStatic) return;
     
     const t = setInterval(() => {
       setLit([
@@ -29,7 +29,7 @@ const GridLogo: React.FC<{ isLowEnd: boolean }> = ({ isLowEnd }) => {
       ]);
     }, 1500); // Slower interval: 900ms → 1500ms
     return () => clearInterval(t);
-  }, [isLowEnd]);
+  }, [isStatic]);
   
   return (
     <div style={{
@@ -42,12 +42,12 @@ const GridLogo: React.FC<{ isLowEnd: boolean }> = ({ isLowEnd }) => {
       {[0,1,2,3].map(i => (
         <motion.div
           key={i}
-          animate={isLowEnd ? {} : { opacity: lit[i] ? 1 : 0.25, scale: lit[i] ? 1 : 0.8 }}
+          animate={isStatic ? {} : { opacity: lit[i] ? 1 : 0.25, scale: lit[i] ? 1 : 0.8 }}
           transition={{ duration: 0.45 }}
           style={{ 
             borderRadius: 3, 
             background: GRID_COLORS[i],
-            opacity: isLowEnd ? 1 : undefined // Static on low-end
+            opacity: isStatic ? 1 : undefined
           }}
         />
       ))}
@@ -57,6 +57,19 @@ const GridLogo: React.FC<{ isLowEnd: boolean }> = ({ isLowEnd }) => {
 
 
 /* ─────────────────────────────────────────────── */
+function getSavedGameAgeLabel(savedAt?: number): string {
+  const safeSavedAt = savedAt || Date.now();
+  const diffMs = Math.max(0, Date.now() - safeSavedAt);
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffDays > 0) return `${diffDays} gün önce`;
+  if (diffHours > 0) return `${diffHours} saat önce`;
+  if (diffMins > 0) return `${diffMins} dk önce`;
+  return 'Az önce';
+}
+
 export const HomeScreen: React.FC = () => {
   const { t } = useTranslation();
   const { initGame, hasSavedGame, loadSavedGame, highScores, stats } = useGameStore();
@@ -67,6 +80,9 @@ export const HomeScreen: React.FC = () => {
 
   const [deviceCapabilities, setDeviceCapabilities] = useState<any>(null);
   const isLowEndDevice = deviceCapabilities?.tier === 'low';
+  const isNativeDevice = deviceCapabilities?.isNative === true;
+  const shouldUseDecorativeMotion = Boolean(deviceCapabilities) && !isNativeDevice && !isLowEndDevice && deviceCapabilities?.tier !== 'low-mid';
+  const homeMotionInitial = shouldUseDecorativeMotion;
 
   useEffect(() => {
     const loadDeviceCapabilities = async () => {
@@ -91,27 +107,82 @@ export const HomeScreen: React.FC = () => {
     return true;
   }, [deviceCapabilities]);
 
-  useEffect(() => { 
+  const refreshSavedGame = useCallback(() => {
     const savedExists = hasSavedGame();
-    setHasSave(savedExists); 
-    // Load saved game data to get mode info
+    setHasSave(savedExists);
+
     if (savedExists) {
       try {
         const saved = localStorage.getItem('flux_game_save');
         if (saved) {
           setSavedGameData(JSON.parse(saved));
+        } else {
+          setSavedGameData(null);
         }
       } catch (e) {
         console.error('Failed to load saved game data:', e);
+        setSavedGameData(null);
       }
+    } else {
+      setSavedGameData(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hasSavedGame]);
 
-  const stagger = (i: number) => ({ duration: 0.5, delay: 0.08 * i, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] });
+  useEffect(() => {
+    refreshSavedGame();
+
+    const handleSaveStateChanged = (event?: StorageEvent) => {
+      if (event && event.key !== 'flux_game_save') return;
+      refreshSavedGame();
+    };
+
+    window.addEventListener('storage', handleSaveStateChanged);
+    window.addEventListener('flux-game-save-changed', refreshSavedGame);
+    window.addEventListener('focus', refreshSavedGame);
+    document.addEventListener('visibilitychange', refreshSavedGame);
+
+    return () => {
+      window.removeEventListener('storage', handleSaveStateChanged);
+      window.removeEventListener('flux-game-save-changed', refreshSavedGame);
+      window.removeEventListener('focus', refreshSavedGame);
+      document.removeEventListener('visibilitychange', refreshSavedGame);
+    };
+  }, [refreshSavedGame]);
+
+  const savedModeLabel = savedGameData?.gameMode === GameMode.TIMED ? 'Zamanlı' : 'Sonsuz';
+  const savedStatusLabel = savedGameData?.gameMode === GameMode.TIMED
+    ? `${Math.floor(savedGameData?.timeLeft || 0)} sn`
+    : `Tier ${savedGameData?.difficultyTier || 0}`;
+  const savedAgeLabel = getSavedGameAgeLabel(savedGameData?.savedAt);
+  const handleContinueGame = useCallback(() => {
+    if (soundEnabled) playClick();
+
+    try {
+      const loaded = loadSavedGame();
+      setHasSave(false);
+      setSavedGameData(null);
+
+      if (!loaded) {
+        refreshSavedGame();
+      }
+    } catch (error) {
+      console.error('Failed to continue saved game:', error);
+      setHasSave(false);
+      setSavedGameData(null);
+    }
+  }, [loadSavedGame, refreshSavedGame, soundEnabled]);
+
+  const handleStartMode = useCallback((mode: GameMode) => {
+    if (soundEnabled) playClick();
+    initGame(mode);
+  }, [initGame, soundEnabled]);
+
+  const stagger = (i: number) => shouldUseDecorativeMotion
+    ? ({ duration: 0.5, delay: 0.08 * i, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] })
+    : ({ duration: 0, delay: 0 });
 
   return (
-    <MotionConfig reducedMotion={isLowEndDevice ? 'always' : 'user'}>
+    <MotionConfig reducedMotion={shouldUseDecorativeMotion ? 'user' : 'always'}>
       <div
         className="fixed inset-0 flex flex-col overflow-hidden"
         style={{
@@ -140,7 +211,7 @@ export const HomeScreen: React.FC = () => {
         )}
 
         {/* ── Background gradient orbs + falling blocks ── */}
-        {!isLowEndDevice && deviceCapabilities?.tier !== 'low-mid' && (
+        {shouldUseDecorativeMotion && (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <motion.div animate={{ x: [0, 80, 0], y: [0, -60, 0], scale: [1, 1.3, 1] }}
               transition={{ duration: 30, repeat: Infinity, ease: 'easeInOut' }}
@@ -164,12 +235,12 @@ export const HomeScreen: React.FC = () => {
           <div className="w-full max-w-[400px] mx-auto flex flex-col" style={{ paddingBottom: '76px' }}>
 
             {/* ─── HEADER ─── */}
-            <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={stagger(0)}
+            <motion.div initial={homeMotionInitial ? { opacity: 0, y: -16 } : false} animate={{ opacity: 1, y: 0 }} transition={stagger(0)}
               className="flex items-center justify-center mb-3">
 
               {/* Logo */}
               <div className="flex items-center gap-2.5">
-                <GridLogo isLowEnd={isLowEndDevice} />
+                <GridLogo isStatic={!shouldUseDecorativeMotion} />
                 <div>
                   <h1 className="text-[22px] font-black tracking-tight leading-none">
                     <span style={{
@@ -192,10 +263,10 @@ export const HomeScreen: React.FC = () => {
             <AnimatePresence>
               {hasSave && savedGameData && (
                 <motion.button
-                  initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }}
+                  initial={homeMotionInitial ? { opacity: 0, scale: 0.94 } : false} animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.94 }} transition={{ duration: 0.3 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => { if (soundEnabled) playClick(); loadSavedGame(); }}
+                  whileTap={shouldUseDecorativeMotion ? { scale: 0.97 } : undefined}
+                  onClick={handleContinueGame}
                   className="relative rounded-[18px] p-3.5 mb-3 overflow-hidden"
                   style={{
                     background: savedGameData.gameMode === GameMode.TIMED
@@ -210,7 +281,7 @@ export const HomeScreen: React.FC = () => {
                   }}
                 >
                   {/* Shimmer - Disabled on low/mid devices */}
-                  {!isLowEndDevice && deviceCapabilities?.tier !== 'low-mid' && (
+                  {shouldUseDecorativeMotion && (
                     <motion.div animate={{ x: ['-150%', '250%'] }}
                       transition={{ duration: 3, repeat: Infinity, repeatDelay: 5, ease: 'easeInOut' }}
                       className="absolute top-0 left-0 w-1/3 h-full"
@@ -224,7 +295,7 @@ export const HomeScreen: React.FC = () => {
                         Devam Et
                       </div>
                       <div className="text-xs font-medium text-left" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                        Kaldığın yerden devam et.
+                        {savedModeLabel} mod - tek seferlik kayıt
                       </div>
                     </div>
                     <div 
@@ -236,19 +307,7 @@ export const HomeScreen: React.FC = () => {
                         color: 'rgba(255,255,255,0.72)',
                       }}
                     >
-                      {(() => {
-                        const savedAt = savedGameData.savedAt || Date.now();
-                        const now = Date.now();
-                        const diffMs = now - savedAt;
-                        const diffMins = Math.floor(diffMs / 60000);
-                        const diffHours = Math.floor(diffMs / 3600000);
-                        const diffDays = Math.floor(diffMs / 86400000);
-                        
-                        if (diffDays > 0) return `${diffDays} gün önce`;
-                        if (diffHours > 0) return `${diffHours} saat önce`;
-                        if (diffMins > 0) return `${diffMins} dk önce`;
-                        return 'Az önce';
-                      })()}
+                      {savedAgeLabel}
                     </div>
                   </div>
 
@@ -290,10 +349,10 @@ export const HomeScreen: React.FC = () => {
                           <div className="flex flex-col justify-center">
                             <div className="text-[9px] font-semibold uppercase leading-none mb-0.5"
                               style={{ color: 'rgba(255,255,255,0.45)', letterSpacing: '0.5px' }}>
-                              Süre
+                              Kalan
                             </div>
                             <div className="text-sm font-black leading-none" style={{ color: 'white' }}>
-                              {Math.floor(savedGameData.timeLeft || 0)}s
+                              {savedStatusLabel}
                             </div>
                           </div>
                         </div>
@@ -314,14 +373,14 @@ export const HomeScreen: React.FC = () => {
                       <div className="flex flex-col justify-center">
                         <div className="text-[9px] font-semibold uppercase leading-none mb-0.5"
                           style={{ color: 'rgba(255,255,255,0.45)', letterSpacing: '0.5px' }}>
-                          Durum
+                          Kayıt
                         </div>
                         <div className="text-sm font-black leading-none"
                           style={{
                             color: savedGameData.gameMode === GameMode.TIMED ? '#fbbf24' : '#c084fc',
                           }}>
                           {savedGameData.gameMode === GameMode.TIMED
-                            ? 'Sprint'
+                            ? savedModeLabel
                             : `Tier ${savedGameData.difficultyTier || 0}`}
                         </div>
                       </div>
@@ -334,7 +393,7 @@ export const HomeScreen: React.FC = () => {
             </AnimatePresence>
 
             {/* ─── MODE SECTION LABEL ─── */}
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={stagger(1)}
+            <motion.p initial={homeMotionInitial ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={stagger(1)}
               className="text-center text-[9px] font-bold uppercase tracking-[0.18em] mb-2"
               style={{ color: 'rgba(160,160,192,0.48)' }}>
               {t('home.chooseYourMode', 'Mod Seç')}
@@ -345,12 +404,12 @@ export const HomeScreen: React.FC = () => {
 
               {/* ── ENDLESS MODE ── */}
               <motion.button
-                initial={{ opacity: 0, y: 20 }} 
-                animate={{ opacity: 1, y: 0 }} 
+                initial={homeMotionInitial ? { opacity: 0, y: 20 } : false} 
+                animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={stagger(2)}
-                whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => { if (soundEnabled) playClick(); initGame(GameMode.ENDLESS); }}
+                whileHover={shouldUseDecorativeMotion ? { scale: 1.02, transition: { duration: 0.2 } } : undefined}
+                whileTap={shouldUseDecorativeMotion ? { scale: 0.98 } : undefined}
+                onClick={() => handleStartMode(GameMode.ENDLESS)}
                 className="relative overflow-hidden w-full rounded-[20px] flex items-center justify-between text-left"
                 style={{
                   minHeight: 132,
@@ -442,12 +501,12 @@ export const HomeScreen: React.FC = () => {
 
               {/* ── TIMED MODE ── */}
               <motion.button
-                initial={{ opacity: 0, y: 20 }} 
-                animate={{ opacity: 1, y: 0 }} 
+                initial={homeMotionInitial ? { opacity: 0, y: 20 } : false} 
+                animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={stagger(3)}
-                whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => { if (soundEnabled) playClick(); initGame(GameMode.TIMED); }}
+                whileHover={shouldUseDecorativeMotion ? { scale: 1.02, transition: { duration: 0.2 } } : undefined}
+                whileTap={shouldUseDecorativeMotion ? { scale: 0.98 } : undefined}
+                onClick={() => handleStartMode(GameMode.TIMED)}
                 className="relative overflow-hidden w-full rounded-[20px] flex items-center justify-between text-left"
                 style={{
                   minHeight: 132,

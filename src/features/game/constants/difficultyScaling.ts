@@ -9,9 +9,9 @@ export const DIFFICULTY_SCALING = {
     SINGLE_LINE: 1,
     DOUBLE_LINE: 2,
     TRIPLE_LINE: 3,
-    MULTI_LINE: 5,
-    PERFECT_CLEAR: 7,
-    COMBO_RUSH: 1,
+    MULTI_LINE: 4,
+    PERFECT_CLEAR: 2,
+    COMBO_RUSH: 0,
     MAX_TIME_SECONDS: 60,
   },
 

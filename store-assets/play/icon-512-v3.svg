@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="80" y1="42" x2="426" y2="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#26313c"/>
+      <stop offset="0.58" stop-color="#151d25"/>
+      <stop offset="1" stop-color="#0b1016"/>
+    </linearGradient>
+    <radialGradient id="softLight" cx="50%" cy="32%" r="62%">
+      <stop stop-color="#7dd3fc" stop-opacity="0.13"/>
+      <stop offset="0.52" stop-color="#8b5cf6" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="blueGlass" x1="116" y1="104" x2="344" y2="304" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8cc8ff" stop-opacity="0.66"/>
+      <stop offset="0.45" stop-color="#4f73d9" stop-opacity="0.54"/>
+      <stop offset="1" stop-color="#31308f" stop-opacity="0.5"/>
+    </linearGradient>
+    <linearGradient id="cyanGlass" x1="116" y1="190" x2="276" y2="384" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8ee7ff" stop-opacity="0.62"/>
+      <stop offset="0.55" stop-color="#3671d7" stop-opacity="0.48"/>
+      <stop offset="1" stop-color="#312a93" stop-opacity="0.52"/>
+    </linearGradient>
+    <linearGradient id="purpleGlass" x1="250" y1="172" x2="404" y2="338" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d69cff" stop-opacity="0.66"/>
+      <stop offset="0.48" stop-color="#8a4ce4" stop-opacity="0.54"/>
+      <stop offset="1" stop-color="#4a1e81" stop-opacity="0.54"/>
+    </linearGradient>
+    <linearGradient id="edgeBlue" x1="112" y1="118" x2="340" y2="304" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#a7dcff"/>
+      <stop offset="0.5" stop-color="#7dd3fc"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="edgePurple" x1="252" y1="170" x2="398" y2="334" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f0abfc"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+    <filter id="markShadow" x="-24%" y="-22%" width="148%" height="154%">
+      <feDropShadow dx="0" dy="22" stdDeviation="18" flood-color="#000000" flood-opacity="0.36"/>
+    </filter>
+    <filter id="edgeGlow" x="-24%" y="-24%" width="148%" height="148%">
+      <feGaussianBlur stdDeviation="2.3" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.45 0 0 0 0 0.78 0 0 0 0 1 0 0 0 0.42 0"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .glass { stroke-linejoin: round; stroke-linecap: round; }
+      .shine { fill: none; stroke: #e0f2fe; stroke-width: 3; stroke-linecap: round; opacity: .56; }
+    </style>
+  </defs>
+
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="96" fill="url(#softLight)"/>
+  <rect x="18" y="18" width="476" height="476" rx="86" fill="none" stroke="#ffffff" stroke-opacity="0.04" stroke-width="2"/>
+
+  <g filter="url(#markShadow)">
+    <ellipse cx="256" cy="360" rx="166" ry="42" fill="#02060b" opacity="0.36"/>
+
+    <!-- Top blue glass beam -->
+    <path class="glass" d="M96 156L244 72C252 68 262 68 270 73L346 118C356 124 356 138 346 144L198 230C190 234 180 234 172 229L96 184C86 178 86 162 96 156Z"
+      fill="url(#blueGlass)" stroke="url(#edgeBlue)" stroke-width="4" filter="url(#edgeGlow)"/>
+    <path class="glass" d="M94 178L172 224C182 230 194 230 204 224L350 140V202C350 212 344 221 335 226L204 302C194 308 182 308 172 302L94 256Z"
+      fill="url(#blueGlass)" stroke="#7dd3fc" stroke-opacity="0.46" stroke-width="3"/>
+
+    <!-- Left/down cyan leg -->
+    <path class="glass" d="M96 238L176 192C184 188 194 188 202 193L268 232C278 238 278 252 268 258L188 304C180 308 170 308 162 303L96 264C86 258 86 244 96 238Z"
+      fill="url(#cyanGlass)" stroke="url(#edgeBlue)" stroke-width="4" filter="url(#edgeGlow)"/>
+    <path class="glass" d="M162 300L202 276C212 270 226 278 226 290V396C226 406 220 415 211 420L174 442C164 448 150 440 150 428V322C150 313 155 305 162 300Z"
+      fill="url(#cyanGlass)" stroke="#93c5fd" stroke-opacity="0.5" stroke-width="3"/>
+
+    <!-- Right purple leg -->
+    <path class="glass" d="M250 198L326 154C334 150 344 150 352 155L414 192C424 198 424 212 414 218L338 262C330 266 320 266 312 261L250 224C240 218 240 204 250 198Z"
+      fill="url(#purpleGlass)" stroke="url(#edgePurple)" stroke-width="4" filter="url(#edgeGlow)"/>
+    <path class="glass" d="M312 258L352 234C362 228 376 236 376 248V336C376 346 370 355 361 360L326 380C316 386 302 378 302 366V280C302 271 306 263 312 258Z"
+      fill="url(#purpleGlass)" stroke="#d8b4fe" stroke-opacity="0.5" stroke-width="3"/>
+
+    <!-- Center transparent overlap, keeps the mark simple and recognizable -->
+    <path class="glass" d="M192 170L244 140C252 136 262 136 270 141L314 167C324 173 324 187 314 193L262 223C254 227 244 227 236 222L192 196C182 190 182 176 192 170Z"
+      fill="#6cc8ff" fill-opacity="0.16" stroke="#bae6fd" stroke-opacity="0.62" stroke-width="3"/>
+
+    <path class="shine" d="M112 154L244 78C252 74 262 74 270 79L334 117"/>
+    <path class="shine" d="M260 198L326 160C334 156 344 156 352 161L400 190"/>
+    <path class="shine" d="M108 240L176 200C184 196 194 196 202 201"/>
+  </g>
+</svg>

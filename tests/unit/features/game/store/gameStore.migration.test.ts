@@ -29,7 +29,7 @@ describe('Feature: endless-mode-rebalance - GameStore Migration Integration', ()
 
       const state = useGameStore.getState();
       expect(state.score).toBe(5000);
-      expect(state.difficultyTier).toBe(2); // Recalculated from score
+      expect(state.difficultyTier).toBe(0); // Recalculated from score
       expect(state.gameMode).toBe(GameMode.ENDLESS);
       expect(state.miniEventState).toBeDefined();
       expect(state.totalMovesPlayed).toBe(0);
@@ -93,7 +93,7 @@ describe('Feature: endless-mode-rebalance - GameStore Migration Integration', ()
 
       const state = useGameStore.getState();
       expect(state.score).toBe(8500); // Score preserved
-      expect(state.difficultyTier).toBe(3); // Tier recalculated
+      expect(state.difficultyTier).toBe(0); // Tier recalculated
     });
 
     it('should handle save data already at version 2', () => {
@@ -153,12 +153,12 @@ describe('Feature: endless-mode-rebalance - GameStore Migration Integration', ()
       const state = useGameStore.getState();
       expect(state.gameMode).toBe(GameMode.TIMED);
       expect(state.score).toBe(5000); // Score loaded
-      expect(state.difficultyTier).toBe(2); // Tier loaded (but won't be used in TIMED mode)
+      expect(state.difficultyTier).toBe(0); // Recalculated but not used in TIMED mode
     });
 
     it('should handle edge case: score at tier threshold', () => {
       const savedData: SaveData = {
-        score: 9000, // Exactly at tier 3 threshold
+        score: 15000, // Exactly at tier 1 threshold
         difficultyTier: 2,
         saveVersion: 1,
       };
@@ -166,13 +166,13 @@ describe('Feature: endless-mode-rebalance - GameStore Migration Integration', ()
       useGameStore.getState().initGame(GameMode.ENDLESS, savedData);
 
       const state = useGameStore.getState();
-      expect(state.score).toBe(9000);
-      expect(state.difficultyTier).toBe(3); // Should be tier 3
+      expect(state.score).toBe(15000);
+      expect(state.difficultyTier).toBe(1); // Should be tier 1
     });
 
     it('should handle edge case: very high score', () => {
       const savedData: SaveData = {
-        score: 100000, // Beyond tier 6 threshold
+        score: 300000, // Beyond tier 6 threshold
         difficultyTier: 5,
         saveVersion: 1,
       };
@@ -180,7 +180,7 @@ describe('Feature: endless-mode-rebalance - GameStore Migration Integration', ()
       useGameStore.getState().initGame(GameMode.ENDLESS, savedData);
 
       const state = useGameStore.getState();
-      expect(state.score).toBe(100000);
+      expect(state.score).toBe(300000);
       expect(state.difficultyTier).toBe(6); // Max tier
     });
   });

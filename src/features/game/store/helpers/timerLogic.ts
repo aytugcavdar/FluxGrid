@@ -6,13 +6,26 @@ import { shouldApplyPassiveDecay, getPassiveDecayRate, getPassiveDecayInterval }
 
 /**
  * Timer tick logic for TIMED game mode
- * Also updates combo timer for all modes
+ * Also expires the combo timer as a store-level fallback.
  */
 export const tickTimerImpl = (
   get: () => any,
   set: (partial: any) => void
 ): void => {
-  const { timeLeft, isGameOver, gameMode, appState, timerExpectedEnd, comboTimerStartTime, comboTimerDuration, combo, score, lastPassiveDecayTime } = get();
+  const {
+    timeLeft,
+    isGameOver,
+    gameMode,
+    appState,
+    timerExpectedEnd,
+    comboTimerStartTime,
+    comboTimerDuration,
+    combo,
+    score,
+    lastPassiveDecayTime,
+    timedLastChanceAvailable,
+    timedFinalRushLocked,
+  } = get();
   
   // Guard: Oyun bittiyse veya oyun ekranında değilse işlem yapma
   if (isGameOver || appState !== AppState.GAME) return;
@@ -32,8 +45,6 @@ export const tickTimerImpl = (
             comboTimerStartTime: null, 
             comboTimeLeft: 0 
           });
-        } else {
-          set({ comboTimeLeft: remaining });
         }
       }
       
@@ -63,6 +74,8 @@ export const tickTimerImpl = (
         // Gerçek kalan süreyi hesapla
         const remainingMs = currentExpectedEnd - now;
         const newTimeLeft = Math.max(0, Math.ceil(remainingMs / 1000));
+        const shouldLockFinalRush = newTimeLeft > 0 &&
+          newTimeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD;
         
         // Play tick sound for last 10 seconds
         if (newTimeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD && newTimeLeft > 0 && timeLeft !== newTimeLeft) {
@@ -70,10 +83,28 @@ export const tickTimerImpl = (
         }
         
         if (newTimeLeft <= 0) {
-          playGameOver();
-          set({ timeLeft: 0, isGameOver: true });
-        } else {
-          set({ timeLeft: newTimeLeft });
+          if (timedLastChanceAvailable) {
+            set({
+              timeLeft: 0,
+              timerExpectedEnd: null,
+              timedLastChanceAvailable: false,
+              timedLastChanceActive: true,
+              timedFinalRushLocked: true,
+              lastTimedEvent: {
+                id: now,
+                type: 'LAST_CHANCE',
+                label: 'SON ŞANS · CLEAR YAP',
+              },
+            });
+          } else {
+            playGameOver();
+            set({ timeLeft: 0, isGameOver: true });
+          }
+        } else if (timeLeft !== newTimeLeft || (shouldLockFinalRush && !timedFinalRushLocked)) {
+          set({
+            timeLeft: newTimeLeft,
+            ...(shouldLockFinalRush ? { timedFinalRushLocked: true } : {}),
+          });
         }
       }
     },

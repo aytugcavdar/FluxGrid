@@ -101,20 +101,24 @@
   },
   "tutorial": {
     "drag": {
-      "title": "Drag a piece",
-      "description": "Hold a piece from the tray and drop it on a valid board spot."
+      "title": "Drag a piece onto the board",
+      "description": "Hold a piece from the tray and drop it into a valid empty spot on the 2D board."
     },
     "welcome": {
       "title": "👋 Welcome!",
-      "description": "Let's get started! Drag one of the pieces below and place it on the board"
+      "description": "Let's get started. Drag one of the pieces below and place it on the 2D board."
     },
     "firstClear": {
-      "title": "🎯 Great Job!",
-      "description": "Complete the bottom row. When it clears, watch the blocks above fall down."
+      "title": "Clear the row",
+      "description": "Complete the bottom row. When a row fills, it clears and score chips pop from the blocks."
+    },
+    "gravity": {
+      "title": "Blocks fall down",
+      "description": "After a clear, unsupported blocks drop into empty space. That can open new moves."
     },
     "combo": {
-      "title": "🔥 Combo Time!",
-      "description": "Clear one more line right away. Consecutive clears keep your combo alive."
+      "title": "Build a combo",
+      "description": "Clear one more row or column right away. Consecutive clears grow the combo counter above the board."
     },
     "comboTimer": {
       "title": "⏰ Combo Timer",
@@ -126,14 +130,14 @@
     },
     "ready": {
       "endlessTitle": "You're ready",
-      "endlessDescription": "Clear rows or columns, keep your combo alive, and build your own record.",
+      "endlessDescription": "Use the 2D board space carefully, clear rows or columns, and build your own record.",
       "timedTitle": "Earn time",
-      "timedDescription": "In Timed mode, every clear gives +seconds. Clear fast and extend the run."
+      "timedDescription": "In Timed mode, every clear gives time. Clear fast, build combos, and extend the run."
     },
     "skip": "Skip",
     "skipButton": "Skip Tutorial",
     "progress": "{{current}} / {{total}}",
-    "handPointer": "Drag and drop",
+    "handPointer": "Hold, drag, drop",
     "autoAdvance": {
       "completing": "🎉 Completing...",
       "continuing": "⏭ Auto-advancing..."
@@ -147,16 +151,24 @@
       "perfectStart": "🎯 Perfect Start!",
       "comboMaster": "🔥 Combo Master!",
       "speedDemon": "⚡ Speed Demon!",
-      "tryDragging": "Try dragging a piece to the board",
+      "tryDragging": "Try dragging a piece into an empty 2D board spot",
       "fillLine": "Fill a complete row or column",
-      "keepClearing": "Keep clearing lines quickly",
+      "keepClearing": "Clear one more row or column for combo",
       "timeReward": "Clear made, time earned!"
+    },
+    "timedIntro": {
+      "title": "Timed mode",
+      "description": "The timer starts on your first move. Clear lines to earn time; in the final window, time turns into score.",
+      "tip1": "Clear = time",
+      "tip2": "Combo = score",
+      "tip3": "Final seconds matter",
+      "dismiss": "Dismiss timed mode tip"
     },
     "start": "Start Playing",
     "next": "Next",
     "step1": {
       "title": "Drag a Piece",
-      "description": "Drag the blue piece to the highlighted area on the grid."
+      "description": "Drag the blue piece to the highlighted area on the 2D board."
     },
     "step2": {
       "title": "Place Another Piece",
@@ -164,11 +176,11 @@
     },
     "step3": {
       "title": "Clear a Line",
-      "description": "Complete a row or column to clear it and earn points!"
+      "description": "Complete a row or column. Points now pop from the cleared blocks."
     },
     "step4": {
       "title": "Build Combos",
-      "description": "Clear lines back-to-back to keep your combo alive and push your score higher."
+      "description": "Clear back-to-back rows or columns to keep your combo alive and push your score higher."
     },
     "step5": {
       "title": "Use a Skill",
@@ -176,7 +188,7 @@
     },
     "step6": {
       "title": "You're Ready!",
-      "description": "You've learned the basics. Now go build your high score!"
+      "description": "You've learned the 2D board basics. Use space well and build your high score!"
     },
     "wrongPlacement": "Not here!",
     "correctPlacement": "Great!"
@@ -223,6 +235,8 @@
     "progressionAchievements": "Progression Achievements"
   },
   "settingsScreen": {
+    "title": "Settings",
+    "subtitle": "Manage your core game preferences here.",
     "appearance": "APPEARANCE",
     "soundAndVibration": "SOUND & VIBRATION",
     "language": "LANGUAGE",
@@ -267,7 +281,7 @@
     "resetAllData": "Reset All Data",
     "resetConfirm": "All your data will be deleted. This action cannot be undone. Do you want to continue?",
     "resetSuccess": "All data has been successfully reset.",
-    "version": "FluxGrid v18.0",
+    "version": "FluxGrid v1.0",
     "themeDark": "Dark",
     "themeDarkDesc": "Purple & Orange",
     "themeLight": "Light",
@@ -279,6 +293,17 @@
     "german": "Deutsch",
     "french": "Français",
     "spanish": "Español",
+    "languageOptionAria": "Select {{language}} language",
+    "rewards": "REWARDS",
+    "neonTrialTitle": "Neon Theme Trial",
+    "neonTrialDesc": "Complete a rewarded ad and use the Neon theme for 24 hours.",
+    "switchToDark": "Switch to Dark Theme",
+    "useNeon": "Use Neon Theme",
+    "hoursLeft": "{{count}}h left",
+    "adLoading": "Preparing ad...",
+    "adFailed": "Ad could not be completed",
+    "watchAdTrial": "Watch Ad - Unlock 24h",
+    "trialUsed": "Today's trial was used",
     "installPWA": "Add to Home Screen",
     "installPWAInstructions": "Install App",
     "iosStep1": "Tap the Share button in Safari (⬆️)",
@@ -358,6 +383,8 @@
     "benefit1": "A safe space opens on the board",
     "benefit2": "You'll get 3 new pieces",
     "benefit3": "Your current score is kept",
+    "summaryTitle": "Safe space + 3 new pieces",
+    "summarySubtitle": "Your score stays safe.",
     "watchAd": "📺 Watch Ad & Continue",
     "loading": "Loading ad...",
     "limitReached": "Daily limit reached",

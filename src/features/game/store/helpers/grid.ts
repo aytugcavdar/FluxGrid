@@ -29,7 +29,24 @@ export interface ClearAction {
     color: string;
     health?: number;
   }>;
+  damagedIceCells: Array<{
+    id?: string;
+    x: number;
+    y: number;
+    color: string;
+    health: number;
+  }>;
+  bombCells: Array<{
+    id?: string;
+    x: number;
+    y: number;
+    color: string;
+  }>;
   chainIndex: number; // Which chain step this clear happened in
+}
+
+export interface ProcessGridOptions {
+  applyGravity?: boolean;
 }
 
 /**
@@ -43,7 +60,7 @@ export const createEmptyGrid = (): GridState =>
 /**
  * Process grid for line clears, chain reactions, and special blocks
  */
-export const processGrid = (initialGrid: GridState): {
+export const processGrid = (initialGrid: GridState, options: ProcessGridOptions = {}): {
   grid: GridState;
   totalLinesCleared: number;
   chainCount: number;
@@ -52,6 +69,7 @@ export const processGrid = (initialGrid: GridState): {
   iceBroken: number;
   actions: Array<{ type: string; [key: string]: any }>;
 } => {
+  const applyGravity = options.applyGravity ?? true;
   let currentGrid = initialGrid.map(row => row.map(cell => ({ ...cell })));
   let totalLinesCleared = 0;
   let linesClearedInPass = 0;
@@ -68,7 +86,7 @@ export const processGrid = (initialGrid: GridState): {
     // 1. Check Rows
     const fullRows: number[] = [];
     for (let y = 0; y < GRID_SIZE; y++) {
-      if (currentGrid[y].every(cell => cell.filled)) {
+      if (currentGrid[y].every(cell => cell.filled && cell.type !== CellType.VOID)) {
         fullRows.push(y);
       }
     }
@@ -78,7 +96,7 @@ export const processGrid = (initialGrid: GridState): {
     for (let x = 0; x < GRID_SIZE; x++) {
       let isFull = true;
       for (let y = 0; y < GRID_SIZE; y++) {
-        if (!currentGrid[y][x].filled) {
+        if (!currentGrid[y][x].filled || currentGrid[y][x].type === CellType.VOID) {
           isFull = false;
           break;
         }
@@ -123,13 +141,24 @@ export const processGrid = (initialGrid: GridState): {
       const finalCellsToClear = new Set<string>();
       const processedBombs = new Set<string>();
       const explosionQueue: {x: number, y: number}[] = [];
+      const damagedIceCells: ClearAction['damagedIceCells'] = [];
+      const bombCells: ClearAction['bombCells'] = [];
 
       const processHit = (x: number, y: number) => {
         const cell = currentGrid[y][x];
         if (!cell.filled) return;
+        if (cell.type === CellType.VOID) return;
 
         if (cell.type === CellType.ICE && (cell.health || 0) > 1) {
-          currentGrid[y][x] = { ...cell, health: (cell.health || 2) - 1 };
+          const nextHealth = (cell.health || 2) - 1;
+          currentGrid[y][x] = { ...cell, health: nextHealth };
+          damagedIceCells.push({
+            id: cell.id,
+            x,
+            y,
+            color: cell.color,
+            health: nextHealth,
+          });
         } else {
           const key = `${x},${y}`;
           if (!finalCellsToClear.has(key)) {
@@ -139,6 +168,7 @@ export const processGrid = (initialGrid: GridState): {
             }
             if (cell.type === CellType.BOMB) {
               explosionQueue.push({x, y});
+              bombCells.push({ id: cell.id, x, y, color: cell.color });
               bombsExploded++;
             }
           }
@@ -202,61 +232,66 @@ export const processGrid = (initialGrid: GridState): {
           cols: [...fullCols],
           movedCells,
           lockedIceCells,
+          damagedIceCells,
+          bombCells,
           chainIndex: chainCount
         });
       }
 
-      // Apply Gravity (ICE blocks stay in place)
-      for (let x = 0; x < GRID_SIZE; x++) {
-        // 1. Find ICE cells and their Y positions
-        const icePositions = new Map<number, GridCell>();
-        for (let y = 0; y < GRID_SIZE; y++) {
-          const cell = currentGrid[y][x];
-          if (cell.filled && cell.type === CellType.ICE) {
-            icePositions.set(y, { ...cell });
-          }
-        }
-        
-        // 2. Collect non-ICE filled cells
-        const normalStack: Array<{ cell: GridCell; fromY: number }> = [];
-        for (let y = 0; y < GRID_SIZE; y++) {
-          const cell = currentGrid[y][x];
-          if (cell.filled && cell.type !== CellType.ICE) {
-            normalStack.push({ cell: { ...cell }, fromY: y });
-          }
-        }
-        
-        // 3. Build result column: ICE stays at their Y, normal blocks fill from bottom
-        let normalIndex = normalStack.length - 1;
-        for (let y = GRID_SIZE - 1; y >= 0; y--) {
-          if (icePositions.has(y)) {
-            // ICE block stays at this position
-            currentGrid[y][x] = icePositions.get(y)!;
-            const iceCell = currentGrid[y][x];
-            lockedIceCells.push({
-              id: iceCell.id,
-              x,
-              y,
-              color: iceCell.color,
-              health: iceCell.health,
-            });
-          } else if (normalIndex >= 0) {
-            // Fill with normal block from stack
-            const entry = normalStack[normalIndex];
-            currentGrid[y][x] = entry.cell;
-            if (entry.fromY !== y) {
-              movedCells.push({
-                id: entry.cell.id,
-                x,
-                fromY: entry.fromY,
-                toY: y,
-                cellType: entry.cell.type,
-              });
+      // T5+ Endless uses a fixed grid. Other modes keep the normal gravity rule.
+      if (applyGravity) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+          // ICE and VOID cells stay fixed while other blocks fall around them.
+          const fixedPositions = new Map<number, GridCell>();
+          for (let y = 0; y < GRID_SIZE; y++) {
+            const cell = currentGrid[y][x];
+            if (cell.filled && (cell.type === CellType.ICE || cell.type === CellType.VOID)) {
+              fixedPositions.set(y, { ...cell });
             }
-            normalIndex--;
-          } else {
-            // Empty cell
-            currentGrid[y][x] = { filled: false, color: '' };
+          }
+
+          // Collect movable filled cells.
+          const normalStack: Array<{ cell: GridCell; fromY: number }> = [];
+          for (let y = 0; y < GRID_SIZE; y++) {
+            const cell = currentGrid[y][x];
+            if (cell.filled && cell.type !== CellType.ICE && cell.type !== CellType.VOID) {
+              normalStack.push({ cell: { ...cell }, fromY: y });
+            }
+          }
+
+          // Build result column: fixed cells stay in place, movable blocks fill from bottom.
+          let normalIndex = normalStack.length - 1;
+          for (let y = GRID_SIZE - 1; y >= 0; y--) {
+            if (fixedPositions.has(y)) {
+              currentGrid[y][x] = fixedPositions.get(y)!;
+              const fixedCell = currentGrid[y][x];
+              if (fixedCell.type === CellType.ICE) {
+                lockedIceCells.push({
+                  id: fixedCell.id,
+                  x,
+                  y,
+                  color: fixedCell.color,
+                  health: fixedCell.health,
+                });
+              }
+            } else if (normalIndex >= 0) {
+              // Fill with normal block from stack
+              const entry = normalStack[normalIndex];
+              currentGrid[y][x] = entry.cell;
+              if (entry.fromY !== y) {
+                movedCells.push({
+                  id: entry.cell.id,
+                  x,
+                  fromY: entry.fromY,
+                  toY: y,
+                  cellType: entry.cell.type,
+                });
+              }
+              normalIndex--;
+            } else {
+              // Empty cell
+              currentGrid[y][x] = { filled: false, color: '' };
+            }
           }
         }
       }

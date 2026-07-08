@@ -106,7 +106,11 @@
     },
     "firstClear": {
       "title": "Limpia una linea",
-      "description": "Completa la fila inferior. Los bloques de arriba caeran despues del clear."
+      "description": "Completa la fila inferior. Una fila llena se limpia y da puntos."
+    },
+    "gravity": {
+      "title": "Los bloques caen",
+      "description": "Despues de un clear, los bloques sin apoyo caen. Eso puede abrir nuevos movimientos."
     },
     "combo": {
       "title": "Mantén el combo",
@@ -123,7 +127,17 @@
       "fillLine": "Llena una fila o columna",
       "keepClearing": "Sigue limpiando rapido",
       "perfectStart": "Inicio perfecto!",
-      "timeReward": "Clear hecho, tiempo ganado!"
+      "timeReward": "Clear hecho, tiempo ganado!",
+      "comboMaster": "Maestro del combo!",
+      "speedDemon": "Inicio rapido!"
+    },
+    "timedIntro": {
+      "title": "Modo Timed",
+      "description": "El temporizador empieza con tu primer movimiento. Los clears dan tiempo; al final el tiempo se convierte en puntos.",
+      "tip1": "Clear = tiempo",
+      "tip2": "Combo = puntos",
+      "tip3": "Los segundos finales importan",
+      "dismiss": "Cerrar consejo Timed"
     },
     "start": "Empezar a jugar",
     "next": "Siguiente",
@@ -142,7 +156,7 @@
     },
     "step4": {
       "title": "Crea combos",
-      "description": "Limpia l?neas seguidas para mantener el combo y subir tu puntuaci?n."
+      "description": "Limpia líneas seguidas para mantener el combo y subir tu puntuación."
     },
     "step5": {
       "title": "Usa una habilidad",
@@ -153,7 +167,31 @@
       "description": "Has aprendido lo básico. ¡Ahora ve y construye tu puntuación más alta!"
     },
     "wrongPlacement": "¡No aquí!",
-    "correctPlacement": "¡Genial!"
+    "correctPlacement": "¡Genial!",
+    "welcome": {
+      "title": "Bienvenido!",
+      "description": "Vamos a empezar. Arrastra una pieza de abajo y colocala en el tablero."
+    },
+    "comboTimer": {
+      "title": "Temporizador de combo",
+      "description": "Ojo con el tiempo. Si esperas demasiado, tu combo se reinicia."
+    },
+    "gameModes": {
+      "title": "Estas listo!",
+      "description": "Estas en modo Infinito. Juega a tu ritmo, limpia lineas y supera tu record."
+    },
+    "skipButton": "Saltar tutorial",
+    "progress": "{{current}} / {{total}}",
+    "handPointer": "Arrastrar y soltar",
+    "autoAdvance": {
+      "completing": "Completando...",
+      "continuing": "Continuando..."
+    },
+    "achievements": {
+      "speed": "Aprendiz rapido",
+      "perfect": "Inicio perfecto",
+      "combo": "Maestro del combo"
+    }
   },
   "settings": {
     "title": "Elegir tema",
@@ -205,7 +243,7 @@
   "guided": {
     "step1": "Arrastra la pieza de abajo y suéltala en la cuadrícula",
     "step2": "Llena una fila completa",
-    "step3": "Limpia l?neas r?pido para mantener el combo",
+    "step3": "Limpia líneas rápido para mantener el combo",
     "step4": "¡Perfecto! Ya estás listo",
     "skip": "SALTAR"
   },
@@ -255,6 +293,8 @@
     "progressionAchievements": "Logros de progresión"
   },
   "settingsScreen": {
+    "title": "Ajustes",
+    "subtitle": "Gestiona aqui tus preferencias principales del juego.",
     "appearance": "APARIENCIA",
     "soundAndVibration": "SONIDO Y VIBRACIÓN",
     "language": "IDIOMA",
@@ -299,7 +339,7 @@
     "resetAllData": "Restablecer todos los datos",
     "resetConfirm": "Todos sus datos serán eliminados. Esta acción no se puede deshacer. ¿Desea continuar?",
     "resetSuccess": "Todos los datos se han restablecido correctamente.",
-    "version": "FluxGrid v18.0",
+    "version": "FluxGrid v1.0",
     "themeDark": "Oscuro",
     "themeDarkDesc": "Púrpura y Naranja",
     "themeLight": "Claro",
@@ -311,6 +351,17 @@
     "german": "Deutsch",
     "french": "Français",
     "spanish": "Español",
+    "languageOptionAria": "Seleccionar idioma {{language}}",
+    "rewards": "RECOMPENSAS",
+    "neonTrialTitle": "Prueba del tema Neon",
+    "neonTrialDesc": "Completa un anuncio recompensado y usa Neon durante 24 horas.",
+    "switchToDark": "Cambiar al tema oscuro",
+    "useNeon": "Usar tema Neon",
+    "hoursLeft": "{{count}} h restantes",
+    "adLoading": "Preparando anuncio...",
+    "adFailed": "No se pudo completar el anuncio",
+    "watchAdTrial": "Ver anuncio - desbloquear 24 h",
+    "trialUsed": "La prueba de hoy ya se uso",
     "installPWA": "Agregar a pantalla de inicio",
     "installPWAInstructions": "Instalar aplicación",
     "iosStep1": "Toca el botón Compartir en Safari (⬆️)",
@@ -320,5 +371,26 @@
     "androidStep2": "Encuentra la opción \"Agregar a pantalla de inicio\" o \"Instalar\"",
     "androidStep3": "Sigue las instrucciones para instalar la aplicación",
     "understood": "Entendido"
+  },
+  "update": {
+    "button": "Actualizar ahora",
+    "later": "Mas tarde",
+    "required": "Esta actualizacion es necesaria para seguir usando la app"
+  },
+  "continueModal": {
+    "title": "CONTINUAR?",
+    "subtitle": "Tu partida aun no ha terminado!",
+    "benefit1": "Se abre un espacio seguro en el tablero",
+    "benefit2": "Recibes 3 piezas nuevas",
+    "benefit3": "Tu puntuacion actual se conserva",
+    "summaryTitle": "Espacio seguro + 3 piezas nuevas",
+    "summarySubtitle": "Tu puntuacion se conserva.",
+    "watchAd": "Ver anuncio y continuar",
+    "loading": "Cargando anuncio...",
+    "limitReached": "Limite diario alcanzado",
+    "remaining_one": "Queda {{count}} uso hoy",
+    "remaining_other": "Quedan {{count}} usos hoy",
+    "noThanks": "No gracias, salir",
+    "adNote": "Mira un anuncio corto para continuar gratis"
   }
 }

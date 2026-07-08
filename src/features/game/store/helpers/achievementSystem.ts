@@ -83,6 +83,21 @@ export function updateAchievements(
       if (ach.id === 'record_breaker') {
         val = stats.recordsBroken || 0;
       }
+      if (ach.id === 'large_piece_1' || ach.id === 'large_piece_25') {
+        val = stats.largePiecesPlaced || 0;
+      }
+      if (ach.id === 'line5_piece_10') {
+        val = stats.lineFivePiecesPlaced || 0;
+      }
+      if (ach.id === 'hollow_3x3_5') {
+        val = stats.hollow3x3PiecesPlaced || 0;
+      }
+      if (ach.id === 'square_3x3_1') {
+        val = stats.square3x3PiecesPlaced || 0;
+      }
+      if (ach.id === 'large_piece_clear_10') {
+        val = stats.largePieceClears || 0;
+      }
     }
 
     if (ach.id === 'bomb_expert') {

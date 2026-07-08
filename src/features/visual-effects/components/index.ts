@@ -1,7 +1,5 @@
 export { ScreenShakeEffect } from './ScreenShakeEffect';
-export { LineClearAnimations } from './LineClearAnimations';
 export { ParticleExplosionOverlay } from './ParticleExplosionOverlay';
-export { PlacementFeedbackEffect } from './PlacementFeedbackEffect';
 export { GhostPreviewPulse } from './GhostPreviewPulse';
 export { GridBreathingEffect } from './GridBreathingEffect';
 export { PerfectClearEffect } from './PerfectClearEffect';

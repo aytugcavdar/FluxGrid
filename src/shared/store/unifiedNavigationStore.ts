@@ -10,9 +10,11 @@ export interface NavigationState {
 }
 
 export interface UnifiedNavigationStore extends NavigationState {
+  nativeBackHandler: (() => boolean) | null;
   navigateTo: (screen: AppScreen) => void;
   goBack: () => void;
   handleBackButton: () => boolean;
+  setNativeBackHandler: (handler: (() => boolean) | null) => void;
   registerBackButtonListener: () => () => void;
 }
 
@@ -20,6 +22,7 @@ export const useUnifiedNavigationStore = create<UnifiedNavigationStore>((set, ge
   currentScreen: 'home',
   previousScreen: null,
   canGoBack: false,
+  nativeBackHandler: null,
 
   navigateTo: (screen: AppScreen) => {
     const current = get().currentScreen;
@@ -48,7 +51,11 @@ export const useUnifiedNavigationStore = create<UnifiedNavigationStore>((set, ge
   },
 
   handleBackButton: () => {
-    const { currentScreen } = get();
+    const { currentScreen, nativeBackHandler } = get();
+
+    if (nativeBackHandler?.()) {
+      return true;
+    }
     
     // Home screen: exit app (return false)
     if (currentScreen === 'home') {
@@ -58,6 +65,10 @@ export const useUnifiedNavigationStore = create<UnifiedNavigationStore>((set, ge
     // Other screens: navigate to home (return true)
     get().goBack();
     return true;
+  },
+
+  setNativeBackHandler: (handler) => {
+    set({ nativeBackHandler: handler });
   },
 
   registerBackButtonListener: () => {

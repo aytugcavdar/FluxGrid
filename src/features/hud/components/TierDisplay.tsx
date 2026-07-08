@@ -10,11 +10,11 @@ interface TierDisplayProps {
 const TIER_NAMES: Record<number, string> = {
   0: 'Başlangıç',
   1: 'Gelişmiş',
-  2: 'Uzman',
-  3: 'Usta',
-  4: 'Efsane',
-  5: 'Kaos',
-  6: 'VOID+',
+  2: 'BASINC',
+  3: 'SARSINTI',
+  4: 'BUZ FIRTINASI',
+  5: 'GUCLU SARSINTI',
+  6: 'SABIT ALAN',
 };
 
 const TIER_COLORS: Record<number, { primary: string; bg: string; border: string }> = {
@@ -47,7 +47,7 @@ export const TierDisplay: React.FC<TierDisplayProps> = React.memo(({ tier, isMob
     }
   }, [tier]); // Only depend on tier, not prevTier
   
-  const tierName = TIER_NAMES[tier] ?? `Tier ${tier}`;
+  const tierName = tier === 0 ? 'NORMAL' : tier === 1 ? 'BUZ' : TIER_NAMES[tier] ?? `Tier ${tier}`;
   const multiplier = TIER_SCORE_MULTIPLIERS[tier] ?? 1.0;
   const colors = TIER_COLORS[tier] ?? TIER_COLORS[0];
 

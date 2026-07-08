@@ -1,16 +1,16 @@
 /**
  * Game feature constants
  */
-import type { PieceShape, Milestone } from '../types';
+import type { Achievement, PieceShape, Milestone } from '../types';
 
 // Modern Soft Palette
 export const COLORS = [
-  '#f59e0b', // Amber
-  '#3b82f6', // Blue
-  '#a78bfa', // Lavender
-  '#10b981', // Teal Green
-  '#f472b6', // Pink
-  '#6366f1', // Indigo
+  '#fbbf24', // Amber
+  '#60a5fa', // Blue
+  '#c084fc', // Lavender
+  '#34d399', // Teal Green
+  '#fb7185', // Pink
+  '#818cf8', // Indigo
 ];
 
 // 1010! style shapes
@@ -33,11 +33,38 @@ export const SHAPES: PieceShape[] = [
   { id: 'diagonal_2', shape: [[1, 0], [0, 1]], color: '#f97316' }, // Orange - diagonal left-to-right
   { id: 'diagonal_2_rev', shape: [[0, 1], [1, 0]], color: '#ec4899' }, // Hot Pink - diagonal right-to-left
   { id: 'small_plus', shape: [[0, 1, 0], [1, 1, 1]], color: '#8b5cf6' }, // Purple - small plus
+  { id: 'rect_2x3', shape: [[1, 1], [1, 1], [1, 1]], color: '#06b6d4' },
+  { id: 'rect_3x2', shape: [[1, 1, 1], [1, 1, 1]], color: '#0ea5e9' },
+  { id: 'h5', shape: [[1, 1, 1, 1, 1]], color: '#14b8a6' },
+  { id: 'v5', shape: [[1], [1], [1], [1], [1]], color: '#14b8a6' },
+  { id: 'big_l_shape', shape: [[1, 0, 0], [1, 0, 0], [1, 1, 1]], color: '#f97316' },
+  { id: 'big_j_shape', shape: [[0, 0, 1], [0, 0, 1], [1, 1, 1]], color: '#fb7185' },
+  { id: 'hollow_3x3', shape: [[1, 1, 1], [1, 0, 1], [1, 1, 1]], color: '#facc15' },
+  { id: 'square_3x3', shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], color: '#f43f5e' },
 ];
 
-// Tier progression constants (rebalanced for smoother curve)
-export const TIER_THRESHOLDS = [0, 5000, 15000, 30000, 55000, 90000, 140000] as const;
+// Tier progression constants. Tier 0 is the warm-up band; pressure ramps through 200k.
+export const TIER_THRESHOLDS = [0, 15000, 40000, 80000, 130000, 190000, 260000] as const;
+export const ENDLESS_LOOP_THRESHOLDS = [320000, 450000, 650000, 900000] as const;
 export const TIER_SCORE_MULTIPLIERS = [1.0, 1.2, 1.5, 1.8, 2.2, 2.6, 3.0] as const;
+export const FIXED_GRID_TIER = 6;
+export const TIER_NAMES: Record<number, string> = {
+  0: 'NORMAL',
+  1: 'BUZ',
+  2: 'BASINC',
+  3: 'SARSINTI',
+  4: 'BUZ FIRTINASI',
+  5: 'GUCLU SARSINTI',
+  6: 'SABIT ALAN',
+} as const;
+export const TIER_UNLOCK_LABELS: Record<number, string> = {
+  1: 'BUZ ACILDI',
+  2: 'BASINC BASLADI',
+  3: 'SARSINTI BASLADI',
+  4: 'BUZ FIRTINASI BASLADI',
+  5: 'SARSINTI GUCLENDI',
+  6: 'YERCEKIMI CHARGE BASLADI',
+} as const;
 
 // Rescue mechanism thresholds (tier-based)
 export const RESCUE_DENSITY_THRESHOLDS = {
@@ -123,6 +150,18 @@ export const TIMED_MODE = {
   DURATION_SECONDS: 60,
   FINAL_SECONDS_THRESHOLD: 10,  // Seconds remaining for final bonus multiplier (1.5x)
   WARNING_THRESHOLD: 30,          // Seconds remaining for warning state
+  TARGET_COUNT: 3,
+  TARGET_SINGLE_SECONDS: 1,
+  TARGET_MULTI_SECONDS: 3,
+  TARGET_TRIPLE_SCORE_MULTIPLIER: 2,
+  MOMENTUM_MAX: 100,
+  MOMENTUM_BASE_GAIN: 30,
+  MOMENTUM_QUICK_GAIN: 10,
+  MOMENTUM_QUICK_CLEAR_MS: 4500,
+  MOMENTUM_FREEZE_SECONDS: 2,
+  LAST_CHANCE_SECONDS: 5,
+  MAX_BONUS_SECONDS: 40,
+  FINAL_RUSH_SECONDS_TO_SCORE: 120,
 };
 
 // COMBO Timer Constants
@@ -139,10 +178,24 @@ export const SPAWN_RATES = {
   BOMB: 0.05,      // 5%
 } as const;
 
-// Achievements
-import type { Achievement } from '../types';
+export const ENDLESS_TIER_SPECIAL_RATES: Record<number, { ICE: number; BOMB: number }> = {
+  0: { ICE: 0, BOMB: 0 },
+  1: { ICE: 0.05, BOMB: 0 },
+  2: { ICE: 0.05, BOMB: 0.04 },
+  3: { ICE: 0.06, BOMB: 0.05 },
+  4: { ICE: 0.08, BOMB: 0.06 },
+  5: { ICE: 0.10, BOMB: 0.08 },
+  6: { ICE: 0.08, BOMB: 0.08 },
+} as const;
 
-export const ACHIEVEMENTS: Achievement[] = [
+export const ENDLESS_LOOP_SPECIAL_RATES: Record<number, { ICE: number; BOMB: number }> = {
+  1: { ICE: 0.07, BOMB: 0.10 },
+  2: { ICE: 0.06, BOMB: 0.11 },
+  3: { ICE: 0.05, BOMB: 0.12 },
+  4: { ICE: 0.05, BOMB: 0.12 },
+} as const;
+
+/*
   {
     id: 'score_10k',
     name: 'Üstün Skorcu',
@@ -169,8 +222,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
 ];
 
+*/
 // Expanded Achievement Definitions
-export const EXPANDED_ACHIEVEMENTS: Achievement[] = [
+const RAW_EXPANDED_ACHIEVEMENTS: Achievement[] = [
   // Score achievements
   { id: 'score_1k', name: 'İlk Adım', description: 'Tek oyunda 1,000 puan', category: 'SCORE', targetValue: 1000, currentValue: 0, unlocked: false, hidden: false },
   { id: 'score_5k', name: 'Yükselen Yıldız', description: 'Tek oyunda 5,000 puan', category: 'SCORE', targetValue: 5000, currentValue: 0, unlocked: false, hidden: false },
@@ -236,6 +290,25 @@ export const EXPANDED_ACHIEVEMENTS: Achievement[] = [
   { id: 'perfect_clear_5', name: 'Temizlik Serisi', description: '5 kez tahtayı tamamen temizle', category: 'MASTERY', targetValue: 5, currentValue: 0, unlocked: false, hidden: false },
   { id: 'perfect_clear_10', name: 'Temizlik Uzmanı', description: '10 kez tahtayı tamamen temizle', category: 'MASTERY', targetValue: 10, currentValue: 0, unlocked: false, hidden: true },
   { id: 'color_bonus_10', name: 'Renk Avcısı', description: '10 kez renk bonusu kazan', category: 'MASTERY', targetValue: 10, currentValue: 0, unlocked: false, hidden: false },
+  { id: 'large_piece_1', name: 'Buyuk Parca', description: 'Yeni buyuk parcalardan birini yerlestir', category: 'MASTERY', targetValue: 1, currentValue: 0, unlocked: false, hidden: false },
+  { id: 'large_piece_25', name: 'Alan Ustasi', description: '25 buyuk parca yerlestir', category: 'MASTERY', targetValue: 25, currentValue: 0, unlocked: false, hidden: false },
+  { id: 'line5_piece_10', name: 'Uzun Hat', description: '10 adet 5li cizgi parcasi yerlestir', category: 'MASTERY', targetValue: 10, currentValue: 0, unlocked: false, hidden: false },
+  { id: 'hollow_3x3_5', name: 'Delikli Plan', description: '5 delikli 3x3 parca yerlestir', category: 'MASTERY', targetValue: 5, currentValue: 0, unlocked: false, hidden: false },
+  { id: 'square_3x3_1', name: 'Dev Kare', description: '3x3 kare parcayi yerlestir', category: 'MASTERY', targetValue: 1, currentValue: 0, unlocked: false, hidden: true },
+  { id: 'large_piece_clear_10', name: 'Buyuk Temizlik', description: 'Buyuk parca ile 10 kez clear yap', category: 'MASTERY', targetValue: 10, currentValue: 0, unlocked: false, hidden: false },
   { id: 'record_breaker', name: 'Rekor Kırıcı', description: '5 kez yeni rekor kır', category: 'MASTERY', targetValue: 5, currentValue: 0, unlocked: false, hidden: true },
 ];
+
+const RETIRED_ACHIEVEMENT_IDS = new Set([
+  'score_1m',
+  'combo_25',
+  'combo_30',
+  'bomb_250',
+  'ice_250',
+  'games_500',
+]);
+
+export const EXPANDED_ACHIEVEMENTS: Achievement[] = RAW_EXPANDED_ACHIEVEMENTS.filter(
+  achievement => !RETIRED_ACHIEVEMENT_IDS.has(achievement.id)
+);
 

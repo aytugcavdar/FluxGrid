@@ -12,6 +12,7 @@ export enum CellType {
   ICE = 'ICE',
   BOMB = 'BOMB',
   STONE = 'STONE',
+  VOID = 'VOID',
 }
 
 // Grid & Cells
@@ -22,6 +23,7 @@ export interface GridCell {
   isClearing?: boolean;
   type?: CellType;
   health?: number;
+  voidTurns?: number;
 }
 
 export type GridState = GridCell[][];
@@ -41,6 +43,7 @@ export interface PieceShape {
 export interface Piece extends PieceShape {
   instanceId: string;
   type?: CellType;
+  traySlot?: number;
 }
 
 // Skills enum removed - skill system deprecated

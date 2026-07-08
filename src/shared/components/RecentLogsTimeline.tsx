@@ -12,12 +12,22 @@ interface GameLog {
   linesCleared?: number;
   maxCombo?: number;
   badge?: 'new-record' | 'perfect' | 'comeback' | 'speedrun';
+  metadata?: {
+    statsVersion?: number;
+  };
 }
 
 export interface RecentLogsTimelineProps {
   logs: GameLog[];
   maxItems?: number;
 }
+
+const formatLogDuration = (seconds: number): string => {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return minutes > 0 ? `${minutes}:${remainder.toString().padStart(2, '0')}` : `${remainder} sn`;
+};
 
 export const RecentLogsTimeline: React.FC<RecentLogsTimelineProps> = ({
   logs,
@@ -155,8 +165,11 @@ export const RecentLogsTimeline: React.FC<RecentLogsTimelineProps> = ({
                   {log.maxCombo !== undefined && log.maxCombo > 0 && (
                     <span>⚡ {log.maxCombo}x kombo</span>
                   )}
-                  {log.linesCleared !== undefined && log.linesCleared > 0 && (
+                  {log.metadata?.statsVersion === 2 && log.linesCleared !== undefined && log.linesCleared > 0 && (
                     <span>📊 {log.linesCleared} satır</span>
+                  )}
+                  {log.duration !== undefined && log.duration > 0 && (
+                    <span>⏱ {formatLogDuration(log.duration)}</span>
                   )}
                 </div>
                 

@@ -13,32 +13,11 @@ import { GameMode } from '@shared/types';
 // Mock stores
 vi.mock('@features/game/store/gameStore');
 vi.mock('@shared/store/themeStore');
-vi.mock('@shared/store/streakStore', () => ({
-  useStreakStore: vi.fn(() => ({
-    currentStreak: 0,
-    todayPlayed: false,
-    streakShields: 0,
-    addStreakShield: vi.fn(),
-  })),
-}));
 vi.mock('@utils/audio', () => ({
   getMuted: vi.fn(() => false),
   toggleMute: vi.fn(() => false),
   playClick: vi.fn(),
   playSkill: vi.fn(),
-}));
-vi.mock('@utils/adManager', () => ({
-  AdManager: {
-    showRewardedStreakShield: vi.fn(() => Promise.resolve({ success: false })),
-  },
-}));
-
-// Mock components
-vi.mock('@shared/components/StreakBadge', () => ({
-  StreakBadge: () => <div data-testid="streak-badge">StreakBadge</div>,
-}));
-vi.mock('@app/components/StreakShieldModal', () => ({
-  StreakShieldModal: () => <div data-testid="streak-shield-modal">StreakShieldModal</div>,
 }));
 
 // Mock framer-motion

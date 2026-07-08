@@ -17,10 +17,12 @@ const VALID_ENDLESS_EVENTS = new Set(['ICE_STORM', 'QUAKE', 'MIRROR', 'CHAOS', '
 export interface SaveData {
   score?: number;
   difficultyTier?: number;
+  tier6GravityCharge?: number;
   activeEvent?: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | string | null;
   eventMovesRemaining?: number;
   miniEventState?: any;
   totalMovesPlayed?: number;
+  runLinesCleared?: number;
   tierStartMove?: number;
   bonusRerolls?: number;
   bonusShatter?: number;

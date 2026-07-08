@@ -20,6 +20,26 @@ interface Props {
   index?: number;
 }
 
+const getShapeBounds = (shape: boolean[][]) => ({
+  rows: Math.max(1, shape.length),
+  cols: Math.max(1, shape[0]?.length ?? 1),
+});
+
+const getTrayBlockSize = (shape: boolean[][], windowWidth: number) => {
+  const { rows, cols } = getShapeBounds(shape);
+  const gap = windowWidth < 400 ? 1 : windowWidth < 768 ? 1.5 : 2;
+  const baseBlockSize = Math.max(12, Math.min(22, windowWidth / 28));
+  const slotWidth = Math.max(64, (windowWidth - 34) / 3);
+  const slotHeight = windowWidth >= 768 ? 76 : windowWidth >= 411 ? 58 : 54;
+  const maxByWidth = (slotWidth - (gap * (cols - 1)) - 10) / cols;
+  const maxByHeight = (slotHeight - (gap * (rows - 1)) - 6) / rows;
+
+  return {
+    blockSize: Math.max(8, Math.floor(Math.min(baseBlockSize, maxByWidth, maxByHeight))),
+    gap,
+  };
+};
+
 export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
   const { setDraggedPiece, draggedPiece, placePiece, pieces, activeEvent, grid, canPlacePiece } = useGameStore();
   const ref = useRef<HTMLDivElement>(null);
@@ -41,7 +61,7 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
                      !!(window as any).Capacitor || 
                      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-  const [flashDown, setFlashDown] = useState(false);
+  const [isFinishingDrag, setIsFinishingDrag] = useState(false);
 
   const endDrag = (pointerId: number, options: { place: boolean; currentTarget: EventTarget & Element }) => {
     if (activePointerIdRef.current !== pointerId) return;
@@ -54,25 +74,24 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
     delete document.body.dataset.dragging;
 
     if (options.place) {
-      // PRIMARY placement path - runs reliably on Capacitor because
-      // setPointerCapture guarantees this element receives pointerup.
-      // Grid render loop writes hover coord to shared state.
       const hoverCoord = getSharedHoverCoord();
       if (hoverCoord) {
         const velocity = getDragVelocity();
         const isFastSwipe = velocity > FAST_SWIPE_THRESHOLD;
+        let target = hoverCoord;
 
         if (isFastSwipe && !canPlacePiece(grid, piece, hoverCoord.x, hoverCoord.y)) {
-          // Fast swipe recovery: only search wider when the current hover target is not valid.
           const best = findBestPlacement(grid, piece, hoverCoord.x, hoverCoord.y, 2);
           if (best) {
-            placePiece(piece, best.x, best.y);
-          } else {
-            placePiece(piece, hoverCoord.x, hoverCoord.y);
+            target = best;
           }
-        } else {
-          // Normal birakma: 1 hucre snap zaten Grid render loopda yapildi
-          placePiece(piece, hoverCoord.x, hoverCoord.y);
+        }
+
+        if (canPlacePiece(grid, piece, target.x, target.y)) {
+          setIsFinishingDrag(true);
+          if (!placePiece(piece, target.x, target.y)) {
+            setIsFinishingDrag(false);
+          }
         }
       }
     }
@@ -96,9 +115,7 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
     // Add scroll prevention
     document.body.classList.add('dragging');
     document.body.dataset.dragging = 'true';
-    
-    setFlashDown(true);
-    setTimeout(() => setFlashDown(false), 120);
+    setIsFinishingDrag(false);
 
     // Velocity sıfırla — yeni drag başlıyor
     resetVelocityTracking();
@@ -119,10 +136,7 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
 
 
   const renderShape = (p: PieceType) => {
-    // Normal render
-    // Responsive block size calculation - updates on window resize
-    const blockSize = Math.max(12, Math.min(22, windowWidth / 28));
-    const gap = windowWidth < 400 ? 1 : windowWidth < 768 ? 1.5 : 2;
+    const { blockSize, gap } = getTrayBlockSize(p.shape, windowWidth);
 
     return (
       <div
@@ -136,38 +150,76 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
           <div
             key={`${y}-${x}`}
             className={clsx(
-              "rounded-sm transition-all duration-200",
-              filled && p.type === CellType.ICE && !isNativeApp && "animate-pulse",
-              filled && p.type === CellType.BOMB && !isNativeApp && "animate-pulse"
+              "rounded-sm transition-all duration-200 relative overflow-hidden"
             )}
             style={{
               width: blockSize,
               height: blockSize,
-              backgroundColor: filled
-                ? (p.type === CellType.ICE 
-                    ? '#a5f3fc' 
-                    : p.type === CellType.BOMB 
-                      ? '#ef4444' 
-                      : p.color)
+              background: filled
+                ? (p.type === CellType.ICE
+                    ? 'linear-gradient(145deg, #e6f8ff 0%, #83d7ef 52%, #1686b1 100%)'
+                    : p.type === CellType.BOMB
+                      ? 'radial-gradient(circle at 38% 34%, #57534e 0%, #1c1917 48%, #09090b 100%)'
+                      : p.type === CellType.STONE
+                        ? 'linear-gradient(145deg, #94a3b8 0%, #475569 58%, #1e293b 100%)'
+                        : p.color)
                 : 'transparent',
+              border: filled
+                ? (p.type === CellType.ICE
+                    ? '1px solid rgba(224,242,254,0.95)'
+                    : p.type === CellType.BOMB
+                      ? '1px solid #ef4444'
+                      : p.type === CellType.STONE
+                        ? '1px solid #cbd5e1'
+                        : 'none')
+                : 'none',
               boxShadow: filled && !isNativeApp
                 ? `0 0 ${isMobile ? 2 : 4}px ${
                     p.type === CellType.ICE 
                       ? '#93c5fd' 
                       : p.type === CellType.BOMB 
-                        ? '#f87171' 
-                        : p.color
+                        ? '#f87171'
+                        : p.type === CellType.STONE
+                          ? '#cbd5e1'
+                          : p.color
                   }40`
                 : 'none',
               opacity: filled ? 1 : 0,
             }}
-          />
+          >
+            {filled && p.type === CellType.ICE && (
+              <>
+                <span style={{
+                  position: 'absolute', inset: '10%',
+                  border: '1px solid rgba(14,116,144,0.3)', borderRadius: 2,
+                }} />
+                <span style={{
+                  position: 'absolute', left: '18%', top: '20%', width: '42%', height: 2,
+                  borderRadius: 999, background: 'rgba(255,255,255,0.7)',
+                  transform: 'rotate(-24deg)', transformOrigin: 'center',
+                }} />
+              </>
+            )}
+            {filled && p.type === CellType.BOMB && (
+              <span style={{
+                position: 'absolute', left: '28%', top: '32%', width: '44%', height: '44%',
+                borderRadius: '50%', background: '#09090b', border: '1px solid #f97316',
+              }} />
+            )}
+            {filled && p.type === CellType.STONE && (
+              <span style={{
+                position: 'absolute', left: '31%', top: '43%', width: '38%', height: '34%',
+                borderRadius: 2, background: '#e2e8f0', boxShadow: '0 -4px 0 -1px #e2e8f0',
+              }} />
+            )}
+          </div>
         )))}
       </div>
     );
   };
 
   const isDragging = draggedPiece?.instanceId === piece.instanceId;
+  const shouldHideInTray = isDragging || isFinishingDrag;
 
   return (
     <motion.div
@@ -181,7 +233,7 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
         onPointerCancel={handlePointerCancel}
         className={clsx(
           "relative w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none",
-          { "opacity-25": isDragging }
+          { "opacity-0": shouldHideInTray }
         )}
         animate={{ 
           scale: isDragging ? 0.92 : 1, // Daha az scale değişimi
@@ -196,19 +248,13 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
         style={{ 
           minWidth: 44, 
           minHeight: 44,
-          willChange: isDragging ? 'transform' : 'auto',
+          willChange: shouldHideInTray ? 'transform' : 'auto',
           borderRadius: 8,
-          // Flash on pointer down for instant tactile feedback
-          boxShadow: flashDown ? `0 0 16px ${piece.color}80` : 'none',
-          transition: 'box-shadow 0.1s ease',
+          boxShadow: 'none',
+          transition: 'none',
         }}
       >
         {/* Special Icon Badge */}
-        {piece.type === CellType.ICE && (
-          <div className="absolute -top-0.5 -right-0.5 w-4 h-4 md:w-5 md:h-5 bg-blue-400 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white shadow z-10">
-            {String.fromCodePoint(0x2744)}
-          </div>
-        )}
         {piece.type === CellType.BOMB && (
           <div className="absolute -top-0.5 -right-0.5 w-4 h-4 md:w-5 md:h-5 bg-red-500 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white shadow-lg z-10">
             {String.fromCodePoint(0x1F4A3)}

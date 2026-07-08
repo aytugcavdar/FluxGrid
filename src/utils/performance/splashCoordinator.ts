@@ -2,7 +2,7 @@ export interface SplashState {
   nativeDismissed: boolean;
   webVisible: boolean;
   assetsLoaded: boolean;
-  babylonReady: boolean;
+  appReady: boolean;
   completeCalled: boolean;
   loadingProgress: number; // 0-100
 }
@@ -11,6 +11,7 @@ export interface SplashCoordinator {
   initialize(): void;
   reportAssetProgress(loaded: number, total: number): void;
   reportBabylonReady(): void;
+  reportAppReady(): void;
   dismissWebSplash(): void;
   getSplashState(): SplashState;
 }
@@ -103,7 +104,7 @@ class SplashCoordinatorImpl implements SplashCoordinator {
     nativeDismissed: true, // Native splash dismisses immediately (launchShowDuration: 0)
     webVisible: true,
     assetsLoaded: false,
-    babylonReady: false,
+    appReady: false,
     completeCalled: false,
     loadingProgress: 0,
   };
@@ -133,8 +134,12 @@ class SplashCoordinatorImpl implements SplashCoordinator {
   }
 
   reportBabylonReady(): void {
-    console.log('[SplashCoordinator] Babylon.js engine ready');
-    this.state.babylonReady = true;
+    this.reportAppReady();
+  }
+
+  reportAppReady(): void {
+    console.log('[SplashCoordinator] App ready');
+    this.state.appReady = true;
     this.checkAndDismiss();
   }
 
@@ -166,8 +171,7 @@ class SplashCoordinatorImpl implements SplashCoordinator {
   }
 
   private checkAndDismiss(): void {
-    // Only dismiss when both Babylon.js is ready AND assets are loaded
-    if (this.state.babylonReady && this.state.assetsLoaded && !this.state.completeCalled) {
+    if (this.state.appReady && this.state.assetsLoaded && !this.state.completeCalled) {
       this.dismissWebSplash();
     }
   }

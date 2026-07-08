@@ -20,6 +20,25 @@ export const createEmptyTimedScoreBreakdown = (): TimedScoreBreakdown => ({
   total: 0,
 });
 
+export function getEffectiveComboForScore(combo: number): number {
+  if (!Number.isFinite(combo) || combo <= 0) return 0;
+  if (combo <= 3) return combo;
+  if (combo <= 6) return 3 + ((combo - 3) * 0.8);
+  return 5.4 + (Math.sqrt(combo - 6) * 0.7);
+}
+
+export function calculateComboScorePoints(combo: number): number {
+  return Math.floor(getEffectiveComboForScore(combo) * POINTS.COMBO_MULTIPLIER);
+}
+
+export function calculateTimedComboScorePoints(combo: number): number {
+  if (!Number.isFinite(combo) || combo <= 1) return 0;
+  const cappedCombo = Math.min(12, combo);
+  if (cappedCombo <= 4) return Math.floor((cappedCombo - 1) * 35);
+  if (cappedCombo <= 8) return Math.floor(105 + ((cappedCombo - 4) * 22));
+  return Math.floor(193 + (Math.sqrt(cappedCombo - 8) * 28));
+}
+
 /**
  * Calculate final score with all multipliers (mini-events removed)
  */
@@ -84,11 +103,44 @@ export function calculateTurnScore({
   timedScoreBreakdown: TimedScoreBreakdown;
   breakdown: MultiplierBreakdown;
 } {
-  const placementAndLinePoints =
-    (blocksPlaced * POINTS.BLOCK_PLACED) +
-    (linesCleared * POINTS.LINE_CLEARED);
-  const comboPoints = comboMultiplier * POINTS.COMBO_MULTIPLIER;
+  const placementAndLinePoints = isTimedMode
+    ? (blocksPlaced * 8) + (linesCleared * 120)
+    : (blocksPlaced * POINTS.BLOCK_PLACED) + (linesCleared * POINTS.LINE_CLEARED);
+  const comboPoints = isTimedMode
+    ? calculateTimedComboScorePoints(comboMultiplier)
+    : calculateComboScorePoints(comboMultiplier);
   const basePoints = placementAndLinePoints + comboPoints;
+
+  if (isTimedMode) {
+    const colorBonusPoints = colorBonus && linesCleared > 0
+      ? Math.floor(basePoints * 0.2)
+      : 0;
+    const pointsGained = basePoints + colorBonusPoints;
+    const sprintBonusGained = isFinalSeconds && linesCleared > 0
+      ? Math.min(250, Math.floor(basePoints * 0.2))
+      : 0;
+    const scoreDelta = pointsGained + sprintBonusGained;
+    const breakdown: MultiplierBreakdown = {
+      tier: 1,
+      event: 1,
+      miniEvents: [],
+      total: colorBonusPoints > 0 ? 1.2 : 1,
+    };
+
+    return {
+      pointsGained,
+      scoreDelta,
+      sprintBonusGained,
+      timedScoreBreakdown: {
+        placementAndLines: previousTimedBreakdown.placementAndLines + placementAndLinePoints,
+        combo: previousTimedBreakdown.combo + comboPoints,
+        bonus: previousTimedBreakdown.bonus + colorBonusPoints,
+        finalSprint: previousTimedBreakdown.finalSprint + sprintBonusGained,
+        total: previousTimedBreakdown.total + scoreDelta,
+      },
+      breakdown,
+    };
+  }
 
   const { score: pointsGained, breakdown } = calculateScore(
     basePoints,

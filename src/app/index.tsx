@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App'; // New UI for menu
 import AppWithErrorBoundary from './GameApp'; // Old App for game
+import { MarketingSite } from './MarketingSite';
 import { useGameStore } from '../features/game/store/gameStore';
 import { AppState, GameMode } from '@shared/types';
 import { AdManager } from '@core/services/ads/AdManager';
@@ -33,6 +34,16 @@ import { PageTransition } from '../shared/components/PageTransition';
 
 // Get app version from package.json
 const APP_VERSION = '1.0.0';
+
+const getNormalizedPath = () => {
+  const path = window.location.pathname.replace(/\/+$/, '');
+  return path || '/';
+};
+
+const MARKETING_ROUTES = new Set(['/', '/privacy', '/privacy-policy', '/support', '/contact']);
+const isNativeRuntime = Capacitor.isNativePlatform();
+const normalizedPath = getNormalizedPath();
+const isMarketingRoute = !isNativeRuntime && MARKETING_ROUTES.has(normalizedPath);
 
 /**
  * Configure StatusBar for native Android app
@@ -70,7 +81,7 @@ const getNotificationContext = () => {
 };
 
 // Root component that switches between menu and game
-const RootApp: React.FC = () => {
+const RuntimeApp: React.FC = () => {
   const appState = useGameStore(state => state.appState);
   const { i18n } = useTranslation();
   const [updateDialogConfig, setUpdateDialogConfig] = useState<UpdateDialogConfig | null>(null);
@@ -259,20 +270,33 @@ const RootApp: React.FC = () => {
   );
 };
 
+const RootRouter: React.FC = () => {
+  if (isMarketingRoute) {
+    return <MarketingSite />;
+  }
+
+  return <RuntimeApp />;
+};
+
 // Initialize Sentry for error tracking (before React render)
 initializeSentry();
 
-// Initialize performance monitoring
-initializePerformanceMonitoring();
+if (!isMarketingRoute) {
+  // Web vitals add background observers with little value in the native WebView.
+  if (!isNativeRuntime || import.meta.env.DEV) {
+    initializePerformanceMonitoring();
+  }
 
-// Start measuring game load time
-startGameLoadMeasure();
+  // Start measuring game load time
+  startGameLoadMeasure();
 
-// Initialize lazy loading for non-critical resources
-initializeLazyLoading();
+  // Initialize lazy loading for non-critical resources
+  initializeLazyLoading();
 
-// Initialize memory optimization
-initializeMemoryOptimization();
+  if (!isNativeRuntime) {
+    initializeMemoryOptimization();
+  }
+}
 
 // Set up global error handlers
 window.addEventListener('error', (event) => {
@@ -292,12 +316,16 @@ window.addEventListener('unhandledrejection', (event) => {
   });
 });
 
-// Apply safe area CSS synchronously before React render (prevents layout jump)
-applySafeAreaCSS();
+if (!isMarketingRoute) {
+  // Apply safe area CSS synchronously before React render (prevents layout jump)
+  applySafeAreaCSS();
+}
 
 // Initialize splash coordinator before React render
 const splashCoordinator = getSplashCoordinator();
-splashCoordinator.initialize();
+if (!isMarketingRoute) {
+  splashCoordinator.initialize();
+}
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -308,14 +336,49 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <SentryErrorBoundary>
-      <RootApp />
+      <RootRouter />
     </SentryErrorBoundary>
   </React.StrictMode>
 );
 
-// Dismiss splash screen after React renders (for menu screen)
-// For game screen, Grid component will handle it via Babylon.js ready event
-setTimeout(() => {
-  const coordinator = getSplashCoordinator();
-  coordinator.dismissWebSplash();
-}, 1500); // Increased from 500ms to 1500ms to ensure full initialization
+if (isMarketingRoute) {
+  const splash = document.getElementById('splash');
+  if (splash) {
+    splash.style.display = 'none';
+  }
+} else {
+  const splashStartedAt = Date.now();
+  const minSplashMs = 2000;
+  const maxSplashMs = 2600;
+  let splashDismissed = false;
+
+  const releaseNativeSplash = () => {
+    const splashBridge = (window as any).FluxGridSplash;
+    if (splashBridge && typeof splashBridge.hide === 'function') {
+      splashBridge.hide();
+    }
+  };
+
+  const dismissSplash = () => {
+    if (splashDismissed) return;
+    splashDismissed = true;
+    getSplashCoordinator().dismissWebSplash();
+    window.setTimeout(releaseNativeSplash, 180);
+  };
+
+  const dismissWhenReady = () => {
+    if (!document.querySelector('[data-app-shell-ready="true"], [data-game-screen-ready="true"]')) {
+      window.setTimeout(dismissWhenReady, 50);
+      return;
+    }
+
+    const elapsed = Date.now() - splashStartedAt;
+    const delay = Math.max(0, minSplashMs - elapsed);
+    window.setTimeout(dismissSplash, delay);
+  };
+
+  window.setTimeout(dismissSplash, maxSplashMs);
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(dismissWhenReady);
+  });
+}

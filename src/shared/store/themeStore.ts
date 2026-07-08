@@ -42,9 +42,9 @@ interface ThemeColors {
 
 const THEMES: Record<ThemeType, ThemeColors> = {
   dark: {
-    gridBase: '#0a0f18',
-    gridSlot: '#0a0f18',
-    gridEdge: '#3b4a5a',
+    gridBase: '#111c32',
+    gridSlot: '#111c32',
+    gridEdge: 'rgba(255,255,255,0.11)',
     background: 'linear-gradient(135deg, #0f0c1d 0%, #1a1333 50%, #0f0c1d 100%)',
     hudBackground: '#0d1117',
     hudBorder: 'rgba(255,255,255,0.06)',
@@ -57,7 +57,7 @@ const THEMES: Record<ThemeType, ThemeColors> = {
     modalOverlay: 'rgba(0,0,0,0.85)',
     cardBackground: '#1f2937',
     cardBorder: 'rgba(255,255,255,0.08)',
-    pieceColors: ['#a855f7', '#f59e0b', '#3b82f6', '#10b981', '#f472b6', '#6366f1', '#06b6d4', '#84cc16', '#fb7185'],
+    pieceColors: ['#c084fc', '#fbbf24', '#60a5fa', '#34d399', '#fb7185', '#818cf8', '#06b6d4', '#84cc16', '#fb7185'],
     // New UI Redesign colors
     screenBackground: 'linear-gradient(135deg, #0f0c1d 0%, #1a1333 50%, #0f0c1d 100%)',
     cardBackgroundTransparent: 'rgba(255,255,255,0.03)',
@@ -118,6 +118,9 @@ const THEMES: Record<ThemeType, ThemeColors> = {
   }
 };
 
+const ACTIVE_THEME: ThemeType = 'dark';
+const THEME_TRIAL_EXPIRY_KEY = 'flux_theme_trial_neon_expires_at';
+
 export const THEME_SWATCHES: Record<ThemeType, string[]> = {
   dark: ['#a855f7', '#3b82f6', '#f59e0b'],
   light: ['#f59e0b', '#2563eb', '#059669'],
@@ -128,23 +131,54 @@ const isThemeType = (theme: string | null): theme is ThemeType => {
   return theme === 'dark' || theme === 'light' || theme === 'neon';
 };
 
+const getNeonTrialExpiry = (): number => {
+  const value = Number(localStorage.getItem(THEME_TRIAL_EXPIRY_KEY));
+  return Number.isFinite(value) ? value : 0;
+};
+
+const hasNeonTrial = (): boolean => getNeonTrialExpiry() > Date.now();
+
 const savedTheme = localStorage.getItem('flux_theme');
+if (savedTheme !== ACTIVE_THEME && !(savedTheme === 'neon' && hasNeonTrial())) {
+  localStorage.setItem('flux_theme', ACTIVE_THEME);
+}
+const initialTheme: ThemeType = savedTheme === 'neon' && hasNeonTrial()
+  ? 'neon'
+  : ACTIVE_THEME;
 
 interface ThemeStore {
   currentTheme: ThemeType;
   setTheme: (theme: ThemeType) => void;
+  activateThemeTrial: (theme: 'neon', durationHours?: number) => number;
+  getThemeTrialRemainingMs: (theme: 'neon') => number;
+  isThemeAvailable: (theme: ThemeType) => boolean;
   getThemeColors: () => ThemeColors;
   getPieceColors: () => string[];
   getColors: () => ThemeColors; // Alias for getThemeColors
 }
 
 export const useThemeStore = create<ThemeStore>((set, get) => ({
-  currentTheme: isThemeType(savedTheme) ? savedTheme : 'dark',
+  currentTheme: isThemeType(initialTheme) ? initialTheme : ACTIVE_THEME,
   
-  setTheme: (theme: ThemeType) => {
-    set({ currentTheme: theme });
-    localStorage.setItem('flux_theme', theme);
+  setTheme: (theme) => {
+    const nextTheme = theme === ACTIVE_THEME || (theme === 'neon' && hasNeonTrial())
+      ? theme
+      : ACTIVE_THEME;
+    set({ currentTheme: nextTheme });
+    localStorage.setItem('flux_theme', nextTheme);
   },
+
+  activateThemeTrial: (theme, durationHours = 24) => {
+    const expiresAt = Date.now() + (Math.max(1, durationHours) * 60 * 60 * 1000);
+    localStorage.setItem(THEME_TRIAL_EXPIRY_KEY, String(expiresAt));
+    localStorage.setItem('flux_theme', theme);
+    set({ currentTheme: theme });
+    return expiresAt;
+  },
+
+  getThemeTrialRemainingMs: () => Math.max(0, getNeonTrialExpiry() - Date.now()),
+
+  isThemeAvailable: (theme) => theme === ACTIVE_THEME || (theme === 'neon' && hasNeonTrial()),
   
   getThemeColors: () => {
     return THEMES[get().currentTheme];

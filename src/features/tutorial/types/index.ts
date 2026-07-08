@@ -52,7 +52,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 1,
     title: "Welcome to FluxGrid!",
-    description: "Drag pieces from the tray to the grid",
+    description: "Drag pieces from the tray to the 2D board",
     highlightTarget: ".piece-tray",
     arrowDirection: "up",
     action: "place",
@@ -61,23 +61,32 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 2,
     title: "Clear Lines",
-    description: "Fill a complete row or column to clear it",
-    highlightTarget: ".game-grid",
+    description: "Fill a complete row or column and watch score chips pop from cleared blocks",
+    highlightTarget: ".game-board",
     arrowDirection: null,
     action: "clear",
     validation: (state) => state.lastAction?.type === 'CLEAR'
   },
   {
     id: 3,
+    title: "Blocks Fall",
+    description: "After a clear, unsupported blocks drop into empty space",
+    highlightTarget: ".game-board",
+    arrowDirection: null,
+    action: "info",
+    validation: () => true
+  },
+  {
+    id: 4,
     title: "Build Combos",
-    description: "Clear multiple lines in a row to build combos",
+    description: "Clear rows or columns back-to-back to build combos",
     highlightTarget: ".combo-display",
     arrowDirection: "down",
     action: "combo",
     validation: (state) => state.combo >= 2
   },
   {
-    id: 4,
+    id: 5,
     title: "You're Ready!",
     description: "Keep playing to unlock more features",
     highlightTarget: null,

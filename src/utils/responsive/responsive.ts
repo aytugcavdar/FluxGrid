@@ -1,17 +1,9 @@
-import { createTransformConfigSync, calculateDragOffset } from '../device/touchTransform';
-
-// Canvas rect caching for performance
-let cachedCanvasRect: DOMRect | null = null;
-let cacheTime = 0;
-const CACHE_VALIDITY_MS = 500;
-
 // Drag offset caching for performance
 let cachedDragOffset: number | null = null;
-let lastScreenHeight: number = 0;
+let lastDragOffsetCacheKey = '';
 
-export const setCanvasRect = (rect: DOMRect): void => {
-  cachedCanvasRect = rect;
-  cacheTime = Date.now();
+export const setCanvasRect = (_rect: DOMRect): void => {
+  // Kept as a lightweight hook for callers that update board measurements.
 };
 
 /**
@@ -44,27 +36,54 @@ export const getTouchTargetPadding = (visualSize: number, minSize: number = 52):
 export const getDragYOffset = (): number => {
   const width = window.innerWidth;
   const height = window.innerHeight;
+  const hasTouch = navigator.maxTouchPoints > 0;
   
   // Desktop - no offset
-  if (width >= 768 && navigator.maxTouchPoints === 0) {
+  if (width >= 768 && !hasTouch) {
     return 0;
   }
+
+  const pixelRatio = window.devicePixelRatio || 1;
+  const orientation = height >= width ? 'portrait' : 'landscape';
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const cacheKey = `${width}x${height}:${hasTouch ? 1 : 0}:${pixelRatio}:${orientation}:${isAndroid ? 1 : 0}`;
   
-  // Check cache - if screen height hasn't changed, return cached value
+  // Check cache - if screen profile hasn't changed, return cached value
   if (cachedDragOffset !== null && 
-      lastScreenHeight === height &&
+      lastDragOffsetCacheKey === cacheKey &&
       !isNaN(cachedDragOffset) &&
       isFinite(cachedDragOffset)) {
     return cachedDragOffset;
   }
-  
-  // Cache miss or invalidated - recalculate
-  const config = createTransformConfigSync();
-  const offset = calculateDragOffset(config);
-  
-  // Update cache
-  cachedDragOffset = -offset; // Return negative offset (drag point is above finger)
-  lastScreenHeight = height;
+
+  let offset: number;
+  if (orientation === 'landscape') {
+    offset = width >= 768 ? 28 : 32;
+  } else if (width >= 768) {
+    offset = 34;
+  } else if (width <= 360 || height < 700) {
+    offset = 56;
+  } else if (height < 820) {
+    offset = 62;
+  } else {
+    offset = 66;
+  }
+
+  if (isAndroid && width < 768) {
+    offset += 4;
+  }
+
+  // Pointer coordinates are CSS pixels, so keep the offset in CSS px and
+  // only use DPR as a tiny correction for very dense screens.
+  if (pixelRatio >= 2.75 && width < 768) {
+    offset += 2;
+  }
+
+  const clampedOffset = Math.max(28, Math.min(72, offset));
+
+  // Update cache. Negative means the dragged piece is rendered above the finger.
+  cachedDragOffset = -clampedOffset;
+  lastDragOffsetCacheKey = cacheKey;
   
   return cachedDragOffset;
 };

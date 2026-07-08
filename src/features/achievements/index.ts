@@ -3,5 +3,5 @@
  */
 
 export { useAchievementStore } from './achievementStore';
-export { AchievementNotification } from './AchievementNotification';
+export { AchievementNotification } from './components/AchievementNotification';
 export type { Achievement, AchievementId } from './achievementStore';

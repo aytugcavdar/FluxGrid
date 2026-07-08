@@ -1,9 +1,7 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Timer } from 'lucide-react';
 import { useGameStore } from '../features/game/store/gameStore';
-import { useThemeStore } from '../shared/store/themeStore';
 import { GameMode } from '@shared/types';
 import { PerformanceCard, SectionHeader, RecentLogsTimeline } from '../shared/components';
 import { useCountUp } from '../shared/hooks/useCountUp';
@@ -34,50 +32,29 @@ const MODE_LABELS: Record<GameMode, string> = {
   [GameMode.DAILY_CHALLENGE]: 'Günlük',
 };
 
-const formatDuration = (seconds: number): string => {
-  if (!Number.isFinite(seconds) || seconds <= 0) return '0 sn';
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.round(seconds % 60);
-
-  if (minutes <= 0) return `${remainingSeconds} sn`;
-  if (remainingSeconds === 0) return `${minutes} dk`;
-  return `${minutes} dk ${remainingSeconds} sn`;
-};
-
 const buildPersonalInsights = (logs: StatsGameLog[]): PersonalInsight[] => {
   if (!Array.isArray(logs) || logs.length === 0) {
     return [
-      { label: 'En iyi günün', value: '-', detail: 'Henüz oyun kaydı yok', icon: '★', color: '#f59e0b' },
       { label: 'En çok oynadığın mod', value: '-', detail: 'Birkaç oyun sonrası görünür', icon: '◈', color: '#818cf8' },
-      { label: 'Ortalama oyun süren', value: '0 sn', detail: 'Oyun ritmin burada oluşur', icon: <Timer size={17} strokeWidth={2.5} />, color: '#34d399' },
-      { label: 'Son 7 günde gelişim', value: '-', detail: 'Karşılaştırma için veri lazım', icon: '↗', color: '#f472b6' },
+      { label: '7 günlük performans', value: '-', detail: 'Karşılaştırma için veri lazım', icon: '↗', color: '#f472b6' },
     ];
   }
 
-  const dayTotals = new Map<string, { label: string; score: number; games: number }>();
   const modeCounts = new Map<GameMode, number>();
-  let totalDuration = 0;
 
   logs.forEach(log => {
-    const date = new Date(log.timestamp);
-    const dayKey = date.toISOString().slice(0, 10);
-    const dayLabel = date.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' });
-    const currentDay = dayTotals.get(dayKey) || { label: dayLabel, score: 0, games: 0 };
-    currentDay.score += log.score;
-    currentDay.games += 1;
-    dayTotals.set(dayKey, currentDay);
-
     modeCounts.set(log.mode, (modeCounts.get(log.mode) || 0) + 1);
-    totalDuration += log.duration || 0;
   });
 
-  const bestDay = [...dayTotals.values()].sort((a, b) => b.score - a.score)[0];
   const favoriteMode = [...modeCounts.entries()].sort((a, b) => b[1] - a[1])[0];
-  const averageDuration = Math.round(totalDuration / logs.length);
+  const selectedMode = favoriteMode?.[0] ?? GameMode.ENDLESS;
+  const selectedModeLogs = logs.filter(log => log.mode === selectedMode);
   const now = Date.now();
   const sevenDays = 7 * 24 * 60 * 60 * 1000;
-  const recentLogs = logs.filter(log => now - log.timestamp <= sevenDays);
-  const previousLogs = logs.filter(log => now - log.timestamp > sevenDays && now - log.timestamp <= sevenDays * 2);
+  const recentLogs = selectedModeLogs.filter(log => now - log.timestamp <= sevenDays);
+  const previousLogs = selectedModeLogs.filter(
+    log => now - log.timestamp > sevenDays && now - log.timestamp <= sevenDays * 2
+  );
   const averageScore = (items: StatsGameLog[]) =>
     items.length > 0 ? items.reduce((sum, log) => sum + log.score, 0) / items.length : 0;
   const recentAverage = averageScore(recentLogs);
@@ -88,31 +65,17 @@ const buildPersonalInsights = (logs: StatsGameLog[]): PersonalInsight[] => {
 
   return [
     {
-      label: 'En iyi günün',
-      value: bestDay?.label || '-',
-      detail: bestDay ? `${bestDay.score.toLocaleString('tr-TR')} puan, ${bestDay.games} oyun` : 'Henüz oyun kaydı yok',
-      icon: '★',
-      color: '#f59e0b',
-    },
-    {
       label: 'En çok oynadığın mod',
       value: favoriteMode ? MODE_LABELS[favoriteMode[0]] : '-',
-      detail: favoriteMode ? `${favoriteMode[1]} oyun` : 'Birkaç oyun sonrası görünür',
+      detail: favoriteMode ? `Son ${logs.length} oyunun ${favoriteMode[1]} tanesi` : 'Birkaç oyun sonrası görünür',
       icon: '◈',
       color: '#818cf8',
     },
     {
-      label: 'Ortalama oyun süren',
-      value: formatDuration(averageDuration),
-      detail: `${logs.length} oyun ortalaması`,
-      icon: <Timer size={17} strokeWidth={2.5} />,
-      color: '#34d399',
-    },
-    {
-      label: 'Son 7 günde gelişim',
+      label: `${MODE_LABELS[selectedMode]} 7 günlük`,
       value: improvement === null ? 'Yeni' : `${improvement > 0 ? '+' : ''}${improvement}%`,
       detail: improvement === null
-        ? `${recentLogs.length} yeni oyun kaydı`
+        ? `${recentLogs.length} yeni ${MODE_LABELS[selectedMode].toLocaleLowerCase('tr-TR')} oyunu`
         : `${Math.round(recentAverage).toLocaleString('tr-TR')} ortalama puan`,
       icon: '↗',
       color: improvement !== null && improvement < 0 ? '#fb7185' : '#f472b6',
@@ -206,7 +169,7 @@ const PersonalInsightGrid: React.FC<{ insights: PersonalInsight[] }> = ({ insigh
 );
 
 const StreakBanner: React.FC = () => {
-  const { currentStreak, longestStreak, streakShields, todayPlayed } = useStreakStore();
+  const { currentStreak, todayPlayed } = useStreakStore();
 
   const streakColor = currentStreak >= 7 ? '#f97316' : currentStreak >= 3 ? '#fbbf24' : '#94a3b8';
   const fireEmoji = currentStreak >= 7 ? '🔥' : currentStreak >= 3 ? '⚡' : '🌙';
@@ -223,14 +186,6 @@ const StreakBanner: React.FC = () => {
         boxShadow: `0 4px 20px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.04)`,
       }}
     >
-      {/* Shimmer */}
-      <motion.div
-        animate={{ x: ['-120%', '220%'] }}
-        transition={{ duration: 3.5, repeat: Infinity, repeatDelay: 5, ease: 'easeInOut' }}
-        className="absolute top-0 left-0 w-1/3 h-full pointer-events-none"
-        style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent)' }}
-      />
-
       <div className="flex items-center gap-0 px-1 py-1">
         {/* Current streak */}
         <div className="flex-1 flex flex-col items-center py-2">
@@ -256,41 +211,6 @@ const StreakBanner: React.FC = () => {
           )}
         </div>
 
-        {/* Divider */}
-        <div className="w-px h-10 mx-1" style={{ background: 'rgba(255,255,255,0.07)' }} />
-
-        {/* Longest streak */}
-        <div className="flex-1 flex flex-col items-center py-2">
-          <div style={{ fontSize: 22, lineHeight: 1, marginBottom: 3 }}>👑</div>
-          <div
-            className="text-xl font-black tabular-nums"
-            style={{ color: '#f0f0f8' }}
-          >
-            {longestStreak}
-          </div>
-          <div className="text-[9px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: 'rgba(208,208,232,0.45)' }}>
-            En Uzun
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="w-px h-10 mx-1" style={{ background: 'rgba(255,255,255,0.07)' }} />
-
-        {/* Shields */}
-        <div className="flex-1 flex flex-col items-center py-2">
-          <div style={{ fontSize: 22, lineHeight: 1, marginBottom: 3 }}>
-            {streakShields > 0 ? '🛡️' : '💨'}
-          </div>
-          <div
-            className="text-xl font-black tabular-nums"
-            style={{ color: streakShields > 0 ? '#60a5fa' : 'rgba(255,255,255,0.25)' }}
-          >
-            {streakShields}
-          </div>
-          <div className="text-[9px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: 'rgba(208,208,232,0.45)' }}>
-            Kalkan
-          </div>
-        </div>
       </div>
     </motion.div>
   );
@@ -302,7 +222,6 @@ const CAT_META: Record<string, { icon: string; color: string; bg: string }> = {
   SCORE:          { icon: '🏆', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
   COMBO:          { icon: '⚡', color: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
   SPECIAL_BLOCKS: { icon: '💣', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-  ABILITIES:      { icon: '🔮', color: '#a855f7', bg: 'rgba(168,85,247,0.12)' },
   PROGRESSION:    { icon: '📈', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
   SPEED:          { icon: '💨', color: '#38bdf8', bg: 'rgba(56,189,248,0.12)' },
   MASTERY:        { icon: '👑', color: '#f472b6', bg: 'rgba(244,114,182,0.12)' },
@@ -419,10 +338,10 @@ const AchRow: React.FC<{ ach: Achievement; index?: number }> = ({ ach, index = 0
 /* ════════════════════════════════════════════════ */
 export const StatisticsScreen: React.FC = () => {
   const { highScores, stats, achievements: gameAchievements, gameLogs } = useGameStore();
-  const { getThemeColors } = useThemeStore();
   const { t } = useTranslation();
-  const colors = getThemeColors();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const longestDailyStreak = useStreakStore(state => state.longestStreak);
 
   const sortedGameLogs = useMemo(() => (
     Array.isArray(gameLogs) ? [...gameLogs].sort((a, b) => b.timestamp - a.timestamp) : []
@@ -461,23 +380,24 @@ export const StatisticsScreen: React.FC = () => {
   const unlockedCount   = achievements.filter(a => a.status === 'unlocked').length;
   const totalCount      = achievements.length;
   const overallProgress = totalCount > 0 ? Math.floor((unlockedCount / totalCount) * 100) : 0;
+  const nextGlobalAchievement = achievements.find(a => a.status !== 'unlocked' && !a.hidden)
+    || achievements.find(a => a.status !== 'unlocked');
 
   const categoryNames: Record<string, string> = {
     SCORE:          t('stats.scoreAchievements', 'Skor Başarımları'),
     COMBO:          t('stats.comboAchievements', 'Kombo Başarımları'),
     SPECIAL_BLOCKS: t('stats.specialBlockAchievements', 'Özel Blok Başarımları'),
-    ABILITIES:      t('stats.abilityAchievements', 'Yetenek Başarımları'),
     PROGRESSION:    t('stats.progressionAchievements', 'İlerleme Başarımları'),
     SPEED:          t('stats.speedAchievements', 'Hız Başarımları'),
     MASTERY:        t('stats.masteryAchievements', 'Ustalık Başarımları'),
   };
 
   /* ── shared stat hero numbers ── */
-  const heroStats = [
-    { label: 'Toplam Oyun',  value: stats.gamesPlayed   || 0, icon: '🎮', color: '#818cf8' },
-    { label: 'Satır',        value: stats.linesCleared   || 0, icon: '⚡', color: '#34d399' },
-    { label: 'Blok',         value: stats.blocksPlaced   || 0, icon: '🧱', color: '#f472b6' },
-    { label: 'Bomba',        value: stats.bombsExploded  || 0, icon: '💣', color: '#fb923c' },
+  const primaryHeroStats = [
+    { label: 'Tamamlanan', value: stats.gamesPlayed || 0, icon: '🎮', color: '#818cf8' },
+    { label: 'Toplam Clear', value: stats.linesCleared || 0, icon: '⚡', color: '#34d399' },
+    { label: 'Perfect Clear', value: stats.perfectClears || 0, icon: '✨', color: '#f59e0b' },
+    { label: 'En Uzun Seri', value: longestDailyStreak, icon: '🔥', color: '#fb923c' },
   ];
 
   return (
@@ -564,7 +484,7 @@ export const StatisticsScreen: React.FC = () => {
 
                 {/* ─ Hero stat grid ─ */}
                 <div className="grid grid-cols-4 gap-2">
-                  {heroStats.map((s, idx) => (
+                  {primaryHeroStats.map((s, idx) => (
                     <HeroStatCard key={s.label} stat={s} index={idx} />
                   ))}
                 </div>
@@ -581,7 +501,7 @@ export const StatisticsScreen: React.FC = () => {
                     <PerformanceCard mode={GameMode.ENDLESS} bestScore={sonsuzBestScore}
                       maxCombo={stats.endlessMaxCombo || 0} maxTier={stats.endlessMaxTier || 0} color="#a855f7" />
                     <PerformanceCard mode={GameMode.TIMED} bestScore={timedBestScore}
-                      maxCombo={stats.timedMaxCombo || 0} maxDuration={stats.timedMaxDuration || 0} color="#f59e0b" />
+                      maxCombo={stats.timedMaxCombo || 0} totalLines={stats.timedTotalLines || 0} color="#f59e0b" />
                   </div>
                 </div>
 
@@ -604,12 +524,6 @@ export const StatisticsScreen: React.FC = () => {
                     background: 'linear-gradient(135deg, rgba(249,115,22,0.18) 0%, rgba(168,85,247,0.12) 100%)',
                     border: '1px solid rgba(249,115,22,0.25)',
                   }}>
-                  {/* shimmer */}
-                  <motion.div animate={{ x: ['-120%', '220%'] }}
-                    transition={{ duration: 3, repeat: Infinity, repeatDelay: 4, ease: 'easeInOut' }}
-                    className="absolute top-0 left-0 w-1/3 h-full pointer-events-none"
-                    style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)' }} />
-
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <div className="text-[10px] font-bold uppercase tracking-[0.12em] opacity-50 mb-1" style={{ color: '#ffa0a0' }}>
@@ -643,28 +557,65 @@ export const StatisticsScreen: React.FC = () => {
                     <span className="text-[10px] font-bold" style={{ color: '#fb923c' }}>%{overallProgress}</span>
                     <span className="text-[10px] opacity-40" style={{ color: '#d0d0e8' }}>100%</span>
                   </div>
+                  {nextGlobalAchievement && (
+                    <div
+                      className="mt-3 rounded-xl px-3 py-2"
+                      style={{
+                        background: 'rgba(255,255,255,0.045)',
+                        border: '1px solid rgba(255,255,255,0.07)',
+                      }}
+                    >
+                      <div className="text-[9px] font-black uppercase tracking-[0.12em] mb-1" style={{ color: 'rgba(255,255,255,0.42)' }}>
+                        Siradaki Hedef
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-bold truncate" style={{ color: '#f8fafc' }}>
+                          {nextGlobalAchievement.hidden ? 'Gizli Basarim' : nextGlobalAchievement.title}
+                        </span>
+                        <span className="text-[10px] font-bold shrink-0" style={{ color: '#fb923c' }}>
+                          {nextGlobalAchievement.hidden ? '???' : `${nextGlobalAchievement.currentValue ?? 0}/${nextGlobalAchievement.targetValue ?? 0}`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* ─ Per-category achievement lists ─ */}
                 {Object.entries(achievementsByCategory).map(([cat, list]) => {
                   const meta = CAT_META[cat] ?? { icon: '🏅', color: '#9ca3af', bg: 'rgba(156,163,175,0.1)' };
                   const catDone = list.filter(a => a.status === 'unlocked').length;
+                  const isExpanded = expandedCategory === cat;
+                  const nextAchievement = list.find(a => a.status !== 'unlocked');
+                  const visibleAchievements = isExpanded
+                    ? list
+                    : (nextAchievement ? [nextAchievement] : list.slice(-1));
                   return (
                     <div key={cat}>
                       {/* Category header */}
-                      <div className="flex items-center justify-between mb-2 px-1">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedCategory(isExpanded ? null : cat)}
+                        className="w-full flex items-center justify-between mb-2 px-1 py-1"
+                        style={{ background: 'none', border: 0, cursor: 'pointer' }}
+                        aria-expanded={isExpanded}
+                      >
                         <div className="flex items-center gap-2">
                           <span style={{ fontSize: 14 }}>{meta.icon}</span>
                           <span className="text-xs font-bold" style={{ color: meta.color }}>
                             {categoryNames[cat] || cat}
                           </span>
                         </div>
-                        <span className="text-[10px] font-semibold" style={{ color: meta.color, opacity: 0.7 }}>
-                          {catDone}/{list.length}
-                        </span>
-                      </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-semibold" style={{ color: meta.color, opacity: 0.7 }}>
+                            {catDone}/{list.length}
+                          </span>
+                          <span className="text-[10px] font-bold" style={{ color: meta.color }}>
+                            {isExpanded ? 'Kapat' : 'Tümü'}
+                          </span>
+                        </div>
+                      </button>
                       <div className="space-y-2">
-                        {list.map((ach, i) => <AchRow key={ach.id} ach={ach} index={i} />)}
+                        {visibleAchievements.map((ach, i) => <AchRow key={ach.id} ach={ach} index={i} />)}
                       </div>
                     </div>
                   );

@@ -5,16 +5,12 @@
  */
 
 import type { GameMode } from '@shared/types';
+import type * as React from 'react';
 
 interface ScorePopup {
   id: number;
   value: number;
   combo: number;
-}
-
-interface TimePopup {
-  id: number;
-  value: number;
 }
 
 export interface GameScreenProps {
@@ -27,8 +23,6 @@ export interface GameScreenProps {
   scorePopups: ScorePopup[];
   showSurgeFlash: boolean;
   timedBoostMovesLeft: number;
-  timePopups: TimePopup[];
-  setTimePopups: React.Dispatch<React.SetStateAction<TimePopup[]>>;
   shownChain: number;
   showPerfect: boolean;
   eventStartVisual: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
@@ -52,7 +46,6 @@ export const areGameScreenPropsEqual = (
   if (prevProps.grid !== nextProps.grid) return false;
   if (prevProps.pieces !== nextProps.pieces) return false;
   if (prevProps.scorePopups !== nextProps.scorePopups) return false;
-  if (prevProps.timePopups !== nextProps.timePopups) return false;
   
   // Value equality for primitives
   if (prevProps.combo !== nextProps.combo) return false;

@@ -4,13 +4,16 @@ const config: CapacitorConfig = {
   appId: 'com.fluxgrid.app',
   appName: 'FluxGrid',
   webDir: 'dist',
-  appendUserAgent: 'FluxGrid/1.0 Android',
+  appendUserAgent: 'FluxGrid/1.0.0 Android',
   server: {
     androidScheme: 'https'
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 0
+      launchShowDuration: 1200,
+      launchAutoHide: true,
+      backgroundColor: '#0f0e17',
+      showSpinner: false
     },
     StatusBar: {
       style: 'dark',

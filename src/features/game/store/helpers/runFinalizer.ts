@@ -1,5 +1,6 @@
 import { GameMode, type GameStats } from '@shared/types';
 import { updateAchievements, syncNewAchievement } from './achievementSystem';
+import { clearGameSave } from './gameSaveSystem';
 
 type StoreGet = () => any;
 type StoreSet = (partial: any) => void;
@@ -10,28 +11,31 @@ export function finalizeGameRun(get: StoreGet, set: StoreSet, saveStats: SaveSta
 
   const { gameMode } = get();
 
-  if (gameMode === GameMode.DAILY_CHALLENGE) {
-    import('@shared/store/streakStore').then(({ useStreakStore }) => {
-      useStreakStore.getState().recordGameCompleted();
-    });
-  }
-
   const currentStats = get().stats;
   const finalScore = get().score;
-  const updatedStats = { ...currentStats };
+  const updatedStats: GameStats = {
+    ...currentStats,
+    gamesPlayed: (currentStats.gamesPlayed || 0) + 1,
+  };
 
   if (gameMode === GameMode.ENDLESS) {
     updatedStats.endlessHighScore = Math.max(currentStats.endlessHighScore || 0, finalScore);
+    updatedStats.endlessGamesPlayed = (currentStats.endlessGamesPlayed || 0) + 1;
   } else if (gameMode === GameMode.TIMED) {
     updatedStats.timedHighScore = Math.max(currentStats.timedHighScore || 0, finalScore);
-    const duration = 60 - get().timeLeft;
-    updatedStats.timedMaxDuration = Math.max(currentStats.timedMaxDuration || 0, duration);
+    updatedStats.timedGamesPlayed = (currentStats.timedGamesPlayed || 0) + 1;
   }
 
-  const gameStartTime = get().timerStartTime || Date.now() - 60000;
-  const gameDuration = Math.floor((Date.now() - gameStartTime) / 1000);
+  const gameStartTime = get().timerStartTime;
+  const gameDuration = gameStartTime ? Math.floor((Date.now() - gameStartTime) / 1000) : 0;
+  if (gameMode === GameMode.TIMED) {
+    updatedStats.timedMaxDuration = Math.max(currentStats.timedMaxDuration || 0, gameDuration);
+  }
   const finalMaxCombo = get().maxCombo;
-  const finalLinesCleared = currentStats.linesCleared || 0;
+  const finalLinesCleared = get().runLinesCleared || 0;
+  const movesPlayed = get().totalMovesPlayed || 0;
+  const hasClearedLine = finalMaxCombo > 0;
+  const isMeaningfulRun = movesPlayed >= 5 || hasClearedLine || gameDuration >= 30;
 
   let badge: 'new-record' | 'perfect' | 'comeback' | 'speedrun' | undefined;
   const previousHighScore = gameMode === GameMode.ENDLESS
@@ -40,7 +44,7 @@ export function finalizeGameRun(get: StoreGet, set: StoreSet, saveStats: SaveSta
 
   if (finalScore > previousHighScore && previousHighScore > 0) badge = 'new-record';
   else if (get().perfectClearDetected) badge = 'perfect';
-  else if (gameMode === GameMode.TIMED && gameDuration < 30) badge = 'speedrun';
+  else if (gameMode === GameMode.TIMED && gameStartTime && gameDuration < 30) badge = 'speedrun';
 
   if (badge === 'new-record') {
     updatedStats.recordsBroken = (currentStats.recordsBroken || 0) + 1;
@@ -63,6 +67,7 @@ export function finalizeGameRun(get: StoreGet, set: StoreSet, saveStats: SaveSta
     gameOverFinalized: true,
   });
   saveStats(updatedStats);
+  clearGameSave();
   syncNewAchievement(previousAchievements, updatedAchievements);
 
   const newLog = {
@@ -74,7 +79,10 @@ export function finalizeGameRun(get: StoreGet, set: StoreSet, saveStats: SaveSta
     linesCleared: finalLinesCleared,
     maxCombo: finalMaxCombo,
     badge,
-    metadata: { tier: gameMode === GameMode.ENDLESS ? get().difficultyTier : undefined },
+    metadata: {
+      tier: gameMode === GameMode.ENDLESS ? get().difficultyTier : undefined,
+      statsVersion: 2,
+    },
   };
 
   const updatedLogs = [newLog, ...(get().gameLogs || [])].slice(0, 100);
@@ -93,7 +101,9 @@ export function finalizeGameRun(get: StoreGet, set: StoreSet, saveStats: SaveSta
     import('@shared/store/streakStore'),
     import('@utils/native/widgetHelper'),
   ]).then(([{ useStreakStore }, { syncAllWidgetData }]) => {
-    useStreakStore.getState().recordGameCompleted();
+    if (isMeaningfulRun) {
+      useStreakStore.getState().recordGameCompleted();
+    }
     const streakState = useStreakStore.getState();
     syncAllWidgetData(get().highScores, streakState.currentStreak, finalScore, streakState.todayPlayed);
   }).catch(console.error);

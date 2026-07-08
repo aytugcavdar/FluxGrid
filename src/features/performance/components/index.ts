@@ -1,1 +1,0 @@
-export { PerformanceMetricsDisplay } from './PerformanceMetricsDisplay';

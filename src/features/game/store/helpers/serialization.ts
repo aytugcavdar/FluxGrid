@@ -10,6 +10,7 @@ export interface GameStateSnapshot {
   pieces: Piece[];
   combo: number;
   difficultyTier: number;
+  tier6GravityCharge?: number;
   activeEvent: string | null;
   eventMovesRemaining: number;
   miniEventState: ReturnType<typeof createMiniEventState>;

@@ -84,6 +84,38 @@ describe('getRandomPieces', () => {
       expect(piece.type).toBeDefined();
     });
   });
+  it('sonsuz tier 0 ozel blok uretmez', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.01);
+
+    const pieces = getRandomPiecesSync(3, undefined, false, undefined, 0, GameMode.ENDLESS);
+
+    expect(pieces.every(piece => piece.type === CellType.NORMAL)).toBe(true);
+  });
+
+  it('sonsuz tier 1 buz acilir ama bomba acilmaz', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.01);
+
+    const pieces = getRandomPiecesSync(3, undefined, false, undefined, 1, GameMode.ENDLESS);
+
+    expect(pieces.every(piece => piece.type === CellType.ICE)).toBe(true);
+  });
+
+  it('sonsuz tier 2 bomba bloklarini acabilir', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.01);
+
+    const pieces = getRandomPiecesSync(3, undefined, false, undefined, 2, GameMode.ENDLESS);
+
+    expect(pieces.every(piece => piece.type === CellType.BOMB)).toBe(true);
+  });
+
+  it('tier 6 loop 1 bomba oranini artirir', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.09);
+
+    const pieces = getRandomPiecesSync(3, undefined, false, undefined, 6, GameMode.ENDLESS, undefined, 320000);
+
+    expect(pieces.every(piece => piece.type === CellType.BOMB)).toBe(true);
+  });
+
   it('tepside tema renklerini birbirinden ayirt edilebilir secer', () => {
     const palette = ['#e879f9', '#22d3ee', '#a78bfa', '#f472b6', '#34d399', '#facc15', '#60a5fa', '#fb7185', '#c084fc'];
     const pieces = getRandomPiecesSync(3, undefined, false, palette, undefined, GameMode.TIMED);

@@ -3,7 +3,7 @@
  * Saves and restores game state when user exits and returns
  */
 
-import { GridState, Piece, ProgressionState } from '../../types';
+import { GridState, Piece, ProgressionState, type Coord } from '../../types';
 import { createMiniEventState } from './miniEventSystem';
 import { GameMode } from '@shared/types';
 
@@ -17,11 +17,19 @@ export interface SavedGameState {
   // Game mode and settings
   gameMode: GameMode;
   difficultyTier: number;
+  tier6GravityCharge?: number;
   
   // Timed mode specific
   timeLeft: number;
   timedBoostMovesLeft: number;
   maxCombo: number;
+  timedTargets?: Coord[];
+  timedMomentum?: number;
+  timedLastClearAt?: number | null;
+  timedLastChanceAvailable?: boolean;
+  timedLastChanceActive?: boolean;
+  timedBonusSecondsEarned?: number;
+  timedFinalRushLocked?: boolean;
   timedScoreBreakdown?: {
     placementAndLines: number;
     combo: number;
@@ -38,6 +46,8 @@ export interface SavedGameState {
   miniEventState: ReturnType<typeof createMiniEventState>;
   progressionState: ProgressionState;
   totalMovesPlayed: number;
+  runLinesCleared?: number;
+  runElapsedSeconds?: number;
   tierStartMove: number;
   
   // Timestamp
@@ -46,6 +56,13 @@ export interface SavedGameState {
 
 const SAVE_KEY = 'flux_game_save';
 const MAX_SAVE_AGE = 24 * 60 * 60 * 1000; // 24 hours
+const SAVE_CHANGED_EVENT = 'flux-game-save-changed';
+
+function notifySaveChanged(): void {
+  try {
+    window.dispatchEvent(new Event(SAVE_CHANGED_EVENT));
+  } catch {}
+}
 
 /**
  * Save current game state to localStorage
@@ -62,6 +79,7 @@ export function saveGameState(state: SavedGameState): boolean {
     };
     
     localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+    notifySaveChanged();
     console.log('[GameSave] Game state saved successfully');
     console.log('[GameSave] Saved pieces:', saveData.pieces);
     return true;
@@ -124,6 +142,7 @@ export function loadGameState(): SavedGameState | null {
 export function clearGameSave(): void {
   try {
     localStorage.removeItem(SAVE_KEY);
+    notifySaveChanged();
     console.log('[GameSave] Cleared saved game state');
   } catch (error) {
     console.error('[GameSave] Failed to clear save:', error);

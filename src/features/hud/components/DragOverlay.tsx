@@ -11,8 +11,6 @@ import {
 export const DragOverlay: React.FC = React.memo(() => {
   const draggedPiece = useGameStore(state => state.draggedPiece);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const frameRef = useRef<number | null>(null);
-  const latestPositionRef = useRef<{ x: number; y: number } | null>(null);
 
   const isMobile = window.innerWidth < 768;
   const isSmallPhone = window.innerWidth < 400;
@@ -38,42 +36,24 @@ export const DragOverlay: React.FC = React.memo(() => {
   useEffect(() => {
     const initial = getSharedPointerPosition();
     if (initial) {
-      latestPositionRef.current = initial;
       applyPosition(initial);
     }
   }, [applyPosition, draggedPiece]);
 
   useEffect(() => {
-    const schedulePositionUpdate = (position: { x: number; y: number }) => {
-      latestPositionRef.current = position;
-
-      if (frameRef.current !== null) return;
-
-      frameRef.current = window.requestAnimationFrame(() => {
-        frameRef.current = null;
-        if (latestPositionRef.current) {
-          applyPosition(latestPositionRef.current);
-        }
-      });
-    };
-
     const handleMove = (e: PointerEvent) => {
       const activePointerId = getActiveDragPointerId();
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
 
       const nextPosition = { x: e.clientX, y: e.clientY };
       setSharedPointerPosition(nextPosition);
-      schedulePositionUpdate(nextPosition);
+      applyPosition(nextPosition);
     };
 
     window.addEventListener('pointermove', handleMove, { passive: true });
 
     return () => {
       window.removeEventListener('pointermove', handleMove);
-      if (frameRef.current !== null) {
-        window.cancelAnimationFrame(frameRef.current);
-        frameRef.current = null;
-      }
     };
   }, [applyPosition]);
 
@@ -95,12 +75,13 @@ export const DragOverlay: React.FC = React.memo(() => {
       }}
     >
       <motion.div
-        initial={{ scale: 0.8, opacity: 0, rotateX: -20 }}
+        initial={{ scale: 0.92, opacity: 0, rotateX: -8 }}
         animate={{
           scale: 1,
           opacity: 1,
           rotateX: 0,
         }}
+        transition={{ duration: 0.08, ease: 'easeOut' }}
         className="flex flex-col items-center justify-center"
         style={{
           gap: `${gap}px`,
@@ -124,7 +105,7 @@ export const DragOverlay: React.FC = React.memo(() => {
                   height: cellSize,
                   borderRadius: 6,
                   backgroundColor: cell
-                    ? (draggedPiece.type === 'ICE' ? '#93c5fd' : draggedPiece.type === 'BOMB' ? '#f87171' : draggedPiece.color)
+                    ? (draggedPiece.type === 'ICE' ? '#93c5fd' : draggedPiece.type === 'BOMB' ? '#f87171' : draggedPiece.type === 'STONE' ? '#94a3b8' : draggedPiece.color)
                     : 'transparent',
                   boxShadow: cell && !isNativeApp
                     ? `
@@ -141,8 +122,8 @@ export const DragOverlay: React.FC = React.memo(() => {
                   position: 'relative',
                   background: cell
                     ? `linear-gradient(135deg,
-                        ${draggedPiece.type === 'ICE' ? '#93c5fd' : draggedPiece.type === 'BOMB' ? '#f87171' : draggedPiece.color}99 0%,
-                        ${draggedPiece.type === 'ICE' ? '#60a5fa' : draggedPiece.type === 'BOMB' ? '#ef4444' : draggedPiece.color}77 100%
+                        ${draggedPiece.type === 'ICE' ? '#93c5fd' : draggedPiece.type === 'BOMB' ? '#f87171' : draggedPiece.type === 'STONE' ? '#94a3b8' : draggedPiece.color}99 0%,
+                        ${draggedPiece.type === 'ICE' ? '#60a5fa' : draggedPiece.type === 'BOMB' ? '#ef4444' : draggedPiece.type === 'STONE' ? '#475569' : draggedPiece.color}77 100%
                       )`
                     : 'transparent',
                 }}

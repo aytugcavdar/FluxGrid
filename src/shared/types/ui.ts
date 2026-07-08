@@ -60,7 +60,7 @@ export interface PerformanceCardProps {
   bestScore: number;
   maxCombo: number;
   maxTier?: number; // Endless only
-  maxDuration?: number; // Timed only
+  totalLines?: number; // Timed only
   color: string;
 }
 
@@ -71,7 +71,7 @@ export interface ModePerformance {
   bestScore: number;
   maxCombo: number;
   maxTier?: number; // Endless only
-  maxDuration?: number; // Timed only
+  totalLines?: number; // Timed only
 }
 
 export interface GeneralProgress {

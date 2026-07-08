@@ -4,120 +4,57 @@ import { useGameStore } from '@features/game/store/gameStore';
 import styles from './AchievementNotification.module.css';
 
 /**
- * Achievement Notification Component
- * 
- * Displays achievement unlock notifications with animations
- * Supports swipe-to-dismiss (left or right)
+ * Compact achievement toast.
+ * Keeps the reward visible without blocking the board; swipe up to dismiss early.
  */
 export const AchievementNotification = React.memo(() => {
   const { achievements, unlockedAchievementId, clearAchievementNotification } = useGameStore();
   const recentUnlock = achievements.find(achievement => achievement.id === unlockedAchievementId);
-  
-  // Motion values for drag
-  const x = useMotionValue(0);
+
   const y = useMotionValue(0);
-  const opacity = useTransform(x, [-200, 0, 200], [0, 1, 0]);
+  const opacity = useTransform(y, [-90, 0], [0, 1]);
 
-  if (!recentUnlock) return null;
+  React.useEffect(() => {
+    if (!recentUnlock) return;
+    const timer = window.setTimeout(clearAchievementNotification, 2200);
+    return () => window.clearTimeout(timer);
+  }, [clearAchievementNotification, recentUnlock]);
 
-  const handleDragEnd = (_: any, info: any) => {
-    // If dragged more than 100px horizontally or 50px upwards, dismiss
-    if (Math.abs(info.offset.x) > 100 || info.offset.y < -50) {
+  const handleDragEnd = (_: unknown, info: { offset: { y: number }; velocity: { y: number } }) => {
+    if (info.offset.y < -34 || info.velocity.y < -420) {
       clearAchievementNotification();
     }
   };
 
   return (
     <AnimatePresence>
-      <motion.div
-        className={styles.container}
-        initial={{ y: -100, opacity: 0, scale: 0.8 }}
-        animate={{ y: 0, opacity: 1, scale: 1 }}
-        exit={{ 
-          y: -100, 
-          opacity: 0, 
-          scale: 0.8,
-          transition: { duration: 0.2 }
-        }}
-        transition={{
-          type: 'spring',
-          stiffness: 300,
-          damping: 25,
-        }}
-        drag={true}
-        dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-        dragElastic={{ top: 0.7, bottom: 0, left: 0.7, right: 0.7 }}
-        onDragEnd={handleDragEnd}
-        style={{ x, y, opacity }}
-        onClick={clearAchievementNotification}
-      >
-        {/* Glow effect */}
-        <div className={styles.glow} />
-        
-        {/* Content */}
-        <div className={styles.content}>
-          {/* Icon with pulse animation */}
-          <motion.div
-            className={styles.icon}
-            animate={{
-              scale: [1, 1.2, 1],
-              rotate: [0, 10, -10, 0],
-            }}
-            transition={{
-              duration: 0.6,
-              repeat: Infinity,
-              repeatDelay: 2,
-            }}
-          >
-            🏆
-          </motion.div>
-          
-          {/* Text */}
-          <div className={styles.text} style={{ fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif' }}>
-            <div className={styles.badge}>BAŞARIM KAZANILDI!</div>
-            <div className={styles.title}>{recentUnlock.name}</div>
-            <div className={styles.description}>{recentUnlock.description}</div>
-          </div>
-        </div>
-        
-        {/* Progress bar animation */}
+      {recentUnlock && (
         <motion.div
-          className={styles.progressBar}
-          initial={{ scaleX: 0 }}
-          animate={{ scaleX: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        />
-        
-        {/* Confetti particles */}
-        {[...Array(12)].map((_, i) => (
-          <motion.div
-            key={i}
-            className={styles.particle}
-            style={{
-              left: `${20 + Math.random() * 60}%`,
-              top: '50%',
-            }}
-            initial={{ scale: 0, y: 0, opacity: 1 }}
-            animate={{
-              scale: [0, 1, 0.5],
-              y: [0, -50 - Math.random() * 50, -100 - Math.random() * 50],
-              x: [(Math.random() - 0.5) * 100],
-              opacity: [1, 1, 0],
-              rotate: [0, Math.random() * 360],
-            }}
-            transition={{
-              duration: 1.5,
-              delay: i * 0.05,
-              ease: 'easeOut',
-            }}
-          />
-        ))}
-        
-        {/* Swipe indicator */}
-        <div className={styles.swipeIndicator}>
-          ↑ Üste veya Yana Kaydır ←→
-        </div>
-      </motion.div>
+          className={styles.container}
+          initial={{ y: -18, opacity: 0, scale: 0.98 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: -18, opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          drag="y"
+          dragMomentum={false}
+          dragConstraints={{ top: -72, bottom: 0 }}
+          dragElastic={{ top: 0.45, bottom: 0 }}
+          onDragEnd={handleDragEnd}
+          style={{ y, opacity }}
+          onClick={clearAchievementNotification}
+          role="status"
+          aria-live="polite"
+        >
+          <div className={styles.content}>
+            <div className={styles.icon} aria-hidden="true">🏆</div>
+            <div className={styles.text}>
+              <div className={styles.badge}>Basarim Acildi</div>
+              <div className={styles.title}>{recentUnlock.name}</div>
+            </div>
+            <div className={styles.dismissHint} aria-hidden="true">↑</div>
+          </div>
+        </motion.div>
+      )}
     </AnimatePresence>
   );
 });

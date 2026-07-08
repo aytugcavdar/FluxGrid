@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getEventScoreMultiplier, tickActiveEvent, checkTierEvent } from '@features/game/store/helpers/eventSystem';
-import { GRID_SIZE } from '@features/game/types';
+import { CellType, GRID_SIZE } from '@features/game/types';
 import { GameMode } from '@shared/types';
 
 describe('eventSystem', () => {
@@ -44,10 +44,11 @@ describe('eventSystem', () => {
       
       const set = () => {};
       
-      // Test: Tier transition in ENDLESS mode should activate event
-      const resultEndless = checkTierEvent(5000, 0, getEndless as any, set);
+      // Test: Tier transition in ENDLESS mode should advance tier.
+      const resultEndless = checkTierEvent(15000, 0, getEndless as any, set);
       expect(resultEndless).not.toBeNull();
-      expect(resultEndless?.activeEvent).toBe('ICE_STORM');
+      expect(resultEndless?.activeEvent).toBe(null);
+      expect(resultEndless?.eventMovesRemaining).toBe(0);
       expect(resultEndless?.difficultyTier).toBe(1);
     });
 
@@ -64,7 +65,7 @@ describe('eventSystem', () => {
       const set = () => {};
       
       // Test: Tier transition in TIMED mode should NOT activate event
-      const resultTimed = checkTierEvent(5000, 0, getTimed as any, set);
+      const resultTimed = checkTierEvent(15000, 0, getTimed as any, set);
       expect(resultTimed).toBeNull();
     });
 
@@ -81,95 +82,153 @@ describe('eventSystem', () => {
       const set = () => {};
       
       // Test: Tier transition in DAILY_CHALLENGE mode should NOT activate event
-      const resultDaily = checkTierEvent(5000, 0, getDaily as any, set);
+      const resultDaily = checkTierEvent(15000, 0, getDaily as any, set);
       expect(resultDaily).toBeNull();
+    });
+  });
+
+  describe('checkTierEvent - Endless tier rules', () => {
+    const getEndless = () => ({
+      gameMode: GameMode.ENDLESS,
+      grid: Array(GRID_SIZE).fill(null).map(() =>
+        Array(GRID_SIZE).fill(null).map(() => ({ filled: false, color: '' }))
+      ),
+    });
+    const set = () => {};
+
+    it('keeps tier 1 and tier 2 as special-block unlocks without active events', () => {
+      const tier1 = checkTierEvent(15000, 0, getEndless as any, set);
+      const tier2 = checkTierEvent(40000, 1, getEndless as any, set);
+
+      expect(tier1).toEqual(expect.objectContaining({
+        difficultyTier: 1,
+        activeEvent: null,
+        eventMovesRemaining: 0,
+      }));
+      expect(tier2).toEqual(expect.objectContaining({
+        difficultyTier: 2,
+        activeEvent: null,
+        eventMovesRemaining: 0,
+      }));
+    });
+
+    it('starts a short quake at tier 3', () => {
+      const result = checkTierEvent(80000, 2, getEndless as any, set);
+
+      expect(result).toEqual(expect.objectContaining({
+        difficultyTier: 3,
+        activeEvent: 'QUAKE',
+        eventMovesRemaining: 4,
+      }));
+    });
+
+    it('starts a short ice storm at tier 4', () => {
+      const result = checkTierEvent(130000, 3, getEndless as any, set);
+
+      expect(result).toEqual(expect.objectContaining({
+        difficultyTier: 4,
+        activeEvent: 'ICE_STORM',
+        eventMovesRemaining: 5,
+      }));
+    });
+
+    it('starts a stronger quake at tier 5', () => {
+      const result = checkTierEvent(190000, 4, getEndless as any, set);
+
+      expect(result).toEqual(expect.objectContaining({
+        difficultyTier: 5,
+        activeEvent: 'QUAKE',
+        eventMovesRemaining: 6,
+      }));
     });
   });
 });
 
-  describe('VOID periodic clearing', () => {
-    it('should clear bottom 2 rows (rows 8 and 9) every 5 moves', () => {
-      // This test verifies Requirements 2.8, 3.3, 15.3, 15.4, 15.5
-      // The VOID event should clear rows 8 and 9 every 5 moves without gravity or scoring
-      
-      // Create a mock grid with blocks in all rows
-      const createFilledGrid = (): any[] => {
-        const grid: any[] = [];
-        for (let y = 0; y < GRID_SIZE; y++) {
-          const row: any[] = [];
-          for (let x = 0; x < GRID_SIZE; x++) {
-            row.push({ filled: true, color: '#ff0000', id: `cell-${y}-${x}` });
-          }
-          grid.push(row);
-        }
-        return grid;
-      };
-      
-      // Mock piece (not used in VOID logic but required by function signature)
-      const mockPiece: any = { shape: [[1]], color: '#ff0000', instanceId: 'test-1', id: 'test-1' };
-      
-      // Test case 1: movesElapsed = 5 (should trigger clear)
-      const grid1 = createFilledGrid();
-      const get1 = () => ({
-        activeEvent: 'VOID' as const,
-        eventMovesRemaining: 5, // movesElapsed = 10 - 5 = 5
-        grid: grid1,
-      } as any);
-      const set1 = () => {};
-      
-      const result1 = tickActiveEvent(grid1, mockPiece, get1, set1);
-      
-      expect(result1).not.toBeNull();
-      expect(result1?.grid).toBeDefined();
-      
-      // Verify rows 8 and 9 are cleared
-      for (let x = 0; x < GRID_SIZE; x++) {
-        expect(result1?.grid?.[8][x].filled).toBe(false);
-        expect(result1?.grid?.[9][x].filled).toBe(false);
-      }
-      
-      // Verify other rows are NOT cleared
-      for (let y = 0; y < 8; y++) {
-        for (let x = 0; x < GRID_SIZE; x++) {
-          expect(result1?.grid?.[y][x].filled).toBe(true);
-        }
-      }
-      
-      // Test case 2: movesElapsed = 3 (should NOT trigger clear)
-      const grid2 = createFilledGrid();
-      const get2 = () => ({
-        activeEvent: 'VOID' as const,
-        eventMovesRemaining: 7, // movesElapsed = 10 - 7 = 3
-        grid: grid2,
-      } as any);
-      const set2 = () => {};
-      
-      const result2 = tickActiveEvent(grid2, mockPiece, get2, set2);
-      
-      // Should still decrement counter but not clear rows
-      expect(result2?.eventMovesRemaining).toBe(6);
-      
-      // If grid is updated, rows 8 and 9 should still be filled
-      if (result2?.grid) {
-        for (let x = 0; x < GRID_SIZE; x++) {
-          expect(result2.grid[8][x].filled).toBe(true);
-          expect(result2.grid[9][x].filled).toBe(true);
-        }
-      }
-      
-      // Test case 3: movesElapsed = 10 (should trigger clear at move 10)
-      const grid3 = createFilledGrid();
-      const get3 = () => ({
-        activeEvent: 'VOID' as const,
-        eventMovesRemaining: 1, // movesElapsed = 10 - 1 = 9, but after decrement it becomes 0
-        grid: grid3,
-      } as any);
-      const set3 = () => {};
-      
-      const result3 = tickActiveEvent(grid3, mockPiece, get3, set3);
-      
-      // Event should deactivate when duration reaches 0 after decrement
-      expect(result3?.activeEvent).toBe(null);
-      expect(result3?.eventMovesRemaining).toBe(0);
-    });
+describe('VOID temporary zones', () => {
+  const createEmptyGrid = (): any[] => Array.from({ length: GRID_SIZE }, () =>
+    Array.from({ length: GRID_SIZE }, () => ({ filled: false, color: '' }))
+  );
+  const mockPiece: any = {
+    shape: [[1]],
+    color: '#ff0000',
+    instanceId: 'test-1',
+    id: 'test-1',
+  };
+  const getVoidState = (grid: any[], eventMovesRemaining: number) => () => ({
+    activeEvent: 'VOID' as const,
+    eventMovesRemaining,
+    grid,
+  } as any);
+  const getVoidCells = (grid: any[][]) => grid.flat().filter(cell => cell.type === CellType.VOID);
+
+  it('spawns two zones without deleting existing blocks', () => {
+    const grid = createEmptyGrid();
+    grid[GRID_SIZE - 1][0] = {
+      filled: true,
+      color: '#ff0000',
+      id: 'existing-block',
+      type: CellType.NORMAL,
+    };
+
+    const result = tickActiveEvent(grid, mockPiece, getVoidState(grid, 10), () => {}, [mockPiece]);
+
+    expect(result?.eventMovesRemaining).toBe(9);
+    expect(result?.grid?.[GRID_SIZE - 1][0].id).toBe('existing-block');
+    expect(getVoidCells(result!.grid!)).toHaveLength(2);
+    expect(getVoidCells(result!.grid!)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ filled: true, voidTurns: 3 }),
+    ]));
   });
+
+  it('keeps zones for three player moves and then relocates them', () => {
+    const first = tickActiveEvent(
+      createEmptyGrid(), mockPiece, getVoidState(createEmptyGrid(), 10), () => {}, [mockPiece]
+    )!;
+    const firstIds = getVoidCells(first.grid!).map(cell => cell.id);
+
+    const second = tickActiveEvent(first.grid!, mockPiece, getVoidState(first.grid!, 9), () => {}, [mockPiece])!;
+    expect(getVoidCells(second.grid!).every(cell => cell.voidTurns === 2)).toBe(true);
+
+    const third = tickActiveEvent(second.grid!, mockPiece, getVoidState(second.grid!, 8), () => {}, [mockPiece])!;
+    expect(getVoidCells(third.grid!).every(cell => cell.voidTurns === 1)).toBe(true);
+
+    const fourth = tickActiveEvent(third.grid!, mockPiece, getVoidState(third.grid!, 7), () => {}, [mockPiece])!;
+    const relocatedCells = getVoidCells(fourth.grid!);
+    expect(relocatedCells).toHaveLength(2);
+    expect(relocatedCells.every(cell => cell.voidTurns === 3)).toBe(true);
+    expect(relocatedCells.every(cell => !firstIds.includes(cell.id))).toBe(true);
+  });
+
+  it('does not create a zone that removes the last valid placement', () => {
+    const grid = Array.from({ length: GRID_SIZE }, (_, y) =>
+      Array.from({ length: GRID_SIZE }, (_, x) => ({
+        filled: !(x === 0 && y === 0),
+        color: '#ff0000',
+        id: `cell-${y}-${x}`,
+        type: CellType.NORMAL,
+      }))
+    );
+
+    const result = tickActiveEvent(grid, mockPiece, getVoidState(grid, 10), () => {}, [mockPiece]);
+
+    expect(getVoidCells(result!.grid!)).toHaveLength(0);
+    expect(result!.grid![0][0].filled).toBe(false);
+  });
+
+  it('removes every zone when the event expires', () => {
+    const grid = createEmptyGrid();
+    grid[1][1] = {
+      filled: true,
+      color: '#170d28',
+      id: 'void-1',
+      type: CellType.VOID,
+      voidTurns: 1,
+    };
+
+    const result = tickActiveEvent(grid, mockPiece, getVoidState(grid, 1), () => {}, [mockPiece]);
+
+    expect(result?.activeEvent).toBe(null);
+    expect(result?.eventMovesRemaining).toBe(0);
+    expect(getVoidCells(result!.grid!)).toHaveLength(0);
+  });
+});

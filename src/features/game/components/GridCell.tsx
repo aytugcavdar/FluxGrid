@@ -42,12 +42,12 @@ export const GridCell: React.FC<Props> = ({ cell, isGhost, isValidGhost, onClick
   // Ghost preview border color
   const ghostBorderColor = isValidGhost
     ? 'rgba(52, 211, 153, 0.7)'  // yeşil — valid
-    : 'rgba(248, 113, 113, 0.7)'; // kırmızı — invalid
+    : 'rgba(148, 163, 184, 0.55)';
 
   // Ghost background
   const ghostBg = isValidGhost
     ? 'rgba(52, 211, 153, 0.15)'
-    : 'rgba(248, 113, 113, 0.15)';
+    : 'rgba(148, 163, 184, 0.12)';
 
   return (
     <motion.div
@@ -80,7 +80,7 @@ export const GridCell: React.FC<Props> = ({ cell, isGhost, isValidGhost, onClick
         boxShadow: cell.filled
           ? `0 0 14px ${cell.color}70, 0 0 4px ${cell.color}40, inset 0 0 10px rgba(255,255,255,0.2)${comboColor ? `, 0 0 20px ${comboColor}30` : ''}`
           : isGhost
-          ? `0 0 10px ${isValidGhost ? 'rgba(52,211,153,0.35)' : 'rgba(248,113,113,0.35)'}, inset 0 0 8px ${isValidGhost ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)'}`
+          ? `0 0 10px ${isValidGhost ? 'rgba(52,211,153,0.35)' : 'rgba(148,163,184,0.22)'}, inset 0 0 8px ${isValidGhost ? 'rgba(52,211,153,0.1)' : 'rgba(148,163,184,0.08)'}`
           : 'none',
         zIndex: cell.filled ? 10 : 0,
         opacity: isGhost ? 0.75 : 1,
@@ -128,7 +128,7 @@ export const GridCell: React.FC<Props> = ({ cell, isGhost, isValidGhost, onClick
           className="absolute inset-0 rounded-md pointer-events-none"
           animate={{ opacity: [0, 0.3, 0] }}
           transition={{ duration: 0.8, repeat: Infinity }}
-          style={{ background: 'rgba(239,68,68,0.4)' }}
+          style={{ background: 'rgba(251,191,36,0.26)' }}
         />
       )}
 

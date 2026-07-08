@@ -106,7 +106,11 @@
     },
     "firstClear": {
       "title": "Efface une ligne",
-      "description": "Complete la ligne du bas. Les blocs au-dessus tomberont apres le clear."
+      "description": "Complete la ligne du bas. Une ligne pleine disparait et donne des points."
+    },
+    "gravity": {
+      "title": "Les blocs tombent",
+      "description": "Apres un clear, les blocs sans support tombent. Cela peut ouvrir de nouveaux coups."
     },
     "combo": {
       "title": "Garde le combo",
@@ -123,7 +127,17 @@
       "fillLine": "Remplis une ligne ou colonne",
       "keepClearing": "Continue a effacer vite",
       "perfectStart": "Depart parfait!",
-      "timeReward": "Clear reussi, temps gagne!"
+      "timeReward": "Clear reussi, temps gagne!",
+      "comboMaster": "Maitre du combo!",
+      "speedDemon": "Depart rapide!"
+    },
+    "timedIntro": {
+      "title": "Mode Timed",
+      "description": "Le chrono commence au premier coup. Les clears donnent du temps; a la fin, le temps devient des points.",
+      "tip1": "Clear = temps",
+      "tip2": "Combo = points",
+      "tip3": "Les dernieres secondes comptent",
+      "dismiss": "Fermer le conseil Timed"
     },
     "start": "Commencer à jouer",
     "next": "Suivant",
@@ -142,7 +156,7 @@
     },
     "step4": {
       "title": "Construis des combos",
-      "description": "Efface des lignes ? la suite pour garder ton combo et augmenter ton score."
+      "description": "Efface des lignes à la suite pour garder ton combo et augmenter ton score."
     },
     "step5": {
       "title": "Utilise une compétence",
@@ -153,7 +167,31 @@
       "description": "Tu as appris les bases. Maintenant va construire ton meilleur score!"
     },
     "wrongPlacement": "Pas ici!",
-    "correctPlacement": "Super!"
+    "correctPlacement": "Super!",
+    "welcome": {
+      "title": "Bienvenue!",
+      "description": "Commencons. Fais glisser une piece du bas et pose-la sur le plateau."
+    },
+    "comboTimer": {
+      "title": "Minuteur de combo",
+      "description": "Attention au temps. Si tu attends trop longtemps, ton combo revient a zero."
+    },
+    "gameModes": {
+      "title": "Tu es pret!",
+      "description": "Tu es en mode Infini. Joue a ton rythme, efface des lignes et bats ton record."
+    },
+    "skipButton": "Passer le tutoriel",
+    "progress": "{{current}} / {{total}}",
+    "handPointer": "Glisser et deposer",
+    "autoAdvance": {
+      "completing": "Finalisation...",
+      "continuing": "Suite..."
+    },
+    "achievements": {
+      "speed": "Apprentissage rapide",
+      "perfect": "Depart parfait",
+      "combo": "Maitre du combo"
+    }
   },
   "settings": {
     "title": "Choisir le thème",
@@ -255,6 +293,8 @@
     "progressionAchievements": "Succès de progression"
   },
   "settingsScreen": {
+    "title": "Parametres",
+    "subtitle": "Gere ici tes preferences principales de jeu.",
     "appearance": "APPARENCE",
     "soundAndVibration": "SON & VIBRATION",
     "language": "LANGUE",
@@ -299,7 +339,7 @@
     "resetAllData": "Réinitialiser toutes les données",
     "resetConfirm": "Toutes vos données seront supprimées. Cette action ne peut pas être annulée. Voulez-vous continuer?",
     "resetSuccess": "Toutes les données ont été réinitialisées avec succès.",
-    "version": "FluxGrid v18.0",
+    "version": "FluxGrid v1.0",
     "themeDark": "Sombre",
     "themeDarkDesc": "Violet & Orange",
     "themeLight": "Clair",
@@ -311,6 +351,17 @@
     "german": "Deutsch",
     "french": "Français",
     "spanish": "Español",
+    "languageOptionAria": "Selectionner la langue {{language}}",
+    "rewards": "RECOMPENSES",
+    "neonTrialTitle": "Essai du theme Neon",
+    "neonTrialDesc": "Termine une pub recompensee et utilise Neon pendant 24 heures.",
+    "switchToDark": "Passer au theme sombre",
+    "useNeon": "Utiliser le theme Neon",
+    "hoursLeft": "{{count}} h restantes",
+    "adLoading": "Preparation de la pub...",
+    "adFailed": "La pub n'a pas pu etre terminee",
+    "watchAdTrial": "Voir une pub - debloquer 24 h",
+    "trialUsed": "L'essai du jour a deja ete utilise",
     "installPWA": "Ajouter à l'écran d'accueil",
     "installPWAInstructions": "Installer l'application",
     "iosStep1": "Appuyez sur le bouton Partager dans Safari (⬆️)",
@@ -320,5 +371,26 @@
     "androidStep2": "Trouvez l'option \"Ajouter à l'écran d'accueil\" ou \"Installer\"",
     "androidStep3": "Suivez les instructions pour installer l'application",
     "understood": "Compris"
+  },
+  "update": {
+    "button": "Mettre a jour",
+    "later": "Plus tard",
+    "required": "Cette mise a jour est requise pour continuer a utiliser l app"
+  },
+  "continueModal": {
+    "title": "CONTINUER?",
+    "subtitle": "Ta partie n est pas terminee!",
+    "benefit1": "Un espace sur apparait sur le plateau",
+    "benefit2": "Tu obtiens 3 nouvelles pieces",
+    "benefit3": "Ton score actuel est conserve",
+    "summaryTitle": "Espace sur + 3 nouvelles pieces",
+    "summarySubtitle": "Ton score est conserve.",
+    "watchAd": "Voir une pub & continuer",
+    "loading": "Chargement de la pub...",
+    "limitReached": "Limite quotidienne atteinte",
+    "remaining_one": "{{count}} utilisation restante aujourd hui",
+    "remaining_other": "{{count}} utilisations restantes aujourd hui",
+    "noThanks": "Non merci, quitter",
+    "adNote": "Regarde une courte pub pour continuer gratuitement"
   }
 }

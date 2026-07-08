@@ -71,11 +71,14 @@ export const AdBanner: React.FC<AdBannerProps> = React.memo(() => {
     <div
       className="w-full flex-shrink-0"
       style={{
-        height: 'calc(60px + env(safe-area-inset-bottom, 0px) + 10px)',
-        minHeight: 'calc(60px + env(safe-area-inset-bottom, 0px) + 10px)',
-        maxHeight: 'calc(60px + env(safe-area-inset-bottom, 0px) + 10px)',
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)',
-        marginTop: '8px',
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: 'calc(var(--native-banner-reserve, clamp(76px, 10vh, 96px)) + max(env(safe-area-inset-bottom, 0px), var(--safe-area-bottom, 0px)))',
+        minHeight: 'calc(var(--native-banner-reserve, clamp(76px, 10vh, 96px)) + max(env(safe-area-inset-bottom, 0px), var(--safe-area-bottom, 0px)))',
+        maxHeight: 'calc(var(--native-banner-reserve, clamp(76px, 10vh, 96px)) + max(env(safe-area-inset-bottom, 0px), var(--safe-area-bottom, 0px)))',
+        pointerEvents: 'none',
       }}
     />
   );

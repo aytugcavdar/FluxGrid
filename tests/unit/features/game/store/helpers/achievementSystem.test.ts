@@ -27,6 +27,12 @@ describe('achievement system', () => {
     expect(ids).not.toContain('rotate_master');
     expect(ids).not.toContain('rainbow_5');
     expect(ids).not.toContain('portal_5');
+    expect(ids).not.toContain('score_1m');
+    expect(ids).not.toContain('combo_25');
+    expect(ids).not.toContain('combo_30');
+    expect(ids).not.toContain('bomb_250');
+    expect(ids).not.toContain('ice_250');
+    expect(ids).not.toContain('games_500');
   });
 
   it('canli oyun metrikleriyle tum ana kategorileri ilerletir', () => {
@@ -47,6 +53,11 @@ describe('achievement system', () => {
         endlessEventCount: 5,
         perfectClears: 1,
         recordsBroken: 5,
+        largePiecesPlaced: 25,
+        lineFivePiecesPlaced: 10,
+        hollow3x3PiecesPlaced: 5,
+        square3x3PiecesPlaced: 1,
+        largePieceClears: 10,
       },
       gameMode: GameMode.TIMED,
       difficultyTier: 3,
@@ -72,5 +83,11 @@ describe('achievement system', () => {
     expect(byId.perfect_clear.unlocked).toBe(true);
     expect(byId.color_bonus_10.currentValue).toBe(1);
     expect(byId.record_breaker.unlocked).toBe(true);
+    expect(byId.large_piece_1.unlocked).toBe(true);
+    expect(byId.large_piece_25.unlocked).toBe(true);
+    expect(byId.line5_piece_10.unlocked).toBe(true);
+    expect(byId.hollow_3x3_5.unlocked).toBe(true);
+    expect(byId.square_3x3_1.unlocked).toBe(true);
+    expect(byId.large_piece_clear_10.unlocked).toBe(true);
   });
 });

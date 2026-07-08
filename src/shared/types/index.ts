@@ -48,6 +48,11 @@ export interface GameStats {
   timedSprintBonusTotal?: number;
   perfectClears?: number;
   recordsBroken?: number;
+  largePiecesPlaced?: number;
+  lineFivePiecesPlaced?: number;
+  hollow3x3PiecesPlaced?: number;
+  square3x3PiecesPlaced?: number;
+  largePieceClears?: number;
 }
 
 // Touch & Gesture Types

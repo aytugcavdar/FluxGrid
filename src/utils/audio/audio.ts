@@ -103,9 +103,10 @@ export const playInvalid = () => {
 };
 
 /** Three-part sound for line clear: sweep up, crystal ping, bass drop */
-export const playClear = (lines: number = 1) => {
+export const playClear = (lines: number = 1, comboLevel: number = 0) => {
   if (isMuted()) return;
   const ctx = getCtx();
+  const pitch = Math.min(1.28, 1 + (Math.max(0, lines - 1) * 0.055) + (Math.min(comboLevel, 10) * 0.014));
   
   // Part 1: Frequency sweep (400Hz → 800Hz)
   const oscSweep = ctx.createOscillator();
@@ -114,8 +115,8 @@ export const playClear = (lines: number = 1) => {
   gainSweep.connect(ctx.destination);
 
   oscSweep.type = 'triangle';
-  oscSweep.frequency.setValueAtTime(400, ctx.currentTime);
-  oscSweep.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.15);
+  oscSweep.frequency.setValueAtTime(400 * pitch, ctx.currentTime);
+  oscSweep.frequency.exponentialRampToValueAtTime(800 * pitch, ctx.currentTime + 0.15);
   gainSweep.gain.setValueAtTime(0.12, ctx.currentTime);
   gainSweep.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
 
@@ -129,7 +130,7 @@ export const playClear = (lines: number = 1) => {
   gainPing.connect(ctx.destination);
 
   oscPing.type = 'sine';
-  oscPing.frequency.setValueAtTime(1200, ctx.currentTime + 0.1);
+  oscPing.frequency.setValueAtTime(1200 * pitch, ctx.currentTime + 0.1);
   gainPing.gain.setValueAtTime(0.1, ctx.currentTime + 0.1);
   gainPing.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
 
@@ -150,6 +151,90 @@ export const playClear = (lines: number = 1) => {
 
   oscBass.start(ctx.currentTime + 0.2);
   oscBass.stop(ctx.currentTime + 0.45);
+};
+
+/** Short crystalline snap when ICE loses its first health point. */
+export const playIceHit = () => {
+  if (isMuted()) return;
+  const ctx = getCtx();
+  const now = ctx.currentTime;
+
+  [1560, 1080].forEach((frequency, index) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = index === 0 ? 'triangle' : 'sine';
+    osc.frequency.setValueAtTime(frequency, now + (index * 0.018));
+    osc.frequency.exponentialRampToValueAtTime(frequency * 0.72, now + 0.095);
+    gain.gain.setValueAtTime(index === 0 ? 0.055 : 0.035, now + (index * 0.018));
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+    osc.start(now + (index * 0.018));
+    osc.stop(now + 0.12);
+  });
+};
+
+/** Slightly wider crystal scatter when ICE breaks completely. */
+export const playIceBreak = () => {
+  if (isMuted()) return;
+  const ctx = getCtx();
+  const now = ctx.currentTime;
+
+  [1320, 980, 720].forEach((frequency, index) => {
+    const start = now + (index * 0.032);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(frequency, start);
+    osc.frequency.exponentialRampToValueAtTime(frequency * 0.68, start + 0.11);
+    gain.gain.setValueAtTime(0.048 - (index * 0.007), start);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.13);
+    osc.start(start);
+    osc.stop(start + 0.14);
+  });
+};
+
+/** Low staggered impacts for a bomb chain. Visuals use the same 60 ms cadence. */
+export const playBombChain = (bombCount: number) => {
+  if (isMuted() || bombCount <= 0) return;
+  const ctx = getCtx();
+  const count = Math.min(5, Math.max(1, Math.floor(bombCount)));
+
+  for (let index = 0; index < count; index++) {
+    const start = ctx.currentTime + (index * 0.06);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(125 + (index * 8), start);
+    osc.frequency.exponentialRampToValueAtTime(48, start + 0.16);
+    gain.gain.setValueAtTime(Math.max(0.07, 0.13 - (index * 0.01)), start);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.18);
+    osc.start(start);
+    osc.stop(start + 0.19);
+  }
+};
+
+/** One restrained thud when all gravity movement settles. */
+export const playGravityLand = (strength: number = 1) => {
+  if (isMuted()) return;
+  const ctx = getCtx();
+  const now = ctx.currentTime;
+  const safeStrength = Math.max(0.65, Math.min(1.25, strength));
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(145, now);
+  osc.frequency.exponentialRampToValueAtTime(62, now + 0.085);
+  gain.gain.setValueAtTime(0.085 * safeStrength, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+  osc.start(now);
+  osc.stop(now + 0.11);
 };
 
 // Pentatonic Scale (C Major Pentatonic) for pleasant-sounding melodies
@@ -181,7 +266,7 @@ export const playCombo = (level: number) => {
     noteCount = Math.min(level, 5);  // Low combo: up to 5 notes
   }
 
-  const toneType: OscillatorType = level >= 10 ? 'triangle' : 'sine';
+  const toneType: 'triangle' | 'sine' = level >= 10 ? 'triangle' : 'sine';
   const noteGain = level >= 10 ? 0.095 : level >= 5 ? 0.085 : 0.075;
 
   // Play melody using pentatonic scale

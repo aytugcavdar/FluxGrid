@@ -9,7 +9,6 @@ vi.mock('@features/hud', () => ({
   ScorePopups: () => null,
   PerfectBonus: () => null,
   SurgeFlash: () => null,
-  ComboFlash: () => null,
   ComboBar: () => null,
   ComboRushFlash: () => null,
   EventStartVisual: () => null,
@@ -18,11 +17,10 @@ vi.mock('@features/hud', () => ({
   FloatingScoreText: () => null,
   FloatingTimeText: () => null,
   PerfectClearPopup: () => null,
-  LineClearFlash: () => null,
 }));
 
-vi.mock('../../../features/game/components/Grid', () => ({
-  Grid: () => <div data-testid="grid">Grid</div>,
+vi.mock('../../../features/game/components/Grid2D', () => ({
+  Grid2D: () => <div data-testid="grid">Grid</div>,
 }));
 
 vi.mock('../../../features/game/components/Piece', () => ({
@@ -180,7 +178,6 @@ describe('GameScreen - Safe Area Integration', () => {
       
       const { queryByTestId } = render(<GameScreen {...defaultProps} />);
       
-      // Small native screens still need matching layout space for the native banner.
       expect(queryByTestId('ad-banner')).not.toBeNull();
     });
   });

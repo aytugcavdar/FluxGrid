@@ -16,8 +16,12 @@
  * Requirements: Task 19.1, Requirement 15.1, 15.2
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // File paths
 const PACKAGE_JSON = path.join(__dirname, '..', 'package.json');
@@ -61,6 +65,20 @@ function calculateVersionCode(version) {
 function getCurrentVersion() {
   const packageJson = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8'));
   return packageJson.version;
+}
+
+/**
+ * Read Android version values from build.gradle.
+ */
+function getAndroidVersionInfo() {
+  const content = fs.readFileSync(BUILD_GRADLE, 'utf8');
+  const codeMatch = content.match(/versionCode\s+(\d+)/);
+  const nameMatch = content.match(/versionName\s+"([^"]+)"/);
+
+  return {
+    versionCode: codeMatch ? Number(codeMatch[1]) : null,
+    versionName: nameMatch ? nameMatch[1] : null
+  };
 }
 
 /**
@@ -172,12 +190,20 @@ function showCurrentVersion() {
   const versionString = getCurrentVersion();
   const version = parseVersion(versionString);
   const versionCode = calculateVersionCode(version);
+  const androidVersion = getAndroidVersionInfo();
   
   console.log('\n========================================');
   console.log('FluxGrid Current Version');
   console.log('========================================\n');
-  console.log(`Version: ${versionString}`);
-  console.log(`Version Code: ${versionCode}`);
+  console.log(`Package Version: ${versionString}`);
+  console.log(`Calculated Version Code: ${versionCode}`);
+  console.log(`Android Version Name: ${androidVersion.versionName ?? 'unknown'}`);
+  console.log(`Android Version Code: ${androidVersion.versionCode ?? 'unknown'}`);
+  if (androidVersion.versionName !== versionString || androidVersion.versionCode !== versionCode) {
+    console.log('');
+    console.log('Warning: package.json and Android build.gradle are not aligned.');
+    console.log(`Run: npm run version:set -- ${versionString}`);
+  }
   console.log('');
 }
 

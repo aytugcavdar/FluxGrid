@@ -3,11 +3,12 @@
  */
 import { v4 as uuidv4 } from 'uuid';
 import { Piece, PieceShape, GridState, GRID_SIZE, CellType } from '../../types';
-import { SHAPES, SPAWN_RATES } from '../../constants';
+import { ENDLESS_LOOP_SPECIAL_RATES, ENDLESS_TIER_SPECIAL_RATES, SHAPES, SPAWN_RATES } from '../../constants';
 import { SeededRNG, getDailySeed } from '@features/game/utils/game/seededRng';
 import { GameMode } from '@shared/types';
 import { isPieceBlessingActive } from './miniEventSystem';
 import { calculateEasyPieceRate } from './difficultyScaling';
+import { calculateEndlessLoop } from './tierSystem';
 
 function weightedPick(
   shapes: PieceShape[],
@@ -25,12 +26,24 @@ function weightedPick(
 
 let currentDailyRNG: SeededRNG | null = null;
 
-function pickSpecialBlockType(rng: () => number, gameMode?: GameMode): CellType {
+function pickSpecialBlockType(
+  rng: () => number,
+  gameMode?: GameMode,
+  difficultyTier = 0,
+  score = 0
+): CellType {
   if (gameMode === GameMode.TIMED) return CellType.NORMAL;
 
+  const tier = Math.max(0, Math.min(6, difficultyTier));
+  const loop = gameMode === GameMode.ENDLESS && tier >= 6
+    ? Math.min(4, calculateEndlessLoop(score))
+    : 0;
+  const rates = gameMode === GameMode.ENDLESS
+    ? (loop > 0 ? ENDLESS_LOOP_SPECIAL_RATES[loop] : ENDLESS_TIER_SPECIAL_RATES[tier])
+    : SPAWN_RATES;
   const roll = rng();
-  if (roll < SPAWN_RATES.BOMB) return CellType.BOMB;
-  if (roll < SPAWN_RATES.BOMB + SPAWN_RATES.ICE) return CellType.ICE;
+  if (roll < rates.BOMB) return CellType.BOMB;
+  if (roll < rates.BOMB + rates.ICE) return CellType.ICE;
   return CellType.NORMAL;
 }
 
@@ -109,6 +122,94 @@ function isLargeShape(shape: PieceShape): boolean {
   return getBlockCount(shape) >= 4;
 }
 
+const EARLY_LARGE_SHAPE_IDS = new Set(['rect_2x3', 'rect_3x2', 'h5', 'v5']);
+const MID_LARGE_SHAPE_IDS = new Set(['big_l_shape', 'big_j_shape']);
+const HEAVY_LARGE_SHAPE_IDS = new Set(['hollow_3x3', 'square_3x3']);
+const ALL_TIER_LARGE_SHAPE_IDS = new Set([
+  ...EARLY_LARGE_SHAPE_IDS,
+  ...MID_LARGE_SHAPE_IDS,
+  ...HEAVY_LARGE_SHAPE_IDS,
+]);
+
+const ENDLESS_LARGE_PIECE_RATE_BY_TIER: Record<number, number> = {
+  0: 0,
+  1: 0,
+  2: 0.08,
+  3: 0.12,
+  4: 0.16,
+  5: 0.22,
+  6: 0.26,
+};
+
+function isTierLargeShape(shape: PieceShape): boolean {
+  return ALL_TIER_LARGE_SHAPE_IDS.has(shape.id);
+}
+
+function getAllowedTierLargeShapes(tier: number): PieceShape[] {
+  const allowedIds = new Set<string>();
+
+  if (tier >= 2) {
+    EARLY_LARGE_SHAPE_IDS.forEach(id => allowedIds.add(id));
+  }
+
+  if (tier >= 4) {
+    MID_LARGE_SHAPE_IDS.forEach(id => allowedIds.add(id));
+  }
+
+  if (tier >= 5) {
+    HEAVY_LARGE_SHAPE_IDS.forEach(id => allowedIds.add(id));
+  }
+
+  return SHAPES.filter(shape => allowedIds.has(shape.id));
+}
+
+function getSafeShapePoolForTier(tier: number): PieceShape[] {
+  const allowedLargeShapes = new Set(getAllowedTierLargeShapes(tier).map(shape => shape.id));
+  return SHAPES.filter(shape => !isTierLargeShape(shape) || allowedLargeShapes.has(shape.id));
+}
+
+function getLargePieceRate(tier: number, score = 0): number {
+  const clampedTier = Math.max(0, Math.min(6, tier));
+  const baseRate = ENDLESS_LARGE_PIECE_RATE_BY_TIER[clampedTier] ?? 0;
+  const loopBonus = clampedTier >= 6 ? Math.min(0.04, calculateEndlessLoop(score) * 0.01) : 0;
+  return Math.min(0.30, baseRate + loopBonus);
+}
+
+function pickRandomShape(shapes: PieceShape[], rng: () => number): PieceShape {
+  return shapes[Math.floor(rng() * shapes.length)] || SHAPES[0];
+}
+
+function shouldForceTierLargePiece(
+  gameMode: GameMode | undefined,
+  isDaily: boolean | undefined,
+  tier: number,
+  score: number | undefined,
+  hasTierLargePiece: boolean,
+  rng: () => number
+): boolean {
+  if (gameMode !== GameMode.ENDLESS || isDaily || hasTierLargePiece) return false;
+  return rng() < getLargePieceRate(tier, score ?? 0);
+}
+
+function sanitizeTierShape(
+  shape: PieceShape,
+  gameMode: GameMode | undefined,
+  isDaily: boolean | undefined,
+  tier: number,
+  hasTierLargePiece: boolean,
+  rng: () => number
+): PieceShape {
+  if (gameMode !== GameMode.ENDLESS || isDaily) return shape;
+
+  const allowedPool = getSafeShapePoolForTier(tier);
+  if (isTierLargeShape(shape) && (hasTierLargePiece || !allowedPool.some(allowed => allowed.id === shape.id))) {
+    const fairFallbackPool = allowedPool.filter(candidate => !isTierLargeShape(candidate) && getBlockCount(candidate) <= 4);
+    return pickRandomShape(fairFallbackPool.length ? fairFallbackPool : allowedPool, rng);
+  }
+
+  return shape;
+}
+
 function isValidGrid(grid: GridState | undefined): grid is GridState {
   return Array.isArray(grid) &&
     grid.length === GRID_SIZE &&
@@ -167,6 +268,7 @@ function replacePieceShape(piece: Piece, shape: PieceShape): Piece {
     instanceId: piece.instanceId,
     type: piece.type,
     color: piece.color,
+    traySlot: piece.traySlot,
   };
 }
 
@@ -279,6 +381,8 @@ export const getRandomPiecesSync = (
       useSeededRNG = true;
     }
   }
+  const rng = () => useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+  let hasTierLargePiece = false;
 
   // Calculate grid density if grid is provided
   let density = 0;
@@ -304,29 +408,26 @@ export const getRandomPiecesSync = (
 
     // Special block type selection - MUST happen before shape selection.
     // Timed mode stays clean and fast-paced.
-    const type = pickSpecialBlockType(
-      useSeededRNG && currentDailyRNG ? () => currentDailyRNG!.next() : Math.random,
-      gameMode
-    );
+    const type = pickSpecialBlockType(rng, gameMode, tier, score);
 
     // PIECE_BLESSING: Override all logic and use only blessed shapes
     if (blessingActive && blessedShapes) {
-      const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+      const randVal = rng();
       selectedShape = blessedShapes[Math.floor(randVal * blessedShapes.length)] || SHAPES[0];
     }
     // TIMED MODE: Easy piece rate scaling (only for non-blessed, non-rescue scenarios)
     else if (gameMode === GameMode.TIMED && !isDaily) {
-      const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+      const randVal = rng();
       const easyRate = calculateEasyPieceRate(score || 0);
       const easyShapes = SHAPES.filter(s => ['dot', 'h2', 'v2'].includes(s.id));
       const hardShapes = SHAPES.filter(s => !['dot', 'h2', 'v2'].includes(s.id));
       
       if (randVal < easyRate) {
         // Select from easy pieces only
-        selectedShape = easyShapes[Math.floor((useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * easyShapes.length)] || SHAPES[0];
+        selectedShape = easyShapes[Math.floor(rng() * easyShapes.length)] || SHAPES[0];
       } else {
         // Select from hard pieces only (excluding easy pieces)
-        selectedShape = hardShapes[Math.floor((useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * hardShapes.length)] || SHAPES[0];
+        selectedShape = hardShapes[Math.floor(rng() * hardShapes.length)] || SHAPES[0];
       }
     }
     // RESCUE MECHANISM: Tier-based density thresholds
@@ -338,22 +439,18 @@ export const getRandomPiecesSync = (
         const count = s.shape.flat().filter(v => v === 1).length;
         return count <= maxBlocks;
       });
-      const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+      const randVal = rng();
       selectedShape = smallShapes[Math.floor(randVal * smallShapes.length)] || SHAPES[0];
     }
     // Difficulty tier logic (only for Endless mode, tier > 0)
     else if (tier >= 6) {
       // Tier 6: VOID+ pressure, but rare small pieces keep the tray fair.
-      const rng = useSeededRNG && currentDailyRNG
-        ? () => currentDailyRNG!.next()
-        : Math.random;
-      
       selectedShape = weightedPick(
         [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
         [
-          ...S_TINY.map(() => 4 / S_TINY.length),
-          ...S_SMALL.map(() => 7 / S_SMALL.length),
-          ...S_ASYM4.map(() => 44 / S_ASYM4.length),
+          ...S_TINY.map(() => 3 / S_TINY.length),
+          ...S_SMALL.map(() => 6 / S_SMALL.length),
+          ...S_ASYM4.map(() => 46 / S_ASYM4.length),
           ...S_SYM4.map(() => 30 / S_SYM4.length),
           ...S_CROSS.map(() => 15),
         ],
@@ -361,16 +458,12 @@ export const getRandomPiecesSync = (
       );
     } else if (tier >= 5) {
       // Tier 5: high pressure, softened so rescue is not the only relief.
-      const rng = useSeededRNG && currentDailyRNG
-        ? () => currentDailyRNG!.next()
-        : Math.random;
-      
       selectedShape = weightedPick(
         [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
         [
-          ...S_TINY.map(() => 5 / S_TINY.length),
-          ...S_SMALL.map(() => 10 / S_SMALL.length),
-          ...S_ASYM4.map(() => 42 / S_ASYM4.length),
+          ...S_TINY.map(() => 4 / S_TINY.length),
+          ...S_SMALL.map(() => 8 / S_SMALL.length),
+          ...S_ASYM4.map(() => 45 / S_ASYM4.length),
           ...S_SYM4.map(() => 28 / S_SYM4.length),
           ...S_CROSS.map(() => 15),
         ],
@@ -378,10 +471,6 @@ export const getRandomPiecesSync = (
       );
     } else if (tier >= 4) {
       // Dağılım: %3 tiny | %5 small | %47 asym4 | %30 sym4 | %15 cross
-      const rng = useSeededRNG && currentDailyRNG
-        ? () => currentDailyRNG!.next()
-        : Math.random;
-      
       selectedShape = weightedPick(
         [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
         [
@@ -395,10 +484,6 @@ export const getRandomPiecesSync = (
       );
     } else if (tier >= 3) {
       // Dağılım: %5 tiny | %10 small | %55 asym4 | %20 sym4 | %10 cross
-      const rng = useSeededRNG && currentDailyRNG
-        ? () => currentDailyRNG!.next()
-        : Math.random;
-      
       selectedShape = weightedPick(
         [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
         [
@@ -411,33 +496,33 @@ export const getRandomPiecesSync = (
         rng
       );
     } else if (tier >= 2) {
-      // Tier 2 (5000-10000): 4+ block pieces more common, small pieces reduced
-      const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+      // Tier 2: 4+ block pieces more common, small pieces reduced
+      const randVal = rng();
       if (randVal > 0.4) {
         const mediumLargeShapes = SHAPES.filter(s => {
           const blockCount = s.shape.flat().filter(v => v === 1).length;
           return blockCount >= 4;
         });
-        selectedShape = mediumLargeShapes[Math.floor((useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * mediumLargeShapes.length)] || SHAPES[0];
+        selectedShape = mediumLargeShapes[Math.floor(rng() * mediumLargeShapes.length)] || SHAPES[0];
       } else {
-        selectedShape = SHAPES[Math.floor((useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * SHAPES.length)];
+        selectedShape = SHAPES[Math.floor(rng() * SHAPES.length)];
       }
     } else if (tier >= 1) {
-      // Tier 1 (2000-5000): Large pieces 20% more common
-      const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+      // Tier 1: Large pieces 20% more common
+      const randVal = rng();
       if (randVal > 0.3) {
         const mediumShapes = SHAPES.filter(s => {
           const blockCount = s.shape.flat().filter(v => v === 1).length;
           return blockCount >= 3;
         });
-        selectedShape = mediumShapes[Math.floor((useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * mediumShapes.length)] || SHAPES[0];
+        selectedShape = mediumShapes[Math.floor(rng() * mediumShapes.length)] || SHAPES[0];
       } else {
-        selectedShape = SHAPES[Math.floor((useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * SHAPES.length)];
+        selectedShape = SHAPES[Math.floor(rng() * SHAPES.length)];
       }
     } else {
-      // Tier 0 (0-2000): Normal density-based logic
+      // Tier 0: Normal warm-up density-based logic
       // Smart RNG: Adjust probabilities based on density
-      const randVal = useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+      const randVal = rng();
       if (density > 0.7 && !isDaily) {
         // High density: Favor smaller pieces (1x1, 1x2, 2x1) to prevent unfair losses (Disabled in daily for consistency)
         const smallShapes = SHAPES.filter(s => s.shape.length * s.shape[0].length <= 2);
@@ -449,13 +534,13 @@ export const getRandomPiecesSync = (
           if (randVal > 0.3) {
             // 70% chance for medium/small
             const mediumShapes = SHAPES.filter(s => s.shape.length * s.shape[0].length <= 4);
-            const candidate = mediumShapes[Math.floor((useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * mediumShapes.length)];
+            const candidate = mediumShapes[Math.floor(rng() * mediumShapes.length)];
             if (candidate) {
               selectedShape = candidate;
               break;
             }
           } else {
-            selectedShape = SHAPES[Math.floor((useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * SHAPES.length)];
+            selectedShape = SHAPES[Math.floor(rng() * SHAPES.length)];
             break;
           }
         }
@@ -469,6 +554,14 @@ export const getRandomPiecesSync = (
       }
     }
     
+    if (shouldForceTierLargePiece(gameMode, isDaily, tier, score, hasTierLargePiece, rng)) {
+      selectedShape = pickRandomShape(getAllowedTierLargeShapes(tier), rng);
+    }
+    selectedShape = sanitizeTierShape(selectedShape, gameMode, isDaily, tier, hasTierLargePiece, rng);
+    if (isTierLargeShape(selectedShape)) {
+      hasTierLargePiece = true;
+    }
+
     // Determine piece color based on type
     let pieceColor: string;
     if (type === CellType.ICE) {
@@ -485,7 +578,8 @@ export const getRandomPiecesSync = (
         ...selectedShape,
         color: pieceColor,
         instanceId: uuidv4(),
-        type: type
+        type: type,
+        traySlot: i
     });
   }
   return improveTrayQuality(newPieces, grid, colors);
@@ -497,7 +591,7 @@ export const getRandomPiecesSync = (
  * @param grid Optional grid for density calculation
  * @param isDaily Whether to use seeded RNG for daily challenge
  * @param colors Optional color palette to use instead of default COLORS
- * @param difficultyTier Optional difficulty tier (0-4) for Endless mode
+ * @param difficultyTier Optional difficulty tier (0-6) for Endless mode
  * @param gameMode Optional game mode for mode-specific piece generation
  */
 export const getRandomPieces = (
@@ -534,26 +628,24 @@ export const getRandomPieces = (
   const S_ASYM4 = ['l_shape', 'j_shape', 't_shape', 'z_shape', 's_shape'].map(id => SHAPES.find(s => s.id === id)!);
   const S_SYM4  = ['h4', 'v4', 'square'].map(id => SHAPES.find(s => s.id === id)!);
   const S_CROSS = SHAPES.filter(s => s.id === 'cross');
+  const rng = () => isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+  let hasTierLargePiece = false;
 
   for (let i = 0; i < count; i++) {
     let selectedShape: PieceShape = SHAPES[0]; // Initialize with fallback
     let attempts = 0;
 
-    const randVal = isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
+    const randVal = rng();
 
     // Difficulty tier logic (only for Endless mode, tier > 0)
     if (tier >= 6) {
       // Tier 6: VOID+ pressure, but rare small pieces keep the tray fair.
-      const rng = isDaily && currentDailyRNG
-        ? () => currentDailyRNG!.next()
-        : Math.random;
-      
       selectedShape = weightedPick(
         [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
         [
-          ...S_TINY.map(() => 4 / S_TINY.length),
-          ...S_SMALL.map(() => 7 / S_SMALL.length),
-          ...S_ASYM4.map(() => 44 / S_ASYM4.length),
+          ...S_TINY.map(() => 3 / S_TINY.length),
+          ...S_SMALL.map(() => 6 / S_SMALL.length),
+          ...S_ASYM4.map(() => 46 / S_ASYM4.length),
           ...S_SYM4.map(() => 30 / S_SYM4.length),
           ...S_CROSS.map(() => 15),
         ],
@@ -561,16 +653,12 @@ export const getRandomPieces = (
       );
     } else if (tier >= 5) {
       // Tier 5: high pressure, softened so rescue is not the only relief.
-      const rng = isDaily && currentDailyRNG
-        ? () => currentDailyRNG!.next()
-        : Math.random;
-      
       selectedShape = weightedPick(
         [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
         [
-          ...S_TINY.map(() => 5 / S_TINY.length),
-          ...S_SMALL.map(() => 10 / S_SMALL.length),
-          ...S_ASYM4.map(() => 42 / S_ASYM4.length),
+          ...S_TINY.map(() => 4 / S_TINY.length),
+          ...S_SMALL.map(() => 8 / S_SMALL.length),
+          ...S_ASYM4.map(() => 45 / S_ASYM4.length),
           ...S_SYM4.map(() => 28 / S_SYM4.length),
           ...S_CROSS.map(() => 15),
         ],
@@ -578,10 +666,6 @@ export const getRandomPieces = (
       );
     } else if (tier >= 4) {
       // Dağılım: %3 tiny | %5 small | %47 asym4 | %30 sym4 | %15 cross
-      const rng = isDaily && currentDailyRNG
-        ? () => currentDailyRNG!.next()
-        : Math.random;
-      
       selectedShape = weightedPick(
         [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
         [
@@ -595,10 +679,6 @@ export const getRandomPieces = (
       );
     } else if (tier >= 3) {
       // Dağılım: %5 tiny | %10 small | %55 asym4 | %20 sym4 | %10 cross
-      const rng = isDaily && currentDailyRNG
-        ? () => currentDailyRNG!.next()
-        : Math.random;
-      
       selectedShape = weightedPick(
         [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
         [
@@ -611,29 +691,29 @@ export const getRandomPieces = (
         rng
       );
     } else if (tier >= 2) {
-      // Tier 2 (5000-10000): 4+ block pieces more common, small pieces reduced
+      // Tier 2: 4+ block pieces more common, small pieces reduced
       if (randVal > 0.4) {
         const mediumLargeShapes = SHAPES.filter(s => {
           const blockCount = s.shape.flat().filter(v => v === 1).length;
           return blockCount >= 4;
         });
-        selectedShape = mediumLargeShapes[Math.floor((isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * mediumLargeShapes.length)] || SHAPES[0];
+        selectedShape = mediumLargeShapes[Math.floor(rng() * mediumLargeShapes.length)] || SHAPES[0];
       } else {
-        selectedShape = SHAPES[Math.floor((isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * SHAPES.length)];
+        selectedShape = SHAPES[Math.floor(rng() * SHAPES.length)];
       }
     } else if (tier >= 1) {
-      // Tier 1 (2000-5000): Large pieces 20% more common
+      // Tier 1: Large pieces 20% more common
       if (randVal > 0.3) {
         const mediumShapes = SHAPES.filter(s => {
           const blockCount = s.shape.flat().filter(v => v === 1).length;
           return blockCount >= 3;
         });
-        selectedShape = mediumShapes[Math.floor((isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * mediumShapes.length)] || SHAPES[0];
+        selectedShape = mediumShapes[Math.floor(rng() * mediumShapes.length)] || SHAPES[0];
       } else {
-        selectedShape = SHAPES[Math.floor((isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * SHAPES.length)];
+        selectedShape = SHAPES[Math.floor(rng() * SHAPES.length)];
       }
     } else {
-      // Tier 0 (0-2000): Normal density-based logic
+      // Tier 0: Normal warm-up density-based logic
       // Smart RNG: Adjust probabilities based on density
       if (density > 0.7 && !isDaily) {
         // High density: Favor smaller pieces (1x1, 1x2, 2x1) to prevent unfair losses (Disabled in daily for consistency)
@@ -646,13 +726,13 @@ export const getRandomPieces = (
           if (randVal > 0.3) {
             // 70% chance for medium/small
             const mediumShapes = SHAPES.filter(s => s.shape.length * s.shape[0].length <= 4);
-            const candidate = mediumShapes[Math.floor((isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * mediumShapes.length)];
+            const candidate = mediumShapes[Math.floor(rng() * mediumShapes.length)];
             if (candidate) {
               selectedShape = candidate;
               break;
             }
           } else {
-            selectedShape = SHAPES[Math.floor((isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random()) * SHAPES.length)];
+            selectedShape = SHAPES[Math.floor(rng() * SHAPES.length)];
             break;
           }
         }
@@ -667,10 +747,15 @@ export const getRandomPieces = (
     }
     
     // Special block type selection
-    const type = pickSpecialBlockType(
-      isDaily && currentDailyRNG ? () => currentDailyRNG!.next() : Math.random,
-      gameMode
-    );
+    if (shouldForceTierLargePiece(gameMode, isDaily, tier, undefined, hasTierLargePiece, rng)) {
+      selectedShape = pickRandomShape(getAllowedTierLargeShapes(tier), rng);
+    }
+    selectedShape = sanitizeTierShape(selectedShape, gameMode, isDaily, tier, hasTierLargePiece, rng);
+    if (isTierLargeShape(selectedShape)) {
+      hasTierLargePiece = true;
+    }
+
+    const type = pickSpecialBlockType(rng, gameMode, tier);
 
     // Determine piece color based on type
     let pieceColor: string;
@@ -688,7 +773,8 @@ export const getRandomPieces = (
         ...selectedShape,
         color: pieceColor,
         instanceId: uuidv4(),
-        type: type
+        type: type,
+        traySlot: i
     });
   }
   return improveTrayQuality(newPieces, grid, colors);

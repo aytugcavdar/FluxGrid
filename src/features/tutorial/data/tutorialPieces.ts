@@ -73,7 +73,7 @@ const CLEAR_LINE_PIECES: Piece[] = [
 /**
  * Step 1: First Clear - Complete a line.
  * Bottom row needs a 3-block piece. A few blocks above it will fall after clear,
- * so the player learns gravity during the tutorial.
+ * so the player learns the 2D gravity drop during the tutorial.
  */
 const STEP_1_GRID: number[][] = [
   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -122,9 +122,19 @@ export const TUTORIAL_STEP_DATA: Record<number, TutorialStepData> = {
       { x: 4, y: 6 },
       { x: 8, y: 8 },
     ],
-    description: 'Complete the bottom row to clear it and show gravity'
+    description: 'Complete the bottom row to clear it and show 2D gravity'
   },
   2: {
+    pieces: [],
+    targetLines: [{ type: 'row', index: 9 }],
+    fallingCells: [
+      { x: 1, y: 7 },
+      { x: 4, y: 6 },
+      { x: 8, y: 8 },
+    ],
+    description: 'After a clear, unsupported blocks drop down'
+  },
+  3: {
     pieces: CLEAR_LINE_PIECES,
     targetGrid: STEP_2_GRID,
     targetLines: [{ type: 'row', index: 9 }],

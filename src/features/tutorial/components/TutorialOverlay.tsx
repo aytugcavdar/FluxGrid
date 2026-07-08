@@ -55,6 +55,15 @@ export const TutorialOverlay: React.FC = () => {
     },
     {
       id: 2,
+      title: t('tutorial.gravity.title'),
+      description: t('tutorial.gravity.description'),
+      highlightTarget: '.game-board',
+      arrowDirection: null,
+      action: 'info',
+      validation: () => true
+    },
+    {
+      id: 3,
       title: t('tutorial.combo.title'),
       description: t('tutorial.combo.description'),
       highlightTarget: '.game-board',
@@ -63,7 +72,7 @@ export const TutorialOverlay: React.FC = () => {
       validation: () => true
     },
     {
-      id: 3,
+      id: 4,
       title: isTimedMode ? t('tutorial.ready.timedTitle') : t('tutorial.ready.endlessTitle'),
       description: isTimedMode ? t('tutorial.ready.timedDescription') : t('tutorial.ready.endlessDescription'),
       highlightTarget: null,
@@ -97,14 +106,25 @@ export const TutorialOverlay: React.FC = () => {
   }, []);
   
   // Check for reduced motion preference
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const prefersReducedMotion = typeof window !== 'undefined'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    : false;
   
-  // Performance optimization: treat Honor 9X-class 4GB devices as constrained.
+  // Keep first-run tutorial light on low and low-mid Android phones.
   const isLowEndDevice = React.useMemo(() => {
     const memory = (navigator as any).deviceMemory;
+    const cores = navigator.hardwareConcurrency;
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    const isAndroidNative = /Android/i.test(navigator.userAgent) ||
+      !!(typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.());
+
     if (memory && memory <= 4) return true;
     
-    if (navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4) return true;
+    if (cores && cores <= 4) return true;
+
+    if (isAndroidNative && memory && memory <= 6 && cores && cores <= 6) return true;
+
+    if (isAndroidNative && dpr >= 2.5 && (!memory || memory <= 6)) return true;
     
     return false;
   }, []);
@@ -230,7 +250,7 @@ export const TutorialOverlay: React.FC = () => {
   }, [isActive, currentStep, reducedTutorialMotion]);
 
   useEffect(() => {
-    if (!isActive) {
+    if (!isActive || isLowEndDevice) {
       setTutorialGridBounds(null);
       return;
     }
@@ -256,7 +276,7 @@ export const TutorialOverlay: React.FC = () => {
       window.removeEventListener('resize', updateGridBounds);
       window.removeEventListener('orientationchange', updateGridBounds);
     };
-  }, [isActive, guidance.targetLines, guidance.fallingCells]);
+  }, [isActive, isLowEndDevice, guidance.targetLines, guidance.fallingCells]);
   
   // Handle step validation with achievements
   useEffect(() => {
@@ -289,7 +309,8 @@ export const TutorialOverlay: React.FC = () => {
           // Final step - complete tutorial
           complete();
         } else {
-          // Info step - auto advance
+          // Info step - prepare the next playable setup before advancing.
+          applyTutorialSetup(currentStep + 1);
           nextStep();
         }
       }, step.action === 'complete' ? 2600 : 3200);
@@ -359,6 +380,7 @@ export const TutorialOverlay: React.FC = () => {
   }
   
   const step = TUTORIAL_STEPS[currentStep];
+  const autoAdvanceSeconds = step.action === 'complete' ? 2.6 : 3.2;
   
   return (
     <>
@@ -396,7 +418,7 @@ export const TutorialOverlay: React.FC = () => {
       
       {/* Tutorial board cell guidance */}
       <AnimatePresence>
-        {tutorialGridBounds && (guidance.targetLines?.length || guidance.fallingCells?.length) && (
+        {!isLowEndDevice && tutorialGridBounds && (guidance.targetLines?.length || guidance.fallingCells?.length) && (
           <div className="tutorial-board-guidance" aria-hidden="true">
             {guidance.targetLines?.map((line) => {
               const cellSize = tutorialGridBounds.width / 10;
@@ -448,10 +470,10 @@ export const TutorialOverlay: React.FC = () => {
             key={achievement}
             className="tutorial-achievement-badge"
             style={{ top: `${80 + index * 60}px` }}
-            initial={{ opacity: 0, x: 100, scale: 0.5 }}
+            initial={reducedTutorialMotion ? false : { opacity: 0, x: 100, scale: 0.5 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 100, scale: 0.5 }}
-            transition={{ type: "spring", damping: 15 }}
+            exit={reducedTutorialMotion ? { opacity: 0 } : { opacity: 0, x: 100, scale: 0.5 }}
+            transition={reducedTutorialMotion ? { duration: 0.08 } : { type: "spring", damping: 15 }}
           >
             {t(`tutorial.achievements.${achievement}`)}
           </motion.div>
@@ -565,8 +587,7 @@ export const TutorialOverlay: React.FC = () => {
               animate={{ scale: 1, rotate: 0 }}
               transition={reducedTutorialMotion ? { duration: 0.08 } : { type: "spring", damping: 15 }}
             >
-              {currentStep === 3 && '⏱'}
-              {currentStep === 4 && '⏰'}
+              {currentStep === 2 && '↓'}
             </motion.div>
           )}
           
@@ -594,24 +615,11 @@ export const TutorialOverlay: React.FC = () => {
                 className="tutorial-auto-advance-bar"
                 initial={{ width: '0%' }}
                 animate={{ width: '100%' }}
-                transition={{ duration: reducedTutorialMotion ? 0.1 : 4, ease: 'linear' }}
+                transition={{ duration: reducedTutorialMotion ? 0.1 : autoAdvanceSeconds, ease: 'linear' }}
               />
               <span className="tutorial-auto-advance-text">
                 {step.action === 'complete' ? t('tutorial.autoAdvance.completing') : t('tutorial.autoAdvance.continuing')}
               </span>
-            </motion.div>
-          )}
-          
-          {/* Success checkmark for step 1 and 2 */}
-          {currentStep > 0 && (
-            <motion.div
-              className="tutorial-success-icon"
-              initial={reducedTutorialMotion ? false : { scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={reducedTutorialMotion ? { duration: 0.08 } : { type: "spring", damping: 15 }}
-              aria-label={t('tutorial.hints.perfectStart')}
-            >
-              ✓
             </motion.div>
           )}
           
@@ -976,24 +984,6 @@ export const TutorialOverlay: React.FC = () => {
           letter-spacing: 1px;
         }
         
-        .tutorial-success-icon {
-          position: absolute;
-          top: clamp(-10px, -2vw, -12px);
-          right: clamp(-10px, -2vw, -12px);
-          width: clamp(32px, 8vw, 44px);
-          height: clamp(32px, 8vw, 44px);
-          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: clamp(18px, 4.5vw, 24px);
-          color: white;
-          font-weight: bold;
-          box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
-          border: 3px solid rgba(255, 255, 255, 0.2);
-        }
-        
         .tutorial-info-icon {
           display: flex;
           align-items: center;
@@ -1170,7 +1160,6 @@ export const TutorialOverlay: React.FC = () => {
         .tutorial-low-motion .tutorial-progress,
         .tutorial-low-motion .tutorial-progress-fill,
         .tutorial-low-motion .tutorial-auto-advance-bar,
-        .tutorial-low-motion .tutorial-success-icon,
         .tutorial-low-motion .tutorial-skip,
         .tutorial-low-motion .tutorial-hint-toast,
         .tutorial-low-motion .tutorial-contextual-hint,

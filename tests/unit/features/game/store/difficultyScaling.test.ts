@@ -6,14 +6,14 @@ describe('getTimedClearBonusSeconds', () => {
     expect(getTimedClearBonusSeconds(1)).toBe(1);
     expect(getTimedClearBonusSeconds(2)).toBe(2);
     expect(getTimedClearBonusSeconds(3)).toBe(3);
-    expect(getTimedClearBonusSeconds(4)).toBe(5);
-    expect(getTimedClearBonusSeconds(5)).toBe(5);
+    expect(getTimedClearBonusSeconds(4)).toBe(4);
+    expect(getTimedClearBonusSeconds(5)).toBe(4);
   });
 
   it('adds perfect clear and combo rush bonuses', () => {
-    expect(getTimedClearBonusSeconds(2, true, false)).toBe(9);
-    expect(getTimedClearBonusSeconds(2, false, true)).toBe(3);
-    expect(getTimedClearBonusSeconds(2, true, true)).toBe(10);
+    expect(getTimedClearBonusSeconds(2, true, false)).toBe(4);
+    expect(getTimedClearBonusSeconds(2, false, true)).toBe(2);
+    expect(getTimedClearBonusSeconds(2, true, true)).toBe(4);
   });
 
   it('does not reward invalid clear counts', () => {

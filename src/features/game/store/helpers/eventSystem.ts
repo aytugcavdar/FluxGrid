@@ -1,24 +1,125 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { GameStore } from '../gameStore';
-import type { GridState, Piece, CellType } from '../../types';
-import { GRID_SIZE } from '../../types';
-import { processGrid } from './grid';
-import { EVENT_DURATIONS, EVENT_SCORE_MULTIPLIERS, EVENT_TRIGGER_INTERVALS, ICE_STORM_SPAWN_COUNT } from '../../constants';
+import type { GridState, Piece } from '../../types';
+import { CellType, GRID_SIZE } from '../../types';
+import {
+  EVENT_DURATIONS,
+  EVENT_SCORE_MULTIPLIERS,
+  EVENT_TRIGGER_INTERVALS,
+  ICE_STORM_SPAWN_COUNT,
+  TIER_NAMES,
+  TIER_THRESHOLDS,
+  TIER_UNLOCK_LABELS,
+} from '../../constants';
 
 type GetFn = () => GameStore;
 type SetFn = (partial: Partial<GameStore>) => void;
 type EndlessEvent = 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID';
 
-// Tier thresholds and events for Endless mode
-const TIER_THRESHOLDS = [0, 5000, 15000, 30000, 55000, 90000, 140000];
-const TIER_EVENTS: Record<number, EndlessEvent> = {
-  1: 'ICE_STORM',
-  2: 'QUAKE',
-  3: 'MIRROR',
-  4: 'CHAOS',
-  5: 'VOID',
-  6: 'VOID',
+const VOID_ZONE_COUNT = 2;
+const VOID_ZONE_LIFETIME = 3;
+const VOID_COLOR = '#170d28';
+
+const canPieceFitAnywhere = (grid: GridState, piece: Piece): boolean => {
+  for (let y = 0; y <= GRID_SIZE - piece.shape.length; y++) {
+    for (let x = 0; x <= GRID_SIZE - piece.shape[0].length; x++) {
+      let fits = true;
+      for (let dy = 0; dy < piece.shape.length && fits; dy++) {
+        for (let dx = 0; dx < piece.shape[dy].length; dx++) {
+          if (piece.shape[dy][dx] && grid[y + dy][x + dx].filled) {
+            fits = false;
+            break;
+          }
+        }
+      }
+      if (fits) return true;
+    }
+  }
+  return false;
 };
+
+const canPlayAnyPiece = (grid: GridState, pieces: Piece[]): boolean =>
+  pieces.some(piece => canPieceFitAnywhere(grid, piece));
+
+export const removeVoidZones = (grid: GridState): GridState => grid.map(row => row.map(cell =>
+  cell.type === CellType.VOID ? { filled: false, color: '' } : { ...cell }
+));
+
+const spawnVoidZones = (grid: GridState, pieces: Piece[]): GridState => {
+  const nextGrid = grid.map(row => row.map(cell => ({ ...cell })));
+  const candidates: Array<{ x: number; y: number }> = [];
+
+  for (let y = 0; y < GRID_SIZE; y++) {
+    for (let x = 0; x < GRID_SIZE; x++) {
+      if (!nextGrid[y][x].filled) candidates.push({ x, y });
+    }
+  }
+
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const randomIndex = Math.floor(Math.random() * (i + 1));
+    [candidates[i], candidates[randomIndex]] = [candidates[randomIndex], candidates[i]];
+  }
+
+  let spawned = 0;
+  for (const candidate of candidates) {
+    const previousCell = nextGrid[candidate.y][candidate.x];
+    nextGrid[candidate.y][candidate.x] = {
+      filled: true,
+      color: VOID_COLOR,
+      id: uuidv4(),
+      type: CellType.VOID,
+      voidTurns: VOID_ZONE_LIFETIME,
+    };
+
+    if (pieces.length > 0 && !canPlayAnyPiece(nextGrid, pieces)) {
+      nextGrid[candidate.y][candidate.x] = previousCell;
+      continue;
+    }
+
+    spawned++;
+    if (spawned >= VOID_ZONE_COUNT) break;
+  }
+
+  return nextGrid;
+};
+
+const tickVoidZones = (grid: GridState, pieces: Piece[]): GridState => {
+  let hasActiveZone = false;
+  const nextGrid = grid.map(row => row.map(cell => {
+    if (cell.type !== CellType.VOID) return { ...cell };
+
+    const turnsRemaining = (cell.voidTurns ?? VOID_ZONE_LIFETIME) - 1;
+    if (turnsRemaining <= 0) return { filled: false, color: '' };
+
+    hasActiveZone = true;
+    return { ...cell, voidTurns: turnsRemaining };
+  }));
+
+  return hasActiveZone ? nextGrid : spawnVoidZones(nextGrid, pieces);
+};
+
+// Tier thresholds and events for Endless mode
+const TIER_EVENTS: Record<number, EndlessEvent | null> = {
+  1: 'ICE_STORM',
+  2: null,
+  3: 'QUAKE',
+  4: 'ICE_STORM',
+  5: 'QUAKE',
+  6: null,
+};
+
+const getTierEventDuration = (tier: number, eventName: EndlessEvent | null): number => {
+  if (!eventName) return 0;
+  if (tier === 1 && eventName === 'ICE_STORM') return 1;
+  if (tier === 3 && eventName === 'QUAKE') return 4;
+  if (tier === 4 && eventName === 'ICE_STORM') return 5;
+  if (tier === 5 && eventName === 'QUAKE') return 6;
+  return EVENT_DURATIONS[eventName];
+};
+
+const getIceStormSpawnCount = (tier: number): number => (
+  tier === 1 ? 4 : ICE_STORM_SPAWN_COUNT
+);
 
 // Return type for checkTierEvent
 type TierEventResult = {
@@ -47,15 +148,15 @@ type TierEventResult = {
  * 
  * @example
  * // Player reaches 5000 points (tier 1)
- * const result = checkTierEvent(5000, 0, get, set);
+ * const result = checkTierEvent(15000, 0, get, set);
  * // result.difficultyTier === 1
- * // result.activeEvent === 'ICE_STORM'
- * // result.eventMovesRemaining === 10
+ * // result.activeEvent === null
+ * // result.eventMovesRemaining === 0
  * 
- * // Player reaches 15000 points (tier 2)
- * const result2 = checkTierEvent(15000, 1, get, set);
+ * // Player reaches 30000 points (tier 3)
+ * const result2 = checkTierEvent(80000, 2, get, set);
  * // result2.activeEvent === 'QUAKE'
- * // result2.grid !== undefined (QUAKE applies immediately)
+ * // result2.eventMovesRemaining === 4
  * 
  * // No tier change
  * const result3 = checkTierEvent(2000, 1, get, set);
@@ -63,17 +164,17 @@ type TierEventResult = {
  * 
  * @remarks
  * **Tier Events:**
- * - Tier 1 (5000): ICE_STORM - Spawns 2 ice blocks per move (10 moves)
- * - Tier 2 (15000): QUAKE - Shifts blocks left (8 moves)
- * - Tier 3 (30000): MIRROR - Places mirrored piece (10 moves)
- * - Tier 4 (55000): CHAOS - Random effects every 4 moves (12 moves)
- * - Tier 5 (90000): VOID - Clears bottom 2 rows every 5 moves (10 moves)
- * - Tier 6 (140000): VOID - Endgame VOID pressure (10 moves)
+ * - Tier 1 (5000): ICE pieces unlock in the tray, no active event
+ * - Tier 2 (15000): BOMB pieces unlock in the tray, no active event
+ * - Tier 3 (30000): QUAKE - Shifts blocks left for 4 moves
+ * - Tier 4 (55000): ICE_STORM - Adds short ice pressure for 5 moves
+ * - Tier 5 (90000): QUAKE - Stronger quake window for 6 moves
+ * - Tier 6 (140000): No event; fixed-grid gravity charge becomes active
  * 
  * **QUAKE Special Handling:**
  * - QUAKE applies its effect immediately upon activation
  * - Returns updated grid in result.grid
- * - Shifts all normal blocks left while preserving ICE/STONE positions
+ * - Shifts all movable blocks left while preserving ICE/VOID positions
  * - Uses clean gravity-left algorithm
  * 
  * **Return Value:**
@@ -123,8 +224,7 @@ export function checkTierEvent(
   
   if (newTier >= nextTier && nextTier >= 1 && nextTier <= 6) {
     const eventName = TIER_EVENTS[nextTier];
-    
-    const duration = EVENT_DURATIONS[eventName];
+    const duration = getTierEventDuration(nextTier, eventName);
     
     const tierNames: Record<number, string> = {
       1: 'Gelişmiş',
@@ -132,7 +232,7 @@ export function checkTierEvent(
       3: 'Usta',
       4: 'Efsane',
       5: 'Kaos',
-      6: 'VOID+',
+      6: 'Sabit Alan',
     };
     
     const result: TierEventResult = {
@@ -142,7 +242,8 @@ export function checkTierEvent(
       lastAction: {
         type: 'MILESTONE',
         tier: nextTier,
-        tierName: tierNames[nextTier] ?? `Tier ${nextTier}`,
+        tierName: TIER_NAMES[nextTier] ?? tierNames[nextTier] ?? `Tier ${nextTier}`,
+        unlockLabel: TIER_UNLOCK_LABELS[nextTier] ?? 'YENI TIER',
       },
     };
     
@@ -246,7 +347,7 @@ export function getEventScoreMultiplier(activeEvent: EndlessEvent | null): numbe
  * 
  * **QUAKE (Every Move):**
  * - Shifts all normal blocks left
- * - ICE and STONE blocks stay in place
+ * - ICE and VOID blocks stay in place
  * - Uses clean gravity-left algorithm
  * - Preserves block properties (color, health, type)
  * 
@@ -263,11 +364,10 @@ export function getEventScoreMultiplier(activeEvent: EndlessEvent | null): numbe
  * - Applies single-move effect without changing active event
  * - Does not trigger itself recursively
  * 
- * **VOID (Every 5 Moves):**
- * - Clears bottom 2 rows (rows 8 and 9)
- * - Triggers when movesElapsed % 5 === 0
- * - Removes all blocks regardless of type
- * - No gravity or scoring applied
+ * **VOID:**
+ * - Temporarily blocks 2 empty cells for 3 player moves
+ * - Relocates expired zones while preserving at least one playable tray piece
+ * - Zones cannot complete lines, clear, explode, or move with gravity
  * 
  * **Duration Management:**
  * - Decrements eventMovesRemaining by 1 each call
@@ -284,7 +384,7 @@ export function getEventScoreMultiplier(activeEvent: EndlessEvent | null): numbe
  * - Event duration = 0: Deactivates event
  * - ICE_STORM with 0 empty cells: Skips spawn
  * - MIRROR with no valid placement: Skips mirror
- * - CHAOS/VOID on non-trigger moves: No effect
+ * - VOID with no safe spawn position: Skips zone creation
  * 
  * **Performance:**
  * - Grid operations use efficient algorithms
@@ -297,9 +397,10 @@ export function tickActiveEvent(
   grid: GridState,
   piece: Piece,
   get: GetFn,
-  set: SetFn
+  set: SetFn,
+  availablePieces: Piece[] = [piece]
 ): Partial<GameStore> | null {
-  const { activeEvent, eventMovesRemaining } = get();
+  const { activeEvent, eventMovesRemaining, difficultyTier } = get();
   
   if (!activeEvent || eventMovesRemaining <= 0) return null;
   
@@ -312,7 +413,7 @@ export function tickActiveEvent(
       const iceMap = new Map<number, any>();
       for (let c = 0; c < GRID_SIZE; c++) {
         const cell = quakeGrid[r][c];
-        if (cell.filled && (cell.type === 'ICE' || cell.type === 'STONE')) {
+        if (cell.filled && (cell.type === 'ICE' || cell.type === 'VOID')) {
           iceMap.set(c, { ...cell });
         }
       }
@@ -320,7 +421,7 @@ export function tickActiveEvent(
       const normalBlocks: any[] = [];
       for (let c = 0; c < GRID_SIZE; c++) {
         const cell = quakeGrid[r][c];
-        if (cell.filled && cell.type !== 'ICE' && cell.type !== 'STONE') {
+        if (cell.filled && cell.type !== 'ICE' && cell.type !== 'VOID') {
           normalBlocks.push({ ...cell });
         }
       }
@@ -348,7 +449,7 @@ export function tickActiveEvent(
   }
   
   if (activeEvent === 'ICE_STORM') {
-    // Spawn 2 ice blocks (or all available if < 2)
+    // Tier 1 introduces board ice as one short 4-block pressure burst.
     const emptyPositions: {x: number; y: number}[] = [];
     // Use the passed grid parameter (with placed piece) instead of get().grid (old state)
     for (let y = 0; y < GRID_SIZE; y++) {
@@ -359,7 +460,7 @@ export function tickActiveEvent(
     if (emptyPositions.length > 0) {
       // Use the passed grid parameter (with placed piece) instead of get().grid (old state)
       const iceGrid = grid.map(row => row.map(c => ({ ...c })));
-      const spawnCount = Math.min(ICE_STORM_SPAWN_COUNT, emptyPositions.length);
+      const spawnCount = Math.min(getIceStormSpawnCount(difficultyTier), emptyPositions.length);
       
       for (let i = 0; i < spawnCount; i++) {
         const randomIndex = Math.floor(Math.random() * emptyPositions.length);
@@ -566,26 +667,17 @@ export function tickActiveEvent(
     }
   }
   
-  // VOID: her 5 hamlede alt 2 satırı siler
+  // VOID zones block cells for three player moves, then relocate safely.
   if (activeEvent === 'VOID') {
-    const movesElapsed = EVENT_DURATIONS.VOID - eventMovesRemaining;
-    if (movesElapsed > 0 && movesElapsed % EVENT_TRIGGER_INTERVALS.VOID === 0) {
-      // Use the passed grid parameter (with placed piece) instead of get().grid (old state)
-      const voidGrid = grid.map(row => row.map(c => ({ ...c })));
-      
-      // Alt 2 satırı temizle (rows 8 and 9)
-      for (let x = 0; x < GRID_SIZE; x++) {
-        voidGrid[8][x] = { filled: false, color: '' };
-        voidGrid[9][x] = { filled: false, color: '' };
-      }
-      
-      updates.grid = voidGrid;
-    }
+    updates.grid = tickVoidZones(grid, availablePieces);
   }
   
   // Sayacı azalt, olay bittiyse temizle
   const newRemaining = eventMovesRemaining - 1;
   if (newRemaining <= 0) {
+    if (activeEvent === 'VOID') {
+      updates.grid = removeVoidZones((updates.grid as GridState | undefined) ?? grid);
+    }
     updates.activeEvent = null;
     updates.eventMovesRemaining = 0;
   } else {

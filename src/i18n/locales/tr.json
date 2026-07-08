@@ -101,20 +101,24 @@
   },
   "tutorial": {
     "drag": {
-      "title": "Parçayı sürükle",
-      "description": "Alttaki parçayı tut, tahtada uygun yere bırak."
+      "title": "Parçayı masaya sürükle",
+      "description": "Alttaki parçayı tut, 2D oyun masasında uygun boşluğa bırak."
     },
     "welcome": {
       "title": "👋 Hoş Geldin!",
-      "description": "Hadi başlayalım! Aşağıdaki parçalardan birini sürükle ve tahtaya yerleştir"
+      "description": "Hadi başlayalım. Aşağıdaki parçalardan birini sürükle ve 2D masaya yerleştir."
     },
     "firstClear": {
-      "title": "🎯 Harika İş!",
-      "description": "Alt satırı tamamla. Satır temizlenince üstteki blokların aşağı düştüğünü göreceksin."
+      "title": "Satırı temizle",
+      "description": "Alt satırı tamamla. Satır dolunca temizlenir ve puanlar blokların üstünden çıkar."
+    },
+    "gravity": {
+      "title": "Bloklar düşer",
+      "description": "Clear sonrası üstte boşta kalan bloklar aşağı iner. Bu düşüş yeni hamle alanları açabilir."
     },
     "combo": {
-      "title": "🔥 Kombo Zamanı!",
-      "description": "Hemen bir clear daha yap. Arka arkaya temizlersen combo canlı kalır."
+      "title": "Combo kur",
+      "description": "Hemen bir satır veya sütun daha temizle. Arka arkaya clear yaparsan üstteki combo sayacı büyür."
     },
     "comboTimer": {
       "title": "⏰ Combo Timer",
@@ -126,14 +130,14 @@
     },
     "ready": {
       "endlessTitle": "Hazırsın",
-      "endlessDescription": "Satır veya sütun temizle, comboyu koru ve kendi rekorunu geliştir.",
+      "endlessDescription": "2D masada boşlukları iyi kullan, satır veya sütun temizle ve kendi rekorunu geliştir.",
       "timedTitle": "Süre kazan",
-      "timedDescription": "Timed modda her clear +saniye verir. Hızlı temizle, turu uzat."
+      "timedDescription": "Timed modda her clear süre kazandırır. Hızlı temizle, combo kur ve turu uzat."
     },
     "skip": "Atla",
     "skipButton": "Tutorial'ı Atla",
     "progress": "{{current}} / {{total}}",
-    "handPointer": "Sürükle ve bırak",
+    "handPointer": "Tut, sürükle, bırak",
     "autoAdvance": {
       "completing": "🎉 Tamamlanıyor...",
       "continuing": "⏭ Otomatik devam..."
@@ -147,16 +151,24 @@
       "perfectStart": "🎯 Mükemmel Başlangıç!",
       "comboMaster": "🔥 Kombo Ustası!",
       "speedDemon": "⚡ Hız Canavarı!",
-      "tryDragging": "Bir parçayı tahtaya sürüklemeyi dene",
+      "tryDragging": "Bir parçayı 2D masadaki boşluğa sürüklemeyi dene",
       "fillLine": "Tam bir satır veya sütun doldur",
-      "keepClearing": "Satırları hızlıca temizlemeye devam et",
+      "keepClearing": "Combo için bir satır veya sütun daha temizle",
       "timeReward": "Clear yaptın, süre kazandın!"
+    },
+    "timedIntro": {
+      "title": "Zaman modu",
+      "description": "Timer ilk hamlende başlar. Clear yaparak süre kazan, finalde süre skora dönüşür.",
+      "tip1": "Clear = süre",
+      "tip2": "Combo = skor",
+      "tip3": "Son saniyeler değerli",
+      "dismiss": "Timed bilgisini kapat"
     },
     "start": "Oynamaya Başla",
     "next": "Devam",
     "step1": {
       "title": "Parçayı Sürükle",
-      "description": "Mavi parçayı tutup ızgaradaki vurgulanan alana bırak."
+      "description": "Mavi parçayı tutup 2D masadaki vurgulanan alana bırak."
     },
     "step2": {
       "title": "Başka Bir Parça Yerleştir",
@@ -164,11 +176,11 @@
     },
     "step3": {
       "title": "Satır Temizle",
-      "description": "Bir satır veya sütunu tamamlayarak temizle ve puan kazan!"
+      "description": "Bir satır veya sütunu tamamla. Puanlar blokların üstünden çıkar."
     },
     "step4": {
       "title": "Kombo Kur",
-      "description": "Kombo zincirini canlı tutmak ve skorunu yükseltmek için arka arkaya satır temizle."
+      "description": "Kombo zincirini canlı tutmak ve skorunu yükseltmek için arka arkaya clear yap."
     },
     "step5": {
       "title": "Bir Yetenek Kullan",
@@ -176,7 +188,7 @@
     },
     "step6": {
       "title": "Hazırsın!",
-      "description": "Temelleri öğrendin. Şimdi git ve yüksek skorunu oluştur!"
+      "description": "2D masanın temelini öğrendin. Şimdi boşlukları iyi kullan ve yüksek skorunu oluştur!"
     },
     "wrongPlacement": "Buraya değil!",
     "correctPlacement": "Harika!"
@@ -255,6 +267,8 @@
     "progressionAchievements": "İlerleme Başarımları"
   },
   "settingsScreen": {
+    "title": "Ayarlar",
+    "subtitle": "Temel oyun tercihlerini buradan yönet.",
     "appearance": "GÖRÜNÜM",
     "soundAndVibration": "SES VE TİTREŞİM",
     "language": "DİL",
@@ -299,7 +313,7 @@
     "resetAllData": "Tüm Verileri Sıfırla",
     "resetConfirm": "Tüm verileriniz silinecek. Bu işlem geri alınamaz. Devam etmek istiyor musunuz?",
     "resetSuccess": "Tüm veriler başarıyla sıfırlandı.",
-    "version": "FluxGrid v18.0",
+    "version": "FluxGrid v1.0",
     "themeDark": "Koyu",
     "themeDarkDesc": "Mor & Turuncu",
     "themeLight": "Açık",
@@ -311,6 +325,17 @@
     "german": "Deutsch",
     "french": "Français",
     "spanish": "Español",
+    "languageOptionAria": "{{language}} dilini seç",
+    "rewards": "ÖDÜLLER",
+    "neonTrialTitle": "Neon Tema Denemesi",
+    "neonTrialDesc": "Ödüllü reklamı tamamla, Neon temayı 24 saat kullan.",
+    "switchToDark": "Koyu Temaya Dön",
+    "useNeon": "Neon Temayı Kullan",
+    "hoursLeft": "{{count}} sa kaldı",
+    "adLoading": "Reklam hazırlanıyor...",
+    "adFailed": "Reklam tamamlanamadı",
+    "watchAdTrial": "Reklam İzle - 24 Saat Aç",
+    "trialUsed": "Bugünkü deneme kullanıldı",
     "installPWA": "Ana Ekrana Ekle",
     "installPWAInstructions": "Uygulamayı Yükle",
     "iosStep1": "Safari'de Paylaş butonuna dokun (⬆️)",
@@ -358,6 +383,8 @@
     "benefit1": "Tahtada güvenli alan açılacak",
     "benefit2": "3 yeni parça verilecek",
     "benefit3": "Mevcut skorun korunacak",
+    "summaryTitle": "Güvenli alan + 3 yeni parça",
+    "summarySubtitle": "Skorun korunur.",
     "watchAd": "📺 Reklam İzle & Devam Et",
     "loading": "Reklam yükleniyor...",
     "limitReached": "Günlük limit doldu",

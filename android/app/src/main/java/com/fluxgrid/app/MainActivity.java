@@ -2,6 +2,8 @@ package com.fluxgrid.app;
 
 import android.os.Bundle;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.webkit.WebView;
 import android.webkit.WebSettings;
 import android.view.WindowManager;
@@ -15,24 +17,41 @@ import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import com.getcapacitor.BridgeActivity;
 import com.fluxgrid.app.widget.StatsWidgetProvider;
 import com.google.firebase.crashlytics.FirebaseCrashlytics;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.SharedPreferences;
+import androidx.core.splashscreen.SplashScreen;
 
 public class MainActivity extends BridgeActivity {
     
+    private static final long LAUNCH_SPLASH_FALLBACK_MS = 2500L;
     private DynamicShortcutManager dynamicShortcutManager;
     private boolean isInPipMode = false;
+    private volatile boolean keepLaunchSplash = true;
     
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
+        splashScreen.setKeepOnScreenCondition(() -> keepLaunchSplash);
         super.onCreate(savedInstanceState);
+        getWindow().setBackgroundDrawable(new ColorDrawable(Color.parseColor("#0F0E17")));
+        getWindow().getDecorView().setBackgroundColor(Color.parseColor("#0F0E17"));
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            keepLaunchSplash = false;
+        }, LAUNCH_SPLASH_FALLBACK_MS);
         
         // Enable immersive fullscreen mode
         enableImmersiveMode();
+ 
+        // Prefer 60 Hz on high-refresh displays for the static 2D board.
+        WindowManager.LayoutParams windowAttributes = getWindow().getAttributes();
+        windowAttributes.preferredRefreshRate = 60.0f;
+        getWindow().setAttributes(windowAttributes);
+        
         
         // Initialize Firebase Crashlytics
         FirebaseCrashlytics crashlytics = FirebaseCrashlytics.getInstance();
@@ -41,6 +60,7 @@ public class MainActivity extends BridgeActivity {
         // Initialize dynamic shortcut manager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
             dynamicShortcutManager = new DynamicShortcutManager(this);
+            dynamicShortcutManager.clearDynamicShortcuts();
         }
         
         // Keep screen on during gameplay
@@ -52,13 +72,14 @@ public class MainActivity extends BridgeActivity {
         // Optimize WebView for better rendering performance
         WebView webView = getBridge().getWebView();
         if (webView != null) {
+            webView.setBackgroundColor(Color.parseColor("#0F0E17"));
             WebSettings settings = webView.getSettings();
             
             // Enable hardware acceleration
             webView.setLayerType(WebView.LAYER_TYPE_HARDWARE, null);
             
             // Performance optimizations
-            settings.setRenderPriority(WebSettings.RenderPriority.HIGH);
+            settings.setRenderPriority(WebSettings.RenderPriority.NORMAL);
             settings.setCacheMode(WebSettings.LOAD_DEFAULT);
             settings.setDomStorageEnabled(true);
             settings.setDatabaseEnabled(true);
@@ -95,14 +116,16 @@ public class MainActivity extends BridgeActivity {
             // Optimize text rendering
             settings.setTextZoom(100);
             
-            // Force GPU rasterization for better Skia performance
+            // Do not preraster offscreen content; it wastes GPU time and memory
+            // for a single-screen game board.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                settings.setOffscreenPreRaster(true);
+                settings.setOffscreenPreRaster(false);
             }
             
             // Add JavaScript interface for widget updates and PiP
             webView.addJavascriptInterface(new WidgetBridge(), "FluxGridWidget");
             webView.addJavascriptInterface(new NativeBridge(), "FluxGridNative");
+            webView.addJavascriptInterface(new LaunchSplashBridge(), "FluxGridSplash");
         }
     }
     
@@ -231,6 +254,19 @@ public class MainActivity extends BridgeActivity {
             
             // Fallback: return 4GB if detection fails
             return 4;
+        }
+    }
+
+    /**
+     * JavaScript bridge for releasing the Android launch splash only after
+     * the React shell is ready to paint.
+     */
+    public class LaunchSplashBridge {
+        @JavascriptInterface
+        public void hide() {
+            runOnUiThread(() -> {
+                keepLaunchSplash = false;
+            });
         }
     }
     

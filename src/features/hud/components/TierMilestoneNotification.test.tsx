@@ -40,9 +40,9 @@ describe('TierMilestoneNotification - Task 5: Animations', () => {
       />
     );
 
-    expect(screen.getByText(/Tier 2: UZMAN/i)).toBeInTheDocument();
-    expect(screen.getByText(/1\.50x Çarpan/i)).toBeInTheDocument();
-    expect(screen.getByText(/YENİ ZOR SEVİYE/i)).toBeInTheDocument();
+    expect(screen.getByText(/TIER 2 - UZMAN/i)).toBeInTheDocument();
+    expect(screen.getByText(/1\.50x CARPAN/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/UZMAN/i).length).toBeGreaterThan(0);
   });
 
   it('should auto-dismiss after 2500ms', () => {
@@ -92,7 +92,7 @@ describe('TierMilestoneNotification - Task 5: Animations', () => {
       />
     );
 
-    expect(screen.getByText(/2\.50x Çarpan/i)).toBeInTheDocument();
+    expect(screen.getByText(/2\.50x CARPAN/i)).toBeInTheDocument();
   });
 
   it('should display correct tier information', () => {
@@ -104,8 +104,8 @@ describe('TierMilestoneNotification - Task 5: Animations', () => {
       />
     );
 
-    expect(screen.getByText(/Tier 5: EFSANE/i)).toBeInTheDocument();
-    expect(screen.getByText(/3\.75x Çarpan/i)).toBeInTheDocument();
+    expect(screen.getByText(/TIER 5 - EFSANE/i)).toBeInTheDocument();
+    expect(screen.getByText(/3\.75x CARPAN/i)).toBeInTheDocument();
   });
 });
 
@@ -132,7 +132,7 @@ describe('TierMilestoneNotification - Task 6: Accessibility', () => {
     );
 
     // Component should render successfully with reduced motion
-    expect(screen.getByText(/Tier 2: UZMAN/i)).toBeInTheDocument();
+    expect(screen.getByText(/TIER 2 - UZMAN/i)).toBeInTheDocument();
     
     // The component should still be visible (opacity-based animation)
     const notification = container.firstChild as HTMLElement;
@@ -152,7 +152,7 @@ describe('TierMilestoneNotification - Task 6: Accessibility', () => {
     );
 
     // Component should render successfully with full animations
-    expect(screen.getByText(/Tier 2: UZMAN/i)).toBeInTheDocument();
+    expect(screen.getByText(/TIER 2 - UZMAN/i)).toBeInTheDocument();
     
     const notification = container.firstChild as HTMLElement;
     expect(notification).toBeInTheDocument();
@@ -187,9 +187,9 @@ describe('TierMilestoneNotification - Task 6: Accessibility', () => {
       />
     );
 
-    const tierText = screen.getByText(/Tier 2: UZMAN/i);
-    const multiplierText = screen.getByText(/1\.50x Çarpan/i);
-    const subtitleText = screen.getByText(/YENİ ZOR SEVİYE/i);
+    const tierText = screen.getByText(/TIER 2 - UZMAN/i);
+    const multiplierText = screen.getByText(/1\.50x CARPAN/i);
+    const subtitleText = screen.getAllByText(/UZMAN/i).at(-1) as HTMLElement;
 
     // All text elements should have text shadows for contrast
     expect(tierText.style.textShadow).toBeTruthy();
@@ -208,8 +208,8 @@ describe('TierMilestoneNotification - Task 6: Accessibility', () => {
       />
     );
 
-    const tierText = screen.getByText(/Tier 2: UZMAN/i);
-    const multiplierText = screen.getByText(/1\.50x Çarpan/i);
+    const tierText = screen.getByText(/TIER 2 - UZMAN/i);
+    const multiplierText = screen.getByText(/1\.50x CARPAN/i);
 
     // Gold color (#f59e0b) should be used for tier and multiplier
     expect(tierText.style.color).toBe('rgb(245, 158, 11)');
@@ -231,7 +231,7 @@ describe('TierMilestoneNotification - Task 6: Accessibility', () => {
       />
     );
 
-    const subtitleText = screen.getByText(/YENİ ZOR SEVİYE/i);
+    const subtitleText = screen.getAllByText(/UZMAN/i).at(-1) as HTMLElement;
 
     // Subtitle should use improved opacity (0.6 instead of 0.4) for better contrast
     expect(subtitleText.style.color).toBe('rgba(255, 255, 255, 0.6)');
