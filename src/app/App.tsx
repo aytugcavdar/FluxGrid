@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useUnifiedNavigationStore, type AppScreen } from '../shared/store/unifiedNavigationStore';
@@ -12,13 +12,9 @@ import { SettingsScreen } from './SettingsScreen';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ScreenErrorBoundary } from './ScreenErrorBoundary';
 import { NavigationTab } from '../shared/store/navigationStore';
-import { ConsentModal } from '../shared/components/ConsentModal';
 import { OfflineIndicator } from '../shared/components/OfflineIndicator';
 import { initializeDeepLinkHandler, removeDeepLinkHandler } from '../utils/native/deepLinkHandler';
-import { showAchievementNotification } from '../utils/native/notificationHelper';
 import '../utils/native/testWidgetSync'; // Load test helper
-import { AchievementNotification } from '../features/achievements';
-import type { ConsentType } from '@core/services/gdpr';
 import { RemoteLogger } from '../utils/debug/RemoteLogger';
 import { cleanupLegacyStorage } from '../utils/storage/cleanupLegacyStorage';
 
@@ -28,17 +24,11 @@ export const App: React.FC = () => {
   const { currentScreen, navigateTo } = useUnifiedNavigationStore();
   const { loadSettings, language } = useSettingsStore();
   const { getThemeColors } = useThemeStore();
-  const { setGameMode, achievements: rawAchievements, unlockedAchievementId } = useGameStore();
+  const { setGameMode } = useGameStore();
   const { initialize: initializeStreak, currentStreak, todayPlayed } = useStreakStore();
   const colors = getThemeColors();
   const didRunInitialWidgetSync = useRef(false);
   
-  // Ensure achievements is always an array
-  const achievements = Array.isArray(rawAchievements) ? rawAchievements : [];
-  
-  // GDPR consent modal state
-  const [showConsentModal, setShowConsentModal] = useState(false);
-
   // Load settings and sync language on mount
   useEffect(() => {
     loadSettings();
@@ -101,16 +91,6 @@ export const App: React.FC = () => {
     };
   }, [setGameMode, navigateTo]);
   
-  // Show notification when achievement is unlocked
-  useEffect(() => {
-    if (unlockedAchievementId) {
-      const achievement = achievements.find(a => a.id === unlockedAchievementId);
-      if (achievement) {
-        showAchievementNotification(achievement);
-      }
-    }
-  }, [unlockedAchievementId, achievements]);
-  
   // Listen for tutorial return home event as fallback
   useEffect(() => {
     const handleTutorialReturnHome = () => {
@@ -121,28 +101,6 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('tutorial-return-home', handleTutorialReturnHome);
   }, [navigateTo]);
   
-  // Listen for GDPR consent request
-  useEffect(() => {
-    const handleShowConsent = () => {
-      console.log('[App] Showing GDPR consent modal');
-      setShowConsentModal(true);
-    };
-    
-    window.addEventListener('fluxgrid-show-consent', handleShowConsent);
-    return () => window.removeEventListener('fluxgrid-show-consent', handleShowConsent);
-  }, []);
-  
-  // Handle consent selection
-  const handleConsent = async (consentType: ConsentType) => {
-    console.log('[App] Consent selected:', consentType);
-    setShowConsentModal(false);
-    
-    // Dispatch consent response event
-    window.dispatchEvent(new CustomEvent('fluxgrid-consent-response', {
-      detail: { consentType }
-    }));
-  };
-
   const renderScreen = () => {
     switch (currentScreen) {
       case 'home':
@@ -191,9 +149,6 @@ export const App: React.FC = () => {
       {/* Offline Indicator */}
       <OfflineIndicator position="top" showSlowConnection={true} />
       
-      {/* Achievement Notification */}
-      <AchievementNotification />
-      
       <AnimatePresence mode="wait">
         <motion.div
           key={currentScreen}
@@ -215,9 +170,6 @@ export const App: React.FC = () => {
         }}
       />
 
-      {/* GDPR Consent Modal */}
-      {showConsentModal && <ConsentModal onConsent={handleConsent} />}
-      
       {/* Remote Debug Logger - Toggle with 3-finger double-tap */}
       <RemoteLogger />
     </div>

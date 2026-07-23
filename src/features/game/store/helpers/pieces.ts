@@ -122,92 +122,45 @@ function isLargeShape(shape: PieceShape): boolean {
   return getBlockCount(shape) >= 4;
 }
 
-const EARLY_LARGE_SHAPE_IDS = new Set(['rect_2x3', 'rect_3x2', 'h5', 'v5']);
-const MID_LARGE_SHAPE_IDS = new Set(['big_l_shape', 'big_j_shape']);
-const HEAVY_LARGE_SHAPE_IDS = new Set(['hollow_3x3', 'square_3x3']);
-const ALL_TIER_LARGE_SHAPE_IDS = new Set([
-  ...EARLY_LARGE_SHAPE_IDS,
-  ...MID_LARGE_SHAPE_IDS,
-  ...HEAVY_LARGE_SHAPE_IDS,
-]);
+type EndlessShapeWeights = [number, number, number, number, number];
 
-const ENDLESS_LARGE_PIECE_RATE_BY_TIER: Record<number, number> = {
-  0: 0,
-  1: 0,
-  2: 0.08,
-  3: 0.12,
-  4: 0.16,
-  5: 0.22,
-  6: 0.26,
+// 1-2, 3, 4, 5-6 and 8-9 occupied cells. These are the final shape rates;
+// no second large-piece roll is applied on top of them.
+const ENDLESS_SHAPE_WEIGHTS_BY_TIER: Record<number, EndlessShapeWeights> = {
+  0: [26, 24, 36, 12, 2],
+  1: [21, 21, 38, 17, 3],
+  2: [16, 17, 39, 24, 4],
+  3: [10, 10, 42, 32, 6],
+  4: [7, 8, 41, 35, 9],
+  5: [4, 6, 38, 39, 13],
+  6: [3, 4, 36, 41, 16],
 };
 
-function isTierLargeShape(shape: PieceShape): boolean {
-  return ALL_TIER_LARGE_SHAPE_IDS.has(shape.id);
-}
+const ENDLESS_SHAPE_GROUPS = [
+  SHAPES.filter(shape => getBlockCount(shape) <= 2),
+  SHAPES.filter(shape => getBlockCount(shape) === 3),
+  SHAPES.filter(shape => getBlockCount(shape) === 4),
+  SHAPES.filter(shape => {
+    const count = getBlockCount(shape);
+    return count >= 5 && count <= 6;
+  }),
+  SHAPES.filter(shape => getBlockCount(shape) >= 8),
+] as const;
 
-function getAllowedTierLargeShapes(tier: number): PieceShape[] {
-  const allowedIds = new Set<string>();
+function pickEndlessShape(tier: number, allowHeavy: boolean, rng: () => number): PieceShape {
+  const weights = ENDLESS_SHAPE_WEIGHTS_BY_TIER[Math.max(0, Math.min(6, tier))];
+  const shapes: PieceShape[] = [];
+  const shapeWeights: number[] = [];
 
-  if (tier >= 2) {
-    EARLY_LARGE_SHAPE_IDS.forEach(id => allowedIds.add(id));
-  }
+  ENDLESS_SHAPE_GROUPS.forEach((group, groupIndex) => {
+    if (!allowHeavy && groupIndex === ENDLESS_SHAPE_GROUPS.length - 1) return;
+    group.forEach(shape => {
+      shapes.push(shape);
+      shapeWeights.push(weights[groupIndex] / group.length);
+    });
+  });
 
-  if (tier >= 4) {
-    MID_LARGE_SHAPE_IDS.forEach(id => allowedIds.add(id));
-  }
-
-  if (tier >= 5) {
-    HEAVY_LARGE_SHAPE_IDS.forEach(id => allowedIds.add(id));
-  }
-
-  return SHAPES.filter(shape => allowedIds.has(shape.id));
-}
-
-function getSafeShapePoolForTier(tier: number): PieceShape[] {
-  const allowedLargeShapes = new Set(getAllowedTierLargeShapes(tier).map(shape => shape.id));
-  return SHAPES.filter(shape => !isTierLargeShape(shape) || allowedLargeShapes.has(shape.id));
-}
-
-function getLargePieceRate(tier: number, score = 0): number {
-  const clampedTier = Math.max(0, Math.min(6, tier));
-  const baseRate = ENDLESS_LARGE_PIECE_RATE_BY_TIER[clampedTier] ?? 0;
-  const loopBonus = clampedTier >= 6 ? Math.min(0.04, calculateEndlessLoop(score) * 0.01) : 0;
-  return Math.min(0.30, baseRate + loopBonus);
-}
-
-function pickRandomShape(shapes: PieceShape[], rng: () => number): PieceShape {
-  return shapes[Math.floor(rng() * shapes.length)] || SHAPES[0];
-}
-
-function shouldForceTierLargePiece(
-  gameMode: GameMode | undefined,
-  isDaily: boolean | undefined,
-  tier: number,
-  score: number | undefined,
-  hasTierLargePiece: boolean,
-  rng: () => number
-): boolean {
-  if (gameMode !== GameMode.ENDLESS || isDaily || hasTierLargePiece) return false;
-  return rng() < getLargePieceRate(tier, score ?? 0);
-}
-
-function sanitizeTierShape(
-  shape: PieceShape,
-  gameMode: GameMode | undefined,
-  isDaily: boolean | undefined,
-  tier: number,
-  hasTierLargePiece: boolean,
-  rng: () => number
-): PieceShape {
-  if (gameMode !== GameMode.ENDLESS || isDaily) return shape;
-
-  const allowedPool = getSafeShapePoolForTier(tier);
-  if (isTierLargeShape(shape) && (hasTierLargePiece || !allowedPool.some(allowed => allowed.id === shape.id))) {
-    const fairFallbackPool = allowedPool.filter(candidate => !isTierLargeShape(candidate) && getBlockCount(candidate) <= 4);
-    return pickRandomShape(fairFallbackPool.length ? fairFallbackPool : allowedPool, rng);
-  }
-
-  return shape;
+  return weightedPick(shapes, shapeWeights, rng);
 }
 
 function isValidGrid(grid: GridState | undefined): grid is GridState {
@@ -281,7 +234,7 @@ function recolorTrayPieces(pieces: Piece[], colors?: string[]): Piece[] {
     }
 
     if (piece.type === CellType.BOMB) {
-      return { ...piece, color: '#ef4444' };
+      return { ...piece, color: '#fb7185' };
     }
 
     const color = pickDistinctTrayColor(colors, index, piece, usedNormalColors);
@@ -290,7 +243,13 @@ function recolorTrayPieces(pieces: Piece[], colors?: string[]): Piece[] {
   });
 }
 
-function improveTrayQuality(pieces: Piece[], grid?: GridState, colors?: string[]): Piece[] {
+function improveTrayQuality(
+  pieces: Piece[],
+  grid?: GridState,
+  colors?: string[],
+  tier = 0,
+  gameMode?: GameMode
+): Piece[] {
   if (pieces.length < 2) return recolorTrayPieces(pieces, colors);
 
   const improved = [...pieces];
@@ -308,26 +267,30 @@ function improveTrayQuality(pieces: Piece[], grid?: GridState, colors?: string[]
     ? improved.filter(piece => shapeFitsAnywhere(validGrid, piece))
     : improved;
 
+  const shouldGuaranteeEasyPiece = gameMode !== GameMode.ENDLESS || tier <= 2;
   const hasEasyPlayablePiece = fittingPieces.some(isEasyShape);
-  if (!hasEasyPlayablePiece) {
+  const hasAnyPlayablePiece = fittingPieces.length > 0;
+  if ((!hasAnyPlayablePiece && validGrid) || (shouldGuaranteeEasyPiece && !hasEasyPlayablePiece)) {
     replaceLargestPiece();
   }
 
-  if (improved.length >= 3 && improved.every(isLargeShape)) {
+  if (shouldGuaranteeEasyPiece && improved.length >= 3 && improved.every(isLargeShape)) {
     replaceLargestPiece();
   }
 
-  const seenLargeShapeIds = new Set<string>();
-  for (let i = 0; i < improved.length; i++) {
-    const piece = improved[i];
-    if (!isLargeShape(piece)) continue;
+  if (shouldGuaranteeEasyPiece) {
+    const seenLargeShapeIds = new Set<string>();
+    for (let i = 0; i < improved.length; i++) {
+      const piece = improved[i];
+      if (!isLargeShape(piece)) continue;
 
-    if (seenLargeShapeIds.has(piece.id)) {
-      improved[i] = replacePieceShape(piece, easyRescueShape);
-      break;
+      if (seenLargeShapeIds.has(piece.id)) {
+        improved[i] = replacePieceShape(piece, easyRescueShape);
+        break;
+      }
+
+      seenLargeShapeIds.add(piece.id);
     }
-
-    seenLargeShapeIds.add(piece.id);
   }
 
   return recolorTrayPieces(improved, colors);
@@ -382,7 +345,8 @@ export const getRandomPiecesSync = (
     }
   }
   const rng = () => useSeededRNG && currentDailyRNG ? currentDailyRNG.next() : Math.random();
-  let hasTierLargePiece = false;
+  let hasHeavyPiece = false;
+  let heavySpecialPieceCount = 0;
 
   // Calculate grid density if grid is provided
   let density = 0;
@@ -396,6 +360,7 @@ export const getRandomPiecesSync = (
     density = filledCells / (GRID_SIZE * GRID_SIZE);
   }
 
+  // Legacy non-Endless generation still uses these compact groups.
   const S_TINY  = SHAPES.filter(s => s.shape.flat().filter(v => v === 1).length <= 2);
   const S_SMALL = SHAPES.filter(s => s.shape.flat().filter(v => v === 1).length === 3);
   const S_ASYM4 = ['l_shape', 'j_shape', 't_shape', 'z_shape', 's_shape'].map(id => SHAPES.find(s => s.id === id)!);
@@ -408,7 +373,7 @@ export const getRandomPiecesSync = (
 
     // Special block type selection - MUST happen before shape selection.
     // Timed mode stays clean and fast-paced.
-    const type = pickSpecialBlockType(rng, gameMode, tier, score);
+    let type = pickSpecialBlockType(rng, gameMode, tier, score);
 
     // PIECE_BLESSING: Override all logic and use only blessed shapes
     if (blessingActive && blessedShapes) {
@@ -442,7 +407,11 @@ export const getRandomPiecesSync = (
       const randVal = rng();
       selectedShape = smallShapes[Math.floor(randVal * smallShapes.length)] || SHAPES[0];
     }
-    // Difficulty tier logic (only for Endless mode, tier > 0)
+    // Endless uses one explicit distribution from tier 0 onward.
+    else if (gameMode === GameMode.ENDLESS && !isDaily) {
+      selectedShape = pickEndlessShape(tier, !hasHeavyPiece, rng);
+    }
+    // Legacy tier logic for callers that provide a tier without Endless mode.
     else if (tier >= 6) {
       // Tier 6: VOID+ pressure, but rare small pieces keep the tray fair.
       selectedShape = weightedPick(
@@ -554,12 +523,16 @@ export const getRandomPiecesSync = (
       }
     }
     
-    if (shouldForceTierLargePiece(gameMode, isDaily, tier, score, hasTierLargePiece, rng)) {
-      selectedShape = pickRandomShape(getAllowedTierLargeShapes(tier), rng);
+    const selectedBlockCount = getBlockCount(selectedShape);
+    if (selectedBlockCount >= 8) {
+      hasHeavyPiece = true;
     }
-    selectedShape = sanitizeTierShape(selectedShape, gameMode, isDaily, tier, hasTierLargePiece, rng);
-    if (isTierLargeShape(selectedShape)) {
-      hasTierLargePiece = true;
+    if (type !== CellType.NORMAL && selectedBlockCount >= 5) {
+      if (heavySpecialPieceCount >= 2) {
+        type = CellType.NORMAL;
+      } else {
+        heavySpecialPieceCount++;
+      }
     }
 
     // Determine piece color based on type
@@ -567,7 +540,7 @@ export const getRandomPiecesSync = (
     if (type === CellType.ICE) {
       pieceColor = '#7dd3fc'; // Light blue
     } else if (type === CellType.BOMB) {
-      pieceColor = '#ef4444'; // Bright red for visibility
+      pieceColor = '#fb7185';
     } else {
       // Use custom colors if provided, otherwise use the shape's default color
       pieceColor = pickDistinctTrayColor(colors, i, selectedShape, usedNormalColors);
@@ -582,7 +555,7 @@ export const getRandomPiecesSync = (
         traySlot: i
     });
   }
-  return improveTrayQuality(newPieces, grid, colors);
+  return improveTrayQuality(newPieces, grid, colors, tier, gameMode);
 };
 
 /**
@@ -629,7 +602,8 @@ export const getRandomPieces = (
   const S_SYM4  = ['h4', 'v4', 'square'].map(id => SHAPES.find(s => s.id === id)!);
   const S_CROSS = SHAPES.filter(s => s.id === 'cross');
   const rng = () => isDaily && currentDailyRNG ? currentDailyRNG.next() : Math.random();
-  let hasTierLargePiece = false;
+  let hasHeavyPiece = false;
+  let heavySpecialPieceCount = 0;
 
   for (let i = 0; i < count; i++) {
     let selectedShape: PieceShape = SHAPES[0]; // Initialize with fallback
@@ -637,8 +611,20 @@ export const getRandomPieces = (
 
     const randVal = rng();
 
-    // Difficulty tier logic (only for Endless mode, tier > 0)
-    if (tier >= 6) {
+    if (
+      gameMode === GameMode.ENDLESS &&
+      !isDaily &&
+      density > (tier >= 5 ? 0.65 : tier >= 3 ? 0.70 : 0.75) &&
+      i === 0
+    ) {
+      const maxBlocks = tier >= 5 ? 3 : 2;
+      const smallShapes = SHAPES.filter(shape => getBlockCount(shape) <= maxBlocks);
+      selectedShape = smallShapes[Math.floor(randVal * smallShapes.length)] || SHAPES[0];
+    } else if (gameMode === GameMode.ENDLESS && !isDaily) {
+      selectedShape = pickEndlessShape(tier, !hasHeavyPiece, rng);
+    }
+    // Legacy tier logic for callers that provide a tier without Endless mode.
+    else if (tier >= 6) {
       // Tier 6: VOID+ pressure, but rare small pieces keep the tray fair.
       selectedShape = weightedPick(
         [...S_TINY, ...S_SMALL, ...S_ASYM4, ...S_SYM4, ...S_CROSS],
@@ -746,23 +732,26 @@ export const getRandomPieces = (
       }
     }
     
-    // Special block type selection
-    if (shouldForceTierLargePiece(gameMode, isDaily, tier, undefined, hasTierLargePiece, rng)) {
-      selectedShape = pickRandomShape(getAllowedTierLargeShapes(tier), rng);
-    }
-    selectedShape = sanitizeTierShape(selectedShape, gameMode, isDaily, tier, hasTierLargePiece, rng);
-    if (isTierLargeShape(selectedShape)) {
-      hasTierLargePiece = true;
+    const selectedBlockCount = getBlockCount(selectedShape);
+    if (selectedBlockCount >= 8) {
+      hasHeavyPiece = true;
     }
 
-    const type = pickSpecialBlockType(rng, gameMode, tier);
+    let type = pickSpecialBlockType(rng, gameMode, tier);
+    if (type !== CellType.NORMAL && selectedBlockCount >= 5) {
+      if (heavySpecialPieceCount >= 2) {
+        type = CellType.NORMAL;
+      } else {
+        heavySpecialPieceCount++;
+      }
+    }
 
     // Determine piece color based on type
     let pieceColor: string;
     if (type === CellType.ICE) {
       pieceColor = '#7dd3fc'; // Light blue
     } else if (type === CellType.BOMB) {
-      pieceColor = '#ef4444'; // Bright red for visibility
+      pieceColor = '#fb7185';
     } else {
       // Use custom colors if provided, otherwise use the shape's default color
       pieceColor = pickDistinctTrayColor(colors, i, selectedShape, usedNormalColors);
@@ -777,7 +766,7 @@ export const getRandomPieces = (
         traySlot: i
     });
   }
-  return improveTrayQuality(newPieces, grid, colors);
+  return improveTrayQuality(newPieces, grid, colors, tier, gameMode);
 };
 
 /**

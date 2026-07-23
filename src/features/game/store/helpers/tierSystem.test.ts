@@ -12,21 +12,21 @@ describe('tierSystem', () => {
     });
 
     it('should keep early score in tier 0', () => {
-      expect(calculateTier(5000)).toBe(0);
+      expect(calculateTier(4999)).toBe(0);
     });
 
-    it('should return tier 1 for score 15000', () => {
-      expect(calculateTier(15000)).toBe(1);
+    it('should return tier 1 for score 5000', () => {
+      expect(calculateTier(5000)).toBe(1);
     });
 
-    it('should return tier 6 for score 260000', () => {
-      expect(calculateTier(260000)).toBe(6);
+    it('should return tier 6 for score 180000', () => {
+      expect(calculateTier(180000)).toBe(6);
     });
 
     it('should return correct tier for scores between thresholds', () => {
-      expect(calculateTier(14999)).toBe(0);
-      expect(calculateTier(20000)).toBe(1);
-      expect(calculateTier(90000)).toBe(3);
+      expect(calculateTier(4999)).toBe(0);
+      expect(calculateTier(19999)).toBe(1);
+      expect(calculateTier(90000)).toBe(4);
     });
   });
 
@@ -54,25 +54,25 @@ describe('tierSystem', () => {
 
   describe('calculateEndlessLoop', () => {
     it('should return 0 before loop thresholds', () => {
-      expect(calculateEndlessLoop(260000)).toBe(0);
-      expect(calculateEndlessLoop(319999)).toBe(0);
+      expect(calculateEndlessLoop(180000)).toBe(0);
+      expect(calculateEndlessLoop(259999)).toBe(0);
     });
 
     it('should advance loops at endgame thresholds', () => {
-      expect(calculateEndlessLoop(320000)).toBe(1);
-      expect(calculateEndlessLoop(450000)).toBe(2);
-      expect(calculateEndlessLoop(650000)).toBe(3);
-      expect(calculateEndlessLoop(900000)).toBe(4);
+      expect(calculateEndlessLoop(260000)).toBe(1);
+      expect(calculateEndlessLoop(380000)).toBe(2);
+      expect(calculateEndlessLoop(550000)).toBe(3);
+      expect(calculateEndlessLoop(750000)).toBe(4);
     });
   });
 
   describe('migrateTierData', () => {
     it('should recalculate tier based on score', () => {
-      expect(migrateTierData(5, 8000)).toBe(0);
+      expect(migrateTierData(5, 3000)).toBe(0);
     });
 
     it('should ignore old tier value', () => {
-      expect(migrateTierData(0, 40000)).toBe(2);
+      expect(migrateTierData(0, 20000)).toBe(2);
     });
 
     it('should handle tier 0 migration', () => {
@@ -80,7 +80,7 @@ describe('tierSystem', () => {
     });
 
     it('should handle high tier migration', () => {
-      expect(migrateTierData(3, 260000)).toBe(6);
+      expect(migrateTierData(3, 180000)).toBe(6);
     });
   });
 });

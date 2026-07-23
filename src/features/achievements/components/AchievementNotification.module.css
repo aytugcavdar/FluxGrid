@@ -67,6 +67,14 @@
   text-overflow: ellipsis;
 }
 
+.more {
+  margin-top: 2px;
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 700;
+  color: rgba(253, 230, 138, 0.68);
+}
+
 .dismissHint {
   flex-shrink: 0;
   font-size: 12px;

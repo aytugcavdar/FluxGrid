@@ -35,21 +35,18 @@ interface ScorePopup {
   combo: number;
 }
 
-type AppLanguage = 'tr' | 'en' | 'de' | 'fr' | 'es';
+type AppLanguage = 'tr' | 'en';
 
 const GAME_APP_LANGUAGE_OPTIONS: Array<{ code: AppLanguage; label: string }> = [
   { code: 'tr', label: 'TR Turkce' },
   { code: 'en', label: 'EN English' },
-  { code: 'de', label: 'DE Deutsch' },
-  { code: 'fr', label: 'FR Francais' },
-  { code: 'es', label: 'ES Espanol' },
 ];
 
 const App: React.FC = () => {
   const { t, i18n } = useTranslation();
   const {
     initGame, pieces, isGameOver, resetGame, score, combo, lastAction,
-    achievements, unlockedAchievementId, appState, setAppState, gameMode, timeLeft,
+    unlockedAchievementId, appState, setAppState, gameMode, timeLeft,
     dailyClearHistory, highScore, stats, highScores,
     maxCombo, timedBoostMovesLeft, finalSprintBonus, timedScoreBreakdown, difficultyTier, tierStartMove, totalMovesPlayed, grid,
     newRecordDiff, gameLogs,
@@ -102,9 +99,10 @@ const App: React.FC = () => {
     if (difficultyTier <= 0) return totalMovesPlayed || 0;
     return Math.max(1, (totalMovesPlayed || 0) - (tierStartMove || 0));
   }, [difficultyTier, gameMode, tierStartMove, totalMovesPlayed]);
+  const [adConsentVersion, setAdConsentVersion] = useState(0);
   const canUseRewardedContinue = useMemo(
     () => gameMode !== GameMode.TIMED && !reviveUsedThisRun && AdManager.canShowRewardedContinue(),
-    [gameMode, reviveUsedThisRun]
+    [adConsentVersion, gameMode, reviveUsedThisRun]
   );
   const [showRecordBadge, setShowRecordBadge] = useState(false);
   const [showButtons, setShowButtons] = useState(false);
@@ -134,6 +132,7 @@ const App: React.FC = () => {
   const [continueUsesRemaining, setContinueUsesRemaining] = useState(3);
   const [isLoadingAd, setIsLoadingAd] = useState(false);
   const continueRequestIdRef = useRef(0);
+  const continueInFlightRef = useRef(false);
   
   // Custom hooks
   const { showPWAPrompt, showIOSInstructions, setShowIOSInstructions, triggerInstall } = usePWAInstall(isGameOver, score);
@@ -242,6 +241,17 @@ const App: React.FC = () => {
       cleanupPerformance();
     };
   }, [handleTutorialReturnHome]);
+
+  useEffect(() => AdManager.setInterstitialDisplayGuard(() => {
+    const state = useGameStore.getState();
+    return state.appState === AppState.GAME && state.isGameOver && state.gameOverFinalized;
+  }), []);
+
+  useEffect(() => {
+    const handleConsentUpdate = () => setAdConsentVersion(version => version + 1);
+    window.addEventListener('fluxgrid-ad-consent-updated', handleConsentUpdate);
+    return () => window.removeEventListener('fluxgrid-ad-consent-updated', handleConsentUpdate);
+  }, []);
 
 
 
@@ -441,18 +451,17 @@ const App: React.FC = () => {
     }
     
     // CRITICAL: Prevent multiple clicks
-    if (isLoadingAd) {
+    if (continueInFlightRef.current || isLoadingAd) {
       console.log('[GameApp] Already loading ad, ignoring click');
       return;
     }
     
-    // Set loading state immediately to prevent rapid clicks
+    // State updates render asynchronously, so use a ref to block a second tap
+    // in the same frame before the disabled button is rendered.
+    continueInFlightRef.current = true;
     setIsLoadingAd(true);
     const requestId = continueRequestIdRef.current + 1;
     continueRequestIdRef.current = requestId;
-    
-    // Small delay to ensure state update propagates
-    await new Promise(resolve => setTimeout(resolve, 100));
     
     try {
       console.log('[GameApp] Calling AdManager.showRewardedContinue()...');
@@ -462,6 +471,7 @@ const App: React.FC = () => {
 
       if (continueRequestIdRef.current !== requestId) {
         console.log('[GameApp] Stale rewarded continue result ignored');
+        continueInFlightRef.current = false;
         return;
       }
       
@@ -480,23 +490,27 @@ const App: React.FC = () => {
         
         setShowContinueModal(false);
         setIsLoadingAd(false);
+        continueInFlightRef.current = false;
         console.log('[GameApp] Game continued successfully!');
       } else {
         // Ad failed, show game over modal
         console.log('[GameApp] Ad failed:', result.error);
         setShowContinueModal(false);
         setIsLoadingAd(false);
+        continueInFlightRef.current = false;
         finalizeGameOver();
       }
     } catch (error) {
       console.error('[GameApp] Continue failed:', error);
       setShowContinueModal(false);
       setIsLoadingAd(false);
+      continueInFlightRef.current = false;
       finalizeGameOver();
     }
   }, [difficultyTier, finalizeGameOver, gameMode, grid, isLoadingAd, markReviveUsed, timerStartTime]);
 
   const handleDecline = useCallback(() => {
+    if (continueInFlightRef.current) return;
     continueRequestIdRef.current += 1;
     setShowContinueModal(false);
     setIsLoadingAd(false);
@@ -656,26 +670,12 @@ const App: React.FC = () => {
   // Time popups for TIMED mode (removed BLITZ)
   // Note: BLITZ mechanics can be integrated into TIMED mode with a speed parameter in the future
 
-  // Achievement notification timeout
-  const { clearAchievementNotification } = useGameStore();
+  // Achievement feedback is dismissed and queued by AchievementNotification.
   useEffect(() => {
     if (unlockedAchievementId) {
       hapticEvents.achievement();
-      
-      // Show native notification
-      const achievement = achievements.find(a => a.id === unlockedAchievementId);
-      if (achievement) {
-        import('@/src/utils/native/notificationHelper').then(({ showAchievementNotification }) => {
-          showAchievementNotification(achievement);
-        });
-      }
-      
-      const timer = setTimeout(() => {
-        clearAchievementNotification();
-      }, 3000); // 3 saniye göster
-      return () => clearTimeout(timer);
     }
-  }, [unlockedAchievementId, clearAchievementNotification, achievements]);
+  }, [unlockedAchievementId]);
 
   // Reset share state on new game
   useEffect(() => {

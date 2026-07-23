@@ -85,7 +85,6 @@ export const DragOverlay: React.FC = React.memo(() => {
         className="flex flex-col items-center justify-center"
         style={{
           gap: `${gap}px`,
-          transformStyle: 'preserve-3d',
         }}
       >
         {draggedPiece.shape.map((row, rIdx) => (
@@ -94,7 +93,6 @@ export const DragOverlay: React.FC = React.memo(() => {
             className="flex"
             style={{
               gap: `${gap}px`,
-              transformStyle: 'preserve-3d',
             }}
           >
             {row.map((cell, cIdx) => (
@@ -105,25 +103,23 @@ export const DragOverlay: React.FC = React.memo(() => {
                   height: cellSize,
                   borderRadius: 6,
                   backgroundColor: cell
-                    ? (draggedPiece.type === 'ICE' ? '#93c5fd' : draggedPiece.type === 'BOMB' ? '#f87171' : draggedPiece.type === 'STONE' ? '#94a3b8' : draggedPiece.color)
+                    ? (draggedPiece.type === 'ICE' ? '#93c5fd' : draggedPiece.type === 'BOMB' ? '#dc2626' : draggedPiece.type === 'STONE' ? '#94a3b8' : draggedPiece.color)
                     : 'transparent',
                   boxShadow: cell && !isNativeApp
                     ? `
-                      0 4px ${isMobile ? 8 : 12}px ${draggedPiece.color}40,
-                      0 8px ${isMobile ? 16 : 24}px ${draggedPiece.color}20,
+                      0 4px ${isMobile ? 8 : 12}px ${draggedPiece.type === 'BOMB' ? '#ef4444' : draggedPiece.color}40,
+                      0 8px ${isMobile ? 16 : 24}px ${draggedPiece.type === 'BOMB' ? '#ef4444' : draggedPiece.color}20,
                       inset 0 -2px 4px rgba(0,0,0,0.3),
                       inset 0 2px 4px rgba(255,255,255,0.2)
                     `
                     : cell ? 'inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.2)' : 'none',
-                  border: cell ? `1px solid ${draggedPiece.color}60` : 'none',
+                  border: cell ? `1px solid ${draggedPiece.type === 'BOMB' ? '#ff8a80' : draggedPiece.color}60` : 'none',
                   opacity: cell ? 0.5 : 0,
-                  transform: cell ? 'translateZ(8px)' : 'none',
-                  transformStyle: 'preserve-3d',
                   position: 'relative',
                   background: cell
                     ? `linear-gradient(135deg,
-                        ${draggedPiece.type === 'ICE' ? '#93c5fd' : draggedPiece.type === 'BOMB' ? '#f87171' : draggedPiece.type === 'STONE' ? '#94a3b8' : draggedPiece.color}99 0%,
-                        ${draggedPiece.type === 'ICE' ? '#60a5fa' : draggedPiece.type === 'BOMB' ? '#ef4444' : draggedPiece.type === 'STONE' ? '#475569' : draggedPiece.color}77 100%
+                        ${draggedPiece.type === 'ICE' ? '#93c5fd' : draggedPiece.type === 'BOMB' ? '#ff6b61' : draggedPiece.type === 'STONE' ? '#94a3b8' : draggedPiece.color}99 0%,
+                        ${draggedPiece.type === 'ICE' ? '#60a5fa' : draggedPiece.type === 'BOMB' ? '#991b1b' : draggedPiece.type === 'STONE' ? '#475569' : draggedPiece.color}77 100%
                       )`
                     : 'transparent',
                 }}

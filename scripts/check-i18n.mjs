@@ -65,4 +65,43 @@ if (failed) {
   process.exit(1);
 }
 
+const sourceRoot = path.join(__dirname, '..', 'src');
+const sourceFiles = [];
+
+function collectSourceFiles(directory) {
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      collectSourceFiles(fullPath);
+    } else if (/\.(ts|tsx)$/.test(entry.name) && !/\.(test|example)\.(ts|tsx)$/.test(entry.name)) {
+      sourceFiles.push(fullPath);
+    }
+  }
+}
+
+collectSourceFiles(sourceRoot);
+
+const referenceKeys = localeKeys.get('en.json') || localeKeys.values().next().value;
+const missingUsageKeys = new Map();
+const translationCallPattern = /\b(?:t|i18n\.t)\(\s*['"]([^'"]+)['"]/g;
+
+for (const file of sourceFiles) {
+  const source = fs.readFileSync(file, 'utf8');
+  let match;
+  while ((match = translationCallPattern.exec(source)) !== null) {
+    const key = match[1];
+    if (!key.includes('.') || key.includes('${') || referenceKeys.has(key)) continue;
+    if (!missingUsageKeys.has(key)) missingUsageKeys.set(key, []);
+    missingUsageKeys.get(key).push(path.relative(path.join(__dirname, '..'), file));
+  }
+}
+
+if (missingUsageKeys.size > 0) {
+  console.error('\n[i18n] Source code uses missing translation key(s):');
+  for (const [key, filesUsingKey] of [...missingUsageKeys.entries()].sort()) {
+    console.error(`  - ${key}: ${[...new Set(filesUsingKey)].join(', ')}`);
+  }
+  process.exit(1);
+}
+
 console.log(`[i18n] OK: ${files.length} locale files, ${allKeys.size} keys each.`);

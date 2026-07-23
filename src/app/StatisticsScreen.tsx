@@ -5,9 +5,11 @@ import { useGameStore } from '../features/game/store/gameStore';
 import { GameMode } from '@shared/types';
 import { PerformanceCard, SectionHeader, RecentLogsTimeline } from '../shared/components';
 import { useCountUp } from '../shared/hooks/useCountUp';
+import { getAchievementPresentation } from '../features/achievements/achievementPresentation';
 
 import { Achievement } from '../shared/types/ui';
 import { useStreakStore } from '../shared/store/streakStore';
+import type { TFunction } from 'i18next';
 
 type TabType = 'overview' | 'achievements';
 
@@ -26,17 +28,17 @@ type PersonalInsight = {
   color: string;
 };
 
-const MODE_LABELS: Record<GameMode, string> = {
-  [GameMode.ENDLESS]: 'Sonsuz',
-  [GameMode.TIMED]: 'Timed',
-  [GameMode.DAILY_CHALLENGE]: 'Günlük',
+const getModeLabel = (mode: GameMode, t: TFunction): string => {
+  if (mode === GameMode.ENDLESS) return t('stats.endless');
+  if (mode === GameMode.TIMED) return t('stats.timed');
+  return t('stats.daily');
 };
 
-const buildPersonalInsights = (logs: StatsGameLog[]): PersonalInsight[] => {
+const buildPersonalInsights = (logs: StatsGameLog[], t: TFunction, locale: string): PersonalInsight[] => {
   if (!Array.isArray(logs) || logs.length === 0) {
     return [
-      { label: 'En çok oynadığın mod', value: '-', detail: 'Birkaç oyun sonrası görünür', icon: '◈', color: '#818cf8' },
-      { label: '7 günlük performans', value: '-', detail: 'Karşılaştırma için veri lazım', icon: '↗', color: '#f472b6' },
+      { label: t('stats.favoriteMode'), value: '-', detail: t('stats.playMoreForInsights'), icon: '◈', color: '#818cf8' },
+      { label: t('stats.sevenDayPerformance'), value: '-', detail: t('stats.needComparisonData'), icon: '↗', color: '#f472b6' },
     ];
   }
 
@@ -65,18 +67,20 @@ const buildPersonalInsights = (logs: StatsGameLog[]): PersonalInsight[] => {
 
   return [
     {
-      label: 'En çok oynadığın mod',
-      value: favoriteMode ? MODE_LABELS[favoriteMode[0]] : '-',
-      detail: favoriteMode ? `Son ${logs.length} oyunun ${favoriteMode[1]} tanesi` : 'Birkaç oyun sonrası görünür',
+      label: t('stats.favoriteMode'),
+      value: favoriteMode ? getModeLabel(favoriteMode[0], t) : '-',
+      detail: favoriteMode
+        ? t('stats.favoriteModeDetail', { total: logs.length, count: favoriteMode[1] })
+        : t('stats.playMoreForInsights'),
       icon: '◈',
       color: '#818cf8',
     },
     {
-      label: `${MODE_LABELS[selectedMode]} 7 günlük`,
-      value: improvement === null ? 'Yeni' : `${improvement > 0 ? '+' : ''}${improvement}%`,
+      label: t('stats.modeSevenDay', { mode: getModeLabel(selectedMode, t) }),
+      value: improvement === null ? t('stats.new') : `${improvement > 0 ? '+' : ''}${improvement}%`,
       detail: improvement === null
-        ? `${recentLogs.length} yeni ${MODE_LABELS[selectedMode].toLocaleLowerCase('tr-TR')} oyunu`
-        : `${Math.round(recentAverage).toLocaleString('tr-TR')} ortalama puan`,
+        ? t('stats.newModeGames', { count: recentLogs.length, mode: getModeLabel(selectedMode, t).toLocaleLowerCase(locale) })
+        : t('stats.averageScore', { score: Math.round(recentAverage).toLocaleString(locale) }),
       icon: '↗',
       color: improvement !== null && improvement < 0 ? '#fb7185' : '#f472b6',
     },
@@ -130,9 +134,10 @@ const HeroStatCard: React.FC<{
 };
 
 /* ── Streak Banner ── */
-const PersonalInsightGrid: React.FC<{ insights: PersonalInsight[] }> = ({ insights }) => (
-  <div>
-    <SectionHeader title="Kişisel Özet" />
+const PersonalInsightGrid: React.FC<{ insights: PersonalInsight[] }> = ({ insights }) => {
+  const { t } = useTranslation();
+  return <div>
+    <SectionHeader title={t('stats.personalSummary')} />
     <div className="grid grid-cols-2 gap-3">
       {insights.map((insight, index) => (
         <motion.div
@@ -165,10 +170,11 @@ const PersonalInsightGrid: React.FC<{ insights: PersonalInsight[] }> = ({ insigh
         </motion.div>
       ))}
     </div>
-  </div>
-);
+  </div>;
+};
 
 const StreakBanner: React.FC = () => {
+  const { t } = useTranslation();
   const { currentStreak, todayPlayed } = useStreakStore();
 
   const streakColor = currentStreak >= 7 ? '#f97316' : currentStreak >= 3 ? '#fbbf24' : '#94a3b8';
@@ -202,11 +208,11 @@ const StreakBanner: React.FC = () => {
             {currentStreak}
           </div>
           <div className="text-[9px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: 'rgba(208,208,232,0.45)' }}>
-            Günlük Seri
+            {t('stats.dailyStreak')}
           </div>
           {todayPlayed && (
             <div className="text-[8px] font-bold mt-0.5" style={{ color: streakColor }}>
-              ✓ Bugün oynadın
+              ✓ {t('stats.playedToday')}
             </div>
           )}
         </div>
@@ -227,11 +233,11 @@ const CAT_META: Record<string, { icon: string; color: string; bg: string }> = {
   MASTERY:        { icon: '👑', color: '#f472b6', bg: 'rgba(244,114,182,0.12)' },
 };
 
-const RARITY_META: Record<NonNullable<Achievement['rarity']>, { label: string; color: string; bg: string }> = {
-  BRONZE: { label: 'Bronze', color: '#cd7f32', bg: 'rgba(205,127,50,0.16)' },
-  SILVER: { label: 'Silver', color: '#cbd5e1', bg: 'rgba(203,213,225,0.14)' },
-  GOLD: { label: 'Gold', color: '#facc15', bg: 'rgba(250,204,21,0.16)' },
-  MYTHIC: { label: 'Mythic', color: '#c084fc', bg: 'rgba(192,132,252,0.18)' },
+const RARITY_META: Record<NonNullable<Achievement['rarity']>, { color: string; bg: string }> = {
+  BRONZE: { color: '#cd7f32', bg: 'rgba(205,127,50,0.16)' },
+  SILVER: { color: '#cbd5e1', bg: 'rgba(203,213,225,0.14)' },
+  GOLD: { color: '#facc15', bg: 'rgba(250,204,21,0.16)' },
+  MYTHIC: { color: '#c084fc', bg: 'rgba(192,132,252,0.18)' },
 };
 
 const getAchievementRarity = (ach: { hidden?: boolean; targetValue?: number; category?: string; id: string }): NonNullable<Achievement['rarity']> => {
@@ -242,25 +248,17 @@ const getAchievementRarity = (ach: { hidden?: boolean; targetValue?: number; cat
   return 'BRONZE';
 };
 
-const getHiddenHint = (category?: string) => {
-  if (category === 'SPEED') return 'Timed modda güçlü bir hedefi tamamla.';
-  if (category === 'MASTERY') return 'Endless modda ileri seviye bir hedefi tamamla.';
-  if (category === 'SCORE') return 'Tek oyunda yüksek skor hedeflerinden birine ulaş.';
-  if (category === 'COMBO') return 'Kombo seviyeni daha yukarı taşı.';
-  if (category === 'SPECIAL_BLOCKS') return 'Özel bloklarla ilgili ileri bir hedefi tamamla.';
-  return 'Oyunda ilerledikçe açılır.';
-};
-
 /* ── Single achievement row ── */
 const AchRow: React.FC<{ ach: Achievement; index?: number }> = ({ ach, index = 0 }) => {
+  const { t } = useTranslation();
   const meta   = CAT_META[ach.category || ''] ?? { icon: '🏅', color: '#9ca3af', bg: 'rgba(156,163,175,0.1)' };
   const rarity = RARITY_META[ach.rarity || 'BRONZE'];
   const pct    = Math.min(100, ach.progress ?? 0);
   const done   = ach.status === 'unlocked';
   const locked = ach.status === 'locked' && pct === 0;
   const hideDetails = Boolean(ach.hidden && !done);
-  const title = hideDetails ? 'Gizli Başarım' : ach.title;
-  const description = hideDetails ? getHiddenHint(ach.category) : ach.description;
+  const title = hideDetails ? t('achievementDisplay.hidden') : ach.title;
+  const description = hideDetails ? t('achievementDisplay.hiddenDescription') : ach.description;
 
   return (
     <motion.div
@@ -302,10 +300,10 @@ const AchRow: React.FC<{ ach: Achievement; index?: number }> = ({ ach, index = 0
               fontSize: 9, fontWeight: 800, lineHeight: 1, padding: '4px 6px', borderRadius: 999,
               color: rarity.color, background: rarity.bg, border: `1px solid ${rarity.color}40`,
             }}>
-              {rarity.label}
+              {t(`stats.rarity.${ach.rarity || 'BRONZE'}`)}
             </span>
             <span style={{ fontSize: 10, fontWeight: 600, color: done ? meta.color : 'rgba(255,255,255,0.35)', lineHeight: 1 }}>
-              {done ? '✓ Tamamlandı' : (hideDetails ? '???' : `${ach.currentValue ?? 0}/${ach.targetValue ?? 0}`)}
+              {done ? `✓ ${t('achievementDisplay.completed')}` : (hideDetails ? '???' : `${ach.currentValue ?? 0}/${ach.targetValue ?? 0}`)}
             </span>
           </div>
         </div>
@@ -338,7 +336,7 @@ const AchRow: React.FC<{ ach: Achievement; index?: number }> = ({ ach, index = 0
 /* ════════════════════════════════════════════════ */
 export const StatisticsScreen: React.FC = () => {
   const { highScores, stats, achievements: gameAchievements, gameLogs } = useGameStore();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const longestDailyStreak = useStreakStore(state => state.longestStreak);
@@ -348,9 +346,10 @@ export const StatisticsScreen: React.FC = () => {
   ), [gameLogs]);
 
   const recentLogs = sortedGameLogs.slice(0, 5);
+  const numberLocale = i18n.resolvedLanguage === 'tr' ? 'tr-TR' : 'en-US';
   const personalInsights = useMemo(
-    () => buildPersonalInsights(sortedGameLogs),
-    [sortedGameLogs]
+    () => buildPersonalInsights(sortedGameLogs, t, numberLocale),
+    [numberLocale, sortedGameLogs, t]
   );
 
 
@@ -360,8 +359,9 @@ export const StatisticsScreen: React.FC = () => {
 
   const achievements: Achievement[] = (Array.isArray(gameAchievements) ? gameAchievements : []).map(ach => {
     const progress = ach.targetValue > 0 ? Math.floor((ach.currentValue / ach.targetValue) * 100) : 0;
+    const presentation = getAchievementPresentation(ach, t);
     return {
-      id: ach.id, title: ach.name, description: ach.description,
+      id: ach.id, title: presentation.name, description: presentation.description,
       icon: '🏆',
       status: ach.unlocked ? 'unlocked' : (progress > 0 ? 'in-progress' : 'locked'),
       progress, category: ach.category, hidden: ach.hidden,
@@ -384,20 +384,20 @@ export const StatisticsScreen: React.FC = () => {
     || achievements.find(a => a.status !== 'unlocked');
 
   const categoryNames: Record<string, string> = {
-    SCORE:          t('stats.scoreAchievements', 'Skor Başarımları'),
-    COMBO:          t('stats.comboAchievements', 'Kombo Başarımları'),
-    SPECIAL_BLOCKS: t('stats.specialBlockAchievements', 'Özel Blok Başarımları'),
-    PROGRESSION:    t('stats.progressionAchievements', 'İlerleme Başarımları'),
-    SPEED:          t('stats.speedAchievements', 'Hız Başarımları'),
-    MASTERY:        t('stats.masteryAchievements', 'Ustalık Başarımları'),
+    SCORE:          t('stats.scoreAchievements'),
+    COMBO:          t('stats.comboAchievements'),
+    SPECIAL_BLOCKS: t('stats.specialBlockAchievements'),
+    PROGRESSION:    t('stats.progressionAchievements'),
+    SPEED:          t('stats.speedAchievements'),
+    MASTERY:        t('stats.masteryAchievements'),
   };
 
   /* ── shared stat hero numbers ── */
   const primaryHeroStats = [
-    { label: 'Tamamlanan', value: stats.gamesPlayed || 0, icon: '🎮', color: '#818cf8' },
-    { label: 'Toplam Clear', value: stats.linesCleared || 0, icon: '⚡', color: '#34d399' },
-    { label: 'Perfect Clear', value: stats.perfectClears || 0, icon: '✨', color: '#f59e0b' },
-    { label: 'En Uzun Seri', value: longestDailyStreak, icon: '🔥', color: '#fb923c' },
+    { label: t('stats.completedGames'), value: stats.gamesPlayed || 0, icon: '🎮', color: '#818cf8' },
+    { label: t('stats.totalClears'), value: stats.linesCleared || 0, icon: '⚡', color: '#34d399' },
+    { label: t('stats.perfectClears'), value: stats.perfectClears || 0, icon: '✨', color: '#f59e0b' },
+    { label: t('stats.longestStreak'), value: longestDailyStreak, icon: '🔥', color: '#fb923c' },
   ];
 
   return (
@@ -418,7 +418,7 @@ export const StatisticsScreen: React.FC = () => {
 
       {/* Hidden H1 */}
       <h1 style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
-        {t('stats.title', 'İstatistikler & Başarımlar')}
+        {t('stats.title')}
       </h1>
 
       {/* ── HEADER & TABS ── */}
@@ -434,7 +434,7 @@ export const StatisticsScreen: React.FC = () => {
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1 h-5 rounded-full" style={{ background: 'linear-gradient(180deg, #818cf8, #a855f7)' }} />
             <span className="text-base font-black tracking-tight" style={{ color: '#f0f0f8' }}>
-              {activeTab === 'overview' ? 'İstatistikler' : 'Başarımlar'}
+              {activeTab === 'overview' ? t('stats.statistics') : t('stats.achievements')}
             </span>
           </div>
           {/* Pill tabs */}
@@ -464,7 +464,7 @@ export const StatisticsScreen: React.FC = () => {
                     ? (tab === 'overview' ? '#a5b4fc' : '#fb923c')
                     : 'rgba(255,255,255,0.35)',
                 }}>
-                  {tab === 'overview' ? '📊 İstatistik' : '🏆 Başarım'}
+                  {tab === 'overview' ? `📊 ${t('stats.statistics')}` : `🏆 ${t('stats.achievements')}`}
                 </span>
               </button>
             ))}
@@ -496,7 +496,7 @@ export const StatisticsScreen: React.FC = () => {
 
                 {/* ─ Mode performance ─ */}
                 <div>
-                  <SectionHeader title={t('stats.modePerformance', 'Mod Performansı')} />
+                  <SectionHeader title={t('stats.modePerformance')} />
                   <div className="space-y-3">
                     <PerformanceCard mode={GameMode.ENDLESS} bestScore={sonsuzBestScore}
                       maxCombo={stats.endlessMaxCombo || 0} maxTier={stats.endlessMaxTier || 0} color="#a855f7" />
@@ -507,7 +507,7 @@ export const StatisticsScreen: React.FC = () => {
 
                 {/* ─ Recent games ─ */}
                 <div>
-                  <SectionHeader title={t('stats.recentGames', 'Son Oyunlar')} />
+                  <SectionHeader title={t('stats.recentGames')} />
                   <RecentLogsTimeline logs={recentLogs} maxItems={5} />
                 </div>
               </motion.div>
@@ -527,7 +527,7 @@ export const StatisticsScreen: React.FC = () => {
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <div className="text-[10px] font-bold uppercase tracking-[0.12em] opacity-50 mb-1" style={{ color: '#ffa0a0' }}>
-                        Başarım İlerlemesi
+                        {t('stats.achievementProgress')}
                       </div>
                       <div className="flex items-baseline gap-2">
                         <span className="text-2xl font-black" style={{
@@ -535,7 +535,7 @@ export const StatisticsScreen: React.FC = () => {
                           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
                         }}>{unlockedCount}</span>
                         <span className="text-sm opacity-50" style={{ color: '#d0d0e8' }}>/ {totalCount}</span>
-                        <span className="text-xs opacity-50" style={{ color: '#d0d0e8' }}>tamamlandı</span>
+                        <span className="text-xs opacity-50" style={{ color: '#d0d0e8' }}>{t('stats.completed')}</span>
                       </div>
                     </div>
                     <div className="text-4xl">🏆</div>
@@ -566,11 +566,11 @@ export const StatisticsScreen: React.FC = () => {
                       }}
                     >
                       <div className="text-[9px] font-black uppercase tracking-[0.12em] mb-1" style={{ color: 'rgba(255,255,255,0.42)' }}>
-                        Siradaki Hedef
+                        {t('stats.nextGoal')}
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-xs font-bold truncate" style={{ color: '#f8fafc' }}>
-                          {nextGlobalAchievement.hidden ? 'Gizli Basarim' : nextGlobalAchievement.title}
+                          {nextGlobalAchievement.hidden ? t('achievementDisplay.hidden') : nextGlobalAchievement.title}
                         </span>
                         <span className="text-[10px] font-bold shrink-0" style={{ color: '#fb923c' }}>
                           {nextGlobalAchievement.hidden ? '???' : `${nextGlobalAchievement.currentValue ?? 0}/${nextGlobalAchievement.targetValue ?? 0}`}
@@ -610,7 +610,7 @@ export const StatisticsScreen: React.FC = () => {
                             {catDone}/{list.length}
                           </span>
                           <span className="text-[10px] font-bold" style={{ color: meta.color }}>
-                            {isExpanded ? 'Kapat' : 'Tümü'}
+                            {isExpanded ? t('stats.close') : t('stats.all')}
                           </span>
                         </div>
                       </button>

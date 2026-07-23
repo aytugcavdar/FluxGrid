@@ -5,12 +5,8 @@
  * combo, high-score, and event popups stay in-app only.
  */
 
-import { Achievement } from '@features/game/types';
 import { Capacitor } from '@capacitor/core';
 import {
-  createEngagementNotificationCopy,
-  NotificationType,
-  scheduleLocalNotification,
   notificationScheduler,
 } from '@services/notifications/pushNotificationService';
 
@@ -55,22 +51,6 @@ export async function requestNotificationPermission(): Promise<boolean> {
   }
 }
 
-export async function showDailyStreakReminder(streak: number): Promise<void> {
-  if (!isNotificationSupported()) return;
-
-  const copy = createEngagementNotificationCopy(NotificationType.STREAK_REMINDER, {
-    currentStreak: streak,
-    todayPlayed: false,
-  });
-
-  await scheduleLocalNotification({
-    type: NotificationType.STREAK_REMINDER,
-    title: copy.title,
-    body: copy.body,
-    data: { streak },
-  });
-}
-
 export async function scheduleDailyReminder(): Promise<void> {
   await notificationScheduler.scheduleEngagementNotifications();
 }
@@ -91,31 +71,6 @@ export async function cancelAllNotifications(): Promise<void> {
   }
 }
 
-export async function registerNotificationActions(): Promise<void> {
-  if (!isNotificationSupported()) return;
-
-  try {
-    const plugin = await getLocalNotifications();
-    if (!plugin) return;
-
-    await plugin.registerActionTypes({
-      types: [
-        {
-          id: 'ENGAGEMENT_ACTIONS',
-          actions: [
-            {
-              id: 'play_again',
-              title: 'Tekrar Oyna',
-            },
-          ],
-        },
-      ],
-    });
-  } catch (error) {
-    console.error('[Notification] Failed to register action types:', error);
-  }
-}
-
 export async function addNotificationActionListener(
   callback: (action: any) => void
 ): Promise<void> {
@@ -130,10 +85,3 @@ export async function addNotificationActionListener(
     console.error('[Notification] Failed to add action listener:', error);
   }
 }
-
-// Kept as no-ops so existing in-app achievement/event flows do not create phone notifications.
-export async function showAchievementNotification(_achievement: Achievement): Promise<void> {}
-export async function showAchievementProgress(_achievementName: string, _current: number, _target: number): Promise<void> {}
-export async function showComboMilestoneNotification(_combo: number): Promise<void> {}
-export async function showHighScoreNotification(_score: number, _mode: string): Promise<void> {}
-export async function showEventNotification(_eventName: string): Promise<void> {}

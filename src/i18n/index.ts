@@ -2,23 +2,14 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import tr from './locales/tr.json';
 import en from './locales/en.json';
-import de from './locales/de.json';
-import fr from './locales/fr.json';
-import es from './locales/es.json';
+import {
+  DEFAULT_LANGUAGE,
+  getInitialLanguage,
+  normalizeSupportedLanguage,
+  SUPPORTED_LANGUAGES,
+} from './language';
 
-const SUPPORTED_LANGUAGES = ['tr', 'en', 'de', 'fr', 'es'] as const;
-type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number];
-
-function normalizeLanguage(value: string | null | undefined): SupportedLanguage {
-  const normalized = (value || 'tr').toLowerCase().split('-')[0];
-  return SUPPORTED_LANGUAGES.includes(normalized as SupportedLanguage)
-    ? normalized as SupportedLanguage
-    : 'tr';
-}
-
-const savedLang = normalizeLanguage(
-  typeof localStorage !== 'undefined' ? localStorage.getItem('flux_language') : null
-);
+const initialLanguage = getInitialLanguage();
 
 // Initialize i18n synchronously to prevent React Hooks order issues
 i18n
@@ -27,12 +18,9 @@ i18n
     resources: {
       tr: { translation: tr },
       en: { translation: en },
-      de: { translation: de },
-      fr: { translation: fr },
-      es: { translation: es },
     },
-    lng: savedLang,
-    fallbackLng: 'en', // Changed to EN as per requirements
+    lng: initialLanguage,
+    fallbackLng: DEFAULT_LANGUAGE,
     supportedLngs: [...SUPPORTED_LANGUAGES],
     nonExplicitSupportedLngs: true,
     cleanCode: true,
@@ -46,6 +34,13 @@ i18n
 
 if (typeof window !== 'undefined') {
   (window as any).i18n = i18n;
+}
+
+if (typeof document !== 'undefined') {
+  document.documentElement.lang = initialLanguage;
+  i18n.on('languageChanged', language => {
+    document.documentElement.lang = normalizeSupportedLanguage(language) ?? DEFAULT_LANGUAGE;
+  });
 }
 
 export default i18n;

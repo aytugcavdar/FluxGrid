@@ -25,7 +25,27 @@
     "infinite": "Infinite",
     "infiniteDesc": "Endless puzzle solving. No time limits.",
     "timed": "Timed",
-    "timedDesc": "Race against the clock. Every second counts."
+    "timedDesc": "Race against the clock. Every second counts.",
+    "minimumRequirementsTitle": "Device Requirements",
+    "minimumRequirementsDesc": "Your device does not meet the minimum requirements.",
+    "tryAnyway": "Try Anyway",
+    "continue": "Continue",
+    "savedGameSummary": "{{mode}} mode - one-time save",
+    "score": "Score",
+    "remaining": "Remaining",
+    "save": "Save",
+    "secondsShort": "{{count}}s",
+    "savedDaysAgo": "{{count}}d ago",
+    "savedHoursAgo": "{{count}}h ago",
+    "savedMinutesAgo": "{{count}}m ago",
+    "savedJustNow": "Just now",
+    "endlessModeLabel": "ENDLESS MODE",
+    "timedModeLabel": "TIMED MODE",
+    "unlimited": "Unlimited",
+    "simple": "Simple",
+    "timeLimited": "Timed",
+    "fast": "Fast",
+    "bestWithScore": "Best {{score}}"
   },
   "navigation": {
     "home": "Home",
@@ -56,7 +76,65 @@
     "seconds": "S",
     "unlimited": "Unlimited",
     "block": "BLOCKS",
-    "surge": "SURGE"
+    "surge": "SURGE",
+    "score": "SCORE",
+    "best": "BEST",
+    "comboTimeAria": "{{combo}} combo, {{seconds}} seconds remaining",
+    "events": {
+      "iceStorm": "Ice Storm",
+      "quake": "Quake!",
+      "mirror": "Mirror Mode",
+      "chaos": "Chaos!",
+      "void": "Void Zones"
+    }
+  },
+  "tier": {
+    "tierUp": "TIER UP",
+    "gravityCharge": "GRAVITY {{current}}/{{total}}",
+    "scoreRemaining": "{{score}} LEFT",
+    "loop": "T{{tier}} LOOP {{loop}}",
+    "gravityAria": "Tier {{tier}} gravity charge {{current}} of {{total}}",
+    "progressAria": "Tier {{tier}} progress {{progress}}%",
+    "names": {
+      "0": "NORMAL",
+      "1": "ICE",
+      "2": "PRESSURE",
+      "3": "QUAKE",
+      "4": "ICE STORM",
+      "5": "STRONG QUAKE",
+      "6": "FIXED FIELD"
+    }
+  },
+  "timedHud": {
+    "final": "FINAL",
+    "boost": "BOOST",
+    "personalBestAria": "Personal best: {{score}}",
+    "clearSeconds": "CLEAR +{{seconds}}S",
+    "timeEqualsScore": "TIME=SCORE",
+    "lastChance": "LAST CHANCE",
+    "used": "USED",
+    "lastMove": "LAST MOVE",
+    "boostReady": "BOOST READY",
+    "clearBoost": "CLEAR BOOST",
+    "ready": "ready",
+    "boostAria": "Clear boost {{progress}} percent. Last chance is {{status}}.",
+    "finalSprintActive": "FINAL SPRINT - x1.5 ACTIVE",
+    "events": {
+      "lastChance": "LAST CHANCE · +{{seconds}}s",
+      "target": "{{count}} TIME TARGET",
+      "secondsReward": "+{{seconds}}s",
+      "scoreReward": "+{{score}} SCORE",
+      "freeze": "BOOST FULL · +{{seconds}}s",
+      "clearTime": "+{{seconds}}s",
+      "finalRush": "FINAL RUSH · +{{score}} SCORE"
+    },
+    "milestones": {
+      "timed_10k": "First 10K! 🎯",
+      "timed_25k": "Quarter Way! 🔥",
+      "timed_50k": "Halfway! ⚡",
+      "timed_75k": "Legend Zone! 💎",
+      "timed_100k": "100K Club! 👑"
+    }
   },
   "game": {
     "tryAgain": "Try Again",
@@ -85,7 +163,34 @@
     "totalLines": "TOTAL LINES",
     "totalGames": "TOTAL GAMES",
     "bossLevel": "BOSS LEVEL",
-    "confirmExit": "Are you sure you want to exit? Your progress will be lost."
+    "confirmExit": "Are you sure you want to exit? Your progress will be lost.",
+    "exitTitle": "Exit Game?"
+  },
+  "gameOver": {
+    "title": "GAME OVER",
+    "timedMode": "Timed Mode",
+    "endlessMode": "Endless Mode",
+    "game": "Game",
+    "close": "Close",
+    "newRecord": "NEW RECORD!",
+    "finalScoreAria": "Final score: {{score}}",
+    "bestScoreAria": "Best score: {{score}}",
+    "bestScore": "BEST: {{score}}",
+    "recordDifferenceAria": "New record difference: +{{score}}",
+    "recordDifference": "+{{score}} new record difference",
+    "newRecordPrompt": "New record. One more round.",
+    "recordGap": "{{score}} points to your record.",
+    "oneMoreRound": "One More Round",
+    "timedSummary": "TIMED SUMMARY",
+    "timedSummaryAria": "Timed mode summary",
+    "maxCombo": "MAX COMBO {{combo}}x",
+    "placementAndClear": "Placement + clears",
+    "combo": "Combo",
+    "bonus": "Target/momentum/final bonus",
+    "finalSprint": "Final sprint",
+    "noBonus": "No bonus earned. Use targets and combos to turn time into score.",
+    "playAgain": "Play Again",
+    "backToMenu": "Main Menu"
   },
   "skills": {
     "reroll": "Reroll",
@@ -101,8 +206,8 @@
   },
   "tutorial": {
     "drag": {
-      "title": "Drag a piece onto the board",
-      "description": "Hold a piece from the tray and drop it into a valid empty spot on the 2D board."
+      "title": "Place the piece",
+      "description": "Drop the blue 2-block piece into the two marked cells on the bottom row."
     },
     "welcome": {
       "title": "👋 Welcome!",
@@ -110,11 +215,11 @@
     },
     "firstClear": {
       "title": "Clear the row",
-      "description": "Complete the bottom row. When a row fills, it clears and score chips pop from the blocks."
+      "description": "Now drop the 3-block piece into the three remaining cells on the same row."
     },
     "gravity": {
       "title": "Blocks fall down",
-      "description": "After a clear, unsupported blocks drop into empty space. That can open new moves."
+      "description": "After a clear, unsupported blocks fall and open new space."
     },
     "combo": {
       "title": "Build a combo",
@@ -130,9 +235,9 @@
     },
     "ready": {
       "endlessTitle": "You're ready",
-      "endlessDescription": "Use the 2D board space carefully, clear rows or columns, and build your own record.",
-      "timedTitle": "Earn time",
-      "timedDescription": "In Timed mode, every clear gives time. Clear fast, build combos, and extend the run."
+      "endlessDescription": "Protect your space, complete rows or columns, and improve your record.",
+      "timedTitle": "You're ready",
+      "timedDescription": "Clear lines to earn time. The timer starts with your first real move."
     },
     "skip": "Skip",
     "skipButton": "Skip Tutorial",
@@ -140,7 +245,7 @@
     "handPointer": "Hold, drag, drop",
     "autoAdvance": {
       "completing": "🎉 Completing...",
-      "continuing": "⏭ Auto-advancing..."
+      "continuing": "Blocks settling..."
     },
     "achievements": {
       "speed": "⚡ Fast Learner",
@@ -151,8 +256,10 @@
       "perfectStart": "🎯 Perfect Start!",
       "comboMaster": "🔥 Combo Master!",
       "speedDemon": "⚡ Speed Demon!",
-      "tryDragging": "Try dragging a piece into an empty 2D board spot",
+      "tryDragging": "Drop the blue piece into the two marked cells on the bottom row",
       "fillLine": "Fill a complete row or column",
+      "placeMarkedCells": "Drop the blue piece into the two marked cells",
+      "completeMarkedRow": "Drop the piece into the gap on the right to complete the bottom row",
       "keepClearing": "Clear one more row or column for combo",
       "timeReward": "Clear made, time earned!"
     },
@@ -164,7 +271,7 @@
       "tip3": "Final seconds matter",
       "dismiss": "Dismiss timed mode tip"
     },
-    "start": "Start Playing",
+    "start": "Start Game",
     "next": "Next",
     "step1": {
       "title": "Drag a Piece",
@@ -192,6 +299,35 @@
     },
     "wrongPlacement": "Not here!",
     "correctPlacement": "Great!"
+  },
+  "achievementDisplay": {
+    "unlocked": "Achievement Unlocked",
+    "more": "+{{count}} more achievements",
+    "hidden": "Hidden Achievement",
+    "hiddenDescription": "Unlocks as you progress.",
+    "completed": "Completed",
+    "score": { "name": "{{target}} Points", "description": "Reach {{target}} points in one game." },
+    "combo": { "name": "{{target}}x Combo", "description": "Reach a {{target}}x combo." },
+    "comboSeries": { "name": "Combo Chain", "description": "Reach a 5x combo {{target}} times." },
+    "bomb": { "name": "Bomb Expert {{target}}", "description": "Explode {{target}} bombs in total." },
+    "ice": { "name": "Ice Breaker {{target}}", "description": "Break {{target}} ice blocks in total." },
+    "games": { "name": "{{target}} Games", "description": "Complete {{target}} games." },
+    "blocks": { "name": "{{target}} Blocks", "description": "Place {{target}} blocks in total." },
+    "lines": { "name": "{{target}} Clears", "description": "Clear {{target}} rows or columns in total." },
+    "timedScore": { "name": "Timed Score {{target}}", "description": "Reach {{target}} points in Timed mode." },
+    "timedCombo": { "name": "Fast Combo {{target}}x", "description": "Reach a {{target}}x combo in Timed mode." },
+    "timedLines": { "name": "Timed Clear", "description": "Clear {{target}} lines in Timed mode." },
+    "sprint": { "name": "Final Sprint", "description": "Earn {{target}} final sprint points in total." },
+    "tier": { "name": "Tier {{target}}", "description": "Reach Tier {{target}} in Endless mode." },
+    "event": { "name": "Tier Event {{target}}", "description": "Experience {{target}} tier events." },
+    "perfect": { "name": "Perfect Clear", "description": "Clear the entire board {{target}} times." },
+    "color": { "name": "Color Hunter", "description": "Earn the color bonus {{target}} times." },
+    "largePiece": { "name": "Large Piece {{target}}", "description": "Place {{target}} large pieces." },
+    "lineFive": { "name": "Long Line", "description": "Place {{target}} five-cell lines." },
+    "hollow": { "name": "Hollow 3x3", "description": "Place the hollow 3x3 piece {{target}} times." },
+    "square": { "name": "Giant Square", "description": "Place the solid 3x3 square." },
+    "largeClear": { "name": "Large Clear", "description": "Clear with a large piece {{target}} times." },
+    "record": { "name": "Record Breaker", "description": "Beat your own record {{target}} times." }
   },
   "settings": {
     "title": "Choose Theme",
@@ -232,15 +368,78 @@
     "comboAchievements": "Combo Achievements",
     "specialBlockAchievements": "Special Block Achievements",
     "abilityAchievements": "Ability Achievements",
-    "progressionAchievements": "Progression Achievements"
+    "progressionAchievements": "Progression Achievements",
+    "speedAchievements": "Speed Achievements",
+    "masteryAchievements": "Mastery Achievements",
+    "statistics": "Statistics",
+    "endless": "Endless",
+    "timed": "Timed",
+    "game": "Game",
+    "favoriteMode": "Most played mode",
+    "playMoreForInsights": "Visible after a few games",
+    "sevenDayPerformance": "7-day performance",
+    "needComparisonData": "More data is needed for comparison",
+    "favoriteModeDetail": "{{count}} of your last {{total}} games",
+    "modeSevenDay": "{{mode}} - 7 days",
+    "new": "New",
+    "newModeGames": "{{count}} new {{mode}} games",
+    "averageScore": "{{score}} average score",
+    "personalSummary": "PERSONAL SUMMARY",
+    "dailyStreak": "Daily Streak",
+    "playedToday": "Played today",
+    "completedGames": "Completed",
+    "totalClears": "Total Clears",
+    "perfectClears": "Perfect Clears",
+    "longestStreak": "Longest Streak",
+    "achievementProgress": "ACHIEVEMENT PROGRESS",
+    "completed": "completed",
+    "nextGoal": "NEXT GOAL",
+    "close": "Close",
+    "all": "All",
+    "endlessMode": "Endless Mode",
+    "timedMode": "Timed Mode",
+    "recordWithScore": "Record: {{score}}",
+    "bestScore": "Best Score",
+    "maxCombo": "Max Combo",
+    "maxTier": "Max Tier",
+    "noGamesYet": "You haven't played a game yet",
+    "playFirstGame": "Play your first game to see it here!",
+    "comboCount": "{{count}}x combo",
+    "lineCount": "{{count}} lines",
+    "secondsShort": "{{count}}s",
+    "scoreDistribution": "Score Distribution",
+    "games": "games",
+    "rarity": {
+      "BRONZE": "Bronze",
+      "SILVER": "Silver",
+      "GOLD": "Gold",
+      "MYTHIC": "Mythic"
+    },
+    "badges": {
+      "newRecord": "NEW RECORD",
+      "perfect": "PERFECT",
+      "comeback": "COMEBACK",
+      "speedrun": "FAST"
+    }
+  },
+  "common": {
+    "cancel": "Cancel",
+    "exit": "Exit"
   },
   "settingsScreen": {
     "title": "Settings",
     "subtitle": "Manage your core game preferences here.",
     "appearance": "APPEARANCE",
     "soundAndVibration": "SOUND & VIBRATION",
+    "notifications": "NOTIFICATIONS",
+    "phoneNotifications": "Phone Notifications",
+    "phoneNotificationsDesc": "At most one gentle reminder per day",
+    "privacy": "PRIVACY",
+    "adPrivacyOptions": "Ad privacy options",
+    "adPrivacyOptionsDesc": "Manage ad consent and data preferences",
+    "adPrivacyOpening": "Opening privacy options...",
     "language": "LANGUAGE",
-    "languageNote": "Language setting applies only in-game",
+    "languageNote": "Language applies across the game and notifications",
     "game": "GAME",
     "accessibility": "ACCESSIBILITY",
     "accessibilityNote": "Color blindness support",
@@ -290,9 +489,6 @@
     "themeNeonDesc": "Vibrant Pink",
     "turkish": "Türkçe",
     "english": "English",
-    "german": "Deutsch",
-    "french": "Français",
-    "spanish": "Español",
     "languageOptionAria": "Select {{language}} language",
     "rewards": "REWARDS",
     "neonTrialTitle": "Neon Theme Trial",
@@ -371,6 +567,33 @@
     "endlessDesc": "Score chasing mode",
     "careerBreak": "Career break",
     "dailyDone": "Not done for today"
+  },
+  "notifications": {
+    "streak": {
+      "0": { "title": "FluxGrid is ready", "body": "Play a quick round whenever you feel like it." },
+      "1": { "title": "The board is ready", "body": "Start a new round at your own pace." },
+      "2": { "title": "A new round is ready", "body": "FluxGrid is waiting whenever you want to play." }
+    },
+    "nearRecord": {
+      "0": { "title": "You're close to your record", "body": "Only {{score}} points to your best score. Try another round." },
+      "1": { "title": "A new record is close", "body": "There are {{score}} points between your last score and your record. The board is ready." },
+      "2": { "title": "The record gap is closing", "body": "Only {{score}} points remain. Try again whenever you're ready." }
+    },
+    "timed": {
+      "0": { "title": "60-second challenge", "body": "Try a quick score run in Timed mode." },
+      "1": { "title": "Timed mode is ready", "body": "Test your rhythm again in a one-minute round." },
+      "2": { "title": "Short round, clear goal", "body": "Try to improve your best score in 60 seconds." }
+    },
+    "inactivity": {
+      "0": { "title": "FluxGrid is waiting", "body": "The board is ready when you want to find your rhythm again." },
+      "1": { "title": "The board is ready", "body": "Play a quick FluxGrid round whenever you feel like it." },
+      "2": { "title": "A new round is ready", "body": "After {{count}} days, the board is ready for an easy return." }
+    },
+    "daily": {
+      "0": { "title": "The board is ready", "body": "Play a quick FluxGrid round whenever you feel like it." },
+      "1": { "title": "A quick round", "body": "FluxGrid is ready if you want to play today." },
+      "2": { "title": "FluxGrid is ready", "body": "Start with one move and play at your own pace." }
+    }
   },
   "update": {
     "button": "Update Now",

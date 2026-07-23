@@ -72,6 +72,33 @@ describe('processGrid gravity options', () => {
     }));
   });
 
+  it('reports the first FIRE hit without removing the burning block', () => {
+    const grid = createEmptyGrid();
+    for (let x = 0; x < GRID_SIZE; x++) {
+      grid[GRID_SIZE - 1][x] = {
+        filled: true,
+        color: '#ef4444',
+        id: `fire-row-${x}`,
+        type: x === 0 ? CellType.FIRE : CellType.NORMAL,
+        health: x === 0 ? 2 : undefined,
+      };
+    }
+
+    const result = processGrid(grid, { applyGravity: false });
+
+    expect(result.grid[GRID_SIZE - 1][0]).toEqual(expect.objectContaining({
+      id: 'fire-row-0',
+      type: CellType.FIRE,
+      health: 1,
+    }));
+    expect(result.actions[0].damagedFireCells).toContainEqual(expect.objectContaining({
+      id: 'fire-row-0',
+      x: 0,
+      y: GRID_SIZE - 1,
+      health: 1,
+    }));
+  });
+
   it('reports bombs in chain order for staggered feedback', () => {
     const grid = createEmptyGrid();
     for (let x = 0; x < GRID_SIZE; x++) {

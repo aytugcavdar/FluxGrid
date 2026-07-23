@@ -31,7 +31,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
       const result = migrateSaveData(saveData);
 
       expect(result.saveVersion).toBe(3);
-      expect(result.difficultyTier).toBe(0); // Recalculated from current thresholds
+      expect(result.difficultyTier).toBe(1); // Recalculated from current thresholds
       expect(result.score).toBe(5000); // Score preserved
     });
 
@@ -134,7 +134,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
 
     it('should handle edge case: score at tier threshold', () => {
       const saveData: SaveData = {
-        score: 15000,
+        score: 5000,
         difficultyTier: 2,
         saveVersion: 1,
       };
@@ -168,7 +168,7 @@ describe('Feature: endless-mode-rebalance - Save Data Migration', () => {
       const result = migrateSaveData(saveData);
 
       expect(result.saveVersion).toBe(3);
-      expect(result.difficultyTier).toBe(5);
+      expect(result.difficultyTier).toBe(6);
     });
 
     it('should not convert non-infinite event durations', () => {

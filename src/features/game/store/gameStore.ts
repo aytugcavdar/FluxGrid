@@ -25,8 +25,24 @@ import { useProfileStore } from '../../profile/store/profileStore';
 import { useTutorialStore } from '../../tutorial/store/tutorialStore';
 import { getTutorialGridState, getTutorialPieces } from '../../tutorial/data/tutorialPieces';
 import { tickTimerImpl } from './helpers/timerLogic';
-import { checkTierEvent, removeVoidZones, tickActiveEvent } from './helpers/eventSystem';
-import { updateAchievements, syncNewAchievement } from './helpers/achievementSystem';
+import {
+  applyTier2FireSpreadPlans,
+  checkTierEvent,
+  createTier2FireSpreadPlans,
+  ensureLateGameFireMinimumWithFeedback,
+  getFireSpreadPendingTurns,
+  type FireFeedbackCell,
+  type FireSpreadPlan,
+  isTier2FireSpreadPlanValid,
+  removeVoidZones,
+  spawnTier2FireWithFeedback,
+  tickActiveEvent,
+} from './helpers/eventSystem';
+import {
+  mergeAchievementNotificationQueue,
+  updateAchievements,
+  syncNewAchievement,
+} from './helpers/achievementSystem';
 import { createMiniEventState, checkMiniEvents, shouldPreventComboBreak, getMiniEventMultiplier, isPieceBlessingActive, tickMiniEvents } from './helpers/miniEventSystem';
 import { createProgressionState, updateStreak, getStreakMultiplier, checkMilestones, checkTimedMilestones } from './helpers/progressionSystem';
 import { JuiceTriggers } from '../../visual-effects/utils/juiceTriggers';
@@ -64,6 +80,11 @@ export interface TimedEventFeedback {
   seconds?: number;
   score?: number;
   targetCount?: number;
+}
+
+interface PendingCorruption {
+  plans: FireSpreadPlan[];
+  turnsRemaining: number;
 }
 
 /**
@@ -157,6 +178,15 @@ export interface GameStore {
       color: string;
       health: number;
     }>;
+    damagedFireCells?: Array<{
+      id?: string;
+      x: number;
+      y: number;
+      color: string;
+      health: number;
+    }>;
+    fireSpawnedCells?: FireFeedbackCell[];
+    fireSpreadCells?: FireFeedbackCell[];
     bombCells?: Array<{
       id?: string;
       x: number;
@@ -175,6 +205,7 @@ export interface GameStore {
   // ── Achievements ─────────────────────────────────────────────────────────────
   achievements: Achievement[];
   unlockedAchievementId: string | null;
+  achievementNotificationQueue: string[];
 
   // ── Navigation & Persistence ─────────────────────────────────────────────────
   appState: AppState;
@@ -212,6 +243,7 @@ export interface GameStore {
   totalMovesPlayed: number;
   runLinesCleared: number;
   tierStartMove: number;
+  pendingCorruption: PendingCorruption | null;
   activeEvent: 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID' | null;
   eventMovesRemaining: number;
   miniEventState: ReturnType<typeof createMiniEventState>;
@@ -339,6 +371,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     achievements: normalizeStoredAchievements(safeLocalStorageGet('flux_achievements', JSON.stringify(EXPANDED_ACHIEVEMENTS))),
     unlockedAchievementId: null,
+    achievementNotificationQueue: [],
 
     appState: AppState.HOME,
     gameMode: GameMode.ENDLESS,
@@ -367,6 +400,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     totalMovesPlayed: 0,
     runLinesCleared: 0,
     tierStartMove: 0,
+    pendingCorruption: null,
     activeEvent: null,
     eventMovesRemaining: 0,
     miniEventState: createMiniEventState(),
@@ -468,6 +502,7 @@ export const useGameStore = create<GameStore>((set, get) => {
             draggedPiece: null,
             lastAction: null,
             unlockedAchievementId: null,
+            achievementNotificationQueue: [],
             appState: AppState.GAME,
             gameMode: mode,
             // Timed mode slice
@@ -502,6 +537,7 @@ export const useGameStore = create<GameStore>((set, get) => {
             totalMovesPlayed: loadedTotalMovesPlayed,
             runLinesCleared: loadedRunLinesCleared,
             tierStartMove: loadedTierStartMove,
+            pendingCorruption: null,
             lastMultiplierBreakdown: null,
             // Daily challenge
             dailyClearHistory: [],
@@ -550,7 +586,13 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     tickTimer: () => tickTimerImpl(get, set),
 
-    clearAchievementNotification: () => set({ unlockedAchievementId: null }),
+    clearAchievementNotification: () => set(state => {
+      const remainingQueue = state.achievementNotificationQueue.slice(1);
+      return {
+        achievementNotificationQueue: remainingQueue,
+        unlockedAchievementId: remainingQueue[0] ?? null,
+      };
+    }),
 
     setDraggedPiece: (piece) => set({ draggedPiece: piece }),
 
@@ -571,6 +613,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     placePiece: (piece, startX, startY) => {
       const { grid, score, combo, highScore, gameMode, timerStartTime } = get();
       const isTimedMode = gameMode === GameMode.TIMED;
+      const isTutorialActive = useTutorialStore.getState().isActive;
       const wasTimedLastChanceActive = isTimedMode && get().timedLastChanceActive;
 
       if (!grid || grid.length !== GRID_SIZE) {
@@ -588,7 +631,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       JuiceTriggers.onValidPlacement();
 
       // Track real run duration in every mode; Timed also needs its deadline.
-      if (timerStartTime === null && !useTutorialStore.getState().isActive) {
+      if (timerStartTime === null && !isTutorialActive) {
         const now = Date.now();
         set(gameMode === GameMode.TIMED
           ? {
@@ -843,6 +886,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         const movedCells = clearActions.flatMap(action => action.movedCells || []);
         const lockedIceCells = clearActions.flatMap(action => action.lockedIceCells || []);
         const damagedIceCells = clearActions.flatMap(action => action.damagedIceCells || []);
+        const damagedFireCells = clearActions.flatMap(action => action.damagedFireCells || []);
         const bombCells = clearActions.flatMap(action => action.bombCells || []);
 
         set({
@@ -858,6 +902,7 @@ export const useGameStore = create<GameStore>((set, get) => {
             movedCells,
             lockedIceCells,
             damagedIceCells,
+            damagedFireCells,
             bombCells,
             isPerfectClear,
             tier6GravityTriggered,
@@ -884,7 +929,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       // Refill tray
       let currentPieces = get().pieces.filter(p => p.instanceId !== piece.instanceId);
-      if (currentPieces.length === 0) {
+      if (currentPieces.length === 0 && !isTutorialActive) {
         set({ isPiecesLoading: true });
         const isDaily = get().gameMode === GameMode.DAILY_CHALLENGE;
         const currentTier = get().gameMode === GameMode.ENDLESS
@@ -930,7 +975,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       const modeKey = get().gameMode;
       const currentHighs = get().highScores;
       const modeHighScore = currentHighs[modeKey] || 0;
-      if (newScore > modeHighScore) {
+      if (!isTutorialActive && newScore > modeHighScore) {
         const newHighs = { ...currentHighs, [modeKey]: newScore };
         set({ highScores: newHighs, highScore: newScore });
         try {
@@ -1085,8 +1130,62 @@ export const useGameStore = create<GameStore>((set, get) => {
               movedCells: eventClearActions.flatMap(action => action.movedCells || []),
               lockedIceCells: eventClearActions.flatMap(action => action.lockedIceCells || []),
               damagedIceCells: eventClearActions.flatMap(action => action.damagedIceCells || []),
+              damagedFireCells: eventClearActions.flatMap(action => action.damagedFireCells || []),
               bombCells: eventClearActions.flatMap(action => action.bombCells || []),
             };
+          }
+        }
+      }
+
+      let fireSpawnedCells: FireFeedbackCell[] = [];
+      let fireSpreadCells: FireFeedbackCell[] = [];
+      let nextPendingCorruption = get().pendingCorruption;
+
+      if (gameMode === GameMode.ENDLESS) {
+        const effectiveTier = tierResult?.difficultyTier ?? get().difficultyTier;
+        const spreadPendingTurns = getFireSpreadPendingTurns(newScore);
+        if (tierResult?.difficultyTier === 2) {
+          const fireResult = spawnTier2FireWithFeedback(finalGrid);
+          finalGrid = fireResult.grid;
+          fireSpawnedCells = fireResult.cells;
+          const plans = createTier2FireSpreadPlans(finalGrid);
+          nextPendingCorruption = plans.length > 0
+            ? { plans, turnsRemaining: spreadPendingTurns }
+            : null;
+        } else if (tierResult?.difficultyTier === 5 || tierResult?.difficultyTier === 6) {
+          const minimumFireCount = tierResult.difficultyTier === 5 ? 2 : 3;
+          const fireResult = ensureLateGameFireMinimumWithFeedback(finalGrid, minimumFireCount);
+          finalGrid = fireResult.grid;
+          fireSpawnedCells = fireResult.cells;
+          const plans = createTier2FireSpreadPlans(finalGrid);
+          nextPendingCorruption = plans.length > 0
+            ? { plans, turnsRemaining: spreadPendingTurns }
+            : null;
+        } else if (effectiveTier >= 2) {
+          const pending = get().pendingCorruption;
+          const validPlans = pending?.plans.filter(plan => (
+            isTier2FireSpreadPlanValid(finalGrid, plan)
+          )) ?? [];
+          if (pending && validPlans.length > 0) {
+            if (pending.turnsRemaining > 0) {
+              nextPendingCorruption = {
+                plans: validPlans,
+                turnsRemaining: pending.turnsRemaining - 1,
+              };
+            } else {
+              const fireResult = applyTier2FireSpreadPlans(finalGrid, validPlans);
+              finalGrid = fireResult.grid;
+              fireSpreadCells = fireResult.cells;
+              const nextPlans = createTier2FireSpreadPlans(finalGrid);
+              nextPendingCorruption = nextPlans.length > 0
+                ? { plans: nextPlans, turnsRemaining: spreadPendingTurns }
+                : null;
+            }
+          } else {
+            const plans = createTier2FireSpreadPlans(finalGrid);
+            nextPendingCorruption = plans.length > 0
+              ? { plans, turnsRemaining: spreadPendingTurns }
+              : null;
           }
         }
       }
@@ -1100,13 +1199,22 @@ export const useGameStore = create<GameStore>((set, get) => {
       const finalPerfectClear = finalGrid.every(row =>
         row.every(cell => !cell.filled || cell.type === CellType.VOID)
       );
+      const fireFeedbackLastAction = fireSpawnedCells.length > 0 || fireSpreadCells.length > 0
+        ? {
+            ...((eventUpdates as any)?.lastAction ?? (tierUpdates as any)?.lastAction ?? get().lastAction ?? { type: 'PLACE' as const }),
+            fireSpawnedCells,
+            fireSpreadCells,
+          }
+        : null;
 
       set({
         ...tierUpdates,
         ...eventUpdates,
+        ...(fireFeedbackLastAction ? { lastAction: fireFeedbackLastAction } : {}),
         grid: finalGrid,
+        pendingCorruption: nextPendingCorruption,
         score: newScore,
-        highScore: Math.max(newScore, get().highScore),
+        highScore: isTutorialActive ? get().highScore : Math.max(newScore, get().highScore),
         combo: newCombo,
         pieces: currentPieces,
         timeLeft: timedTimeLeft,
@@ -1136,7 +1244,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       });
 
       // Timed milestones + personal best
-      if (gameMode === GameMode.TIMED) {
+      if (gameMode === GameMode.TIMED && !isTutorialActive) {
         const reachedMilestones = get().timedMilestones;
         const newMilestone = checkTimedMilestones(newScore, reachedMilestones);
         if (newMilestone) {
@@ -1149,55 +1257,67 @@ export const useGameStore = create<GameStore>((set, get) => {
         }
       }
 
-      // Global stats
-      const currentStats = get().stats;
-      const nextStats: GameStats = {
-        ...currentStats,
-        blocksPlaced: currentStats.blocksPlaced + blocksPlaced,
-        linesCleared: currentStats.linesCleared + totalLinesCleared,
-        totalScore: currentStats.totalScore + totalPointsGained,
-        bombsExploded: currentStats.bombsExploded + totalBombsExploded,
-        iceBroken: currentStats.iceBroken + totalIceBroken,
-        perfectClears: (currentStats.perfectClears || 0) + (finalPerfectClear ? 1 : 0),
-        largePiecesPlaced: (currentStats.largePiecesPlaced || 0) + (isLargeAchievementPiece ? 1 : 0),
-        lineFivePiecesPlaced: (currentStats.lineFivePiecesPlaced || 0) + (isLineFivePiece ? 1 : 0),
-        hollow3x3PiecesPlaced: (currentStats.hollow3x3PiecesPlaced || 0) + (piece.id === 'hollow_3x3' ? 1 : 0),
-        square3x3PiecesPlaced: (currentStats.square3x3PiecesPlaced || 0) + (piece.id === 'square_3x3' ? 1 : 0),
-        largePieceClears: (currentStats.largePieceClears || 0) + (isLargeAchievementPiece && totalLinesCleared > 0 ? 1 : 0),
-      };
+      if (!isTutorialActive) {
+        // Tutorial actions are practice and must not alter lifetime stats or
+        // unlock real achievements.
+        const currentStats = get().stats;
+        const nextStats: GameStats = {
+          ...currentStats,
+          blocksPlaced: currentStats.blocksPlaced + blocksPlaced,
+          linesCleared: currentStats.linesCleared + totalLinesCleared,
+          totalScore: currentStats.totalScore + totalPointsGained,
+          bombsExploded: currentStats.bombsExploded + totalBombsExploded,
+          iceBroken: currentStats.iceBroken + totalIceBroken,
+          perfectClears: (currentStats.perfectClears || 0) + (finalPerfectClear ? 1 : 0),
+          largePiecesPlaced: (currentStats.largePiecesPlaced || 0) + (isLargeAchievementPiece ? 1 : 0),
+          lineFivePiecesPlaced: (currentStats.lineFivePiecesPlaced || 0) + (isLineFivePiece ? 1 : 0),
+          hollow3x3PiecesPlaced: (currentStats.hollow3x3PiecesPlaced || 0) + (piece.id === 'hollow_3x3' ? 1 : 0),
+          square3x3PiecesPlaced: (currentStats.square3x3PiecesPlaced || 0) + (piece.id === 'square_3x3' ? 1 : 0),
+          largePieceClears: (currentStats.largePieceClears || 0) + (isLargeAchievementPiece && totalLinesCleared > 0 ? 1 : 0),
+        };
 
-      if (gameMode === GameMode.ENDLESS) {
-        nextStats.endlessTotalLines = (currentStats.endlessTotalLines || 0) + totalLinesCleared;
-        nextStats.endlessMaxCombo = Math.max(currentStats.endlessMaxCombo || 0, newCombo);
-        nextStats.endlessMaxTier = Math.max(currentStats.endlessMaxTier || 0, get().difficultyTier);
-        if (tierResult && (tierResult as any).activeEvent) {
-          nextStats.endlessEventCount = (currentStats.endlessEventCount || 0) + 1;
+        if (gameMode === GameMode.ENDLESS) {
+          nextStats.endlessTotalLines = (currentStats.endlessTotalLines || 0) + totalLinesCleared;
+          nextStats.endlessMaxCombo = Math.max(currentStats.endlessMaxCombo || 0, newCombo);
+          nextStats.endlessMaxTier = Math.max(currentStats.endlessMaxTier || 0, get().difficultyTier);
+          if (tierResult && (tierResult as any).activeEvent) {
+            nextStats.endlessEventCount = (currentStats.endlessEventCount || 0) + 1;
+          }
+        } else if (gameMode === GameMode.TIMED) {
+          nextStats.timedTotalLines = (currentStats.timedTotalLines || 0) + linesCleared;
+          nextStats.timedMaxCombo = Math.max(currentStats.timedMaxCombo || 0, newCombo);
+          nextStats.timedSprintBonusTotal = (currentStats.timedSprintBonusTotal || 0) + sprintBonusGained;
         }
-      } else if (gameMode === GameMode.TIMED) {
-        nextStats.timedTotalLines = (currentStats.timedTotalLines || 0) + linesCleared;
-        nextStats.timedMaxCombo = Math.max(currentStats.timedMaxCombo || 0, newCombo);
-        nextStats.timedSprintBonusTotal = (currentStats.timedSprintBonusTotal || 0) + sprintBonusGained;
+
+        set({
+          stats: nextStats,
+          runLinesCleared: get().runLinesCleared + totalLinesCleared,
+        });
+        syncSaveStats(nextStats);
+
+        const previousAchievements = get().achievements;
+        const updatedAchievements = updateAchievements(previousAchievements, {
+          newScore, newCombo, previousCombo: combo,
+          totalBombsExploded: nextStats.bombsExploded || 0,
+          totalIceBroken: nextStats.iceBroken || 0,
+          stats: nextStats, gameMode,
+          difficultyTier: get().difficultyTier,
+          isPerfectClear: finalPerfectClear,
+          colorBonus: totalColorBonus, chainCount: maxChainCount,
+        });
+        const currentQueue = get().achievementNotificationQueue;
+        const notificationQueue = mergeAchievementNotificationQueue(
+          currentQueue,
+          previousAchievements,
+          updatedAchievements
+        );
+        set({
+          achievements: updatedAchievements,
+          achievementNotificationQueue: notificationQueue,
+          unlockedAchievementId: get().unlockedAchievementId ?? notificationQueue[0] ?? null,
+        });
+        syncNewAchievement(previousAchievements, updatedAchievements);
       }
-
-      set({
-        stats: nextStats,
-        runLinesCleared: get().runLinesCleared + totalLinesCleared,
-      });
-      syncSaveStats(nextStats);
-
-      const previousAchievements = get().achievements;
-      const updatedAchievements = updateAchievements(previousAchievements, {
-        newScore, newCombo, previousCombo: combo,
-        totalBombsExploded: nextStats.bombsExploded || 0,
-        totalIceBroken: nextStats.iceBroken || 0,
-        stats: nextStats, gameMode,
-        difficultyTier: get().difficultyTier,
-        isPerfectClear: finalPerfectClear,
-        colorBonus: totalColorBonus, chainCount: maxChainCount,
-      });
-      const newUnlock = updatedAchievements.find((ach, i) => ach.unlocked && !previousAchievements[i]?.unlocked);
-      set({ achievements: updatedAchievements, unlockedAchievementId: newUnlock ? newUnlock.id : get().unlockedAchievementId });
-      syncNewAchievement(previousAchievements, updatedAchievements);
 
       get().checkGameOver();
       return true;
@@ -1239,7 +1359,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     saveCurrentGame: () => {
       const state = get();
-      if (state.isGameOver || state.appState !== AppState.GAME) return false;
+      if (state.isGameOver || state.appState !== AppState.GAME || useTutorialStore.getState().isActive) return false;
       return saveGameState({
         grid: state.grid,
         pieces: state.pieces,

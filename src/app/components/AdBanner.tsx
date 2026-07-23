@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTutorialStore } from '../../features/tutorial/store/tutorialStore';
 import { useGameStore } from '@features/game/store/gameStore';
 import { AdManager } from '@core/services/ads/AdManager';
@@ -10,11 +10,19 @@ export interface AdBannerProps {
 export const AdBanner: React.FC<AdBannerProps> = React.memo(() => {
   const isTutorialActive = useTutorialStore(state => state.isActive);
   const isGameOver = useGameStore(state => state.isGameOver);
+  const [consentAllowsAds, setConsentAllowsAds] = useState(() => AdManager.canRequestAds());
+
+  useEffect(() => {
+    const handleConsentUpdate = () => setConsentAllowsAds(AdManager.canRequestAds());
+    window.addEventListener('fluxgrid-ad-consent-updated', handleConsentUpdate);
+    return () => window.removeEventListener('fluxgrid-ad-consent-updated', handleConsentUpdate);
+  }, []);
 
   // Detect native platform
   const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.();
   const shouldShowBanner =
     isNative &&
+    consentAllowsAds &&
     !isTutorialActive &&
     !isGameOver &&
     !AdManager.isNoAdsActive();
@@ -38,15 +46,22 @@ export const AdBanner: React.FC<AdBannerProps> = React.memo(() => {
     const timer = setTimeout(() => {
       AdManager.showBanner();
     }, 1500); // 1500ms delay for Activity stabilization
+    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
     
     // Listen for pause/resume events
     const handlePause = () => {
+      if (resumeTimer) {
+        clearTimeout(resumeTimer);
+        resumeTimer = null;
+      }
       AdManager.hideBanner();
     };
     
     const handleResume = () => {
       // Delay banner show to ensure smooth transition
-      setTimeout(() => {
+      if (resumeTimer) clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(() => {
+        resumeTimer = null;
         AdManager.showBanner();
       }, 500);
     };
@@ -56,6 +71,7 @@ export const AdBanner: React.FC<AdBannerProps> = React.memo(() => {
     
     return () => {
       clearTimeout(timer);
+      if (resumeTimer) clearTimeout(resumeTimer);
       window.removeEventListener('fluxgrid-pause', handlePause);
       window.removeEventListener('fluxgrid-resume', handleResume);
       AdManager.hideBanner();

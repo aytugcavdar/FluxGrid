@@ -1,250 +1,131 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import type { ComponentProps } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ContinueModal } from './ContinueModal';
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: { count?: number }) => {
+      const translations: Record<string, string> = {
+        'continueModal.title': 'CONTINUE?',
+        'continueModal.subtitle': "Your game isn't over!",
+        'continueModal.summaryTitle': 'Safe space + 3 new pieces',
+        'continueModal.summarySubtitle': 'Your score stays safe.',
+        'continueModal.watchAd': 'Watch Ad & Continue',
+        'continueModal.loading': 'Loading ad...',
+        'continueModal.limitReached': 'Daily limit reached',
+        'continueModal.remaining_other': `${options?.count ?? 0} uses remaining today`,
+        'continueModal.noThanks': 'No thanks, exit',
+      };
+      return translations[key] ?? key;
+    },
+  }),
+}));
+
+const renderModal = (overrides: Partial<ComponentProps<typeof ContinueModal>> = {}) => {
+  const props: ComponentProps<typeof ContinueModal> = {
+    isVisible: true,
+    onContinue: vi.fn(),
+    onDecline: vi.fn(),
+    canContinue: true,
+    usesRemaining: 2,
+    ...overrides,
+  };
+  return { ...render(<ContinueModal {...props} />), props };
+};
+
 describe('ContinueModal', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('renders the current continue offer', () => {
+    renderModal();
+
+    expect(screen.getByText('CONTINUE?')).toBeInTheDocument();
+    expect(screen.getByText('2 uses remaining today')).toBeInTheDocument();
+    expect(screen.getByText('Safe space + 3 new pieces')).toBeInTheDocument();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('should render with correct props', () => {
+  it('calls onContinue from the rewarded button', () => {
     const onContinue = vi.fn();
-    const onDecline = vi.fn();
+    renderModal({ onContinue });
 
-    render(
-      <ContinueModal
-        isVisible={true}
-        onContinue={onContinue}
-        onDecline={onDecline}
-        canContinue={true}
-        usesRemaining={2}
-      />
-    );
-
-    expect(screen.getByText('Continue?')).toBeInTheDocument();
-    expect(screen.getByText(/2.*uses.*remaining/i)).toBeInTheDocument();
-    expect(screen.getByText('💀')).toBeInTheDocument();
-  });
-
-  it('should call onContinue when Watch Ad button clicked', () => {
-    const onContinue = vi.fn();
-    const onDecline = vi.fn();
-
-    render(
-      <ContinueModal
-        isVisible={true}
-        onContinue={onContinue}
-        onDecline={onDecline}
-        canContinue={true}
-        usesRemaining={2}
-      />
-    );
-
-    const button = screen.getByRole('button', { name: /watch ad/i });
-    fireEvent.click(button);
+    fireEvent.click(screen.getByRole('button', { name: /watch ad/i }));
     expect(onContinue).toHaveBeenCalledTimes(1);
   });
 
-  it('should disable button when canContinue is false', () => {
-    render(
-      <ContinueModal
-        isVisible={true}
-        onContinue={vi.fn()}
-        onDecline={vi.fn()}
-        canContinue={false}
-        usesRemaining={0}
-      />
-    );
+  it('disables rewarded continue when unavailable', () => {
+    renderModal({ canContinue: false, usesRemaining: 0 });
 
-    const button = screen.getByRole('button', { name: /daily limit reached/i });
-    expect(button).toBeDisabled();
-    expect(screen.getByText(/daily limit reached/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /daily limit reached/i })).toBeDisabled();
+    expect(screen.queryByText(/uses remaining today/i)).not.toBeInTheDocument();
   });
 
-  it('should display uses remaining count', () => {
-    render(
-      <ContinueModal
-        isVisible={true}
-        onContinue={vi.fn()}
-        onDecline={vi.fn()}
-        canContinue={true}
-        usesRemaining={1}
-      />
-    );
-
-    expect(screen.getByText(/1 use remaining today/i)).toBeInTheDocument();
-  });
-
-  it('should display plural uses for multiple remaining', () => {
-    render(
-      <ContinueModal
-        isVisible={true}
-        onContinue={vi.fn()}
-        onDecline={vi.fn()}
-        canContinue={true}
-        usesRemaining={3}
-      />
-    );
-
-    expect(screen.getByText(/3 uses remaining today/i)).toBeInTheDocument();
-  });
-
-  it('should auto-decline after 5 seconds', async () => {
+  it('auto-declines after seven seconds', async () => {
     const onDecline = vi.fn();
+    renderModal({ onDecline });
 
-    render(
-      <ContinueModal
-        isVisible={true}
-        onContinue={vi.fn()}
-        onDecline={onDecline}
-        canContinue={true}
-        usesRemaining={2}
-      />
-    );
-
-    // Fast-forward 5 seconds
-    await vi.advanceTimersByTimeAsync(5000);
-
+    await act(async () => vi.advanceTimersByTimeAsync(7000));
     expect(onDecline).toHaveBeenCalledTimes(1);
   });
 
-  it('should call onDecline when "No, exit" link clicked', () => {
+  it('calls onDecline from the exit button', () => {
     const onDecline = vi.fn();
+    renderModal({ onDecline });
 
-    render(
-      <ContinueModal
-        isVisible={true}
-        onContinue={vi.fn()}
-        onDecline={onDecline}
-        canContinue={true}
-        usesRemaining={2}
-      />
-    );
+    fireEvent.click(screen.getByRole('button', { name: /no thanks, exit/i }));
+    expect(onDecline).toHaveBeenCalledTimes(1);
+  });
 
-    const exitButton = screen.getByRole('button', { name: /no, exit/i });
+  it('updates the countdown once per second', async () => {
+    renderModal();
+    expect(screen.getByText(/\(7\)$/)).toBeInTheDocument();
+
+    await act(async () => vi.advanceTimersByTimeAsync(2000));
+    expect(screen.getByText(/\(5\)$/)).toBeInTheDocument();
+  });
+
+  it('does not render while hidden', () => {
+    renderModal({ isVisible: false });
+    expect(screen.queryByText('CONTINUE?')).not.toBeInTheDocument();
+  });
+
+  it('resets the countdown when reopened', async () => {
+    const { rerender, props } = renderModal();
+    await act(async () => vi.advanceTimersByTimeAsync(2000));
+    expect(screen.getByText(/\(5\)$/)).toBeInTheDocument();
+
+    rerender(<ContinueModal {...props} isVisible={false} />);
+    rerender(<ContinueModal {...props} isVisible={true} />);
+    expect(screen.getByText(/\(7\)$/)).toBeInTheDocument();
+  });
+
+  it('declines when the backdrop is pressed', () => {
+    const onDecline = vi.fn();
+    renderModal({ onDecline });
+
+    fireEvent.click(screen.getByTestId('continue-backdrop'));
+    expect(onDecline).toHaveBeenCalledTimes(1);
+  });
+
+  it('pauses the countdown while an ad is loading', async () => {
+    const onDecline = vi.fn();
+    renderModal({ isLoading: true, onDecline });
+
+    await act(async () => vi.advanceTimersByTimeAsync(10000));
+    expect(onDecline).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /loading ad/i })).toBeDisabled();
+  });
+
+  it('blocks dismiss actions while an ad is loading', () => {
+    const onDecline = vi.fn();
+    renderModal({ isLoading: true, onDecline });
+
+    const exitButton = screen.getByRole('button', { name: /no thanks, exit/i });
+    expect(exitButton).toBeDisabled();
+
     fireEvent.click(exitButton);
-    expect(onDecline).toHaveBeenCalledTimes(1);
-  });
-
-  it('should update countdown timer', async () => {
-    render(
-      <ContinueModal
-        isVisible={true}
-        onContinue={vi.fn()}
-        onDecline={vi.fn()}
-        canContinue={true}
-        usesRemaining={2}
-      />
-    );
-
-    // Initial countdown should be 5
-    expect(screen.getByText('5')).toBeInTheDocument();
-
-    // Advance 1 second
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1000);
-    });
-    expect(screen.getByText('4')).toBeInTheDocument();
-
-    // Advance another second
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1000);
-    });
-    expect(screen.getByText('3')).toBeInTheDocument();
-  });
-
-  it('should not render when isVisible is false', () => {
-    render(
-      <ContinueModal
-        isVisible={false}
-        onContinue={vi.fn()}
-        onDecline={vi.fn()}
-        canContinue={true}
-        usesRemaining={2}
-      />
-    );
-
-    expect(screen.queryByText('Continue?')).not.toBeInTheDocument();
-  });
-
-  it('should reset countdown when modal becomes visible again', async () => {
-    const { rerender } = render(
-      <ContinueModal
-        isVisible={true}
-        onContinue={vi.fn()}
-        onDecline={vi.fn()}
-        canContinue={true}
-        usesRemaining={2}
-      />
-    );
-
-    // Advance 2 seconds
-    await vi.advanceTimersByTimeAsync(2000);
-    expect(screen.getByText('3')).toBeInTheDocument();
-
-    // Hide modal
-    rerender(
-      <ContinueModal
-        isVisible={false}
-        onContinue={vi.fn()}
-        onDecline={vi.fn()}
-        canContinue={true}
-        usesRemaining={2}
-      />
-    );
-
-    // Show modal again
-    rerender(
-      <ContinueModal
-        isVisible={true}
-        onContinue={vi.fn()}
-        onDecline={vi.fn()}
-        canContinue={true}
-        usesRemaining={2}
-      />
-    );
-
-    // Countdown should reset to 5
-    expect(screen.getByText('5')).toBeInTheDocument();
-  });
-
-  it('should display grid clear info', () => {
-    render(
-      <ContinueModal
-        isVisible={true}
-        onContinue={vi.fn()}
-        onDecline={vi.fn()}
-        canContinue={true}
-        usesRemaining={2}
-      />
-    );
-
-    expect(screen.getByText(/grid will be partially cleared/i)).toBeInTheDocument();
-    expect(screen.getByText(/you'll get 3 new pieces/i)).toBeInTheDocument();
-  });
-
-  it('should call onDecline when backdrop is clicked', () => {
-    const onDecline = vi.fn();
-
-    render(
-      <ContinueModal
-        isVisible={true}
-        onContinue={vi.fn()}
-        onDecline={onDecline}
-        canContinue={true}
-        usesRemaining={2}
-      />
-    );
-
-    // Click the backdrop (the first div with backdrop-blur)
-    const backdrop = document.querySelector('.backdrop-blur-md');
-    if (backdrop) {
-      fireEvent.click(backdrop);
-      expect(onDecline).toHaveBeenCalledTimes(1);
-    }
+    fireEvent.click(screen.getByTestId('continue-backdrop'));
+    expect(onDecline).not.toHaveBeenCalled();
   });
 });

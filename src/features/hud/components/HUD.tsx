@@ -11,16 +11,17 @@ import { ScoreImpactValue } from './ScoreImpactValue';
 import { TierProgressInline } from './TierProgressInline';
 import { Capacitor } from '@capacitor/core';
 import { usePerformanceStore } from '../../performance/store/performanceStore';
+import { useTranslation } from 'react-i18next';
 
 const EVENT_CONFIG: Record<
   'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID',
-  { label: string; color: string; bg: string; icon: string }
+  { labelKey: string; color: string; bg: string; icon: string }
 > = {
-    ICE_STORM:    { label: 'Buz Fırtınası',              color: '#38adf5', bg: 'rgba(56,173,245,0.1)',   icon: '❄️' },
-    QUAKE:        { label: 'Deprem!',                    color: '#f97316', bg: 'rgba(249,115,22,0.1)',   icon: '🌋' },
-    MIRROR:       { label: 'Ayna Modu',                  color: '#f472b6', bg: 'rgba(244,114,182,0.1)', icon: '🪞' },
-    CHAOS:        { label: 'Kaos!',                      color: '#a855f7', bg: 'rgba(168,85,247,0.1)',  icon: '💥' },
-    VOID:         { label: 'Void Bölgeleri',             color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',  icon: '🕳️' },
+    ICE_STORM:    { labelKey: 'hud.events.iceStorm', color: '#38adf5', bg: 'rgba(56,173,245,0.1)', icon: '❄️' },
+    QUAKE:        { labelKey: 'hud.events.quake', color: '#f97316', bg: 'rgba(249,115,22,0.1)', icon: '🌋' },
+    MIRROR:       { labelKey: 'hud.events.mirror', color: '#f472b6', bg: 'rgba(244,114,182,0.1)', icon: '🪞' },
+    CHAOS:        { labelKey: 'hud.events.chaos', color: '#a855f7', bg: 'rgba(168,85,247,0.1)', icon: '💥' },
+    VOID:         { labelKey: 'hud.events.void', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', icon: '🕳️' },
 };
 
 /* ─── Animated score number ─── */
@@ -54,6 +55,7 @@ const getComboFeedback = (combo: number) => {
 };
 
 const ComboBadge: React.FC = React.memo(() => {
+    const { t } = useTranslation();
     const combo = useGameStore(state => state.combo);
     const comboTimeLeft = useGameStore(state => state.comboTimeLeft);
     const comboTimerDuration = useGameStore(state => state.comboTimerDuration);
@@ -125,7 +127,7 @@ const ComboBadge: React.FC = React.memo(() => {
                 position: 'relative',
                 color,
             }}
-            aria-label={`${combo} combo, ${Math.ceil(timeLeft)} saniye kaldi`}
+            aria-label={t('hud.comboTimeAria', { combo, seconds: Math.ceil(timeLeft) })}
         >
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, lineHeight: 1 }}>
                 <span style={{ fontSize: combo >= 10 ? 13 : 14, fontWeight: 950, fontVariantNumeric: 'tabular-nums' }}>
@@ -160,6 +162,7 @@ const ComboBadge: React.FC = React.memo(() => {
 
 /* ══════════════════════════════════════════════════════════════ */
 export const HUD: React.FC = React.memo(() => {
+    const { t } = useTranslation();
     const {
         score, highScore, combo,
         gameMode, setAppState,
@@ -245,7 +248,7 @@ export const HUD: React.FC = React.memo(() => {
                                     letterSpacing: '0.08em', textTransform: 'uppercase',
                                     color: colors.textTertiary, opacity: 0.52,
                                 }}>
-                                    SKOR
+                                    {t('hud.score')}
                                 </span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                                     <AnimatedScore
@@ -273,7 +276,7 @@ export const HUD: React.FC = React.memo(() => {
                                 letterSpacing: '0.5px', textTransform: 'uppercase',
                                 color: colors.textTertiary, opacity: 0.55,
                             }}>
-                                EN İYİ
+                                {t('hud.best')}
                             </span>
                             <span style={{
                                 fontSize: 12, fontWeight: 800, lineHeight: 1,
@@ -354,7 +357,7 @@ export const HUD: React.FC = React.memo(() => {
                                     color: EVENT_CONFIG[activeEvent].color,
                                     display: 'flex', alignItems: 'center', gap: 5,
                                 }}>
-                                    {EVENT_CONFIG[activeEvent].icon} {EVENT_CONFIG[activeEvent].label}
+                                    {EVENT_CONFIG[activeEvent].icon} {t(EVENT_CONFIG[activeEvent].labelKey)}
                                 </span>
                             </div>
 

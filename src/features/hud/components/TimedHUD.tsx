@@ -7,6 +7,7 @@ import { TIMED_MODE } from '../../game/constants';
 import { getMuted, toggleMute, playClick } from '../../../utils/audio';
 import { ScoreImpactValue } from './ScoreImpactValue';
 import { Capacitor } from '@capacitor/core';
+import { useTranslation } from 'react-i18next';
 
 /* Evaluated once at module load — avoids repeated media query lookups per render */
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -29,6 +30,7 @@ const CircularTimer: React.FC<{
     seconds?: number;
   } | null;
 }> = ({ timeLeft, expectedEnd, totalTime = TOTAL_TIME, timedEvent }) => {
+  const { t } = useTranslation();
   const criticalSpanRef = useRef<HTMLSpanElement>(null);
   const isCritical = timeLeft <= TIMED_MODE.FINAL_SECONDS_THRESHOLD && timeLeft > 0;
   const isWarning  = timeLeft <= TIMED_MODE.WARNING_THRESHOLD && timeLeft > 0;
@@ -198,7 +200,7 @@ const CircularTimer: React.FC<{
               pointerEvents: 'none',
             }}
           >
-            FINAL
+            {t('timedHud.final')}
           </motion.div>
         )}
       </AnimatePresence>
@@ -231,6 +233,7 @@ const AnimatedScore: React.FC<{ value: number; color: string; deferImpact: boole
    ANA TIMED HUD
    ═══════════════════════════════════════════════════════════════ */
 export const TimedHUD: React.FC = React.memo(() => {
+  const { t } = useTranslation();
   const {
     score, combo,
     timeLeft, timerExpectedEnd, setAppState,
@@ -283,15 +286,38 @@ export const TimedHUD: React.FC = React.memo(() => {
   const comboGlow = combo >= 8 ? '#f472b6' : combo >= 5 ? '#f59e0b' : '#34d399';
   const isFinalRush = timedFinalRushLocked || isCritical;
   const timedInfoLabel = timedLastChanceActive
-    ? 'CLEAR +5 SN'
+    ? t('timedHud.clearSeconds', { seconds: TIMED_MODE.LAST_CHANCE_SECONDS })
     : isFinalRush
-      ? 'SURE=SKOR'
-      : timedLastChanceAvailable ? 'SON SANS' : 'KULLANILDI';
+      ? t('timedHud.timeEqualsScore')
+      : timedLastChanceAvailable ? t('timedHud.lastChance') : t('timedHud.used');
   const boostLabel = timedLastChanceActive
-    ? 'SON HAMLE'
+    ? t('timedHud.lastMove')
     : isFinalRush
       ? timedInfoLabel
-      : timedMomentum >= 80 ? 'BOOST HAZIR' : 'CLEAR BOOST';
+      : timedMomentum >= 80 ? t('timedHud.boostReady') : t('timedHud.clearBoost');
+  const timedEventLabel = (() => {
+    if (!lastTimedEvent) return '';
+    if (lastTimedEvent.type === 'LAST_CHANCE') {
+      return t('timedHud.events.lastChance', { seconds: lastTimedEvent.seconds || TIMED_MODE.LAST_CHANCE_SECONDS });
+    }
+    if (lastTimedEvent.type === 'TARGET') {
+      const parts = [t('timedHud.events.target', { count: lastTimedEvent.targetCount || 1 })];
+      if ((lastTimedEvent.seconds || 0) > 0) {
+        parts.push(t('timedHud.events.secondsReward', { seconds: lastTimedEvent.seconds }));
+      }
+      if ((lastTimedEvent.score || 0) > 0) {
+        parts.push(t('timedHud.events.scoreReward', { score: lastTimedEvent.score }));
+      }
+      return parts.join(' · ');
+    }
+    if (lastTimedEvent.type === 'FREEZE') {
+      return t('timedHud.events.freeze', { seconds: lastTimedEvent.seconds || 0 });
+    }
+    if (lastTimedEvent.type === 'CLEAR_TIME') {
+      return t('timedHud.events.clearTime', { seconds: lastTimedEvent.seconds || 0 });
+    }
+    return t('timedHud.events.finalRush', { score: lastTimedEvent.score || 0 });
+  })();
 
   return (
     <>
@@ -315,11 +341,14 @@ export const TimedHUD: React.FC = React.memo(() => {
           border: `1px solid ${timedLastChanceActive ? 'rgba(251,191,36,0.52)' : 'rgba(251,191,36,0.28)'}`,
           pointerEvents: 'none',
         }}
-        aria-label={`Clear boost yuzde ${timedMomentum}. Son sans ${timedLastChanceAvailable ? 'hazir' : 'kullanildi'}.`}
+        aria-label={t('timedHud.boostAria', {
+          progress: timedMomentum,
+          status: timedLastChanceAvailable ? t('timedHud.ready') : t('timedHud.used'),
+        })}
       >
         <Zap size={11} color="#fbbf24" />
         <span style={{ fontSize: 7.5, fontWeight: 900, color: '#fbbf24', letterSpacing: '0.08em' }}>
-          BOOST
+          {t('timedHud.boost')}
         </span>
         <div style={{
           flex: 1,
@@ -383,7 +412,7 @@ export const TimedHUD: React.FC = React.memo(() => {
             role="status"
             aria-live="assertive"
           >
-            {lastTimedEvent.label}
+            {timedEventLabel}
           </motion.div>
         )}
       </AnimatePresence>
@@ -463,7 +492,7 @@ export const TimedHUD: React.FC = React.memo(() => {
                 justifyContent: 'space-between',
                 marginBottom: 3,
               }}
-              aria-label={`Personal best: ${stats.timedHighScore || 0}`}
+              aria-label={t('timedHud.personalBestAria', { score: stats.timedHighScore || 0 })}
             >
               <span style={{
                 fontSize: 7.5,
@@ -473,7 +502,7 @@ export const TimedHUD: React.FC = React.memo(() => {
                 textTransform: 'uppercase',
                 lineHeight: 1,
               }}>
-                EN İYİ
+                {t('hud.best')}
               </span>
               <span style={{
                 fontSize: 11,
@@ -584,7 +613,7 @@ export const TimedHUD: React.FC = React.memo(() => {
                   <Zap size={10} color="#fbbf24" fill="#fbbf24" />
                 </motion.div>
                 <span style={{ fontSize: 8.5, fontWeight: 700, color: '#fef3c7', letterSpacing: '0.07em' }}>
-                  FINAL SPRINT — ×1.5 AKTİF
+                  {t('timedHud.finalSprintActive')}
                 </span>
                 <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
                   {Array.from({ length: timedBoostMovesLeft }).map((_, i) => (
@@ -604,92 +633,6 @@ export const TimedHUD: React.FC = React.memo(() => {
                   ))}
                 </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── ROW 3: New Record Notification ── */}
-        <AnimatePresence>
-          {false && (
-            <motion.div
-              initial={{ opacity: 0, y: -10, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.9 }}
-              transition={{ 
-                duration: prefersReducedMotion ? 0.01 : 0.3, 
-                ease: 'easeOut',
-              }}
-              style={{ 
-                overflow: 'hidden', 
-                padding: '0 6px',
-              }}
-              aria-live="polite"
-              role="status"
-            >
-              <motion.div
-                animate={{
-                  boxShadow: useReducedGameplayMotion
-                    ? '0 2px 8px rgba(0,0,0,0.18)'
-                    : [
-                        '0 0 20px rgba(34,197,94,0.4)',
-                        '0 0 30px rgba(34,197,94,0.6)',
-                        '0 0 20px rgba(34,197,94,0.4)',
-                      ],
-                }}
-                transition={{ 
-                  duration: 1.5, 
-                  repeat: useReducedGameplayMotion ? 0 : Infinity,
-                  ease: 'easeInOut',
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  padding: '8px 16px',
-                  background: 'rgba(34,197,94,0.12)',
-                  border: '2px solid rgba(34,197,94,0.5)',
-                  borderRadius: 12,
-                  backdropFilter: useReducedGameplayMotion ? 'none' : 'blur(12px)',
-                }}
-              >
-                <motion.span
-                  animate={useReducedGameplayMotion ? { scale: 1 } : { scale: [1, 1.2, 1] }}
-                  transition={{ 
-                    duration: 0.8, 
-                    repeat: useReducedGameplayMotion ? 0 : Infinity,
-                  }}
-                  style={{ fontSize: 18, lineHeight: 1 }}
-                >
-                  🏆
-                </motion.span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 900,
-                      color: '#22c55e',
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                      lineHeight: 1,
-                      textShadow: useReducedGameplayMotion ? 'none' : '0 0 10px rgba(34,197,94,0.5)',
-                    }}
-                  >
-                    YENİ REKOR!
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 800,
-                      color: '#86efac',
-                      letterSpacing: '-0.02em',
-                      lineHeight: 1,
-                    }}
-                  >
-                    +0
-                  </span>
-                </div>
-              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -749,7 +692,7 @@ export const TimedHUD: React.FC = React.memo(() => {
                     textShadow: useReducedGameplayMotion ? 'none' : '0 0 12px rgba(192,132,252,0.6)',
                   }}
                 >
-                  {lastMilestoneShown.label}
+                  {t(`timedHud.milestones.${lastMilestoneShown.id}`, lastMilestoneShown.label)}
                 </span>
               </motion.div>
             </motion.div>

@@ -30,7 +30,10 @@ const getTrayBlockSize = (shape: boolean[][], windowWidth: number) => {
   const gap = windowWidth < 400 ? 1 : windowWidth < 768 ? 1.5 : 2;
   const baseBlockSize = Math.max(12, Math.min(22, windowWidth / 28));
   const slotWidth = Math.max(64, (windowWidth - 34) / 3);
-  const slotHeight = windowWidth >= 768 ? 76 : windowWidth >= 411 ? 58 : 54;
+  // The tray is transparent, so tall pieces can use nearly all of its visual
+  // height without colliding with a card boundary. This keeps 1x5 pieces from
+  // looking disproportionately small next to the rest of the tray.
+  const slotHeight = windowWidth >= 768 ? 112 : windowWidth >= 411 ? 74 : 72;
   const maxByWidth = (slotWidth - (gap * (cols - 1)) - 10) / cols;
   const maxByHeight = (slotHeight - (gap * (rows - 1)) - 6) / rows;
 
@@ -159,7 +162,7 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
                 ? (p.type === CellType.ICE
                     ? 'linear-gradient(145deg, #e6f8ff 0%, #83d7ef 52%, #1686b1 100%)'
                     : p.type === CellType.BOMB
-                      ? 'radial-gradient(circle at 38% 34%, #57534e 0%, #1c1917 48%, #09090b 100%)'
+                      ? 'radial-gradient(circle at 38% 30%, #ff6b61 0%, #dc2626 48%, #7f1d1d 100%)'
                       : p.type === CellType.STONE
                         ? 'linear-gradient(145deg, #94a3b8 0%, #475569 58%, #1e293b 100%)'
                         : p.color)
@@ -168,7 +171,7 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
                 ? (p.type === CellType.ICE
                     ? '1px solid rgba(224,242,254,0.95)'
                     : p.type === CellType.BOMB
-                      ? '1px solid #ef4444'
+                      ? '1px solid #ff8a80'
                       : p.type === CellType.STONE
                         ? '1px solid #cbd5e1'
                         : 'none')
@@ -178,7 +181,7 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
                     p.type === CellType.ICE 
                       ? '#93c5fd' 
                       : p.type === CellType.BOMB 
-                        ? '#f87171'
+                        ? '#ef4444'
                         : p.type === CellType.STONE
                           ? '#cbd5e1'
                           : p.color
@@ -203,7 +206,7 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
             {filled && p.type === CellType.BOMB && (
               <span style={{
                 position: 'absolute', left: '28%', top: '32%', width: '44%', height: '44%',
-                borderRadius: '50%', background: '#09090b', border: '1px solid #f97316',
+                borderRadius: '50%', background: '#111827', border: '1px solid #fbbf24',
               }} />
             )}
             {filled && p.type === CellType.STONE && (
@@ -256,7 +259,13 @@ export const Piece: React.FC<Props> = React.memo(({ piece, index = 0 }) => {
       >
         {/* Special Icon Badge */}
         {piece.type === CellType.BOMB && (
-          <div className="absolute -top-0.5 -right-0.5 w-4 h-4 md:w-5 md:h-5 bg-red-500 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white shadow-lg z-10">
+          <div
+            className="absolute -top-0.5 -right-0.5 w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold text-white shadow-lg z-10"
+            style={{
+              background: 'linear-gradient(145deg, #ef4444, #991b1b)',
+              border: '1px solid #ff8a80',
+            }}
+          >
             {String.fromCodePoint(0x1F4A3)}
           </div>
         )}

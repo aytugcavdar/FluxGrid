@@ -36,6 +36,13 @@ export interface ClearAction {
     color: string;
     health: number;
   }>;
+  damagedFireCells: Array<{
+    id?: string;
+    x: number;
+    y: number;
+    color: string;
+    health: number;
+  }>;
   bombCells: Array<{
     id?: string;
     x: number;
@@ -142,6 +149,7 @@ export const processGrid = (initialGrid: GridState, options: ProcessGridOptions 
       const processedBombs = new Set<string>();
       const explosionQueue: {x: number, y: number}[] = [];
       const damagedIceCells: ClearAction['damagedIceCells'] = [];
+      const damagedFireCells: ClearAction['damagedFireCells'] = [];
       const bombCells: ClearAction['bombCells'] = [];
 
       const processHit = (x: number, y: number) => {
@@ -153,6 +161,16 @@ export const processGrid = (initialGrid: GridState, options: ProcessGridOptions 
           const nextHealth = (cell.health || 2) - 1;
           currentGrid[y][x] = { ...cell, health: nextHealth };
           damagedIceCells.push({
+            id: cell.id,
+            x,
+            y,
+            color: cell.color,
+            health: nextHealth,
+          });
+        } else if (cell.type === CellType.FIRE && (cell.health || 0) > 1) {
+          const nextHealth = (cell.health || 2) - 1;
+          currentGrid[y][x] = { ...cell, health: nextHealth };
+          damagedFireCells.push({
             id: cell.id,
             x,
             y,
@@ -233,6 +251,7 @@ export const processGrid = (initialGrid: GridState, options: ProcessGridOptions 
           movedCells,
           lockedIceCells,
           damagedIceCells,
+          damagedFireCells,
           bombCells,
           chainIndex: chainCount
         });

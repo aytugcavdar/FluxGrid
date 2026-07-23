@@ -1,4 +1,4 @@
-import { GRID_SIZE, type GridState, type Piece } from '../../types';
+import { CellType, GRID_SIZE, type GridState, type Piece } from '../../types';
 
 export interface BoardMetrics {
   padding: number;
@@ -39,6 +39,11 @@ export interface GridRenderProfile {
   pixelRatioCap: number;
   particleMultiplier: number;
   effectLevel: 'minimal' | 'reduced' | 'full';
+}
+
+export interface ClearPreviewLines {
+  rows: number[];
+  cols: number[];
 }
 
 export function getGridRenderProfile(deviceTier: string, isAndroid: boolean): GridRenderProfile {
@@ -208,6 +213,59 @@ export function createClearParticles(cells: ClearedCell[], maxParticles = 24): C
   });
 
   return particles;
+}
+
+export function getClearPreviewLines(
+  grid: GridState,
+  piece: Piece,
+  originX: number,
+  originY: number
+): ClearPreviewLines {
+  const placedCells = new Set<string>();
+  const candidateRows = new Set<number>();
+  const candidateCols = new Set<number>();
+
+  for (let dy = 0; dy < piece.shape.length; dy++) {
+    for (let dx = 0; dx < piece.shape[dy].length; dx++) {
+      if (!piece.shape[dy][dx]) continue;
+
+      const x = originX + dx;
+      const y = originY + dy;
+      if (
+        x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE
+        || grid[y]?.[x]?.filled
+      ) {
+        return { rows: [], cols: [] };
+      }
+
+      placedCells.add(`${x},${y}`);
+      candidateRows.add(y);
+      candidateCols.add(x);
+    }
+  }
+
+  const isOccupied = (x: number, y: number): boolean => {
+    const cell = grid[y]?.[x];
+    const isPlaced = placedCells.has(`${x},${y}`) && piece.type !== CellType.VOID;
+    return isPlaced || Boolean(cell?.filled && cell.type !== CellType.VOID);
+  };
+  const rows: number[] = [];
+  const cols: number[] = [];
+
+  candidateRows.forEach((y) => {
+    for (let x = 0; x < GRID_SIZE; x++) {
+      if (!isOccupied(x, y)) return;
+    }
+    rows.push(y);
+  });
+  candidateCols.forEach((x) => {
+    for (let y = 0; y < GRID_SIZE; y++) {
+      if (!isOccupied(x, y)) return;
+    }
+    cols.push(x);
+  });
+
+  return { rows, cols };
 }
 
 export function getBoardMetrics(size: number): BoardMetrics {

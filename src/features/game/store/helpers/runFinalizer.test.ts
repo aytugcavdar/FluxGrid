@@ -4,6 +4,7 @@ import { GameMode, type GameStats } from '@shared/types';
 vi.mock('./achievementSystem', () => ({
   updateAchievements: (achievements: unknown[]) => achievements,
   syncNewAchievement: vi.fn(),
+  mergeAchievementNotificationQueue: (queue: string[]) => queue,
 }));
 
 vi.mock('@core/services/ads/AdManager', () => ({

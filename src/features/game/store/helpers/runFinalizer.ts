@@ -1,5 +1,9 @@
 import { GameMode, type GameStats } from '@shared/types';
-import { updateAchievements, syncNewAchievement } from './achievementSystem';
+import {
+  mergeAchievementNotificationQueue,
+  updateAchievements,
+  syncNewAchievement,
+} from './achievementSystem';
 import { clearGameSave } from './gameSaveSystem';
 
 type StoreGet = () => any;
@@ -58,12 +62,18 @@ export function finalizeGameRun(get: StoreGet, set: StoreSet, saveStats: SaveSta
     stats: updatedStats, gameMode, difficultyTier: get().difficultyTier,
     isPerfectClear: false, colorBonus: false, chainCount: 0,
   });
-  const finalUnlock = updatedAchievements.find((ach, i) => ach.unlocked && !previousAchievements[i]?.unlocked);
+  const currentQueue: string[] = get().achievementNotificationQueue || [];
+  const notificationQueue = mergeAchievementNotificationQueue(
+    currentQueue,
+    previousAchievements,
+    updatedAchievements
+  );
 
   set({
     stats: updatedStats,
     achievements: updatedAchievements,
-    unlockedAchievementId: finalUnlock ? finalUnlock.id : get().unlockedAchievementId,
+    achievementNotificationQueue: notificationQueue,
+    unlockedAchievementId: get().unlockedAchievementId ?? notificationQueue[0] ?? null,
     gameOverFinalized: true,
   });
   saveStats(updatedStats);

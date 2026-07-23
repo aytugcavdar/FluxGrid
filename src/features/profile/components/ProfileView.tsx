@@ -5,6 +5,8 @@ import { ChevronLeft, Download, Flame } from 'lucide-react';
 import { playClick } from '../../../utils/audio';
 import { GameMode } from '@shared/types';
 import clsx from 'clsx';
+import { useTranslation } from 'react-i18next';
+import { getAchievementPresentation } from '../../achievements/achievementPresentation';
 
 interface ProfileViewProps {
   onClose: () => void;
@@ -14,6 +16,7 @@ interface ProfileViewProps {
 type TabType = 'stats' | 'modes' | 'skills' | 'achievements';
 
 export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderboard }) => {
+  const { t } = useTranslation();
   const { stats, achievements: rawAchievements, highScore, maxLevelReached } = useGameStore();
   const [activeTab, setActiveTab] = useState<TabType>('stats');
 
@@ -370,7 +373,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderb
 
               {/* Achievement List - Ultra compact for mobile */}
               <div className="space-y-1.5">
-                {achievements.map((ach) => (
+                {achievements.map((ach) => {
+                  const presentation = getAchievementPresentation(ach, t);
+                  return (
                   <div
                     key={ach.id}
                     className={clsx(
@@ -387,8 +392,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderb
                       {ach.unlocked ? '✓' : '🔒'}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-xs font-bold text-white truncate">{ach.name}</h3>
-                      <p className="text-xs text-gray-400 truncate">{ach.description}</p>
+                      <h3 className="text-xs font-bold text-white truncate">{presentation.name}</h3>
+                      <p className="text-xs text-gray-400 truncate">{presentation.description}</p>
                       {!ach.unlocked && ach.currentValue > 0 && (
                         <div className="mt-1">
                           <div className="w-full h-0.5 bg-gray-900 rounded-full overflow-hidden">
@@ -401,7 +406,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onClose, onOpenLeaderb
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </motion.div>
           )}

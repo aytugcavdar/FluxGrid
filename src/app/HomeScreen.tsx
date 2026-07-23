@@ -5,8 +5,12 @@ import { useGameStore } from '../features/game/store/gameStore';
 import { useSettingsStore } from '@core/state/settingsStore';
 import { GameMode } from '@shared/types';
 import { playClick } from '@utils/audio';
-import { detectDeviceCapabilities } from '../utils/platform/deviceCapability';
+import {
+  detectDeviceCapabilities,
+  meetsMinimumDeviceRequirements,
+} from '../utils/platform/deviceCapability';
 import { Clock3, Infinity as InfinityIcon, Timer } from 'lucide-react';
+import type { TFunction } from 'i18next';
 
 
 
@@ -57,21 +61,21 @@ const GridLogo: React.FC<{ isStatic: boolean }> = ({ isStatic }) => {
 
 
 /* ─────────────────────────────────────────────── */
-function getSavedGameAgeLabel(savedAt?: number): string {
+function getSavedGameAgeLabel(savedAt: number | undefined, t: TFunction): string {
   const safeSavedAt = savedAt || Date.now();
   const diffMs = Math.max(0, Date.now() - safeSavedAt);
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffDays > 0) return `${diffDays} gün önce`;
-  if (diffHours > 0) return `${diffHours} saat önce`;
-  if (diffMins > 0) return `${diffMins} dk önce`;
-  return 'Az önce';
+  if (diffDays > 0) return t('home.savedDaysAgo', { count: diffDays });
+  if (diffHours > 0) return t('home.savedHoursAgo', { count: diffHours });
+  if (diffMins > 0) return t('home.savedMinutesAgo', { count: diffMins });
+  return t('home.savedJustNow');
 }
 
 export const HomeScreen: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { initGame, hasSavedGame, loadSavedGame, highScores, stats } = useGameStore();
   const { soundEnabled } = useSettingsStore();
 
@@ -94,17 +98,7 @@ export const HomeScreen: React.FC = () => {
 
   const meetsMinimumRequirements = useMemo(() => {
     if (!deviceCapabilities) return true; // Default to true while loading
-    const { memory, cores, gpuRenderer } = deviceCapabilities;
-    if (memory < 3 || cores < 6) return false;
-    if (gpuRenderer) {
-      const gpu = gpuRenderer.toLowerCase();
-      if (
-        gpu.includes('mali-4') || gpu.includes('mali-g31') ||
-        gpu.includes('adreno (tm) 3') || gpu.includes('adreno 3') ||
-        gpu.includes('powervr sgx')
-      ) return false;
-    }
-    return true;
+    return meetsMinimumDeviceRequirements(deviceCapabilities.memory);
   }, [deviceCapabilities]);
 
   const refreshSavedGame = useCallback(() => {
@@ -149,11 +143,12 @@ export const HomeScreen: React.FC = () => {
     };
   }, [refreshSavedGame]);
 
-  const savedModeLabel = savedGameData?.gameMode === GameMode.TIMED ? 'Zamanlı' : 'Sonsuz';
+  const numberLocale = i18n.resolvedLanguage === 'tr' ? 'tr-TR' : 'en-US';
+  const savedModeLabel = savedGameData?.gameMode === GameMode.TIMED ? t('home.timed') : t('home.infinite');
   const savedStatusLabel = savedGameData?.gameMode === GameMode.TIMED
-    ? `${Math.floor(savedGameData?.timeLeft || 0)} sn`
+    ? t('home.secondsShort', { count: Math.floor(savedGameData?.timeLeft || 0) })
     : `Tier ${savedGameData?.difficultyTier || 0}`;
-  const savedAgeLabel = getSavedGameAgeLabel(savedGameData?.savedAt);
+  const savedAgeLabel = getSavedGameAgeLabel(savedGameData?.savedAt, t);
   const handleContinueGame = useCallback(() => {
     if (soundEnabled) playClick();
 
@@ -200,11 +195,11 @@ export const HomeScreen: React.FC = () => {
               style={{ background: 'rgba(30,20,50,0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(20px)' }}
             >
               <div className="text-5xl mb-4">⚠️</div>
-              <h2 className="text-xl font-bold mb-2" style={{ color: '#f8f8f8' }}>{t('home.minimumRequirementsTitle', 'Cihaz Gereksinimleri')}</h2>
-              <p className="text-sm mb-4 opacity-70" style={{ color: '#ccc' }}>{t('home.minimumRequirementsDesc', 'Cihazınız minimum gereksinimleri karşılamıyor.')}</p>
+              <h2 className="text-xl font-bold mb-2" style={{ color: '#f8f8f8' }}>{t('home.minimumRequirementsTitle')}</h2>
+              <p className="text-sm mb-4 opacity-70" style={{ color: '#ccc' }}>{t('home.minimumRequirementsDesc')}</p>
               <button onClick={() => window.location.reload()} className="w-full py-3 rounded-2xl font-bold text-white"
                 style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', boxShadow: '0 8px 24px rgba(139,92,246,0.4)' }}>
-                {t('home.tryAnyway', 'Yine de Dene')}
+                {t('home.tryAnyway')}
               </button>
             </motion.div>
           </div>
@@ -292,10 +287,10 @@ export const HomeScreen: React.FC = () => {
                   <div className="flex items-center justify-between mb-2.5">
                     <div>
                       <div className="text-[17px] font-black text-left" style={{ color: 'white' }}>
-                        Devam Et
+                        {t('home.continue')}
                       </div>
                       <div className="text-xs font-medium text-left" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                        {savedModeLabel} mod - tek seferlik kayıt
+                        {t('home.savedGameSummary', { mode: savedModeLabel })}
                       </div>
                     </div>
                     <div 
@@ -325,10 +320,10 @@ export const HomeScreen: React.FC = () => {
                       <div className="flex flex-col justify-center">
                         <div className="text-[9px] font-semibold uppercase leading-none mb-0.5"
                           style={{ color: 'rgba(255,255,255,0.45)', letterSpacing: '0.5px' }}>
-                          Skor
+                          {t('home.score')}
                         </div>
                         <div className="text-sm font-black leading-none" style={{ color: 'white' }}>
-                          {(savedGameData.score || 0).toLocaleString('tr-TR')}
+                          {(savedGameData.score || 0).toLocaleString(numberLocale)}
                         </div>
                       </div>
                     </div>
@@ -349,7 +344,7 @@ export const HomeScreen: React.FC = () => {
                           <div className="flex flex-col justify-center">
                             <div className="text-[9px] font-semibold uppercase leading-none mb-0.5"
                               style={{ color: 'rgba(255,255,255,0.45)', letterSpacing: '0.5px' }}>
-                              Kalan
+                              {t('home.remaining')}
                             </div>
                             <div className="text-sm font-black leading-none" style={{ color: 'white' }}>
                               {savedStatusLabel}
@@ -373,7 +368,7 @@ export const HomeScreen: React.FC = () => {
                       <div className="flex flex-col justify-center">
                         <div className="text-[9px] font-semibold uppercase leading-none mb-0.5"
                           style={{ color: 'rgba(255,255,255,0.45)', letterSpacing: '0.5px' }}>
-                          Kayıt
+                          {t('home.save')}
                         </div>
                         <div className="text-sm font-black leading-none"
                           style={{
@@ -396,7 +391,7 @@ export const HomeScreen: React.FC = () => {
             <motion.p initial={homeMotionInitial ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={stagger(1)}
               className="text-center text-[9px] font-bold uppercase tracking-[0.18em] mb-2"
               style={{ color: 'rgba(160,160,192,0.48)' }}>
-              {t('home.chooseYourMode', 'Mod Seç')}
+              {t('home.chooseYourMode')}
             </motion.p>
 
             {/* ─── MODE CARDS ─── */}
@@ -448,7 +443,7 @@ export const HomeScreen: React.FC = () => {
                   {/* Small Top Label */}
                   <div className="text-[11px] uppercase mb-2.5 font-black tracking-[0.18em] text-purple-300/75 flex items-center gap-1.5 justify-start">
                     <InfinityIcon size={13} strokeWidth={2.5} />
-                    SINIRSIZ MOD
+                    {t('home.endlessModeLabel')}
                   </div>
 
                   {/* Title */}
@@ -456,7 +451,7 @@ export const HomeScreen: React.FC = () => {
                     className="text-[33px] leading-none font-black uppercase mb-3 text-white text-left"
                     style={{ textShadow: '0 0 16px rgba(168,85,247,0.34)' }}
                   >
-                    SONSUZ
+                    {t('home.infinite')}
                   </h3>
 
                   {/* Divider */}
@@ -464,22 +459,22 @@ export const HomeScreen: React.FC = () => {
 
                   {/* Description */}
                   <p className="text-[13px] leading-snug mb-3.5 max-w-[240px] text-white/60 text-left">
-                    Sınırsız bir akışta kendini kaybet.
+                    {t('home.infiniteDesc')}
                   </p>
 
                   {/* Bottom Tags */}
                   <div className="flex gap-2 flex-wrap">
                     <div className="px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.075] text-purple-200/90">
                       <span>∞</span>
-                      <span>Sınırsız</span>
+                      <span>{t('home.unlimited')}</span>
                     </div>
                     <div className="px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.075] text-purple-200/90">
                       <span>📊</span>
-                      <span>Basit</span>
+                      <span>{t('home.simple')}</span>
                     </div>
                     <div className="px-3 py-1.5 rounded-full text-[11px] font-black flex items-center gap-1.5 bg-purple-300/[0.08] border border-purple-200/[0.12] text-purple-50/95">
                       <span>⭐</span>
-                      <span>{(highScores?.[GameMode.ENDLESS] || 0).toLocaleString('tr-TR')}</span>
+                      <span>{(highScores?.[GameMode.ENDLESS] || 0).toLocaleString(numberLocale)}</span>
                     </div>
                   </div>
                 </div>
@@ -545,7 +540,7 @@ export const HomeScreen: React.FC = () => {
                   {/* Small Top Label */}
                   <div className="text-[11px] uppercase mb-2.5 font-black tracking-[0.18em] text-amber-300/75 flex items-center gap-1.5 justify-start">
                     <Timer size={13} strokeWidth={2.5} />
-                    ZAMAN MODU
+                    {t('home.timedModeLabel')}
                   </div>
 
                   {/* Title */}
@@ -553,7 +548,7 @@ export const HomeScreen: React.FC = () => {
                     className="text-[33px] leading-none font-black uppercase mb-3 text-white text-left"
                     style={{ textShadow: '0 0 16px rgba(245,158,11,0.34)' }}
                   >
-                    ZAMANLI
+                    {t('home.timed')}
                   </h3>
 
                   {/* Divider */}
@@ -561,22 +556,22 @@ export const HomeScreen: React.FC = () => {
 
                   {/* Description */}
                   <p className="text-[13px] leading-snug mb-3.5 max-w-[240px] text-white/60 text-left">
-                    Saniyelerle yarış, zirveye tırman.
+                    {t('home.timedDesc')}
                   </p>
 
                   {/* Bottom Tags */}
                   <div className="flex gap-2 flex-wrap">
                     <div className="px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.075] text-amber-200/90">
                       <span>⏱</span>
-                      <span>Süreli</span>
+                      <span>{t('home.timeLimited')}</span>
                     </div>
                     <div className="px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.075] text-amber-200/90">
                       <span>⚡</span>
-                      <span>Hızlı</span>
+                      <span>{t('home.fast')}</span>
                     </div>
                     <div className="px-3 py-1.5 rounded-full text-[11px] font-black flex items-center gap-1.5 bg-amber-300/[0.08] border border-amber-200/[0.12] text-amber-50/95">
                       <span>🏆</span>
-                      <span>En iyi {(stats?.timedHighScore || 0).toLocaleString('tr-TR')}</span>
+                      <span>{t('home.bestWithScore', { score: (stats?.timedHighScore || 0).toLocaleString(numberLocale) })}</span>
                     </div>
                   </div>
                 </div>

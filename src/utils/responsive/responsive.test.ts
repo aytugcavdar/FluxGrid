@@ -550,23 +550,9 @@ describe('getDragYOffset', () => {
     expect(offset).toBe(-28);
   });
 
-  it('should return -56 for mobile with height < 700px', () => {
+  it('should return -62 for mobile with height < 700px', () => {
     vi.stubGlobal('innerWidth', 375);
     vi.stubGlobal('innerHeight', 667);
-    Object.defineProperty(navigator, 'maxTouchPoints', {
-      writable: true,
-      configurable: true,
-      value: 5,
-    });
-    
-    const offset = getDragYOffset();
-    
-    expect(offset).toBe(-56);
-  });
-
-  it('should return -62 for mobile with height between 700px and 800px', () => {
-    vi.stubGlobal('innerWidth', 375);
-    vi.stubGlobal('innerHeight', 750);
     Object.defineProperty(navigator, 'maxTouchPoints', {
       writable: true,
       configurable: true,
@@ -578,7 +564,21 @@ describe('getDragYOffset', () => {
     expect(offset).toBe(-62);
   });
 
-  it('should return -66 for mobile with height >= 820px', () => {
+  it('should return -68 for mobile with height between 700px and 800px', () => {
+    vi.stubGlobal('innerWidth', 375);
+    vi.stubGlobal('innerHeight', 750);
+    Object.defineProperty(navigator, 'maxTouchPoints', {
+      writable: true,
+      configurable: true,
+      value: 5,
+    });
+    
+    const offset = getDragYOffset();
+    
+    expect(offset).toBe(-68);
+  });
+
+  it('should return -72 for mobile with height >= 820px', () => {
     vi.stubGlobal('innerWidth', 375);
     vi.stubGlobal('innerHeight', 850);
     Object.defineProperty(navigator, 'maxTouchPoints', {
@@ -589,7 +589,7 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    expect(offset).toBe(-66);
+    expect(offset).toBe(-72);
   });
 
   it('should handle boundary case of exactly 700px height', () => {
@@ -603,7 +603,7 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    expect(offset).toBe(-62);
+    expect(offset).toBe(-68);
   });
 
   it('should handle boundary case of exactly 800px height', () => {
@@ -617,7 +617,7 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    expect(offset).toBe(-62);
+    expect(offset).toBe(-68);
   });
 
   it('should handle boundary case of exactly 768px width with touch', () => {
@@ -659,7 +659,7 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    expect(offset).toBe(-66);
+    expect(offset).toBe(-72);
   });
 
   it('should handle iPad Pro 12.9" in portrait (1024x1366)', () => {
@@ -687,6 +687,6 @@ describe('getDragYOffset', () => {
     
     const offset = getDragYOffset();
     
-    expect(offset).toBe(-56);
+    expect(offset).toBe(-62);
   });
 });

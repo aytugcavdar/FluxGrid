@@ -43,9 +43,9 @@ export const SHAPES: PieceShape[] = [
   { id: 'square_3x3', shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], color: '#f43f5e' },
 ];
 
-// Tier progression constants. Tier 0 is the warm-up band; pressure ramps through 200k.
-export const TIER_THRESHOLDS = [0, 15000, 40000, 80000, 130000, 190000, 260000] as const;
-export const ENDLESS_LOOP_THRESHOLDS = [320000, 450000, 650000, 900000] as const;
+// Tier progression constants. Tier 0 is a short warm-up; core pressure ramps inside the first 200k.
+export const TIER_THRESHOLDS = [0, 5000, 20000, 45000, 80000, 125000, 180000] as const;
+export const ENDLESS_LOOP_THRESHOLDS = [260000, 380000, 550000, 750000] as const;
 export const TIER_SCORE_MULTIPLIERS = [1.0, 1.2, 1.5, 1.8, 2.2, 2.6, 3.0] as const;
 export const FIXED_GRID_TIER = 6;
 export const TIER_NAMES: Record<number, string> = {

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { GridState, Piece } from '../../types';
+import { CellType, type GridState, type Piece } from '../../types';
 import {
   createClearParticles,
   getBoardMetrics,
   getClearCellProgress,
   getClearEffectConfig,
+  getClearPreviewLines,
   getGravityFrame,
   getGravityMoves,
   getGridRenderProfile,
@@ -115,6 +116,28 @@ describe('grid2dHelpers', () => {
     const particles = createClearParticles(cells, 24);
     expect(particles).toHaveLength(20);
     expect(particles.every(particle => particle.radius > 0)).toBe(true);
+  });
+
+  it('finds rows and columns completed by a valid dragged piece', () => {
+    const grid = createEmptyGrid();
+    for (let x = 0; x < 9; x++) grid[5][x] = { filled: true, color: '#ffffff' };
+    for (let y = 0; y < 10; y++) {
+      if (y !== 5) grid[y][9] = { filled: true, color: '#ffffff' };
+    }
+
+    expect(getClearPreviewLines(grid, singleCellPiece, 9, 5))
+      .toEqual({ rows: [5], cols: [9] });
+  });
+
+  it('does not preview incomplete, occupied, or void lines', () => {
+    const grid = createEmptyGrid();
+    for (let x = 0; x < 9; x++) grid[2][x] = { filled: true, color: '#ffffff' };
+    grid[2][4].type = CellType.VOID;
+
+    expect(getClearPreviewLines(grid, singleCellPiece, 9, 2))
+      .toEqual({ rows: [], cols: [] });
+    expect(getClearPreviewLines(grid, singleCellPiece, 0, 2))
+      .toEqual({ rows: [], cols: [] });
   });
 
   it('uses stronger but still short effects for four-line and combo clears', () => {

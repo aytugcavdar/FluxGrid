@@ -11,6 +11,7 @@ export enum CellType {
   NORMAL = 'NORMAL',
   ICE = 'ICE',
   BOMB = 'BOMB',
+  FIRE = 'FIRE',
   STONE = 'STONE',
   VOID = 'VOID',
 }

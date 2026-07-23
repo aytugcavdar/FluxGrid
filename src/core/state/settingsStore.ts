@@ -17,9 +17,15 @@ import { performanceMonitor } from '@core/services/performance/PerformanceMonito
 import type { QualityPreset } from '@core/services/performance/PerformanceMonitor';
 import { QUALITY_PRESETS } from '@core/services/performance/PerformanceMonitor';
 import { getHapticManager, type HapticIntensity } from '@utils/audio';
+import {
+  DEFAULT_LANGUAGE,
+  getDeviceLanguage,
+  getInitialLanguage,
+  normalizeSupportedLanguage,
+  type SupportedLanguage,
+} from '../../i18n/language';
 
-const SUPPORTED_LANGUAGES = ['tr', 'en', 'de', 'fr', 'es'] as const;
-export type LanguageType = typeof SUPPORTED_LANGUAGES[number];
+export type LanguageType = SupportedLanguage;
 export type ColorBlindMode = 'none' | 'protanopia' | 'deuteranopia' | 'tritanopia';
 export type MetricsPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
@@ -126,7 +132,7 @@ const DEFAULT_SETTINGS = {
   colorBlindMode: 'none' as ColorBlindMode,
   
   // Language
-  language: 'tr' as LanguageType,
+  language: getInitialLanguage(),
   
   // Performance Settings
   qualityPreset: QUALITY_PRESETS.medium,
@@ -138,13 +144,6 @@ const DEFAULT_SETTINGS = {
   showMetrics: false,
   metricsPosition: 'top-right' as MetricsPosition,
 };
-
-function normalizeLanguage(value: string | null | undefined): LanguageType {
-  const normalized = (value || DEFAULT_SETTINGS.language).toLowerCase().split('-')[0];
-  return SUPPORTED_LANGUAGES.includes(normalized as LanguageType)
-    ? normalized as LanguageType
-    : DEFAULT_SETTINGS.language;
-}
 
 /**
  * Load performance settings from localStorage
@@ -276,7 +275,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
     
     // Language Actions
     setLanguage: (lang: LanguageType) => {
-      const nextLanguage = normalizeLanguage(lang);
+      const nextLanguage = normalizeSupportedLanguage(lang) ?? DEFAULT_LANGUAGE;
       set({ language: nextLanguage });
       localStorage.setItem(STORAGE_KEYS.LANGUAGE, nextLanguage);
       
@@ -394,7 +393,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
           ghostBlockEnabled: ghostBlockEnabled !== null ? JSON.parse(ghostBlockEnabled) : DEFAULT_SETTINGS.ghostBlockEnabled,
           performanceModeEnabled: performanceModeEnabled !== null ? JSON.parse(performanceModeEnabled) : DEFAULT_SETTINGS.performanceModeEnabled,
           colorBlindMode: (colorBlindMode as ColorBlindMode) || DEFAULT_SETTINGS.colorBlindMode,
-          language: normalizeLanguage(language),
+          language: normalizeSupportedLanguage(language) ?? getDeviceLanguage(),
           ...performanceSettings,
         };
         

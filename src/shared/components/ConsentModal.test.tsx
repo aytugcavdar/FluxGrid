@@ -34,7 +34,7 @@ describe('ConsentModal', () => {
     render(<ConsentModal onConsent={onConsent} />);
 
     const privacyLink = screen.getByText('Gizlilik Politikamızı');
-    expect(privacyLink).toHaveAttribute('href', 'https://fluxgrid.app/privacy');
+    expect(privacyLink).toHaveAttribute('href', 'https://fluxgrid-d0ad3.web.app/privacy-policy.html');
     expect(privacyLink).toHaveAttribute('target', '_blank');
     expect(privacyLink).toHaveAttribute('rel', 'noopener noreferrer');
   });

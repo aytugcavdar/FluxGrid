@@ -52,11 +52,12 @@ function formatVersion(version) {
 
 /**
  * Calculate version code from version string
- * Format: MAJOR * 10000 + MINOR * 100 + PATCH
- * Example: 1.2.3 -> 10203
+ * Format: MAJOR * 10000 + MINOR * 100 + PATCH + 1
+ * The +1 keeps the initial 1.0.0 release at versionCode 10001.
+ * Example: 1.2.3 -> 10204
  */
 function calculateVersionCode(version) {
-  return version.major * 10000 + version.minor * 100 + version.patch;
+  return version.major * 10000 + version.minor * 100 + version.patch + 1;
 }
 
 /**

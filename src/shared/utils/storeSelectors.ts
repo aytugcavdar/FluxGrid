@@ -7,7 +7,6 @@
 
 import { useGameStore } from '@features/game/store/gameStore';
 import { useJuiceStore } from '@features/visual-effects/store/juiceStore';
-import { useAchievementStore } from '@features/achievements/achievementStore';
 
 /**
  * Select only game grid state
@@ -81,29 +80,6 @@ export const useVisualEffects = () =>
  */
 export const usePerformanceMode = () => 
   useJuiceStore((state) => state.performanceMode);
-
-/**
- * Select only unlocked achievements
- * Use when component only needs achievement data
- */
-export const useUnlockedAchievements = () => 
-  useAchievementStore((state) => 
-    Object.values(state.achievements).filter(a => a.unlocked)
-  );
-
-/**
- * Select achievement progress
- * Use when component needs achievement progress tracking
- */
-export const useAchievementProgress = (achievementId: string) => 
-  useAchievementStore((state) => {
-    const achievement = state.achievements[achievementId as keyof typeof state.achievements];
-    return achievement ? {
-      progress: achievement.progress,
-      target: achievement.target,
-      unlocked: achievement.unlocked,
-    } : null;
-  });
 
 /**
  * Example usage:

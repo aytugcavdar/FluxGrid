@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DeviceTier, detectDeviceCapabilities, detectDeviceTier, getPerformanceConfig } from './deviceCapability';
+import {
+  DeviceTier,
+  detectDeviceCapabilities,
+  detectDeviceTier,
+  getPerformanceConfig,
+  meetsMinimumDeviceRequirements,
+} from './deviceCapability';
 import { Capacitor } from '@capacitor/core';
 
 // Mock Capacitor
@@ -122,6 +128,15 @@ describe('deviceCapability', () => {
     it('should classify HIGH tier for memory >= 6GB and cores > 4', () => {
       expect(detectDeviceTier(6, 8)).toBe(DeviceTier.HIGH);
       expect(detectDeviceTier(8, 8)).toBe(DeviceTier.HIGH);
+    });
+  });
+
+  describe('minimum device requirements', () => {
+    it('rejects only devices below 3 GB RAM', () => {
+      expect(meetsMinimumDeviceRequirements(2)).toBe(false);
+      expect(meetsMinimumDeviceRequirements(2.99)).toBe(false);
+      expect(meetsMinimumDeviceRequirements(3)).toBe(true);
+      expect(meetsMinimumDeviceRequirements(4)).toBe(true);
     });
   });
 

@@ -10,38 +10,22 @@ import { v4 as uuidv4 } from 'uuid';
 export interface TutorialStepData {
   pieces: Piece[];
   targetGrid?: number[][]; // Optional pre-filled grid state (1 = filled, 0 = empty)
+  targetCells?: Array<{ x: number; y: number }>;
+  settledCells?: Array<{ x: number; y: number }>;
   targetLines?: Array<{ type: 'row' | 'column'; index: number }>;
   fallingCells?: Array<{ x: number; y: number }>;
   description?: string;
 }
 
 /**
- * Step 0: Welcome - Place first piece
- * Simple 2x2 square piece
+ * Step 0: Place a 2-block piece without clearing the prepared row.
  */
 const STEP_0_PIECES: Piece[] = [
-  {
-    id: 'square_2x2',
-    instanceId: uuidv4(),
-    shape: [
-      [1, 1],
-      [1, 1]
-    ],
-    color: '#60a5fa', // Blue
-    type: CellType.NORMAL
-  },
-  {
-    id: 'line_3h',
-    instanceId: uuidv4(),
-    shape: [[1, 1, 1]],
-    color: '#a78bfa', // Purple
-    type: CellType.NORMAL
-  },
   {
     id: 'line_2h',
     instanceId: uuidv4(),
     shape: [[1, 1]],
-    color: '#34d399', // Green
+    color: '#60a5fa', // Blue
     type: CellType.NORMAL
   }
 ];
@@ -51,23 +35,22 @@ const CLEAR_LINE_PIECES: Piece[] = [
     id: 'line_3h',
     instanceId: uuidv4(),
     shape: [[1, 1, 1]],
-    color: '#f59e0b', // Orange
-    type: CellType.NORMAL
-  },
-  {
-    id: 'line_3h_alt',
-    instanceId: uuidv4(),
-    shape: [[1, 1, 1]],
-    color: '#ec4899', // Pink
-    type: CellType.NORMAL
-  },
-  {
-    id: 'line_3h_teal',
-    instanceId: uuidv4(),
-    shape: [[1, 1, 1]],
-    color: '#34d399', // Green
+    color: '#fbbf24', // Amber
     type: CellType.NORMAL
   }
+];
+
+const STEP_0_GRID: number[][] = [
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+  [0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+  [1, 1, 1, 1, 1, 0, 0, 0, 0, 0]
 ];
 
 /**
@@ -89,56 +72,29 @@ const STEP_1_GRID: number[][] = [
 ];
 
 /**
- * Step 2: Combo - Same simple setup, so the second clear happens quickly and
- * teaches that consecutive clears keep the combo alive.
- */
-const STEP_2_GRID: number[][] = [
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
-  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-  [0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
-  [1, 1, 1, 1, 1, 1, 1, 0, 0, 0]
-];
-
-/**
  * Tutorial step data mapping
  */
 export const TUTORIAL_STEP_DATA: Record<number, TutorialStepData> = {
   0: {
     pieces: STEP_0_PIECES,
-    description: 'Place your first piece on the board'
+    targetGrid: STEP_0_GRID,
+    targetCells: [{ x: 5, y: 9 }, { x: 6, y: 9 }],
+    description: 'Place the 2-block piece beside the prepared row'
   },
   1: {
     pieces: CLEAR_LINE_PIECES,
     targetGrid: STEP_1_GRID,
-    targetLines: [{ type: 'row', index: 9 }],
-    fallingCells: [
-      { x: 1, y: 7 },
-      { x: 4, y: 6 },
-      { x: 8, y: 8 },
-    ],
+    targetCells: [{ x: 7, y: 9 }, { x: 8, y: 9 }, { x: 9, y: 9 }],
     description: 'Complete the bottom row to clear it and show 2D gravity'
   },
   2: {
     pieces: [],
-    targetLines: [{ type: 'row', index: 9 }],
-    fallingCells: [
-      { x: 1, y: 7 },
-      { x: 4, y: 6 },
-      { x: 8, y: 8 },
+    settledCells: [
+      { x: 1, y: 9 },
+      { x: 4, y: 9 },
+      { x: 8, y: 9 },
     ],
     description: 'After a clear, unsupported blocks drop down'
-  },
-  3: {
-    pieces: CLEAR_LINE_PIECES,
-    targetGrid: STEP_2_GRID,
-    targetLines: [{ type: 'row', index: 9 }],
-    description: 'Clear another line quickly to keep combo'
   }
 };
 
@@ -190,12 +146,19 @@ export function getTutorialGridState(step: number): GridState | null {
   );
 }
 
-export function getTutorialGuidance(step: number): Pick<TutorialStepData, 'targetLines' | 'fallingCells'> {
+export function getTutorialGuidance(step: number): Pick<TutorialStepData, 'targetCells' | 'settledCells' | 'targetLines' | 'fallingCells'> {
   const stepData = TUTORIAL_STEP_DATA[step];
   return {
+    targetCells: stepData?.targetCells || [],
+    settledCells: stepData?.settledCells || [],
     targetLines: stepData?.targetLines || [],
     fallingCells: stepData?.fallingCells || [],
   };
+}
+
+export function isTutorialTargetFilled(step: number, grid: GridState): boolean {
+  const targetCells = TUTORIAL_STEP_DATA[step]?.targetCells || [];
+  return targetCells.length > 0 && targetCells.every(({ x, y }) => grid[y]?.[x]?.filled);
 }
 
 /**

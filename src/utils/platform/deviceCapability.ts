@@ -34,6 +34,16 @@ export interface PerformanceConfig {
   maxTextureSize: number;
 }
 
+export const MIN_SUPPORTED_MEMORY_GB = 3;
+
+/**
+ * Device support is intentionally based only on total RAM.
+ * GPU and CPU capabilities still tune visual quality, but never block play.
+ */
+export function meetsMinimumDeviceRequirements(memoryGB: number): boolean {
+  return memoryGB >= MIN_SUPPORTED_MEMORY_GB;
+}
+
 /**
  * VIP Device List - Flagship models that are automatically HIGH tier
  * These devices are recognized by model name/number regardless of specs

@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#08111f"/>
+      <stop offset="0.52" stop-color="#111c32"/>
+      <stop offset="1" stop-color="#24113d"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#7c3aed" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="word" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#c4b5fd"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000" flood-opacity=".36"/>
+    </filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="34"/>
+    </filter>
+    <pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse">
+      <path d="M42 0H0V42" fill="none" stroke="#94a3b8" stroke-opacity=".055" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1024" height="500" fill="url(#bg)"/>
+  <rect width="1024" height="500" fill="url(#grid)"/>
+  <ellipse cx="778" cy="250" rx="275" ry="235" fill="url(#glow)" filter="url(#soft)"/>
+  <circle cx="170" cy="80" r="110" fill="#0ea5e9" opacity=".08" filter="url(#soft)"/>
+
+  <g transform="translate(92 132)">
+    <text x="0" y="78" fill="url(#word)" font-family="Arial, Helvetica, sans-serif" font-size="82" font-weight="800" letter-spacing="-3">FluxGrid</text>
+    <text x="4" y="129" fill="#94a3b8" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="600" letter-spacing="4">PLACE  •  CLEAR  •  SURVIVE</text>
+    <g transform="translate(5 171)">
+      <rect width="56" height="8" rx="4" fill="#fbbf24"/>
+      <rect x="66" width="56" height="8" rx="4" fill="#60a5fa"/>
+      <rect x="132" width="56" height="8" rx="4" fill="#c084fc"/>
+      <rect x="198" width="56" height="8" rx="4" fill="#34d399"/>
+      <rect x="264" width="56" height="8" rx="4" fill="#fb7185"/>
+    </g>
+  </g>
+
+  <g transform="translate(615 53)" filter="url(#shadow)">
+    <rect width="330" height="394" rx="34" fill="#0b1527" stroke="#818cf8" stroke-opacity=".42" stroke-width="3"/>
+    <rect x="18" y="18" width="294" height="358" rx="22" fill="#111c32"/>
+    <g fill="none" stroke="#ffffff" stroke-opacity=".10" stroke-width="1">
+      <path d="M22 58H308M22 98H308M22 138H308M22 178H308M22 218H308M22 258H308M22 298H308M22 338H308"/>
+      <path d="M62 22V372M102 22V372M142 22V372M182 22V372M222 22V372M262 22V372"/>
+    </g>
+    <g stroke="#fff" stroke-opacity=".18" stroke-width="2">
+      <rect x="23" y="299" width="37" height="37" rx="7" fill="#fbbf24"/>
+      <rect x="63" y="299" width="37" height="37" rx="7" fill="#fbbf24"/>
+      <rect x="103" y="299" width="37" height="37" rx="7" fill="#60a5fa"/>
+      <rect x="143" y="299" width="37" height="37" rx="7" fill="#60a5fa"/>
+      <rect x="183" y="299" width="37" height="37" rx="7" fill="#34d399"/>
+      <rect x="223" y="299" width="37" height="37" rx="7" fill="#fb7185"/>
+      <rect x="263" y="299" width="37" height="37" rx="7" fill="#fb7185"/>
+      <rect x="63" y="259" width="37" height="37" rx="7" fill="#fbbf24"/>
+      <rect x="103" y="259" width="37" height="37" rx="7" fill="#60a5fa"/>
+      <rect x="183" y="259" width="37" height="37" rx="7" fill="#c084fc"/>
+      <rect x="223" y="259" width="37" height="37" rx="7" fill="#fb7185"/>
+      <rect x="263" y="259" width="37" height="37" rx="7" fill="#34d399"/>
+      <rect x="103" y="219" width="37" height="37" rx="7" fill="#60a5fa"/>
+      <rect x="183" y="219" width="37" height="37" rx="7" fill="#c084fc"/>
+      <rect x="263" y="219" width="37" height="37" rx="7" fill="#34d399"/>
+      <rect x="183" y="179" width="37" height="37" rx="7" fill="#c084fc"/>
+    </g>
+    <g transform="translate(48 70)" fill="#38bdf8" opacity=".95">
+      <rect width="30" height="30" rx="6"/><rect x="32" width="30" height="30" rx="6"/><rect x="64" width="30" height="30" rx="6"/><rect x="32" y="32" width="30" height="30" rx="6"/>
+    </g>
+    <g transform="translate(214 91)" fill="#f472b6" opacity=".92">
+      <rect width="30" height="30" rx="6"/><rect x="32" width="30" height="30" rx="6"/><rect x="64" width="30" height="30" rx="6"/><rect x="64" y="32" width="30" height="30" rx="6"/>
+    </g>
+  </g>
+</svg>

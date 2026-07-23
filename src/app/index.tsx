@@ -173,11 +173,12 @@ const RuntimeApp: React.FC = () => {
     configureStatusBar();
     // applySafeAreaCSS() and splashCoordinator moved before React render (see below)
     
-    // Initialize push notifications
+    // Phone reminders are scheduled locally. Remove any token left by older
+    // builds so retired server schedules cannot duplicate local reminders.
     if (Capacitor.isNativePlatform()) {
-      pushNotificationService.initialize({ requestPermission: true })
+      pushNotificationService.disableRemoteNotifications()
         .then(() => {
-          return notificationScheduler.scheduleEngagementNotifications(getNotificationContext(), { requestPermission: true });
+          return notificationScheduler.scheduleEngagementNotifications(getNotificationContext(), { requestPermission: false });
         })
         .catch((error) => {
           console.error('[App] Failed to initialize push notifications:', error);
@@ -185,8 +186,7 @@ const RuntimeApp: React.FC = () => {
     }
     
     // Initialize notification action listeners
-    import('@/src/utils/native/notificationHelper').then(({ registerNotificationActions, addNotificationActionListener }) => {
-      registerNotificationActions();
+    import('@/src/utils/native/notificationHelper').then(({ addNotificationActionListener }) => {
       addNotificationActionListener((action) => {
         console.log('[Notification] Action performed:', action);
 
@@ -219,9 +219,19 @@ const RuntimeApp: React.FC = () => {
     
     // Register unified back button listener
     const cleanup = useUnifiedNavigationStore.getState().registerBackButtonListener();
+    const refreshNotificationsBeforeBackground = () => {
+      void notificationScheduler.scheduleEngagementNotifications(
+        getNotificationContext(),
+        { requestPermission: false }
+      );
+    };
+    document.addEventListener('pause', refreshNotificationsBeforeBackground);
     
     // Cleanup on unmount
-    return cleanup;
+    return () => {
+      document.removeEventListener('pause', refreshNotificationsBeforeBackground);
+      cleanup();
+    };
   }, []);
   
   // Show game screen when in GAME state, otherwise show menu
@@ -348,8 +358,8 @@ if (isMarketingRoute) {
   }
 } else {
   const splashStartedAt = Date.now();
-  const minSplashMs = 2000;
-  const maxSplashMs = 2600;
+  const minSplashMs = 2200;
+  const maxSplashMs = 3000;
   let splashDismissed = false;
 
   const releaseNativeSplash = () => {

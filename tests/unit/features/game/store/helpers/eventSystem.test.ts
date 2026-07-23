@@ -45,10 +45,10 @@ describe('eventSystem', () => {
       const set = () => {};
       
       // Test: Tier transition in ENDLESS mode should advance tier.
-      const resultEndless = checkTierEvent(15000, 0, getEndless as any, set);
+      const resultEndless = checkTierEvent(5000, 0, getEndless as any, set);
       expect(resultEndless).not.toBeNull();
-      expect(resultEndless?.activeEvent).toBe(null);
-      expect(resultEndless?.eventMovesRemaining).toBe(0);
+      expect(resultEndless?.activeEvent).toBe('ICE_STORM');
+      expect(resultEndless?.eventMovesRemaining).toBe(3);
       expect(resultEndless?.difficultyTier).toBe(1);
     });
 
@@ -65,7 +65,7 @@ describe('eventSystem', () => {
       const set = () => {};
       
       // Test: Tier transition in TIMED mode should NOT activate event
-      const resultTimed = checkTierEvent(15000, 0, getTimed as any, set);
+      const resultTimed = checkTierEvent(5000, 0, getTimed as any, set);
       expect(resultTimed).toBeNull();
     });
 
@@ -82,7 +82,7 @@ describe('eventSystem', () => {
       const set = () => {};
       
       // Test: Tier transition in DAILY_CHALLENGE mode should NOT activate event
-      const resultDaily = checkTierEvent(15000, 0, getDaily as any, set);
+      const resultDaily = checkTierEvent(5000, 0, getDaily as any, set);
       expect(resultDaily).toBeNull();
     });
   });
@@ -96,14 +96,14 @@ describe('eventSystem', () => {
     });
     const set = () => {};
 
-    it('keeps tier 1 and tier 2 as special-block unlocks without active events', () => {
-      const tier1 = checkTierEvent(15000, 0, getEndless as any, set);
-      const tier2 = checkTierEvent(40000, 1, getEndless as any, set);
+    it('starts tier 1 ice pressure and keeps tier 2 fire pressure eventless', () => {
+      const tier1 = checkTierEvent(5000, 0, getEndless as any, set);
+      const tier2 = checkTierEvent(20000, 1, getEndless as any, set);
 
       expect(tier1).toEqual(expect.objectContaining({
         difficultyTier: 1,
-        activeEvent: null,
-        eventMovesRemaining: 0,
+        activeEvent: 'ICE_STORM',
+        eventMovesRemaining: 3,
       }));
       expect(tier2).toEqual(expect.objectContaining({
         difficultyTier: 2,
@@ -113,7 +113,7 @@ describe('eventSystem', () => {
     });
 
     it('starts a short quake at tier 3', () => {
-      const result = checkTierEvent(80000, 2, getEndless as any, set);
+      const result = checkTierEvent(45000, 2, getEndless as any, set);
 
       expect(result).toEqual(expect.objectContaining({
         difficultyTier: 3,
@@ -123,7 +123,7 @@ describe('eventSystem', () => {
     });
 
     it('starts a short ice storm at tier 4', () => {
-      const result = checkTierEvent(130000, 3, getEndless as any, set);
+      const result = checkTierEvent(80000, 3, getEndless as any, set);
 
       expect(result).toEqual(expect.objectContaining({
         difficultyTier: 4,
@@ -133,13 +133,36 @@ describe('eventSystem', () => {
     });
 
     it('starts a stronger quake at tier 5', () => {
-      const result = checkTierEvent(190000, 4, getEndless as any, set);
+      const result = checkTierEvent(125000, 4, getEndless as any, set);
 
       expect(result).toEqual(expect.objectContaining({
         difficultyTier: 5,
         activeEvent: 'QUAKE',
         eventMovesRemaining: 6,
       }));
+    });
+
+    it('adds tier 1 ice one block at a time across three moves', () => {
+      const emptyGrid = () => Array.from({ length: GRID_SIZE }, () =>
+        Array.from({ length: GRID_SIZE }, () => ({ filled: false, color: '' }))
+      );
+      const piece = { shape: [[1]], color: '#60a5fa', id: 'dot', instanceId: 'dot-1' } as any;
+      const getIceState = (grid: any[][], moves: number) => () => ({
+        activeEvent: 'ICE_STORM' as const,
+        eventMovesRemaining: moves,
+        difficultyTier: 1,
+        grid,
+      } as any);
+      const countIce = (grid: any[][]) => grid.flat().filter(cell => cell.type === CellType.ICE).length;
+
+      const first = tickActiveEvent(emptyGrid(), piece, getIceState(emptyGrid(), 3), set, [piece])!;
+      const second = tickActiveEvent(first.grid!, piece, getIceState(first.grid!, 2), set, [piece])!;
+      const third = tickActiveEvent(second.grid!, piece, getIceState(second.grid!, 1), set, [piece])!;
+
+      expect(countIce(first.grid!)).toBe(1);
+      expect(countIce(second.grid!)).toBe(2);
+      expect(countIce(third.grid!)).toBe(3);
+      expect(third.eventMovesRemaining).toBe(0);
     });
   });
 });

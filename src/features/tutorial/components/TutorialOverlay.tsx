@@ -10,7 +10,12 @@ import { useTranslation } from 'react-i18next';
 import { GameMode } from '@shared/types';
 import { useTutorialStore } from '../store/tutorialStore';
 import { useGameStore } from '../../game/store/gameStore';
-import { getTutorialGridState, getTutorialGuidance, getTutorialPieces } from '../data/tutorialPieces';
+import {
+  getTutorialGridState,
+  getTutorialGuidance,
+  getTutorialPieces,
+  isTutorialTargetFilled,
+} from '../data/tutorialPieces';
 import type { TutorialStep } from '../types';
 
 export const TutorialOverlay: React.FC = () => {
@@ -23,9 +28,7 @@ export const TutorialOverlay: React.FC = () => {
     complete,
     gamesCompleted,
     currentHint,
-    achievements,
     setHint,
-    addAchievement,
     trackStepStart,
     trackStepComplete,
     trackInteraction
@@ -33,8 +36,7 @@ export const TutorialOverlay: React.FC = () => {
   const gameMode = useGameStore(state => state.gameMode);
   const isTimedMode = gameMode === GameMode.TIMED;
   
-  // Define tutorial steps with i18n
-  const TUTORIAL_STEPS: TutorialStep[] = [
+  const tutorialSteps = React.useMemo<TutorialStep[]>(() => [
     {
       id: 0,
       title: t('tutorial.drag.title'),
@@ -48,7 +50,7 @@ export const TutorialOverlay: React.FC = () => {
       id: 1,
       title: t('tutorial.firstClear.title'),
       description: t('tutorial.firstClear.description'),
-      highlightTarget: '.game-board',
+      highlightTarget: null,
       arrowDirection: null,
       action: 'clear',
       validation: () => true
@@ -57,22 +59,13 @@ export const TutorialOverlay: React.FC = () => {
       id: 2,
       title: t('tutorial.gravity.title'),
       description: t('tutorial.gravity.description'),
-      highlightTarget: '.game-board',
+      highlightTarget: null,
       arrowDirection: null,
       action: 'info',
       validation: () => true
     },
     {
       id: 3,
-      title: t('tutorial.combo.title'),
-      description: t('tutorial.combo.description'),
-      highlightTarget: '.game-board',
-      arrowDirection: null,
-      action: 'combo',
-      validation: () => true
-    },
-    {
-      id: 4,
       title: isTimedMode ? t('tutorial.ready.timedTitle') : t('tutorial.ready.endlessTitle'),
       description: isTimedMode ? t('tutorial.ready.timedDescription') : t('tutorial.ready.endlessDescription'),
       highlightTarget: null,
@@ -80,30 +73,37 @@ export const TutorialOverlay: React.FC = () => {
       action: 'complete',
       validation: () => true
     }
-  ];
+  ], [isTimedMode, t]);
   
   const [showSkip, setShowSkip] = useState(false);
-  const [highlightedElement, setHighlightedElement] = useState<HTMLElement | null>(null);
-  const [celebrationParticles, setCelebrationParticles] = useState<Array<{ id: number; x: number; y: number }>>([]);
-  const [spotlightPosition, setSpotlightPosition] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const [arrowPosition, setArrowPosition] = useState<{ x: number; y: number; direction: 'up' | 'down' | 'left' | 'right' } | null>(null);
   const [contextualHint, setContextualHint] = useState<string | null>(null);
-  const [idleTime, setIdleTime] = useState(0);
   const [tutorialGridBounds, setTutorialGridBounds] = useState<DOMRect | null>(null);
   const guidance = React.useMemo(() => getTutorialGuidance(currentStep), [currentStep]);
 
-  const applyTutorialSetup = React.useCallback((stepId: number) => {
+  const applyTutorialSetup = React.useCallback((stepId: number, preserveGrid = false) => {
     const tutorialPieces = getTutorialPieces(stepId);
     const tutorialGrid = getTutorialGridState(stepId);
 
-    if (tutorialPieces.length === 0 && !tutorialGrid) return;
+    if (tutorialPieces.length === 0 && (!tutorialGrid || preserveGrid)) return;
 
     useGameStore.setState({
-      ...(tutorialGrid ? { grid: tutorialGrid } : {}),
+      ...(!preserveGrid && tutorialGrid ? { grid: tutorialGrid } : {}),
       ...(tutorialPieces.length > 0 ? { pieces: tutorialPieces } : {}),
       draggedPiece: null,
     });
   }, []);
+
+  const finishTutorial = React.useCallback((wasSkipped: boolean) => {
+    if (wasSkipped) {
+      skip();
+    } else {
+      complete();
+    }
+
+    // Tutorial moves use a controlled board. Start the selected mode from a
+    // clean board so tutorial score and pieces never leak into the real run.
+    useGameStore.getState().initGame(gameMode);
+  }, [complete, gameMode, skip]);
   
   // Check for reduced motion preference
   const prefersReducedMotion = typeof window !== 'undefined'
@@ -112,11 +112,13 @@ export const TutorialOverlay: React.FC = () => {
   
   // Keep first-run tutorial light on low and low-mid Android phones.
   const isLowEndDevice = React.useMemo(() => {
-    const memory = (navigator as any).deviceMemory;
+    const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
     const cores = navigator.hardwareConcurrency;
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     const isAndroidNative = /Android/i.test(navigator.userAgent) ||
-      !!(typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.());
+      !!(typeof window !== 'undefined' && (window as Window & {
+        Capacitor?: { isNativePlatform?: () => boolean };
+      }).Capacitor?.isNativePlatform?.());
 
     if (memory && memory <= 4) return true;
     
@@ -132,107 +134,74 @@ export const TutorialOverlay: React.FC = () => {
   
   // Track step start time for analytics
   useEffect(() => {
-    if (isActive && currentStep < TUTORIAL_STEPS.length) {
+    if (isActive && currentStep < tutorialSteps.length) {
       trackStepStart(currentStep);
     }
-  }, [isActive, currentStep, trackStepStart]);
+  }, [isActive, currentStep, trackStepStart, tutorialSteps.length]);
   
-  // Show skip button after 2 seconds for returning players (games > 0)
+  // Never trap a first-time player in onboarding.
   useEffect(() => {
-    if (isActive && gamesCompleted > 0) {
-      const timer = setTimeout(() => setShowSkip(true), 2000);
-      return () => clearTimeout(timer);
+    if (!isActive) {
+      setShowSkip(false);
+      return;
     }
+
+    const timer = setTimeout(() => setShowSkip(true), gamesCompleted > 0 ? 300 : 1000);
+    return () => clearTimeout(timer);
   }, [isActive, gamesCompleted]);
   
   // Contextual hints based on idle time
   useEffect(() => {
-    if (!isActive || currentStep >= TUTORIAL_STEPS.length) return;
+    if (!isActive || currentStep >= tutorialSteps.length) return;
     
-    const step = TUTORIAL_STEPS[currentStep];
+    const step = tutorialSteps[currentStep];
     
     // Only show hints for action steps (not info/complete)
     if (step.action === 'info' || step.action === 'complete') return;
     
-    // Reset idle time on step change
-    setIdleTime(0);
     setContextualHint(null);
-    
-    const idleTimer = setInterval(() => {
-      setIdleTime(prev => {
-        const newTime = prev + 1;
-        
-        // Show contextual hint after 6 seconds of inactivity. First-run guidance
-        // should stay inside the first few seconds on mobile.
-        if (newTime === 6) {
-          const hints: Record<string, string> = {
-            'place': t('tutorial.hints.tryDragging') || 'Try dragging a piece to the board',
-            'clear': t('tutorial.hints.fillLine') || 'Fill a complete row or column',
-            'combo': t('tutorial.hints.keepClearing') || 'Keep clearing lines quickly'
-          };
-          setContextualHint(hints[step.action] || null);
-          trackInteraction('contextual_hint_shown');
-        }
-        
-        // Clear hint after 5 seconds
-        if (newTime === 11) {
-          setContextualHint(null);
-        }
-        
-        return newTime;
-      });
-    }, 1000);
-    
-    return () => clearInterval(idleTimer);
-  }, [isActive, currentStep, t, trackInteraction]);
+
+    const showTimer = window.setTimeout(() => {
+      const hints: Record<string, string> = {
+        place: t('tutorial.hints.tryDragging'),
+        clear: t('tutorial.hints.fillLine'),
+      };
+      setContextualHint(hints[step.action] || null);
+      trackInteraction('contextual_hint_shown');
+    }, 6000);
+    const hideTimer = window.setTimeout(() => setContextualHint(null), 11000);
+
+    return () => {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(hideTimer);
+    };
+  }, [isActive, currentStep, t, trackInteraction, tutorialSteps]);
   
-  // Highlight target element and setup spotlight
+  // Highlight the active board or tray target.
   useEffect(() => {
-    if (!isActive || currentStep >= TUTORIAL_STEPS.length) return;
+    if (!isActive || currentStep >= tutorialSteps.length) return;
     
-    const step = TUTORIAL_STEPS[currentStep];
-    if (!step.highlightTarget) {
-      setHighlightedElement(null);
-      setSpotlightPosition(null);
-      setArrowPosition(null);
-      return;
-    }
+    const step = tutorialSteps[currentStep];
+    if (!step.highlightTarget) return;
     
-    // Try to find element with retry logic
+    let cancelled = false;
+    let highlightedElement: HTMLElement | null = null;
+    let retryTimer: number | null = null;
     let retryCount = 0;
     const maxRetries = 10;
     
     const findElement = () => {
-      const element = document.querySelector(step.highlightTarget!) as HTMLElement;
+      if (cancelled) return;
+      const element = document.querySelector(step.highlightTarget!) as HTMLElement | null;
       
       if (element) {
-        setHighlightedElement(element);
+        highlightedElement = element;
         if (!reducedTutorialMotion) {
           element.classList.add('tutorial-highlight');
         }
-        
-        // Calculate spotlight position
-        const rect = element.getBoundingClientRect();
-        setSpotlightPosition({
-          x: rect.left,
-          y: rect.top,
-          width: rect.width,
-          height: rect.height
-        });
-        
-        // Calculate arrow position
-        const arrowOffset = 60;
-        if (step.arrowDirection === 'down') {
-          setArrowPosition({
-            x: rect.left + rect.width / 2,
-            y: rect.top - arrowOffset,
-            direction: 'down'
-          });
-        }
-        
       } else if (retryCount < maxRetries) {
         retryCount++;
-        setTimeout(findElement, 200);
+        retryTimer = window.setTimeout(findElement, 200);
       } else {
         if (import.meta.env.DEV) {
           console.warn('[TutorialOverlay] Element not found after retries:', step.highlightTarget);
@@ -243,19 +212,23 @@ export const TutorialOverlay: React.FC = () => {
     findElement();
     
     return () => {
-      if (highlightedElement) {
-        highlightedElement.classList.remove('tutorial-highlight');
-      }
+      cancelled = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      highlightedElement?.classList.remove('tutorial-highlight');
     };
-  }, [isActive, currentStep, reducedTutorialMotion]);
+  }, [isActive, currentStep, reducedTutorialMotion, tutorialSteps]);
 
   useEffect(() => {
-    if (!isActive || isLowEndDevice) {
+    if (!isActive) {
       setTutorialGridBounds(null);
       return;
     }
 
-    const hasCellGuidance = Boolean(guidance.targetLines?.length || guidance.fallingCells?.length);
+    const hasCellGuidance = Boolean(
+      guidance.targetCells?.length ||
+      guidance.settledCells?.length ||
+      (!isLowEndDevice && (guidance.targetLines?.length || guidance.fallingCells?.length))
+    );
     if (!hasCellGuidance) {
       setTutorialGridBounds(null);
       return;
@@ -276,111 +249,108 @@ export const TutorialOverlay: React.FC = () => {
       window.removeEventListener('resize', updateGridBounds);
       window.removeEventListener('orientationchange', updateGridBounds);
     };
-  }, [isActive, isLowEndDevice, guidance.targetLines, guidance.fallingCells]);
+  }, [isActive, isLowEndDevice, guidance.targetCells, guidance.settledCells, guidance.targetLines, guidance.fallingCells]);
   
-  // Handle step validation with achievements
+  // Handle step validation and recover from incorrect tutorial placements.
   useEffect(() => {
     if (!isActive) return;
     
     // Check if tutorial is complete (all steps done)
-    if (currentStep >= TUTORIAL_STEPS.length) {
-      if (!isLowEndDevice) {
-        const particles = Array.from({ length: 20 }, (_, i) => ({
-          id: i,
-          x: Math.random() * 100,
-          y: Math.random() * 100
-        }));
-        setCelebrationParticles(particles);
-      }
-      
-      setTimeout(() => {
-        complete();
-        setCelebrationParticles([]);
-      }, isLowEndDevice ? 120 : 1500);
-      return;
+    if (currentStep >= tutorialSteps.length) {
+      const timer = window.setTimeout(() => finishTutorial(false), 120);
+      return () => window.clearTimeout(timer);
     }
     
-    const step = TUTORIAL_STEPS[currentStep];
+    const step = tutorialSteps[currentStep];
     
-    // Auto-advance for informational and final steps
-    if (step.action === 'info' || step.action === 'complete') {
+    // Let the player observe gravity; the final step waits for explicit input.
+    if (step.action === 'info') {
       const timer = setTimeout(() => {
-        if (step.action === 'complete') {
-          // Final step - complete tutorial
-          complete();
-        } else {
-          // Info step - prepare the next playable setup before advancing.
-          applyTutorialSetup(currentStep + 1);
-          nextStep();
-        }
-      }, step.action === 'complete' ? 2600 : 3200);
+        applyTutorialSetup(currentStep + 1);
+        nextStep();
+      }, 2400);
       
       return () => clearTimeout(timer);
     }
     
-    let firstAttempt = true;
+    let transitionPending = false;
+    let transitionTimer: number | null = null;
+    let retryTimer: number | null = null;
+    let hintClearTimer: number | null = null;
     
     // Set up validation listeners
-    const handleValidation = (event: CustomEvent) => {
+    const handleValidation = (event: Event) => {
+      const detail = (event as CustomEvent<{ type: string }>).detail;
       const validationMap: Record<string, string> = {
         'piece_placed': 'place',
-        'line_cleared': 'clear',
-        'combo_achieved': 'combo'
+        'line_cleared': 'clear'
       };
       
-      const expectedAction = validationMap[event.detail.type];
-      if (expectedAction === step.action) {
-        // Check for perfect achievement (first attempt)
-        if (firstAttempt && currentStep === 0) {
-          addAchievement('perfect');
-          setHint(t('tutorial.hints.perfectStart'));
-        }
-        
-        if (!isLowEndDevice) {
-          const particles = Array.from({ length: 8 }, (_, i) => ({
-            id: i,
-            x: 50 + (Math.random() - 0.5) * 30,
-            y: 20 + (Math.random() - 0.5) * 20
-          }));
-          setCelebrationParticles(particles);
-        }
-        
-        setTimeout(() => {
-          applyTutorialSetup(currentStep + 1);
+      const expectedAction = validationMap[detail.type];
+      const placementMatchesTarget = step.action !== 'place' || isTutorialTargetFilled(
+        currentStep,
+        useGameStore.getState().grid
+      );
+
+      if (expectedAction === step.action && placementMatchesTarget) {
+        if (transitionPending) return;
+        transitionPending = true;
+
+        transitionTimer = window.setTimeout(() => {
+          const tutorialState = useTutorialStore.getState();
+          if (!tutorialState.isActive || tutorialState.currentStep !== currentStep) return;
+
+          applyTutorialSetup(currentStep + 1, currentStep === 0);
           nextStep();
-          setCelebrationParticles([]);
           const timedRewardHint = currentStep === 1 && isTimedMode
             ? t('tutorial.hints.timeReward')
             : null;
           setHint(timedRewardHint);
           if (timedRewardHint) {
-            window.setTimeout(() => setHint(null), 1700);
+            hintClearTimer = window.setTimeout(() => setHint(null), 1700);
           }
           trackStepComplete(currentStep);
         }, isLowEndDevice ? 120 : 600);
-      } else {
-        firstAttempt = false;
+      } else if (
+        detail.type === 'piece_placed' &&
+        (step.action === 'place' || step.action === 'clear')
+      ) {
+        // A wrong placement must not consume all tutorial pieces and trap the
+        // player. Briefly explain it, then restore the same controlled setup.
+        setHint(t(currentStep === 0
+          ? 'tutorial.hints.placeMarkedCells'
+          : 'tutorial.hints.completeMarkedRow'));
+        if (retryTimer !== null) window.clearTimeout(retryTimer);
+        retryTimer = window.setTimeout(() => {
+          const tutorialState = useTutorialStore.getState();
+          if (!tutorialState.isActive || tutorialState.currentStep !== currentStep) return;
+          applyTutorialSetup(currentStep);
+          setHint(null);
+        }, 650);
       }
     };
     
-    window.addEventListener('tutorial-validation' as any, handleValidation as any);
+    window.addEventListener('tutorial-validation', handleValidation);
     
     return () => {
-      window.removeEventListener('tutorial-validation' as any, handleValidation as any);
+      window.removeEventListener('tutorial-validation', handleValidation);
+      if (transitionTimer !== null) window.clearTimeout(transitionTimer);
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      if (hintClearTimer !== null) window.clearTimeout(hintClearTimer);
     };
-  }, [isActive, currentStep, nextStep, complete, addAchievement, setHint, applyTutorialSetup, isTimedMode, t]);
+  }, [isActive, currentStep, nextStep, finishTutorial, setHint, applyTutorialSetup, isTimedMode, isLowEndDevice, t, trackStepComplete, tutorialSteps]);
   
   if (!isActive) {
     return null;
   }
   
   // Tutorial completed, hide overlay
-  if (currentStep >= TUTORIAL_STEPS.length) {
+  if (currentStep >= tutorialSteps.length) {
     return null;
   }
   
-  const step = TUTORIAL_STEPS[currentStep];
-  const autoAdvanceSeconds = step.action === 'complete' ? 2.6 : 3.2;
+  const step = tutorialSteps[currentStep];
+  const autoAdvanceSeconds = 2.4;
   
   return (
     <>
@@ -418,9 +388,51 @@ export const TutorialOverlay: React.FC = () => {
       
       {/* Tutorial board cell guidance */}
       <AnimatePresence>
-        {!isLowEndDevice && tutorialGridBounds && (guidance.targetLines?.length || guidance.fallingCells?.length) && (
+        {tutorialGridBounds && (
+          guidance.targetCells?.length ||
+          guidance.settledCells?.length ||
+          (!isLowEndDevice && (guidance.targetLines?.length || guidance.fallingCells?.length))
+        ) && (
           <div className="tutorial-board-guidance" aria-hidden="true">
-            {guidance.targetLines?.map((line) => {
+            {guidance.targetCells?.map((cell) => {
+              const cellSize = tutorialGridBounds.width / 10;
+              return (
+                <motion.div
+                  key={`target-${cell.x}-${cell.y}`}
+                  className="tutorial-target-cell"
+                  initial={reducedTutorialMotion ? false : { opacity: 0, scale: 0.88 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: reducedTutorialMotion ? 0.08 : 0.2, ease: 'easeOut' }}
+                  style={{
+                    left: tutorialGridBounds.left + cell.x * cellSize + cellSize * 0.1,
+                    top: tutorialGridBounds.top + cell.y * cellSize + cellSize * 0.1,
+                    width: cellSize * 0.8,
+                    height: cellSize * 0.8,
+                  }}
+                />
+              );
+            })}
+            {guidance.settledCells?.map((cell) => {
+              const cellSize = tutorialGridBounds.width / 10;
+              return (
+                <motion.div
+                  key={`settled-${cell.x}-${cell.y}`}
+                  className="tutorial-settled-cell"
+                  initial={reducedTutorialMotion ? false : { opacity: 0, scale: 1.12 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: reducedTutorialMotion ? 0.08 : 0.32, ease: 'easeOut' }}
+                  style={{
+                    left: tutorialGridBounds.left + cell.x * cellSize + cellSize * 0.1,
+                    top: tutorialGridBounds.top + cell.y * cellSize + cellSize * 0.1,
+                    width: cellSize * 0.8,
+                    height: cellSize * 0.8,
+                  }}
+                />
+              );
+            })}
+            {!isLowEndDevice && guidance.targetLines?.map((line) => {
               const cellSize = tutorialGridBounds.width / 10;
               const isRow = line.type === 'row';
               return (
@@ -440,7 +452,7 @@ export const TutorialOverlay: React.FC = () => {
                 />
               );
             })}
-            {guidance.fallingCells?.map((cell) => {
+            {!isLowEndDevice && guidance.fallingCells?.map((cell) => {
               const cellSize = tutorialGridBounds.width / 10;
               return (
                 <motion.div
@@ -463,28 +475,11 @@ export const TutorialOverlay: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Achievement Badges */}
-      <AnimatePresence>
-        {achievements.map((achievement, index) => (
-          <motion.div
-            key={achievement}
-            className="tutorial-achievement-badge"
-            style={{ top: `${80 + index * 60}px` }}
-            initial={reducedTutorialMotion ? false : { opacity: 0, x: 100, scale: 0.5 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={reducedTutorialMotion ? { opacity: 0 } : { opacity: 0, x: 100, scale: 0.5 }}
-            transition={reducedTutorialMotion ? { duration: 0.08 } : { type: "spring", damping: 15 }}
-          >
-            {t(`tutorial.achievements.${achievement}`)}
-          </motion.div>
-        ))}
-      </AnimatePresence>
-      
       {/* Overlay backdrop */}
       <div 
         className={`tutorial-overlay${reducedTutorialMotion ? ' tutorial-low-motion' : ''}`}
-        role="dialog"
-        aria-modal="true"
+        role="region"
+        aria-live="polite"
         aria-labelledby="tutorial-title"
         aria-describedby="tutorial-description"
       >
@@ -512,9 +507,9 @@ export const TutorialOverlay: React.FC = () => {
               initial={reducedTutorialMotion ? false : { scale: 0 }}
               animate={{ scale: 1 }}
               transition={reducedTutorialMotion ? { duration: 0.08 } : { type: "spring", delay: 0.3 }}
-              aria-label={t('tutorial.progress', { current: currentStep + 1, total: TUTORIAL_STEPS.length })}
+              aria-label={t('tutorial.progress', { current: currentStep + 1, total: tutorialSteps.length })}
             >
-              {t('tutorial.progress', { current: currentStep + 1, total: TUTORIAL_STEPS.length })}
+              {t('tutorial.progress', { current: currentStep + 1, total: tutorialSteps.length })}
             </motion.span>
           </div>
           
@@ -524,13 +519,13 @@ export const TutorialOverlay: React.FC = () => {
             role="progressbar"
             aria-valuenow={currentStep + 1}
             aria-valuemin={1}
-            aria-valuemax={TUTORIAL_STEPS.length}
-            aria-label={t('tutorial.progress', { current: currentStep + 1, total: TUTORIAL_STEPS.length })}
+            aria-valuemax={tutorialSteps.length}
+            aria-label={t('tutorial.progress', { current: currentStep + 1, total: tutorialSteps.length })}
           >
             <motion.div 
               className="tutorial-progress-fill"
               initial={reducedTutorialMotion ? false : { width: 0 }}
-              animate={{ width: `${((currentStep + 1) / TUTORIAL_STEPS.length) * 100}%` }}
+              animate={{ width: `${((currentStep + 1) / tutorialSteps.length) * 100}%` }}
               transition={reducedTutorialMotion ? { duration: 0.08 } : { duration: 0.6, ease: "easeOut" }}
             />
           </div>
@@ -579,18 +574,6 @@ export const TutorialOverlay: React.FC = () => {
             </motion.div>
           )}
           
-          {/* Info step icons */}
-          {step.action === 'info' && (
-            <motion.div
-              className="tutorial-info-icon"
-              initial={reducedTutorialMotion ? false : { scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={reducedTutorialMotion ? { duration: 0.08 } : { type: "spring", damping: 15 }}
-            >
-              {currentStep === 2 && '↓'}
-            </motion.div>
-          )}
-          
           {/* Complete step icon */}
           {step.action === 'complete' && (
             <motion.div
@@ -599,12 +582,12 @@ export const TutorialOverlay: React.FC = () => {
               animate={{ scale: 1, rotate: 0 }}
               transition={reducedTutorialMotion ? { duration: 0.08 } : { type: "spring", damping: 15 }}
             >
-              ✓
+              OK
             </motion.div>
           )}
           
           {/* Auto-advance indicator for info steps */}
-          {(step.action === 'info' || step.action === 'complete') && (
+          {step.action === 'info' && (
             <motion.div
               className="tutorial-auto-advance"
               initial={reducedTutorialMotion ? false : { opacity: 0 }}
@@ -618,9 +601,22 @@ export const TutorialOverlay: React.FC = () => {
                 transition={{ duration: reducedTutorialMotion ? 0.1 : autoAdvanceSeconds, ease: 'linear' }}
               />
               <span className="tutorial-auto-advance-text">
-                {step.action === 'complete' ? t('tutorial.autoAdvance.completing') : t('tutorial.autoAdvance.continuing')}
+                {t('tutorial.autoAdvance.continuing')}
               </span>
             </motion.div>
+          )}
+
+          {step.action === 'complete' && (
+            <motion.button
+              type="button"
+              className="tutorial-start"
+              onClick={() => finishTutorial(false)}
+              initial={reducedTutorialMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              {t('tutorial.start')}
+            </motion.button>
           )}
           
           {/* Arrow indicator */}
@@ -641,12 +637,12 @@ export const TutorialOverlay: React.FC = () => {
           )}
           
           {/* Skip button for returning players */}
-          {showSkip && (
+          {showSkip && step.action !== 'complete' && (
             <motion.button
               className="tutorial-skip"
               onClick={() => {
                 trackInteraction('skip_clicked');
-                skip();
+                finishTutorial(true);
               }}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -658,36 +654,6 @@ export const TutorialOverlay: React.FC = () => {
             </motion.button>
           )}
           
-          {/* Celebration particles */}
-          <AnimatePresence>
-            {celebrationParticles.map(particle => (
-              <motion.div
-                key={particle.id}
-                className="celebration-particle"
-                initial={{ 
-                  x: `${particle.x}%`, 
-                  y: `${particle.y}%`,
-                  scale: 0,
-                  opacity: 1
-                }}
-                animate={{ 
-                  y: `${particle.y - 50}%`,
-                  scale: [0, 1, 0],
-                  opacity: [1, 1, 0]
-                }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1, ease: "easeOut" }}
-                style={{
-                  position: 'absolute',
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  background: `hsl(${particle.id * 30}, 80%, 60%)`,
-                  pointerEvents: 'none'
-                }}
-              />
-            ))}
-          </AnimatePresence>
         </motion.div>
       </div>
       
@@ -731,28 +697,25 @@ export const TutorialOverlay: React.FC = () => {
           border: 2px solid rgba(255, 255, 255, 0.3);
         }
         
-        /* Achievement Badges */
-        .tutorial-achievement-badge {
-          position: fixed;
-          right: clamp(12px, 3vw, 20px);
-          z-index: 10002;
-          background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
-          color: white;
-          padding: clamp(8px, 2vw, 10px) clamp(14px, 3.5vw, 20px);
-          border-radius: 12px;
-          font-size: clamp(12px, 3vw, 14px);
-          font-weight: 700;
-          box-shadow: 0 8px 24px rgba(245, 158, 11, 0.5);
-          pointer-events: none;
-          max-width: 45vw;
-          word-wrap: break-word;
-        }
-
         .tutorial-board-guidance {
           position: fixed;
           inset: 0;
           z-index: 9998;
           pointer-events: none;
+        }
+
+        .tutorial-target-cell {
+          position: fixed;
+          border: 2px solid rgba(96, 165, 250, 0.9);
+          border-radius: 8px;
+          box-shadow: inset 0 0 0 1px rgba(219, 234, 254, 0.18), 0 0 8px rgba(96, 165, 250, 0.2);
+        }
+
+        .tutorial-settled-cell {
+          position: fixed;
+          border: 2px solid rgba(52, 211, 153, 0.92);
+          border-radius: 8px;
+          box-shadow: inset 0 0 0 1px rgba(209, 250, 229, 0.18), 0 0 9px rgba(52, 211, 153, 0.24);
         }
 
         .tutorial-target-line {
@@ -984,32 +947,20 @@ export const TutorialOverlay: React.FC = () => {
           letter-spacing: 1px;
         }
         
-        .tutorial-info-icon {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: clamp(40px, 10vw, 56px);
-          margin: clamp(12px, 3vw, 16px) 0;
-          filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.3));
-        }
-        
         .tutorial-complete-icon {
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: clamp(48px, 12vw, 64px);
-          margin: clamp(12px, 3vw, 16px) 0;
-          filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.3));
-          animation: tutorial-bounce 1s ease-in-out infinite;
-        }
-        
-        @keyframes tutorial-bounce {
-          0%, 100% {
-            transform: translateY(0) scale(1);
-          }
-          50% {
-            transform: translateY(-10px) scale(1.05);
-          }
+          width: 44px;
+          height: 44px;
+          margin: clamp(10px, 2.5vw, 14px) auto;
+          border: 1px solid rgba(52, 211, 153, 0.55);
+          border-radius: 50%;
+          background: rgba(16, 185, 129, 0.12);
+          color: #6ee7b7;
+          font-size: 13px;
+          font-weight: 900;
+          letter-spacing: 0.04em;
         }
         
         .tutorial-description {
@@ -1046,6 +997,25 @@ export const TutorialOverlay: React.FC = () => {
         
         .tutorial-skip:active {
           transform: translateY(0);
+        }
+
+        .tutorial-start {
+          width: 100%;
+          margin-top: clamp(10px, 2.5vw, 14px);
+          padding: clamp(10px, 2.5vw, 12px) 16px;
+          border: 1px solid rgba(96, 165, 250, 0.72);
+          border-radius: 10px;
+          background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+          color: #ffffff;
+          font-size: clamp(13px, 3.2vw, 15px);
+          font-weight: 800;
+          cursor: pointer;
+          box-shadow: 0 8px 22px rgba(59, 130, 246, 0.28);
+        }
+
+        .tutorial-start:focus-visible {
+          outline: 2px solid #bfdbfe;
+          outline-offset: 2px;
         }
         
         .tutorial-arrow {
@@ -1084,12 +1054,6 @@ export const TutorialOverlay: React.FC = () => {
               0 0 60px rgba(59, 130, 246, 0.8);
             transform: scale(1.02);
           }
-        }
-        
-        .celebration-particle {
-          position: absolute;
-          pointer-events: none;
-          z-index: 10;
         }
         
         /* Auto-advance indicator */
@@ -1162,12 +1126,10 @@ export const TutorialOverlay: React.FC = () => {
         .tutorial-low-motion .tutorial-auto-advance-bar,
         .tutorial-low-motion .tutorial-skip,
         .tutorial-low-motion .tutorial-hint-toast,
-        .tutorial-low-motion .tutorial-contextual-hint,
-        .tutorial-low-motion .tutorial-achievement-badge {
+        .tutorial-low-motion .tutorial-contextual-hint {
           box-shadow: none;
         }
 
-        .tutorial-low-motion .tutorial-info-icon,
         .tutorial-low-motion .tutorial-complete-icon,
         .tutorial-low-motion .tutorial-arrow,
         .tutorial-low-motion .hand-emoji {

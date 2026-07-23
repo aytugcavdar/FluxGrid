@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { EXPANDED_ACHIEVEMENTS } from '@features/game/constants';
-import { updateAchievements } from '@features/game/store/helpers/achievementSystem';
+import {
+  mergeAchievementNotificationQueue,
+  updateAchievements,
+} from '@features/game/store/helpers/achievementSystem';
 import { GameMode, type GameStats } from '@shared/types';
 
 const baseStats: GameStats = {
@@ -89,5 +92,23 @@ describe('achievement system', () => {
     expect(byId.hollow_3x3_5.unlocked).toBe(true);
     expect(byId.square_3x3_1.unlocked).toBe(true);
     expect(byId.large_piece_clear_10.unlocked).toBe(true);
+  });
+
+  it('ayni hamlede acilan tum basarimlari bildirim kuyruguna ekler', () => {
+    const previous = EXPANDED_ACHIEVEMENTS.map(achievement => ({ ...achievement }));
+    const updated = previous.map(achievement => (
+      ['score_1k', 'score_5k'].includes(achievement.id)
+        ? { ...achievement, unlocked: true }
+        : achievement
+    ));
+
+    expect(mergeAchievementNotificationQueue([], previous, updated)).toEqual([
+      'score_1k',
+      'score_5k',
+    ]);
+    expect(mergeAchievementNotificationQueue(['score_1k'], previous, updated)).toEqual([
+      'score_1k',
+      'score_5k',
+    ]);
   });
 });

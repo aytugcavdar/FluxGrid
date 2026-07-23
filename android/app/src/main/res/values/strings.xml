@@ -6,21 +6,21 @@
     <string name="custom_url_scheme">com.fluxgrid.app</string>
 
     <!-- App Shortcuts -->
-    <string name="shortcut_endless_short">Sonsuz</string>
-    <string name="shortcut_endless_long">Sonsuz Mod</string>
-    <string name="shortcut_timed_short">Zamanlı</string>
-    <string name="shortcut_timed_long">Zamanlı Mod</string>
-    <string name="shortcut_stats_short">İstatistikler</string>
-    <string name="shortcut_stats_long">İstatistiklerim</string>
+    <string name="shortcut_endless_short">Endless</string>
+    <string name="shortcut_endless_long">Endless Mode</string>
+    <string name="shortcut_timed_short">Timed</string>
+    <string name="shortcut_timed_long">Timed Mode</string>
+    <string name="shortcut_stats_short">Statistics</string>
+    <string name="shortcut_stats_long">My Statistics</string>
 
     <!-- Notification Channels -->
-    <string name="notification_channel_daily">Günlük Hatırlatıcılar</string>
-    <string name="notification_channel_daily_desc">Oyuna dönmeniz için düşük öncelikli hatırlatıcılar</string>
+    <string name="notification_channel_daily">Game Reminders</string>
+    <string name="notification_channel_daily_desc">Low-priority reminders to return to the game</string>
 
     <!-- Widgets -->
-    <string name="widget_stats_description">Son skorunuzu, en iyi skorunuzu ve günlük serinizi gösterir</string>
-    <string name="widget_quick_play_description">Sonsuz ve Zamanlı moda hızlı erişim</string>
+    <string name="widget_stats_description">Shows your latest score, best score, and daily streak</string>
+    <string name="widget_quick_play_description">Quick access to Endless and Timed modes</string>
 
     <!-- Quick Settings Tile -->
-    <string name="tile_quick_play">Hızlı Oyun</string>
+    <string name="tile_quick_play">Quick Play</string>
 </resources>

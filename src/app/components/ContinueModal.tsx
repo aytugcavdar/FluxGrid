@@ -60,6 +60,7 @@ export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
         <>
           {/* Backdrop */}
           <motion.div
+            data-testid="continue-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -70,7 +71,7 @@ export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
               backdropFilter: 'blur(16px)',
               zIndex: 60,
             }}
-            onClick={onDecline}
+            onClick={isLoading ? undefined : onDecline}
           />
 
           {/* Modal */}
@@ -197,7 +198,8 @@ export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
 
                 <div>
                   <button
-                    onClick={onDecline}
+                    onClick={isLoading ? undefined : onDecline}
+                    disabled={isLoading}
                     style={{
                       width: '100%', padding: '11px 16px',
                       borderRadius: 12,
@@ -205,7 +207,7 @@ export const ContinueModal: React.FC<ContinueModalProps> = React.memo(({
                       background: 'rgba(255,255,255,0.04)',
                       color: isLoading ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.4)',
                       fontSize: 13, fontWeight: 600,
-                      cursor: 'pointer',
+                      cursor: isLoading ? 'not-allowed' : 'pointer',
                       opacity: 1,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     }}

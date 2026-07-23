@@ -124,17 +124,17 @@ export function aggregateTrendData(
  * - Returns localized relative time string
  * - Never returns future time
  */
-export function formatRelativeTime(timestamp: number): string {
+export function formatRelativeTime(timestamp: number, language: 'tr' | 'en' = 'tr'): string {
   // Validate input
   if (typeof timestamp !== 'number' || timestamp < 0 || !isFinite(timestamp)) {
-    return 'Bilinmiyor';
+    return language === 'tr' ? 'Bilinmiyor' : 'Unknown';
   }
 
   const now = Date.now();
   
   // Prevent future times
   if (timestamp > now) {
-    return 'Şimdi';
+    return language === 'tr' ? 'Şimdi' : 'Now';
   }
 
   const diffMs = now - timestamp;
@@ -145,20 +145,12 @@ export function formatRelativeTime(timestamp: number): string {
   const diffWeeks = Math.floor(diffDays / 7);
   const diffMonths = Math.floor(diffDays / 30);
 
-  if (diffSeconds < 60) {
-    return 'Az önce';
-  } else if (diffMinutes < 60) {
-    return `${diffMinutes} dakika önce`;
-  } else if (diffHours < 24) {
-    return `${diffHours} saat önce`;
-  } else if (diffDays < 7) {
-    return `${diffDays} gün önce`;
-  } else if (diffWeeks < 4) {
-    return `${diffWeeks} hafta önce`;
-  } else if (diffMonths < 12) {
-    return `${diffMonths} ay önce`;
-  } else {
-    const diffYears = Math.floor(diffMonths / 12);
-    return `${diffYears} yıl önce`;
-  }
+  const formatter = new Intl.RelativeTimeFormat(language, { numeric: 'auto' });
+  if (diffSeconds < 60) return formatter.format(0, 'second');
+  if (diffMinutes < 60) return formatter.format(-diffMinutes, 'minute');
+  if (diffHours < 24) return formatter.format(-diffHours, 'hour');
+  if (diffDays < 7) return formatter.format(-diffDays, 'day');
+  if (diffWeeks < 4) return formatter.format(-diffWeeks, 'week');
+  if (diffMonths < 12) return formatter.format(-diffMonths, 'month');
+  return formatter.format(-Math.floor(diffMonths / 12), 'year');
 }

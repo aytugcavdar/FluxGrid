@@ -30,6 +30,6 @@ describe('MarketingSite', () => {
     render(<MarketingSite />);
 
     expect(screen.getByRole('heading', { level: 1, name: 'FluxGrid Privacy Policy' })).toBeInTheDocument();
-    expect(screen.getByText('Last updated: June 7, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Last updated: July 14, 2026')).toBeInTheDocument();
   });
 });

@@ -126,7 +126,7 @@ const getChipKind = (cell: ScoreSourceCell, lines: number): ScoreChipKind => {
 };
 
 const getChipColor = (kind: ScoreChipKind, cellColor: string, accentColor: string, combo: number): string => {
-  if (kind === 'bomb') return '#fb7185';
+  if (kind === 'bomb') return '#ff453a';
   if (kind === 'ice') return '#67e8f9';
   if (combo >= 8) return '#f472b6';
   if (combo >= 5) return '#fbbf24';

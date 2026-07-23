@@ -127,3 +127,19 @@ export function syncNewAchievement(
     console.error('[Achievement] Failed to save to localStorage:', error);
   }
 }
+
+export function mergeAchievementNotificationQueue(
+  currentQueue: string[],
+  previousAchievements: Achievement[],
+  updatedAchievements: Achievement[]
+): string[] {
+  const queuedIds = new Set(currentQueue);
+  const newUnlockIds = updatedAchievements
+    .filter((achievement, index) => (
+      achievement.unlocked && !previousAchievements[index]?.unlocked
+    ))
+    .map(achievement => achievement.id)
+    .filter(id => !queuedIds.has(id));
+
+  return [...currentQueue, ...newUnlockIds];
+}

@@ -76,10 +76,10 @@ export const ExitConfirmDialog: React.FC<ExitConfirmDialogProps> = React.memo(({
                 {/* Content */}
                 <div className="px-6 pb-6 text-center">
                   <h3 className="text-xl font-bold text-white mb-2">
-                    {t('game.exitTitle', 'Oyundan Çık?')}
+                    {t('game.exitTitle')}
                   </h3>
                   <p className="text-gray-400 text-sm leading-relaxed">
-                    {t('game.confirmExit', 'İlerlemeniz kaybolacak. Emin misiniz?')}
+                    {t('game.confirmExit')}
                   </p>
                 </div>
 
@@ -92,7 +92,7 @@ export const ExitConfirmDialog: React.FC<ExitConfirmDialogProps> = React.memo(({
                     onClick={onCancel}
                     className="flex-1 py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium transition-colors"
                   >
-                    {t('common.cancel', 'İptal')}
+                    {t('common.cancel')}
                   </motion.button>
 
                   {/* Confirm button */}
@@ -102,7 +102,7 @@ export const ExitConfirmDialog: React.FC<ExitConfirmDialogProps> = React.memo(({
                     onClick={onConfirm}
                     className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-bold shadow-lg shadow-red-500/30 transition-all"
                   >
-                    {t('common.exit', 'Çık')}
+                    {t('common.exit')}
                   </motion.button>
                 </div>
               </div>

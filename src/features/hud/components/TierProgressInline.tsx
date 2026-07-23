@@ -6,6 +6,7 @@ import { getTierProgress } from '../../game/store/helpers/progressionSystem';
 import { calculateEndlessLoop } from '../../game/store/helpers/tierSystem';
 import { usePerformanceStore } from '../../performance/store/performanceStore';
 import { SCORE_IMPACT_EVENT, type ScoreImpactDetail } from './ScoreImpactValue';
+import { useTranslation } from 'react-i18next';
 
 const TIER_COLORS = [
   '#94a3b8',
@@ -53,6 +54,7 @@ export const TierProgressInline: React.FC<TierProgressInlineProps> = React.memo(
   gravityCharge = 0,
   gravityTriggered = false,
 }) => {
+  const { t, i18n } = useTranslation();
   const deviceTier = usePerformanceStore(state => state.deviceTier);
   const initial = getTierVisualState(score);
   const [visual, setVisual] = useState(initial);
@@ -178,21 +180,22 @@ export const TierProgressInline: React.FC<TierProgressInlineProps> = React.memo(
   const isGravityChargeMode = visual.isMaxTier;
   const safeGravityCharge = Math.max(0, Math.min(2, Math.floor(gravityCharge)));
   const displayedGravityCharge = showTriggeredCharge ? 3 : safeGravityCharge;
+  const numberLocale = i18n.resolvedLanguage === 'tr' ? 'tr-TR' : 'en-US';
   const rightLabel = tierUp
-    ? 'TIER UP'
+    ? t('tier.tierUp')
     : isGravityChargeMode
-      ? `YERCEKIMI ${displayedGravityCharge}/3`
-      : `${visual.scoreNeeded.toLocaleString('tr-TR')} KALDI`;
+      ? t('tier.gravityCharge', { current: displayedGravityCharge, total: 3 })
+      : t('tier.scoreRemaining', { score: visual.scoreNeeded.toLocaleString(numberLocale) });
   const tierLabel = visual.loop > 0
-    ? `T${visual.tier} LOOP ${visual.loop}`
-    : `T${visual.tier} ${TIER_NAMES[visual.tier] ?? ''}`.trim();
+    ? t('tier.loop', { tier: visual.tier, loop: visual.loop })
+    : `T${visual.tier} ${t(`tier.names.${visual.tier}`, TIER_NAMES[visual.tier] ?? '')}`.trim();
 
   return (
     <div
       role="progressbar"
       aria-label={isGravityChargeMode
-        ? `Tier ${visual.tier} gravity charge ${displayedGravityCharge} of 3`
-        : `Tier ${visual.tier} progress ${Math.round(visual.progress)}%`}
+        ? t('tier.gravityAria', { tier: visual.tier, current: displayedGravityCharge, total: 3 })
+        : t('tier.progressAria', { tier: visual.tier, progress: Math.round(visual.progress) })}
       aria-valuemin={0}
       aria-valuemax={isGravityChargeMode ? 3 : 100}
       aria-valuenow={isGravityChargeMode ? displayedGravityCharge : Math.round(visual.progress)}

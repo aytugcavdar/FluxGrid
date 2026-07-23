@@ -58,15 +58,15 @@ export const getDragYOffset = (): number => {
 
   let offset: number;
   if (orientation === 'landscape') {
-    offset = width >= 768 ? 28 : 32;
+    offset = width >= 768 ? 28 : 38;
   } else if (width >= 768) {
     offset = 34;
   } else if (width <= 360 || height < 700) {
-    offset = 56;
-  } else if (height < 820) {
     offset = 62;
+  } else if (height < 820) {
+    offset = 68;
   } else {
-    offset = 66;
+    offset = 72;
   }
 
   if (isAndroid && width < 768) {
@@ -79,7 +79,7 @@ export const getDragYOffset = (): number => {
     offset += 2;
   }
 
-  const clampedOffset = Math.max(28, Math.min(72, offset));
+  const clampedOffset = Math.max(28, Math.min(78, offset));
 
   // Update cache. Negative means the dragged piece is rendered above the finger.
   cachedDragOffset = -clampedOffset;

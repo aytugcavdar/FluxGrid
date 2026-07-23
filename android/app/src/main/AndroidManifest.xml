@@ -74,7 +74,7 @@
         <!-- Privacy Policy URL (Required for Google Play Store) -->
         <meta-data
             android:name="com.google.android.gms.ads.PRIVACY_POLICY_URL"
-            android:value="https://fluxgrid.app/privacy-policy.html"/>
+            android:value="https://fluxgrid-d0ad3.web.app/privacy-policy.html"/>
         
         <!-- Terms of Service URL -->
         <meta-data

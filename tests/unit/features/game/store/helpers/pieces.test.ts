@@ -92,6 +92,22 @@ describe('getRandomPieces', () => {
     expect(pieces.every(piece => piece.type === CellType.NORMAL)).toBe(true);
   });
 
+  it('tier 0 bos tahtada nadir 8-9 hucreli parca uretebilir', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(0.01)
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(0.50)
+      .mockReturnValue(0.50);
+
+    const pieces = getRandomPiecesSync(3, undefined, false, undefined, 0, GameMode.ENDLESS);
+
+    expect(pieces.some(piece => blockCount(piece) <= 3)).toBe(true);
+    expect(pieces.some(piece => blockCount(piece) >= 8)).toBe(true);
+  });
+
   it('sonsuz tier 1 buz acilir ama bomba acilmaz', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.01);
 
@@ -145,12 +161,20 @@ describe('getRandomPieces', () => {
     expect(pieces.some(piece => blockCount(piece) <= 3 && canPlacePiece(grid, piece))).toBe(true);
   });
 
-  it('ust tierda uc buyuk ayni parcalik tepsiyi yumusatir', () => {
+  it('tier 3 sonrasinda uc zor parcali tepsiye izin verir', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.99);
 
     const pieces = getRandomPiecesSync(3, undefined, false, undefined, 6, GameMode.ENDLESS);
 
-    expect(pieces.every(piece => blockCount(piece) >= 4)).toBe(false);
+    expect(pieces.every(piece => blockCount(piece) >= 4)).toBe(true);
+  });
+
+  it('ayni tepside en fazla bir 8-9 hucreli parca verir', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+
+    const pieces = getRandomPiecesSync(30, undefined, false, undefined, 6, GameMode.ENDLESS);
+
+    expect(pieces.filter(piece => blockCount(piece) >= 8)).toHaveLength(1);
   });
 
   it('eksik grid verildiginde parca uretimi hata firlatmaz', () => {

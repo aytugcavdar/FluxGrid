@@ -242,8 +242,11 @@ public class MainActivity extends BridgeActivity {
                     ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
                     activityManager.getMemoryInfo(memoryInfo);
                     
-                    // Convert bytes to GB (rounded)
-                    long totalMemoryGB = memoryInfo.totalMem / (1024 * 1024 * 1024);
+                    // Round to the nearest advertised RAM class. Integer
+                    // division incorrectly classified many 3 GB phones as 2 GB.
+                    long totalMemoryGB = Math.round(
+                        memoryInfo.totalMem / (1024.0 * 1024.0 * 1024.0)
+                    );
                     
                     // Return as int (GB)
                     return (int) totalMemoryGB;
@@ -357,7 +360,6 @@ public class MainActivity extends BridgeActivity {
         WebView webView = getBridge().getWebView();
         if (webView != null) {
             webView.onPause();
-            webView.pauseTimers();
         }
         
         // Update widgets when app goes to background
@@ -374,7 +376,6 @@ public class MainActivity extends BridgeActivity {
         WebView webView = getBridge().getWebView();
         if (webView != null) {
             webView.onResume();
-            webView.resumeTimers();
         }
     }
     

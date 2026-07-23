@@ -25,7 +25,27 @@
     "infinite": "Sonsuz",
     "infiniteDesc": "Sınırsız bulmaca çözme. Zaman limiti yok.",
     "timed": "Zamanlı",
-    "timedDesc": "Zamanla yarış. Her saniye önemli."
+    "timedDesc": "Zamanla yarış. Her saniye önemli.",
+    "minimumRequirementsTitle": "Cihaz Gereksinimleri",
+    "minimumRequirementsDesc": "Cihazınız minimum gereksinimleri karşılamıyor.",
+    "tryAnyway": "Yine de Dene",
+    "continue": "Devam Et",
+    "savedGameSummary": "{{mode}} mod - tek seferlik kayıt",
+    "score": "Skor",
+    "remaining": "Kalan",
+    "save": "Kayıt",
+    "secondsShort": "{{count}} sn",
+    "savedDaysAgo": "{{count}} gün önce",
+    "savedHoursAgo": "{{count}} saat önce",
+    "savedMinutesAgo": "{{count}} dk önce",
+    "savedJustNow": "Az önce",
+    "endlessModeLabel": "SINIRSIZ MOD",
+    "timedModeLabel": "ZAMAN MODU",
+    "unlimited": "Sınırsız",
+    "simple": "Basit",
+    "timeLimited": "Süreli",
+    "fast": "Hızlı",
+    "bestWithScore": "En iyi {{score}}"
   },
   "navigation": {
     "home": "Ana Sayfa",
@@ -56,7 +76,65 @@
     "seconds": "SN",
     "unlimited": "Sınırsız",
     "block": "BLOK",
-    "surge": "SURGE"
+    "surge": "SURGE",
+    "score": "SKOR",
+    "best": "EN İYİ",
+    "comboTimeAria": "{{combo}} combo, {{seconds}} saniye kaldı",
+    "events": {
+      "iceStorm": "Buz Fırtınası",
+      "quake": "Deprem!",
+      "mirror": "Ayna Modu",
+      "chaos": "Kaos!",
+      "void": "Void Bölgeleri"
+    }
+  },
+  "tier": {
+    "tierUp": "TIER ATLADI",
+    "gravityCharge": "YERÇEKİMİ {{current}}/{{total}}",
+    "scoreRemaining": "{{score}} KALDI",
+    "loop": "T{{tier}} DÖNGÜ {{loop}}",
+    "gravityAria": "Tier {{tier}} yerçekimi yükü {{current}} / {{total}}",
+    "progressAria": "Tier {{tier}} ilerlemesi yüzde {{progress}}",
+    "names": {
+      "0": "NORMAL",
+      "1": "BUZ",
+      "2": "BASINÇ",
+      "3": "SARSINTI",
+      "4": "BUZ FIRTINASI",
+      "5": "GÜÇLÜ SARSINTI",
+      "6": "SABİT ALAN"
+    }
+  },
+  "timedHud": {
+    "final": "FİNAL",
+    "boost": "BOOST",
+    "personalBestAria": "En iyi skor: {{score}}",
+    "clearSeconds": "CLEAR +{{seconds}} SN",
+    "timeEqualsScore": "SÜRE=SKOR",
+    "lastChance": "SON ŞANS",
+    "used": "KULLANILDI",
+    "lastMove": "SON HAMLE",
+    "boostReady": "BOOST HAZIR",
+    "clearBoost": "CLEAR BOOST",
+    "ready": "hazır",
+    "boostAria": "Clear boost yüzde {{progress}}. Son şans {{status}}.",
+    "finalSprintActive": "FINAL SPRINT - x1.5 AKTİF",
+    "events": {
+      "lastChance": "SON ŞANS · +{{seconds}} sn",
+      "target": "{{count}} ZAMAN HEDEFİ",
+      "secondsReward": "+{{seconds}} sn",
+      "scoreReward": "+{{score}} SKOR",
+      "freeze": "BOOST DOLDU · +{{seconds}} sn",
+      "clearTime": "+{{seconds}} sn",
+      "finalRush": "FINAL RUSH · +{{score}} SKOR"
+    },
+    "milestones": {
+      "timed_10k": "İlk 10K! 🎯",
+      "timed_25k": "Çeyrek Yol! 🔥",
+      "timed_50k": "Yarı Yol! ⚡",
+      "timed_75k": "Efsane Bölge! 💎",
+      "timed_100k": "100K Kulübü! 👑"
+    }
   },
   "game": {
     "tryAgain": "Tekrar Dene",
@@ -85,7 +163,34 @@
     "totalLines": "TOPLAM SATIR",
     "totalGames": "TOPLAM OYUN",
     "bossLevel": "BOSS SEVİYE",
-    "confirmExit": "Oyundan çıkmak istediğinize emin misiniz? İlerlemeniz kaybolacak."
+    "confirmExit": "Oyundan çıkmak istediğinize emin misiniz? İlerlemeniz kaybolacak.",
+    "exitTitle": "Oyundan Çık?"
+  },
+  "gameOver": {
+    "title": "OYUN BİTTİ",
+    "timedMode": "Zamanlı Mod",
+    "endlessMode": "Sonsuz Mod",
+    "game": "Oyun",
+    "close": "Kapat",
+    "newRecord": "YENİ REKOR!",
+    "finalScoreAria": "Final skor: {{score}}",
+    "bestScoreAria": "En iyi skor: {{score}}",
+    "bestScore": "EN İYİ: {{score}}",
+    "recordDifferenceAria": "Yeni rekor farkı: +{{score}}",
+    "recordDifference": "+{{score}} yeni rekor farkı",
+    "newRecordPrompt": "Yeni rekor. Bir tur daha.",
+    "recordGap": "Rekora {{score}} puan kaldı.",
+    "oneMoreRound": "Bir Tur Daha",
+    "timedSummary": "ZAMANLI ÖZET",
+    "timedSummaryAria": "Zamanlı mod özeti",
+    "maxCombo": "MAX COMBO {{combo}}x",
+    "placementAndClear": "Yerleştirme + clear",
+    "combo": "Combo",
+    "bonus": "Hedef/tempo/final bonusu",
+    "finalSprint": "Final sprint",
+    "noBonus": "Bonus çıkmadı. Hedef ve combo ile süreyi skora çevir.",
+    "playAgain": "Tekrar Oyna",
+    "backToMenu": "Ana Menü"
   },
   "skills": {
     "reroll": "Yenile",
@@ -101,8 +206,8 @@
   },
   "tutorial": {
     "drag": {
-      "title": "Parçayı masaya sürükle",
-      "description": "Alttaki parçayı tut, 2D oyun masasında uygun boşluğa bırak."
+      "title": "Parçayı yerleştir",
+      "description": "Mavi 2'li parçayı alt satırdaki işaretli iki hücreye bırak."
     },
     "welcome": {
       "title": "👋 Hoş Geldin!",
@@ -110,11 +215,11 @@
     },
     "firstClear": {
       "title": "Satırı temizle",
-      "description": "Alt satırı tamamla. Satır dolunca temizlenir ve puanlar blokların üstünden çıkar."
+      "description": "Şimdi 3'lü parçayı aynı satırda kalan üç hücreye bırak."
     },
     "gravity": {
       "title": "Bloklar düşer",
-      "description": "Clear sonrası üstte boşta kalan bloklar aşağı iner. Bu düşüş yeni hamle alanları açabilir."
+      "description": "Temizleme sonrası desteksiz bloklar aşağı düşer ve yeni alan açar."
     },
     "combo": {
       "title": "Combo kur",
@@ -130,9 +235,9 @@
     },
     "ready": {
       "endlessTitle": "Hazırsın",
-      "endlessDescription": "2D masada boşlukları iyi kullan, satır veya sütun temizle ve kendi rekorunu geliştir.",
-      "timedTitle": "Süre kazan",
-      "timedDescription": "Timed modda her clear süre kazandırır. Hızlı temizle, combo kur ve turu uzat."
+      "endlessDescription": "Boşlukları koru, satır veya sütunları tamamla ve rekorunu geliştir.",
+      "timedTitle": "Hazırsın",
+      "timedDescription": "Clear yaparak süre kazan. Süre ilk gerçek hamlende başlayacak."
     },
     "skip": "Atla",
     "skipButton": "Tutorial'ı Atla",
@@ -140,7 +245,7 @@
     "handPointer": "Tut, sürükle, bırak",
     "autoAdvance": {
       "completing": "🎉 Tamamlanıyor...",
-      "continuing": "⏭ Otomatik devam..."
+      "continuing": "Bloklar yerleşiyor..."
     },
     "achievements": {
       "speed": "⚡ Hızlı Öğrenen",
@@ -151,8 +256,10 @@
       "perfectStart": "🎯 Mükemmel Başlangıç!",
       "comboMaster": "🔥 Kombo Ustası!",
       "speedDemon": "⚡ Hız Canavarı!",
-      "tryDragging": "Bir parçayı 2D masadaki boşluğa sürüklemeyi dene",
+      "tryDragging": "Mavi parçayı alt satırdaki işaretli iki hücreye bırak",
       "fillLine": "Tam bir satır veya sütun doldur",
+      "placeMarkedCells": "Mavi parçayı işaretli iki hücreye bırak",
+      "completeMarkedRow": "Alt satırı tamamlamak için parçayı sağdaki boşluğa bırak",
       "keepClearing": "Combo için bir satır veya sütun daha temizle",
       "timeReward": "Clear yaptın, süre kazandın!"
     },
@@ -164,7 +271,7 @@
       "tip3": "Son saniyeler değerli",
       "dismiss": "Timed bilgisini kapat"
     },
-    "start": "Oynamaya Başla",
+    "start": "Oyuna Başla",
     "next": "Devam",
     "step1": {
       "title": "Parçayı Sürükle",
@@ -192,6 +299,35 @@
     },
     "wrongPlacement": "Buraya değil!",
     "correctPlacement": "Harika!"
+  },
+  "achievementDisplay": {
+    "unlocked": "Başarım Açıldı",
+    "more": "+{{count}} başarım daha",
+    "hidden": "Gizli Başarım",
+    "hiddenDescription": "Oyunda ilerledikçe açılır.",
+    "completed": "Tamamlandı",
+    "score": { "name": "{{target}} Puan", "description": "Tek oyunda {{target}} puana ulaş." },
+    "combo": { "name": "{{target}}x Kombo", "description": "{{target}}x kombo yap." },
+    "comboSeries": { "name": "Kombo Zinciri", "description": "5x kombo eşiğine {{target}} kez ulaş." },
+    "bomb": { "name": "Bomba Uzmanı {{target}}", "description": "Toplam {{target}} bomba patlat." },
+    "ice": { "name": "Buz Kırıcı {{target}}", "description": "Toplam {{target}} buz bloğu kır." },
+    "games": { "name": "{{target}} Oyun", "description": "Toplam {{target}} oyun tamamla." },
+    "blocks": { "name": "{{target}} Blok", "description": "Toplam {{target}} blok yerleştir." },
+    "lines": { "name": "{{target}} Temizleme", "description": "Toplam {{target}} satır veya sütun temizle." },
+    "timedScore": { "name": "Zaman Skoru {{target}}", "description": "Zaman modunda {{target}} puana ulaş." },
+    "timedCombo": { "name": "Hızlı Kombo {{target}}x", "description": "Zaman modunda {{target}}x kombo yap." },
+    "timedLines": { "name": "Zaman Temizliği", "description": "Zaman modunda toplam {{target}} satır temizle." },
+    "sprint": { "name": "Final Atağı", "description": "Toplam {{target}} final sprint puanı kazan." },
+    "tier": { "name": "Tier {{target}}", "description": "Sonsuz modda Tier {{target}} seviyesine ulaş." },
+    "event": { "name": "Tier Olayı {{target}}", "description": "Toplam {{target}} tier olayı yaşa." },
+    "perfect": { "name": "Mükemmel Temizlik", "description": "Tahtayı tamamen {{target}} kez temizle." },
+    "color": { "name": "Renk Avcısı", "description": "{{target}} kez renk bonusu kazan." },
+    "largePiece": { "name": "Büyük Parça {{target}}", "description": "Toplam {{target}} büyük parça yerleştir." },
+    "lineFive": { "name": "Uzun Hat", "description": "{{target}} adet beşli çizgi yerleştir." },
+    "hollow": { "name": "Boş 3x3", "description": "Boş 3x3 parçayı {{target}} kez yerleştir." },
+    "square": { "name": "Dev Kare", "description": "Dolu 3x3 kareyi yerleştir." },
+    "largeClear": { "name": "Büyük Temizlik", "description": "Büyük parçayla {{target}} kez temizleme yap." },
+    "record": { "name": "Rekor Kırıcı", "description": "Kendi rekorunu {{target}} kez geliştir." }
   },
   "settings": {
     "title": "Tema Seç",
@@ -264,15 +400,78 @@
     "comboAchievements": "Kombo Başarımları",
     "specialBlockAchievements": "Özel Blok Başarımları",
     "abilityAchievements": "Yetenek Başarımları",
-    "progressionAchievements": "İlerleme Başarımları"
+    "progressionAchievements": "İlerleme Başarımları",
+    "speedAchievements": "Hız Başarımları",
+    "masteryAchievements": "Ustalık Başarımları",
+    "statistics": "İstatistikler",
+    "endless": "Sonsuz",
+    "timed": "Zamanlı",
+    "game": "Oyun",
+    "favoriteMode": "En çok oynadığın mod",
+    "playMoreForInsights": "Birkaç oyun sonrası görünür",
+    "sevenDayPerformance": "7 günlük performans",
+    "needComparisonData": "Karşılaştırma için veri lazım",
+    "favoriteModeDetail": "Son {{total}} oyunun {{count}} tanesi",
+    "modeSevenDay": "{{mode}} - 7 günlük",
+    "new": "Yeni",
+    "newModeGames": "{{count}} yeni {{mode}} oyunu",
+    "averageScore": "{{score}} ortalama puan",
+    "personalSummary": "KİŞİSEL ÖZET",
+    "dailyStreak": "Günlük Seri",
+    "playedToday": "Bugün oynadın",
+    "completedGames": "Tamamlanan",
+    "totalClears": "Toplam Clear",
+    "perfectClears": "Perfect Clear",
+    "longestStreak": "En Uzun Seri",
+    "achievementProgress": "BAŞARIM İLERLEMESİ",
+    "completed": "tamamlandı",
+    "nextGoal": "SIRADAKİ HEDEF",
+    "close": "Kapat",
+    "all": "Tümü",
+    "endlessMode": "Sonsuz Mod",
+    "timedMode": "Zamanlı Mod",
+    "recordWithScore": "Rekor: {{score}}",
+    "bestScore": "En İyi Skor",
+    "maxCombo": "Max Kombo",
+    "maxTier": "Max Tier",
+    "noGamesYet": "Henüz oyun oynamadın",
+    "playFirstGame": "İlk oyununu oyna ve burada gör!",
+    "comboCount": "{{count}}x kombo",
+    "lineCount": "{{count}} satır",
+    "secondsShort": "{{count}} sn",
+    "scoreDistribution": "Skor Dağılımı",
+    "games": "oyun",
+    "rarity": {
+      "BRONZE": "Bronz",
+      "SILVER": "Gümüş",
+      "GOLD": "Altın",
+      "MYTHIC": "Mitik"
+    },
+    "badges": {
+      "newRecord": "YENİ REKOR",
+      "perfect": "MÜKEMMEL",
+      "comeback": "DÖNÜŞ",
+      "speedrun": "HIZLI"
+    }
+  },
+  "common": {
+    "cancel": "İptal",
+    "exit": "Çık"
   },
   "settingsScreen": {
     "title": "Ayarlar",
     "subtitle": "Temel oyun tercihlerini buradan yönet.",
     "appearance": "GÖRÜNÜM",
     "soundAndVibration": "SES VE TİTREŞİM",
+    "notifications": "BİLDİRİMLER",
+    "phoneNotifications": "Telefon Bildirimleri",
+    "phoneNotificationsDesc": "Günde en fazla bir sakin hatırlatma",
+    "privacy": "GİZLİLİK",
+    "adPrivacyOptions": "Reklam gizliliği seçenekleri",
+    "adPrivacyOptionsDesc": "Reklam izinlerini ve veri tercihlerini yönet",
+    "adPrivacyOpening": "Gizlilik seçenekleri açılıyor...",
     "language": "DİL",
-    "languageNote": "Dil ayarı sadece oyun içinde geçerlidir",
+    "languageNote": "Dil seçimi oyun ve bildirimlerin tamamına uygulanır",
     "game": "OYUN",
     "accessibility": "ERİŞİLEBİLİRLİK",
     "accessibilityNote": "Renk körlüğü desteği",
@@ -322,9 +521,6 @@
     "themeNeonDesc": "Canlı Pembe",
     "turkish": "Türkçe",
     "english": "English",
-    "german": "Deutsch",
-    "french": "Français",
-    "spanish": "Español",
     "languageOptionAria": "{{language}} dilini seç",
     "rewards": "ÖDÜLLER",
     "neonTrialTitle": "Neon Tema Denemesi",
@@ -371,6 +567,33 @@
     "endlessDesc": "Skor kovalama modu",
     "careerBreak": "Kariyer arası dinlenme",
     "dailyDone": "Bugünlük bitmedi"
+  },
+  "notifications": {
+    "streak": {
+      "0": { "title": "FluxGrid hazır", "body": "İstediğinde kısa bir tur oynayabilirsin." },
+      "1": { "title": "Tahta hazır", "body": "Kendi ritminde yeni bir tur oynayabilirsin." },
+      "2": { "title": "Yeni bir tur hazır", "body": "Oynamak istediğinde FluxGrid seni bekliyor." }
+    },
+    "nearRecord": {
+      "0": { "title": "Rekora yaklaştın", "body": "En iyi skoruna {{score}} puan kaldı. Yeni bir turda deneyebilirsin." },
+      "1": { "title": "Yeni rekor yakın", "body": "Son skorunla rekor arasında {{score}} puan var. Tahta hazır." },
+      "2": { "title": "Rekor mesafesi kapandı", "body": "{{score}} puanlık fark kaldı. İstediğinde tekrar deneyebilirsin." }
+    },
+    "timed": {
+      "0": { "title": "60 saniyelik meydan okuma", "body": "Zamanlı modda kısa bir skor denemesi yap." },
+      "1": { "title": "Zamanlı mod hazır", "body": "Bir dakikalık turda ritmini yeniden dene." },
+      "2": { "title": "Kısa tur, net hedef", "body": "60 saniyede en iyi skorunu geliştirmeyi dene." }
+    },
+    "inactivity": {
+      "0": { "title": "FluxGrid seni bekliyor", "body": "Kaldığın ritmi yeniden yakalamak için tahta hazır." },
+      "1": { "title": "Tahta hazır", "body": "İstediğinde kısa bir FluxGrid turu oynayabilirsin." },
+      "2": { "title": "Yeni bir tur hazır", "body": "{{count}} gün sonra sakin bir dönüş için tahta hazır." }
+    },
+    "daily": {
+      "0": { "title": "Tahta hazır", "body": "İstediğinde kısa bir FluxGrid turu oynayabilirsin." },
+      "1": { "title": "Kısa bir tur", "body": "Bugün oynamak istersen FluxGrid hazır." },
+      "2": { "title": "FluxGrid hazır", "body": "Bir hamleyle başlayıp kendi ritminde oynayabilirsin." }
+    }
   },
   "update": {
     "button": "Şimdi Güncelle",

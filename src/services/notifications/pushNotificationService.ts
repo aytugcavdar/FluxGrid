@@ -3,7 +3,6 @@
  *
  * Allowed engagement notification types:
  * - Daily reminder
- * - Streak reminder
  * - Near-record reminder
  * - Timed mode callout
  * - Inactivity reminder
@@ -17,6 +16,7 @@ import {
 } from '@capacitor/push-notifications';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
+import i18n from '../../i18n';
 
 export enum NotificationType {
   DAILY_REMINDER = 'daily_reminder',
@@ -74,9 +74,9 @@ export interface EngagementNotificationPreferences {
 }
 
 const DEFAULT_NOTIFICATION_PREFERENCES: EngagementNotificationPreferences = {
-  enabled: true,
+  enabled: false,
   dailyReminder: true,
-  streakReminder: true,
+  streakReminder: false,
   nearRecord: true,
   timedMode: true,
   inactivity: true,
@@ -134,6 +134,8 @@ export function getEngagementNotificationPreferences(): EngagementNotificationPr
   return {
     ...DEFAULT_NOTIFICATION_PREFERENCES,
     ...(stored || {}),
+    // Daily streaks stay in-game and never trigger phone notifications.
+    streakReminder: false,
   };
 }
 
@@ -149,9 +151,10 @@ export function setEngagementNotificationPreferences(
 }
 
 function buildScheduleSignature(plans: EngagementNotificationPlan[]): string {
-  return plans
+  const language = i18n.resolvedLanguage || i18n.language || 'en';
+  return `${language}|${plans
     .map(plan => `${plan.id}:${plan.type}:${plan.hour}:${plan.minute}:${plan.repeats ? 'r' : 'o'}:${plan.dayOffset || 0}`)
-    .join('|');
+    .join('|')}`;
 }
 
 export function createEngagementNotificationCopy(
@@ -163,87 +166,48 @@ export function createEngagementNotificationCopy(
   const recordGap = Math.max(0, (context.bestScore || 0) - (context.lastScore || 0));
   const inactiveDays = daysSince(context.lastPlayedAt, now);
   const seed = `${type}:${dateSeed(now)}:${streak}:${recordGap}:${inactiveDays ?? 0}`;
+  const numberLocale = i18n.resolvedLanguage === 'tr' ? 'tr-TR' : 'en-US';
+  const formattedGap = recordGap.toLocaleString(numberLocale);
+  const translatedCopy = (group: string, variant: number, values: Record<string, unknown> = {}): NotificationCopy => ({
+    title: i18n.t(`notifications.${group}.${variant}.title`, values),
+    body: i18n.t(`notifications.${group}.${variant}.body`, values),
+  });
 
   switch (type) {
     case NotificationType.STREAK_REMINDER:
       return pickCopy([
-        {
-          title: `${streak} gunluk seri masada`,
-          body: 'Seri icin uzun seans gerekmez. Kisa bir tur yeter.',
-        },
-        {
-          title: 'Seri beklemede',
-          body: `${streak} gunluk ritim var. Bugunu tek turla kapatalim.`,
-        },
-        {
-          title: 'Seri kirilmasin',
-          body: 'Bir mini tur at, sayac yerinde kalsin.',
-        },
+        translatedCopy('streak', 0),
+        translatedCopy('streak', 1),
+        translatedCopy('streak', 2),
       ], seed);
 
     case NotificationType.NEAR_RECORD:
       return pickCopy([
-        {
-          title: 'Rekor kapida',
-          body: `${recordGap.toLocaleString('tr-TR')} puan kalmisti. Bu mesafe bir iyi turla kapanir.`,
-        },
-        {
-          title: 'Az kaldi',
-          body: `Son skorun rekora ${recordGap.toLocaleString('tr-TR')} puan uzakta. Tahta yine hazir.`,
-        },
-        {
-          title: 'Rekor yakin',
-          body: `${recordGap.toLocaleString('tr-TR')} puanlik fark kapanabilir. Bir tur daha mantikli.`,
-        },
+        translatedCopy('nearRecord', 0, { score: formattedGap }),
+        translatedCopy('nearRecord', 1, { score: formattedGap }),
+        translatedCopy('nearRecord', 2, { score: formattedGap }),
       ], seed);
 
     case NotificationType.TIMED_MODE:
       return pickCopy([
-        {
-          title: '60 saniyelik tur hazir',
-          body: 'Timed mod hizli karar istiyor. Bir dakikada skor alalim.',
-        },
-        {
-          title: 'Bir dakika yeter',
-          body: 'Kronometre hazir. Ilk clear ritmi belirler.',
-        },
-        {
-          title: 'Kisa tur, net skor',
-          body: '60 saniye. Combo kur, final sprintte kapat.',
-        },
+        translatedCopy('timed', 0),
+        translatedCopy('timed', 1),
+        translatedCopy('timed', 2),
       ], seed);
 
     case NotificationType.INACTIVITY:
       return pickCopy([
-        {
-          title: 'Tahta seni unutmadi',
-          body: `${inactiveDays || 2} gundur sessiz. Geri donus icin kisa bir tur yeter.`,
-        },
-        {
-          title: 'Kucuk bir geri donus',
-          body: 'Bir kisa tur at; ritmi yeniden yakalayalim.',
-        },
-        {
-          title: 'Tahta bos kaldi',
-          body: 'Bugun bir oyunluk yer var. Dolduralim.',
-        },
+        translatedCopy('inactivity', 0),
+        translatedCopy('inactivity', 1),
+        translatedCopy('inactivity', 2, { count: inactiveDays || 3 }),
       ], seed);
 
     case NotificationType.DAILY_REMINDER:
     default:
       return pickCopy([
-        {
-          title: 'Bugunun turu bos',
-          body: 'Bir hamleyle basla, ritmi oyun soylesin.',
-        },
-        {
-          title: 'Kisa tur zamani',
-          body: 'Gunluk ritim icin tek temiz tur yeter.',
-        },
-        {
-          title: 'Tahta sessiz kaldi',
-          body: 'Bir oyunluk yer ayirdik. Gelip dolduralim.',
-        },
+        translatedCopy('daily', 0),
+        translatedCopy('daily', 1),
+        translatedCopy('daily', 2),
       ], seed);
   }
 }
@@ -311,12 +275,8 @@ function selectEngagementNotificationType(
     return { type: NotificationType.DAILY_REMINDER, recordGap, inactiveDays };
   }
 
-  if (preferences.inactivity && inactiveDays !== null && inactiveDays >= 2) {
+  if (preferences.inactivity && inactiveDays !== null && inactiveDays >= 3) {
     return { type: NotificationType.INACTIVITY, recordGap, inactiveDays };
-  }
-
-  if (preferences.streakReminder && (context.currentStreak || 0) >= 2) {
-    return { type: NotificationType.STREAK_REMINDER, recordGap, inactiveDays };
   }
 
   if (
@@ -330,7 +290,7 @@ function selectEngagementNotificationType(
 
   // Timed is now a persona for the single evening slot, not a separate noon push.
   // Only use it after the player has actually tried Timed and skipped it for a bit.
-  if (preferences.timedMode && timedDaysSince !== null && timedDaysSince >= 2) {
+  if (preferences.timedMode && timedDaysSince !== null && timedDaysSince >= 3) {
     return { type: NotificationType.TIMED_MODE, recordGap, inactiveDays };
   }
 
@@ -362,7 +322,7 @@ export function createEngagementNotificationPlans(
     body: copy.body,
     hour: 20,
     minute: 0,
-    repeats: true,
+    repeats: selected.type === NotificationType.DAILY_REMINDER,
     dayOffset: todayPlayed && isScheduleTimeLaterToday(20, 0, now) ? 1 : 0,
     data: getEngagementNotificationData(selected.type, context, selected.recordGap, selected.inactiveDays),
   });
@@ -451,7 +411,7 @@ class PushNotificationService {
   private setupListeners(): void {
     PushNotifications.addListener('registration', (token: Token) => {
       this.fcmToken = token.value;
-      console.log('[PushNotifications] FCM Token:', token.value);
+      console.log('[PushNotifications] FCM registration completed');
       this.sendTokenToBackend(token.value);
     });
 
@@ -523,6 +483,50 @@ class PushNotificationService {
     } catch {
       return null;
     }
+  }
+
+  private getStoredToken(): string | null {
+    const registration = this.getStoredTokenRegistration();
+    if (!registration) return null;
+
+    try {
+      const metadata = JSON.parse(registration.signature) as { token?: unknown };
+      return typeof metadata.token === 'string' ? metadata.token : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async disableRemoteNotifications(): Promise<void> {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const token = this.fcmToken || this.getStoredToken();
+    if (token) {
+      try {
+        await fetch('https://us-central1-fluxgrid-app.cloudfunctions.net/saveFCMToken', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            platform: Capacitor.getPlatform(),
+            timestamp: Date.now(),
+            active: false,
+          }),
+        });
+      } catch (error) {
+        console.warn('[PushNotifications] Failed to deactivate legacy token:', error);
+      }
+    }
+
+    try {
+      await PushNotifications.unregister();
+    } catch (error) {
+      console.warn('[PushNotifications] Failed to unregister legacy token:', error);
+    }
+
+    this.fcmToken = null;
+    this.isInitialized = false;
+    localStorage.removeItem(FCM_TOKEN_REGISTRATION_KEY);
   }
 
   private handleNotificationAction(action: ActionPerformed): void {
@@ -606,7 +610,6 @@ class PushNotificationService {
             channelId: notification.channelId || ENGAGEMENT_CHANNEL_ID,
             smallIcon: 'ic_stat_notification',
             autoCancel: true,
-            actionTypeId: 'ENGAGEMENT_ACTIONS',
             extra: {
               type: notification.type,
               ...notification.data,
@@ -636,11 +639,14 @@ export const scheduleLocalNotification = (notification: any): Promise<void> => {
   });
 };
 
+let lastEngagementNotificationContext: EngagementNotificationContext = {};
+
 export const notificationScheduler = {
   scheduleEngagementNotifications: async (
     context: EngagementNotificationContext = {},
     options: { requestPermission?: boolean } = {}
   ) => {
+    lastEngagementNotificationContext = context;
     if (!Capacitor.isNativePlatform()) {
       return;
     }
@@ -709,7 +715,6 @@ export const notificationScheduler = {
           channelId: ENGAGEMENT_CHANNEL_ID,
           smallIcon: 'ic_stat_notification',
           autoCancel: true,
-          actionTypeId: 'ENGAGEMENT_ACTIONS',
           schedule: {
             at: nextScheduledDate(plan.hour, plan.minute, now, plan.dayOffset || 0),
             repeats: plan.repeats || false,
@@ -753,3 +758,7 @@ export const notificationScheduler = {
     }
   },
 };
+
+i18n.on('languageChanged', () => {
+  void notificationScheduler.scheduleEngagementNotifications(lastEngagementNotificationContext);
+});

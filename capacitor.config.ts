@@ -4,7 +4,7 @@ const config: CapacitorConfig = {
   appId: 'com.fluxgrid.app',
   appName: 'FluxGrid',
   webDir: 'dist',
-  appendUserAgent: 'FluxGrid/1.0.0 Android',
+    appendUserAgent: 'FluxGrid/1.0.4 Android',
   server: {
     androidScheme: 'https'
   },

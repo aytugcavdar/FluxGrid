@@ -19,6 +19,31 @@ type EndlessEvent = 'ICE_STORM' | 'QUAKE' | 'MIRROR' | 'CHAOS' | 'VOID';
 const VOID_ZONE_COUNT = 2;
 const VOID_ZONE_LIFETIME = 3;
 const VOID_COLOR = '#170d28';
+const TIER2_FIRE_SPAWN_COUNT = 2;
+const TIER2_FIRE_SPREAD_INTERVAL_MOVES = 3;
+const TIER2_FIRE_MAX_CELLS = 6;
+const LATE_GAME_FIRE_FAST_SPREAD_SCORE = 260000;
+const TIER2_FIRE_MIN_SPAWN_DISTANCE = 3;
+const TIER2_FIRE_NEAR_CLEAR_OCCUPANCY = GRID_SIZE - 2;
+
+export type FireFeedbackCell = {
+  id?: string;
+  x: number;
+  y: number;
+  color: string;
+  sourceX?: number;
+  sourceY?: number;
+};
+
+export type FireSpreadPlan = FireFeedbackCell & {
+  sourceX: number;
+  sourceY: number;
+};
+
+type FireMutationResult = {
+  grid: GridState;
+  cells: FireFeedbackCell[];
+};
 
 const canPieceFitAnywhere = (grid: GridState, piece: Piece): boolean => {
   for (let y = 0; y <= GRID_SIZE - piece.shape.length; y++) {
@@ -110,7 +135,7 @@ const TIER_EVENTS: Record<number, EndlessEvent | null> = {
 
 const getTierEventDuration = (tier: number, eventName: EndlessEvent | null): number => {
   if (!eventName) return 0;
-  if (tier === 1 && eventName === 'ICE_STORM') return 1;
+  if (tier === 1 && eventName === 'ICE_STORM') return 3;
   if (tier === 3 && eventName === 'QUAKE') return 4;
   if (tier === 4 && eventName === 'ICE_STORM') return 5;
   if (tier === 5 && eventName === 'QUAKE') return 6;
@@ -118,8 +143,334 @@ const getTierEventDuration = (tier: number, eventName: EndlessEvent | null): num
 };
 
 const getIceStormSpawnCount = (tier: number): number => (
-  tier === 1 ? 4 : ICE_STORM_SPAWN_COUNT
+  tier === 1 ? 1 : ICE_STORM_SPAWN_COUNT
 );
+
+const cloneGrid = (grid: GridState): GridState => grid.map(row => row.map(cell => ({ ...cell })));
+
+const shuffleInPlace = <T,>(items: T[]): T[] => {
+  for (let i = items.length - 1; i > 0; i--) {
+    const randomIndex = Math.floor(Math.random() * (i + 1));
+    [items[i], items[randomIndex]] = [items[randomIndex], items[i]];
+  }
+  return items;
+};
+
+const isBurnableNormalCell = (grid: GridState, x: number, y: number): boolean => {
+  const cell = grid[y]?.[x];
+  return !!cell?.filled && (!cell.type || cell.type === CellType.NORMAL);
+};
+
+type Tier2FireSpawnCandidate = {
+  x: number;
+  y: number;
+  priority: number;
+};
+
+const getOrthogonalNormalNeighborCount = (grid: GridState, x: number, y: number): number => (
+  [
+    { x: x + 1, y },
+    { x: x - 1, y },
+    { x, y: y + 1 },
+    { x, y: y - 1 },
+  ].filter(pos => isBurnableNormalCell(grid, pos.x, pos.y)).length
+);
+
+const getTier2FireSpawnCandidates = (grid: GridState): Tier2FireSpawnCandidate[] => {
+  const rowOccupancy = grid.map(row => row.filter(cell => cell.filled).length);
+  const columnOccupancy = Array.from({ length: GRID_SIZE }, (_, x) => (
+    grid.reduce((count, row) => count + (row[x]?.filled ? 1 : 0), 0)
+  ));
+  const candidates: Tier2FireSpawnCandidate[] = [];
+
+  for (let y = 0; y < GRID_SIZE; y++) {
+    for (let x = 0; x < GRID_SIZE; x++) {
+      if (!isBurnableNormalCell(grid, x, y)) continue;
+
+      const hasNormalNeighbor = getOrthogonalNormalNeighborCount(grid, x, y) > 0;
+      const isNearClearLine = rowOccupancy[y] >= TIER2_FIRE_NEAR_CLEAR_OCCUPANCY ||
+        columnOccupancy[x] >= TIER2_FIRE_NEAR_CLEAR_OCCUPANCY;
+
+      candidates.push({
+        x,
+        y,
+        priority: !isNearClearLine && hasNormalNeighbor
+          ? 0
+          : !isNearClearLine
+            ? 1
+            : hasNormalNeighbor
+              ? 2
+              : 3,
+      });
+    }
+  }
+
+  return candidates;
+};
+
+const manhattanDistance = (
+  first: Pick<Tier2FireSpawnCandidate, 'x' | 'y'>,
+  second: Pick<Tier2FireSpawnCandidate, 'x' | 'y'>
+): number => Math.abs(first.x - second.x) + Math.abs(first.y - second.y);
+
+const pickBestRandomCandidate = (candidates: Tier2FireSpawnCandidate[]): Tier2FireSpawnCandidate | null => {
+  if (candidates.length === 0) return null;
+  const bestPriority = Math.min(...candidates.map(candidate => candidate.priority));
+  return shuffleInPlace(candidates.filter(candidate => candidate.priority === bestPriority))[0];
+};
+
+const selectTier2FireSpawnCells = (
+  grid: GridState,
+  requestedCount = TIER2_FIRE_SPAWN_COUNT
+): Tier2FireSpawnCandidate[] => {
+  const candidates = getTier2FireSpawnCandidates(grid);
+  const first = pickBestRandomCandidate(candidates);
+  if (!first) return [];
+
+  const selected = [first];
+  const targetCount = Math.min(Math.max(1, requestedCount), TIER2_FIRE_MAX_CELLS);
+
+  while (selected.length < targetCount) {
+    const remaining = candidates.filter(candidate => !selected.some(chosen => (
+      chosen.x === candidate.x && chosen.y === candidate.y
+    )));
+    if (remaining.length === 0) break;
+
+    const distant = remaining.filter(candidate => selected.every(chosen => (
+      manhattanDistance(chosen, candidate) >= TIER2_FIRE_MIN_SPAWN_DISTANCE
+    )));
+    const pool = distant.length > 0 ? distant : remaining;
+    const next = pickBestRandomCandidate(pool);
+    if (!next) break;
+    selected.push(next);
+  }
+
+  return selected;
+};
+
+const convertCellsToFire = (
+  grid: GridState,
+  spawnCells: Tier2FireSpawnCandidate[]
+): FireMutationResult => {
+  if (spawnCells.length === 0) return { grid, cells: [] };
+
+  const nextGrid = cloneGrid(grid);
+  const cells: FireFeedbackCell[] = [];
+  spawnCells.forEach(({ x, y }) => {
+    const id = nextGrid[y][x].id ?? uuidv4();
+    nextGrid[y][x] = {
+      ...nextGrid[y][x],
+      id,
+      type: CellType.FIRE,
+      health: 2,
+    };
+    cells.push({ id, x, y, color: nextGrid[y][x].color });
+  });
+
+  return { grid: nextGrid, cells };
+};
+
+export function spawnTier2FireWithFeedback(grid: GridState): FireMutationResult {
+  const spawnCells = selectTier2FireSpawnCells(grid);
+  return convertCellsToFire(grid, spawnCells.slice(0, TIER2_FIRE_SPAWN_COUNT));
+}
+
+export function spawnTier2Fire(grid: GridState): GridState {
+  return spawnTier2FireWithFeedback(grid).grid;
+}
+
+export function ensureLateGameFireMinimumWithFeedback(
+  grid: GridState,
+  minimumCount: number
+): FireMutationResult {
+  const existingCount = grid.flat().filter(cell => cell.type === CellType.FIRE).length;
+  const missingCount = Math.min(
+    Math.max(0, minimumCount - existingCount),
+    TIER2_FIRE_MAX_CELLS - existingCount
+  );
+  if (missingCount === 0) return { grid, cells: [] };
+
+  return convertCellsToFire(grid, selectTier2FireSpawnCells(grid, missingCount));
+}
+
+export function getFireSpreadPendingTurns(score: number): number {
+  return score >= LATE_GAME_FIRE_FAST_SPREAD_SCORE ? 1 : 2;
+}
+
+export function createTier2FireSpreadPlan(grid: GridState): FireSpreadPlan | null {
+  return createTier2FireSpreadPlans(grid, 1)[0] ?? null;
+}
+
+export function createTier2FireSpreadPlans(
+  grid: GridState,
+  maxPlans = TIER2_FIRE_SPAWN_COUNT
+): FireSpreadPlan[] {
+  const fireCells: Array<{ x: number; y: number }> = [];
+  let allFireCount = 0;
+  for (let y = 0; y < GRID_SIZE; y++) {
+    for (let x = 0; x < GRID_SIZE; x++) {
+      const cell = grid[y][x];
+      if (cell.filled && cell.type === CellType.FIRE) allFireCount++;
+      if (cell.filled && cell.type === CellType.FIRE && (cell.health ?? 2) > 1) {
+        fireCells.push({ x, y });
+      }
+    }
+  }
+
+  if (fireCells.length === 0 || allFireCount >= TIER2_FIRE_MAX_CELLS) {
+    return [];
+  }
+
+  const targetsBySource = new Map<string, Array<{ x: number; y: number }>>();
+  fireCells.forEach(source => {
+    const targets = [
+      { x: source.x + 1, y: source.y },
+      { x: source.x - 1, y: source.y },
+      { x: source.x, y: source.y + 1 },
+      { x: source.x, y: source.y - 1 },
+    ].filter(pos => {
+      if (pos.x < 0 || pos.x >= GRID_SIZE || pos.y < 0 || pos.y >= GRID_SIZE) return;
+      return isBurnableNormalCell(grid, pos.x, pos.y);
+    });
+    if (targets.length > 0) targetsBySource.set(`${source.x},${source.y}`, targets);
+  });
+
+  let availableSources = shuffleInPlace(fireCells.filter(source => (
+    targetsBySource.has(`${source.x},${source.y}`)
+  )));
+  const plans: FireSpreadPlan[] = [];
+  const reservedTargets = new Set<string>();
+  const planLimit = Math.min(
+    Math.max(0, maxPlans),
+    TIER2_FIRE_MAX_CELLS - allFireCount
+  );
+
+  while (plans.length < planLimit && availableSources.length > 0) {
+    if (plans.length > 0) {
+      const maxDistance = Math.max(...availableSources.map(source => (
+        Math.min(...plans.map(plan => manhattanDistance(source, { x: plan.sourceX, y: plan.sourceY })))
+      )));
+      availableSources = shuffleInPlace(availableSources.filter(source => (
+        Math.min(...plans.map(plan => manhattanDistance(source, { x: plan.sourceX, y: plan.sourceY }))) === maxDistance
+      )));
+    }
+
+    const source = availableSources.shift()!;
+    const targets = (targetsBySource.get(`${source.x},${source.y}`) ?? []).filter(target => (
+      !reservedTargets.has(`${target.x},${target.y}`)
+    ));
+
+    if (targets.length > 0) {
+      const target = shuffleInPlace(targets)[0];
+      reservedTargets.add(`${target.x},${target.y}`);
+      plans.push({
+        id: grid[target.y][target.x].id,
+        x: target.x,
+        y: target.y,
+        color: grid[target.y][target.x].color,
+        sourceX: source.x,
+        sourceY: source.y,
+      });
+    }
+
+    availableSources = availableSources.filter(candidate => (
+      (targetsBySource.get(`${candidate.x},${candidate.y}`) ?? []).some(target => (
+        !reservedTargets.has(`${target.x},${target.y}`)
+      ))
+    ));
+  }
+
+  return plans;
+}
+
+export function isTier2FireSpreadPlanValid(grid: GridState, plan: FireSpreadPlan): boolean {
+  const source = grid[plan.sourceY]?.[plan.sourceX];
+  const isAdjacent = Math.abs(plan.sourceX - plan.x) + Math.abs(plan.sourceY - plan.y) === 1;
+  return Boolean(
+    source?.filled &&
+    source.type === CellType.FIRE &&
+    (source.health ?? 2) > 1 &&
+    isAdjacent &&
+    isBurnableNormalCell(grid, plan.x, plan.y)
+  );
+}
+
+export function applyTier2FireSpreadPlan(grid: GridState, plan: FireSpreadPlan): FireMutationResult {
+  if (!isTier2FireSpreadPlanValid(grid, plan)) return { grid, cells: [] };
+
+  const nextGrid = cloneGrid(grid);
+  const id = nextGrid[plan.y][plan.x].id ?? uuidv4();
+  nextGrid[plan.y][plan.x] = {
+    ...nextGrid[plan.y][plan.x],
+    id,
+    type: CellType.FIRE,
+    health: 2,
+  };
+
+  return {
+    grid: nextGrid,
+    cells: [{
+      id,
+      x: plan.x,
+      y: plan.y,
+      color: nextGrid[plan.y][plan.x].color,
+      sourceX: plan.sourceX,
+      sourceY: plan.sourceY,
+    }],
+  };
+}
+
+export function applyTier2FireSpreadPlans(
+  grid: GridState,
+  plans: FireSpreadPlan[]
+): FireMutationResult {
+  let nextGrid = grid;
+  const cells: FireFeedbackCell[] = [];
+
+  for (const plan of plans.slice(0, TIER2_FIRE_SPAWN_COUNT)) {
+    const activeFireCount = nextGrid.flat().filter(cell => cell.type === CellType.FIRE).length;
+    if (activeFireCount >= TIER2_FIRE_MAX_CELLS) break;
+
+    const result = applyTier2FireSpreadPlan(nextGrid, plan);
+    nextGrid = result.grid;
+    cells.push(...result.cells);
+  }
+
+  return { grid: nextGrid, cells };
+}
+
+export function spreadTier2FireWithFeedback(
+  grid: GridState,
+  totalMovesPlayed: number,
+  tierStartMove: number
+): FireMutationResult {
+  const movesInTier = totalMovesPlayed - tierStartMove;
+  if (movesInTier <= 0 || movesInTier % TIER2_FIRE_SPREAD_INTERVAL_MOVES !== 0) {
+    return { grid, cells: [] };
+  }
+
+  const plans = createTier2FireSpreadPlans(grid);
+  return plans.length > 0 ? applyTier2FireSpreadPlans(grid, plans) : { grid, cells: [] };
+}
+
+export function spreadTier2Fire(grid: GridState, totalMovesPlayed: number, tierStartMove: number): GridState {
+  return spreadTier2FireWithFeedback(grid, totalMovesPlayed, tierStartMove).grid;
+}
+
+export function extinguishTier2Fire(grid: GridState): GridState {
+  let changed = false;
+  const nextGrid = grid.map(row => row.map(cell => {
+    if (cell.type !== CellType.FIRE) return { ...cell };
+    changed = true;
+    return {
+      ...cell,
+      type: CellType.NORMAL,
+      health: undefined,
+    };
+  }));
+
+  return changed ? nextGrid : grid;
+}
 
 // Return type for checkTierEvent
 type TierEventResult = {
@@ -449,7 +800,7 @@ export function tickActiveEvent(
   }
   
   if (activeEvent === 'ICE_STORM') {
-    // Tier 1 introduces board ice as one short 4-block pressure burst.
+    // Tier 1 introduces one board ice per move across three moves.
     const emptyPositions: {x: number; y: number}[] = [];
     // Use the passed grid parameter (with placed piece) instead of get().grid (old state)
     for (let y = 0; y < GRID_SIZE; y++) {

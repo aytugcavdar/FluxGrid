@@ -66,26 +66,63 @@ const LegalShell: React.FC<{
 const PrivacyPage = () => (
   <LegalShell page="privacy" eyebrow="Privacy Policy" title="FluxGrid Privacy Policy">
     <p>
-      FluxGrid is a mobile puzzle game. We use limited data to run the game, remember progress,
-      improve stability, show ads, and support optional notifications.
+      FluxGrid is a mobile puzzle game published by PisaGaming. This policy explains how data is
+      handled when you use the Android app.
     </p>
-    <h2>Data We May Use</h2>
+    <h2>Data stored on your device</h2>
     <ul>
-      <li>Local gameplay progress, settings, scores, and tutorial state.</li>
-      <li>Anonymous diagnostics such as crashes, performance issues, and device capability signals.</li>
-      <li>Advertising identifiers or ad related signals when ads are available in the app.</li>
-      <li>Notification permission and device token only when notification features are enabled.</li>
+      <li>Gameplay progress, scores, statistics, achievements, tutorial state, and settings.</li>
+      <li>Ad consent choices and notification preferences.</li>
     </ul>
-    <h2>Third Party Services</h2>
+    <h2>Data processed by online services</h2>
+    <ul>
+      <li>AdMob may process IP-based approximate location, advertising or device identifiers, ad interactions, and diagnostics to deliver ads, measure them, and prevent fraud.</li>
+      <li>Firebase Analytics and Performance may process app interactions, session information, device/app details, and performance diagnostics.</li>
+      <li>Firebase Crashlytics may process crash logs, stack traces, app state, device details, and an installation identifier to diagnose failures.</li>
+      <li>Optional reminders are scheduled on your device. FluxGrid does not upload a notification token for these reminders.</li>
+    </ul>
+    <p>FluxGrid does not request GPS, contacts, camera, microphone, payment, health, or message data.</p>
+    <h2>Purposes and sharing</h2>
     <p>
-      The app may use Firebase, Google Play services, Google AdMob, and crash reporting tools.
-      These services process data according to their own privacy policies.
+      Data is used to operate and improve the app, diagnose crashes, measure usage, deliver optional
+      notifications, show ads, and prevent fraud. It may be processed by Google services including
+      Firebase, Google Play services, and Google AdMob under their own privacy terms. We do not sell
+      personal data.
     </p>
-    <h2>Contact</h2>
+    <h2>Control, retention, and deletion</h2>
+    <p>
+      Local data can be deleted with Reset Data in Settings or by uninstalling the app. Ad privacy
+      choices can be reviewed from Settings where required. Online service providers retain data
+      according to their configured retention periods and legal obligations. To request deletion of
+       ask about privacy, contact us.
+    </p>
+    <h2>Children and international processing</h2>
+    <p>
+      FluxGrid is not directed to children under 13 and we do not knowingly collect personal data
+      from them. Service providers may process data in countries outside your own using applicable
+      legal safeguards.
+    </p>
+    <h2>Contact and changes</h2>
     <p>
       For privacy questions, contact <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a>.
+      Material changes will be published on this page with a new update date.
     </p>
-    <p className="legal-note">Last updated: June 7, 2026</p>
+    <p className="legal-note">Last updated: July 16, 2026</p>
+
+    <hr />
+    <h2>Türkçe özet</h2>
+    <p>
+      FluxGrid; oyun ilerlemesini, skorları ve ayarları cihazda saklar. AdMob reklam sunumu ve
+      ölçümü için yaklaşık konum, cihaz/reklam kimliği, etkileşim ve tanılama verileri işleyebilir.
+      Firebase kullanım, performans ve çökme verilerini işler. Bildirimleri açarsanız hatırlatmalar
+      cihazınızda planlanır; bu amaçla bir FCM token'ı sunucuya yüklenmez.
+    </p>
+    <p>
+      Yerel verileri Ayarlar içindeki Verileri Sıfırla seçeneğiyle veya uygulamayı kaldırarak
+      silebilirsiniz. Gizlilik talepleri için
+      {' '}<a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a> adresine yazın. FluxGrid 13 yaş
+      altındaki çocuklara yönelik değildir.
+    </p>
   </LegalShell>
 );
 

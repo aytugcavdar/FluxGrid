@@ -4,23 +4,23 @@ import { ENDLESS_LOOP_THRESHOLDS, TIER_THRESHOLDS, TIER_SCORE_MULTIPLIERS } from
  * Calculate current tier based on score
  * 
  * Determines the player's current tier level by comparing their score against
- * the tier thresholds [0, 15000, 40000, 80000, 130000, 190000, 260000]. The
- * first tier is a warm-up band before special block pressure starts.
+ * the tier thresholds [0, 5000, 20000, 45000, 80000, 125000, 180000]. The
+ * first tier is a short warm-up band before special block pressure starts.
  * 
  * @param score - The player's current score (must be >= 0)
  * @returns Tier value from 0 to 6, where:
- *   - Tier 0: 0-14999 points (Warm-up)
- *   - Tier 1: 15000-39999 points (Ice unlock)
- *   - Tier 2: 40000-79999 points (Bomb unlock)
- *   - Tier 3: 80000-129999 points (Quake)
- *   - Tier 4: 130000-189999 points (Ice storm)
- *   - Tier 5: 190000-259999 points (Strong quake)
- *   - Tier 6: 260000+ points (Fixed Grid)
+ *   - Tier 0: 0-4999 points (Warm-up)
+ *   - Tier 1: 5000-19999 points (Ice unlock)
+ *   - Tier 2: 20000-44999 points (Fire pressure)
+ *   - Tier 3: 45000-79999 points (Quake)
+ *   - Tier 4: 80000-124999 points (Ice storm)
+ *   - Tier 5: 125000-179999 points (Strong quake)
+ *   - Tier 6: 180000+ points (Fixed Grid)
  * 
  * @example
  * calculateTier(0)     // Returns 0 (Beginner)
- * calculateTier(15000) // Returns 1 (Ice unlock)
- * calculateTier(40000) // Returns 2 (Bomb unlock)
+ * calculateTier(5000)  // Returns 1 (Ice unlock)
+ * calculateTier(20000) // Returns 2 (Fire pressure)
  * calculateTier(-100)  // Returns 0 (negative scores default to tier 0)
  * 
  * @remarks

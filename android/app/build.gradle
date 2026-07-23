@@ -8,6 +8,79 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
+def admobTestAppId = "ca-app-pub-3940256099942544~3347511713"
+def admobProductionAppId = "ca-app-pub-4532705732070455~3296328938"
+def admobTestPublisher = "3940256099942544"
+def admobProductionPublisher = "4532705732070455"
+def admobOldPublisher = "2971028314597685"
+def bundledWebAssets = file("src/main/assets/public")
+def crashlyticsMappingUploadEnabled = providers
+    .gradleProperty("fluxgridCrashlyticsMappingUpload")
+    .orElse("true")
+    .get()
+    .toBoolean()
+def requiredSigningProperties = ["storeFile", "storePassword", "keyAlias", "keyPassword"]
+def hasKeyPropertiesSigning = keystorePropertiesFile.exists() &&
+    requiredSigningProperties.every { key -> keystoreProperties[key]?.toString()?.trim() }
+def hasInjectedSigning = providers
+    .gradleProperty("android.injected.signing.store.file")
+    .isPresent()
+
+def bundledWebAssetsContain = { String value ->
+    if (!bundledWebAssets.exists()) return false
+
+    fileTree(bundledWebAssets) {
+        include "**/*.js"
+        include "**/*.html"
+    }.files.any { file -> file.getText("UTF-8").contains(value) }
+}
+
+tasks.register("validateDebugAdAssets") {
+    doLast {
+        if (!bundledWebAssetsContain(admobTestPublisher) || bundledWebAssetsContain(admobProductionPublisher)) {
+            throw new GradleException(
+                "Debug web assets are not using Google test ads. Run: npm run build:android:debug && npm run cap:sync"
+            )
+        }
+        if (bundledWebAssetsContain(admobOldPublisher)) {
+            throw new GradleException("Debug web assets still contain the retired AdMob publisher ID.")
+        }
+    }
+}
+
+tasks.register("validateReleaseAdAssets") {
+    doLast {
+        if (!bundledWebAssetsContain(admobProductionPublisher)) {
+            throw new GradleException(
+                "Release web assets do not contain the production AdMob units. Run: npm run build:android:release && npm run cap:sync"
+            )
+        }
+        if (bundledWebAssetsContain(admobOldPublisher)) {
+            throw new GradleException("Release web assets still contain the retired AdMob publisher ID.")
+        }
+    }
+}
+
+tasks.register("validateReleaseSigning") {
+    doLast {
+        if (!hasKeyPropertiesSigning && !hasInjectedSigning) {
+            throw new GradleException(
+                "Release signing is not configured. Use Android Studio > Generate Signed App Bundle, " +
+                "or configure android/key.properties for command-line release builds."
+            )
+        }
+
+        if (hasKeyPropertiesSigning) {
+            def configuredStoreFile = file(keystoreProperties["storeFile"])
+            if (!configuredStoreFile.exists()) {
+                throw new GradleException(
+                    "Release keystore does not exist: ${configuredStoreFile.absolutePath}"
+                )
+            }
+        }
+    }
+}
+
 android {
     namespace = "com.fluxgrid.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -15,8 +88,8 @@ android {
         applicationId "com.fluxgrid.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 10000
-        versionName "1.0.0"
+        versionCode 10005
+        versionName "1.0.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled true
         
@@ -29,7 +102,7 @@ android {
         
         // AdMob App ID
         manifestPlaceholders = [
-            admobAppId: "ca-app-pub-4532705732070455~3296328938"
+            admobAppId: admobTestAppId
         ]
     }
     
@@ -45,9 +118,20 @@ android {
     }
     
     buildTypes {
+        debug {
+            // Debug APKs must never request live ads.
+            manifestPlaceholders = [admobAppId: admobTestAppId]
+        }
         release {
+            // Store builds use the FluxGrid production AdMob application.
+            manifestPlaceholders = [admobAppId: admobProductionAppId]
             if (keystorePropertiesFile.exists()) {
                 signingConfig signingConfigs.release
+            }
+            // Upload readable R8 mappings by default. For an emergency offline build:
+            // -PfluxgridCrashlyticsMappingUpload=false
+            firebaseCrashlytics {
+                mappingFileUploadEnabled crashlyticsMappingUploadEnabled
             }
             minifyEnabled true
             shrinkResources true  // Task 16.5: Remove unused resources
@@ -55,14 +139,15 @@ android {
         }
     }
     
-    // Task 16.5: Split APKs by ABI for smaller downloads
-    splits {
-        abi {
-            enable true
-            reset()
-            include 'armeabi-v7a', 'arm64-v8a'
-            universalApk false  // Don't generate universal APK
-        }
+}
+
+afterEvaluate {
+    tasks.named("preDebugBuild").configure {
+        dependsOn tasks.named("validateDebugAdAssets")
+    }
+    tasks.named("preReleaseBuild").configure {
+        dependsOn tasks.named("validateReleaseAdAssets")
+        dependsOn tasks.named("validateReleaseSigning")
     }
 }
 
@@ -78,10 +163,6 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
-    
-    // Google Play Services - AdMob
-    implementation 'com.google.android.gms:play-services-ads:23.6.0'
-    implementation 'com.google.android.ump:user-messaging-platform:2.1.0'
     
     // Firebase BoM (Bill of Materials)
     implementation platform('com.google.firebase:firebase-bom:34.11.0')

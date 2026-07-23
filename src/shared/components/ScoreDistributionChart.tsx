@@ -25,10 +25,10 @@ export const ScoreDistributionChart: React.FC<ScoreDistributionChartProps> = ({
     >
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-bold text-white/80">
-          📊 {t('stats.scoreDistribution', 'Skor Dağılımı')}
+          📊 {t('stats.scoreDistribution')}
         </h3>
         <span className="text-xs text-white/40">
-          {data.reduce((sum, d) => sum + d.count, 0)} {t('stats.games', 'oyun')}
+          {data.reduce((sum, d) => sum + d.count, 0)} {t('stats.games')}
         </span>
       </div>
       

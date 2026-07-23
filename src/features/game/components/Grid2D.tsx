@@ -19,6 +19,7 @@ import {
   getBoardMetrics,
   getClearCellProgress,
   getClearEffectConfig,
+  getClearPreviewLines,
   getGravityFrame,
   getGravityMoves,
   getGridRenderProfile,
@@ -73,6 +74,29 @@ interface ClearAnimation {
   bombCells: Array<{ x: number; y: number }>;
 }
 
+type FireFeedbackKind = 'spawn' | 'spread' | 'damage';
+
+interface FireFeedbackCell {
+  x: number;
+  y: number;
+  color: string;
+  kind: FireFeedbackKind;
+  sourceX?: number;
+  sourceY?: number;
+}
+
+interface FireFeedbackAnimation {
+  cells: FireFeedbackCell[];
+  startedAt: number;
+  duration: number;
+}
+
+interface ClearColorAnimation {
+  key: string;
+  startedAt: number;
+  duration: number;
+}
+
 const roundRect = (
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -92,17 +116,40 @@ const roundRect = (
 };
 
 const getCellColor = (color: string, type?: CellType): string => {
-  if (type === CellType.ICE) return '#7dd3fc';
-  if (type === CellType.BOMB) return '#1c1917';
+  if (type === CellType.ICE) return color || '#7dd3fc';
+  if (type === CellType.BOMB) return '#b91c1c';
+  if (type === CellType.FIRE) return color || '#7c3aed';
   if (type === CellType.STONE) return '#475569';
   if (type === CellType.VOID) return '#170d28';
   return color || '#a855f7';
 };
 
+const mixHexColors = (fromColor: string, toColor: string, progress: number): string => {
+  const normalize = (color: string): string | null => {
+    if (/^#[0-9a-f]{6}$/i.test(color)) return color.slice(1);
+    if (/^#[0-9a-f]{3}$/i.test(color)) {
+      return color.slice(1).split('').map(character => character.repeat(2)).join('');
+    }
+    return null;
+  };
+  const from = normalize(fromColor);
+  const to = normalize(toColor);
+  if (!from || !to) return progress >= 0.5 ? toColor : fromColor;
+
+  const amount = Math.max(0, Math.min(1, progress));
+  const channel = (offset: number) => Math.round(
+    parseInt(from.slice(offset, offset + 2), 16)
+    + ((parseInt(to.slice(offset, offset + 2), 16) - parseInt(from.slice(offset, offset + 2), 16)) * amount)
+  ).toString(16).padStart(2, '0');
+
+  return `#${channel(0)}${channel(2)}${channel(4)}`;
+};
+
 const getEffectColor = (cell: ClearAnimationCell, accentColor: string | null): string => {
   if (accentColor) return accentColor;
   if (cell.cellType === CellType.ICE) return '#67e8f9';
-  if (cell.cellType === CellType.BOMB) return '#f97316';
+  if (cell.cellType === CellType.BOMB) return '#ff453a';
+  if (cell.cellType === CellType.FIRE) return '#c084fc';
   if (cell.cellType === CellType.STONE) return '#cbd5e1';
   if (cell.cellType === CellType.VOID) return '#8b5cf6';
   return cell.color || '#a855f7';
@@ -115,6 +162,111 @@ const getLineClearColor = (lineCount: number): string => {
   return '#94a3b8';
 };
 
+const virusSprites: {
+  healthy: HTMLImageElement | null;
+  damaged: HTMLImageElement | null;
+} = {
+  healthy: null,
+  damaged: null,
+};
+
+const iceSprites: {
+  healthy: HTMLImageElement | null;
+  cracked: HTMLImageElement | null;
+} = {
+  healthy: null,
+  cracked: null,
+};
+
+let bombSprite: HTMLImageElement | null = null;
+
+const preloadVirusSprites = () => {
+  if (typeof Image === 'undefined' || virusSprites.healthy) return;
+  const basePath = import.meta.env.BASE_URL || '/';
+
+  virusSprites.healthy = new Image();
+  virusSprites.healthy.decoding = 'async';
+  virusSprites.healthy.src = `${basePath}assets/virus/virus-healthy-v2.png`;
+
+  virusSprites.damaged = new Image();
+  virusSprites.damaged.decoding = 'async';
+  virusSprites.damaged.src = `${basePath}assets/virus/virus-damaged-v2.png`;
+};
+
+const getVirusSprite = (health?: number): HTMLImageElement | null => {
+  preloadVirusSprites();
+  const sprite = health === 1 ? virusSprites.damaged : virusSprites.healthy;
+  return sprite?.complete && sprite.naturalWidth > 0 ? sprite : null;
+};
+
+const preloadIceSprites = () => {
+  if (typeof Image === 'undefined' || iceSprites.healthy) return;
+  const basePath = import.meta.env.BASE_URL || '/';
+
+  iceSprites.healthy = new Image();
+  iceSprites.healthy.decoding = 'async';
+  iceSprites.healthy.src = `${basePath}assets/ice/ice-healthy-v2.png`;
+
+  iceSprites.cracked = new Image();
+  iceSprites.cracked.decoding = 'async';
+  iceSprites.cracked.src = `${basePath}assets/ice/ice-cracked-v3.png`;
+};
+
+const getIceSprite = (health?: number): HTMLImageElement | null => {
+  preloadIceSprites();
+  const sprite = health === 1 ? iceSprites.cracked : iceSprites.healthy;
+  return sprite?.complete && sprite.naturalWidth > 0 ? sprite : null;
+};
+
+const preloadBombSprite = () => {
+  if (typeof Image === 'undefined' || bombSprite) return;
+  const basePath = import.meta.env.BASE_URL || '/';
+  bombSprite = new Image();
+  bombSprite.decoding = 'async';
+  bombSprite.src = `${basePath}assets/bomb/bomb-v1.png`;
+};
+
+const getBombSprite = (): HTMLImageElement | null => {
+  preloadBombSprite();
+  return bombSprite?.complete && bombSprite.naturalWidth > 0 ? bombSprite : null;
+};
+
+const drawVirusSpriteAt = (
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  spriteSize: number,
+  alpha = 1,
+  health = 2
+) => {
+  const sprite = getVirusSprite(health);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  if (sprite) {
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(
+      sprite,
+      centerX - (spriteSize / 2),
+      centerY - (spriteSize / 2),
+      spriteSize,
+      spriteSize
+    );
+  } else {
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, spriteSize * 0.18, 0, Math.PI * 2);
+    ctx.fillStyle = '#7c3aed';
+    ctx.fill();
+    ctx.strokeStyle = '#c084fc';
+    ctx.lineWidth = Math.max(1, spriteSize * 0.035);
+    ctx.stroke();
+  }
+  ctx.restore();
+};
+
+preloadVirusSprites();
+preloadIceSprites();
+preloadBombSprite();
+
 const drawBlock = (
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -123,7 +275,10 @@ const drawBlock = (
   color: string,
   type?: CellType,
   alpha = 1,
-  health?: number
+  health?: number,
+  bodyColorOverride?: string,
+  clearSurfaceColor?: string,
+  clearSurfaceProgress = 1
 ) => {
   const inset = Math.max(1, size * 0.045);
   const blockX = x + inset;
@@ -133,8 +288,34 @@ const drawBlock = (
   ctx.save();
   ctx.globalAlpha = alpha;
   roundRect(ctx, blockX, blockY, blockSize, blockSize, size * 0.14);
-  ctx.fillStyle = getCellColor(color, type);
+  ctx.fillStyle = bodyColorOverride ?? getCellColor(color, type);
   ctx.fill();
+
+  if (clearSurfaceColor) {
+    const innerShade = mixHexColors(clearSurfaceColor, '#020617', 0.16);
+    const middleShade = mixHexColors(clearSurfaceColor, '#020617', 0.07);
+    const centerX = blockX + (blockSize * 0.46);
+    const centerY = blockY + (blockSize * 0.44);
+    const surfaceGradient = ctx.createRadialGradient(
+      centerX,
+      centerY,
+      blockSize * 0.04,
+      centerX,
+      centerY,
+      blockSize * 0.66
+    );
+    surfaceGradient.addColorStop(0, innerShade);
+    surfaceGradient.addColorStop(0.46, middleShade);
+    surfaceGradient.addColorStop(1, clearSurfaceColor);
+
+    ctx.save();
+    roundRect(ctx, blockX, blockY, blockSize, blockSize, size * 0.14);
+    ctx.clip();
+    ctx.globalAlpha = alpha * Math.max(0, Math.min(1, clearSurfaceProgress));
+    ctx.fillStyle = surfaceGradient;
+    ctx.fillRect(blockX, blockY, blockSize, blockSize);
+    ctx.restore();
+  }
 
   roundRect(
     ctx,
@@ -144,128 +325,82 @@ const drawBlock = (
     blockSize * 0.18,
     size * 0.07
   );
-  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.fillStyle = clearSurfaceColor
+    ? 'rgba(255,255,255,0.12)'
+    : 'rgba(255,255,255,0.18)';
   ctx.fill();
 
   if (type === CellType.BOMB) {
-    roundRect(ctx, blockX, blockY, blockSize, blockSize, size * 0.14);
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = Math.max(1.5, size * 0.055);
-    ctx.stroke();
+    const sprite = getBombSprite();
+    if (sprite) {
+      const spriteSize = blockSize * 1.8;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(
+        sprite,
+        blockX + ((blockSize - spriteSize) / 2),
+        blockY + ((blockSize - spriteSize) / 2),
+        spriteSize,
+        spriteSize
+      );
+    } else {
+      ctx.beginPath();
+      ctx.arc(x + (size * 0.5), y + (size * 0.56), size * 0.23, 0, Math.PI * 2);
+      ctx.fillStyle = '#111827';
+      ctx.fill();
+      ctx.strokeStyle = '#ff6b61';
+      ctx.lineWidth = Math.max(1.4, size * 0.05);
+      ctx.stroke();
+    }
+  } else if (type === CellType.FIRE) {
+    const isWeak = health === 1;
+    const sprite = getVirusSprite(health);
 
-    ctx.beginPath();
-    ctx.arc(x + (size * 0.48), y + (size * 0.56), size * 0.235, 0, Math.PI * 2);
-    ctx.fillStyle = '#09090b';
-    ctx.fill();
-    ctx.strokeStyle = '#f97316';
-    ctx.lineWidth = Math.max(1.5, size * 0.055);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(x + (size * 0.41), y + (size * 0.49), size * 0.055, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(x + (size * 0.59), y + (size * 0.36));
-    ctx.quadraticCurveTo(
-      x + (size * 0.68), y + (size * 0.19),
-      x + (size * 0.77), y + (size * 0.28)
-    );
-    ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = Math.max(1.5, size * 0.06);
-    ctx.lineCap = 'round';
-    ctx.stroke();
-
-    ctx.fillStyle = '#fde047';
-    ctx.fillRect(x + (size * 0.75), y + (size * 0.20), size * 0.075, size * 0.075);
+    if (sprite) {
+      const spriteSize = blockSize * 1.28;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(
+        sprite,
+        blockX + ((blockSize - spriteSize) / 2),
+        blockY + ((blockSize - spriteSize) / 2),
+        spriteSize,
+        spriteSize
+      );
+    } else {
+      const coreSize = blockSize * 0.5;
+      const coreX = blockX + ((blockSize - coreSize) / 2);
+      const coreY = blockY + ((blockSize - coreSize) / 2);
+      ctx.fillStyle = isWeak ? 'rgba(30,27,75,0.72)' : 'rgba(15,23,42,0.9)';
+      ctx.fillRect(coreX, coreY, coreSize, coreSize);
+      ctx.strokeStyle = isWeak ? '#8b5cf6' : '#c084fc';
+      ctx.lineWidth = Math.max(1, size * 0.04);
+      ctx.strokeRect(coreX, coreY, coreSize, coreSize);
+    }
   } else if (type === CellType.ICE) {
     const isCracked = health === 1;
-
-    const iceGradient = ctx.createLinearGradient(
-      blockX,
-      blockY,
-      blockX + blockSize,
-      blockY + blockSize
-    );
-    if (isCracked) {
-      iceGradient.addColorStop(0, '#c7edf7');
-      iceGradient.addColorStop(0.5, '#4aa9cb');
-      iceGradient.addColorStop(1, '#0c5f83');
-    } else {
-      iceGradient.addColorStop(0, '#e6f8ff');
-      iceGradient.addColorStop(0.52, '#83d7ef');
-      iceGradient.addColorStop(1, '#1686b1');
-    }
+    const sprite = getIceSprite(health);
 
     roundRect(ctx, blockX, blockY, blockSize, blockSize, size * 0.14);
-    ctx.fillStyle = iceGradient;
+    ctx.fillStyle = isCracked ? 'rgba(14,116,144,0.14)' : 'rgba(125,211,252,0.12)';
     ctx.fill();
 
-    // Two broad facets read as ice without turning every cell into an icon.
-    ctx.beginPath();
-    ctx.moveTo(blockX + (blockSize * 0.08), blockY + (blockSize * 0.08));
-    ctx.lineTo(blockX + (blockSize * 0.72), blockY + (blockSize * 0.08));
-    ctx.lineTo(blockX + (blockSize * 0.42), blockY + (blockSize * 0.48));
-    ctx.lineTo(blockX + (blockSize * 0.08), blockY + (blockSize * 0.62));
-    ctx.closePath();
-    ctx.fillStyle = isCracked ? 'rgba(240,249,255,0.18)' : 'rgba(255,255,255,0.34)';
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(blockX + (blockSize * 0.42), blockY + (blockSize * 0.48));
-    ctx.lineTo(blockX + (blockSize * 0.92), blockY + (blockSize * 0.22));
-    ctx.lineTo(blockX + (blockSize * 0.92), blockY + (blockSize * 0.92));
-    ctx.lineTo(blockX + (blockSize * 0.56), blockY + (blockSize * 0.92));
-    ctx.closePath();
-    ctx.fillStyle = isCracked ? 'rgba(3,65,92,0.2)' : 'rgba(3,105,161,0.14)';
-    ctx.fill();
-
-    roundRect(ctx, blockX, blockY, blockSize, blockSize, size * 0.14);
-    ctx.strokeStyle = isCracked ? 'rgba(186,230,253,0.78)' : 'rgba(240,249,255,0.86)';
-    ctx.lineWidth = Math.max(1.2, size * 0.04);
-    ctx.stroke();
-
-    roundRect(
-      ctx,
-      blockX + (size * 0.055),
-      blockY + (size * 0.055),
-      blockSize - (size * 0.11),
-      blockSize - (size * 0.11),
-      size * 0.1
-    );
-    ctx.strokeStyle = isCracked ? 'rgba(7,89,133,0.44)' : 'rgba(14,116,144,0.32)';
-    ctx.lineWidth = Math.max(0.8, size * 0.018);
-    ctx.stroke();
-
-    if (isCracked) {
-      ctx.beginPath();
-      ctx.moveTo(x + (size * 0.46), y + (size * 0.12));
-      ctx.lineTo(x + (size * 0.52), y + (size * 0.38));
-      ctx.lineTo(x + (size * 0.38), y + (size * 0.55));
-      ctx.lineTo(x + (size * 0.27), y + (size * 0.76));
-      ctx.moveTo(x + (size * 0.52), y + (size * 0.38));
-      ctx.lineTo(x + (size * 0.68), y + (size * 0.51));
-      ctx.lineTo(x + (size * 0.78), y + (size * 0.67));
-      ctx.moveTo(x + (size * 0.38), y + (size * 0.55));
-      ctx.lineTo(x + (size * 0.53), y + (size * 0.68));
-      ctx.lineTo(x + (size * 0.49), y + (size * 0.84));
-      ctx.strokeStyle = 'rgba(3,50,72,0.72)';
-      ctx.lineWidth = Math.max(1.2, size * 0.042);
-      ctx.lineJoin = 'round';
-      ctx.lineCap = 'round';
-      ctx.stroke();
-
-      ctx.strokeStyle = 'rgba(224,242,254,0.68)';
-      ctx.lineWidth = Math.max(0.7, size * 0.014);
-      ctx.stroke();
+    if (sprite) {
+      const spriteSize = blockSize * 1.22;
+      ctx.save();
+      roundRect(ctx, blockX, blockY, blockSize, blockSize, size * 0.14);
+      ctx.clip();
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(
+        sprite,
+        blockX + ((blockSize - spriteSize) / 2),
+        blockY + ((blockSize - spriteSize) / 2),
+        spriteSize,
+        spriteSize
+      );
+      ctx.restore();
     } else {
-      ctx.beginPath();
-      ctx.moveTo(x + (size * 0.22), y + (size * 0.3));
-      ctx.lineTo(x + (size * 0.42), y + (size * 0.2));
-      ctx.strokeStyle = 'rgba(255,255,255,0.72)';
-      ctx.lineWidth = Math.max(1.2, size * 0.04);
-      ctx.lineCap = 'round';
+      roundRect(ctx, blockX, blockY, blockSize, blockSize, size * 0.14);
+      ctx.strokeStyle = isCracked ? '#38bdf8' : '#bae6fd';
+      ctx.lineWidth = Math.max(1.4, size * 0.055);
       ctx.stroke();
     }
   } else if (type === CellType.VOID) {
@@ -330,17 +465,25 @@ const Grid2DComponent: React.FC<GridProps> = ({ grid }) => {
   const drawFrameRef = useRef<number | null>(null);
   const gravityFrameRef = useRef<number | null>(null);
   const placementFrameRef = useRef<number | null>(null);
+  const fireFeedbackFrameRef = useRef<number | null>(null);
+  const clearColorFrameRef = useRef<number | null>(null);
   const gravityAnimationRef = useRef<GravityAnimation | null>(null);
   const placementAnimationRef = useRef<PlacementAnimation | null>(null);
   const clearAnimationRef = useRef<ClearAnimation | null>(null);
+  const fireFeedbackAnimationRef = useRef<FireFeedbackAnimation | null>(null);
+  const clearColorAnimationRef = useRef<ClearColorAnimation | null>(null);
   const gravityImpactPlayedRef = useRef(false);
   const lastAnimationDrawAtRef = useRef(0);
+  const lastFireFeedbackDrawAtRef = useRef(0);
+  const lastClearColorDrawAtRef = useRef(0);
   const lastGravityActionRef = useRef<unknown>(null);
   const lastPlacementActionRef = useRef<unknown>(null);
+  const lastFireFeedbackActionRef = useRef<unknown>(null);
   const lastHoverHapticRef = useRef(0);
   const draggedPiece = useGameStore(state => state.draggedPiece);
   const canPlacePiece = useGameStore(state => state.canPlacePiece);
   const lastAction = useGameStore(state => state.lastAction);
+  const pendingCorruption = useGameStore(state => state.pendingCorruption);
   const ghostBlockEnabled = useSettingsStore(state => state.ghostBlockEnabled);
   const themeColors = useThemeStore(state => state.getThemeColors());
   const deviceTier = usePerformanceStore(state => state.deviceTier);
@@ -397,8 +540,28 @@ const Grid2DComponent: React.FC<GridProps> = ({ grid }) => {
     const clearProgress = clearAnimation
       ? Math.max(0, Math.min(1, clearElapsed / clearAnimation.clearDuration))
       : 1;
+    const fireFeedbackAnimation = fireFeedbackAnimationRef.current;
+    const fireFeedbackElapsed = fireFeedbackAnimation
+      ? performance.now() - fireFeedbackAnimation.startedAt
+      : 0;
+    const fireFeedbackProgress = fireFeedbackAnimation
+      ? Math.max(0, Math.min(1, fireFeedbackElapsed / fireFeedbackAnimation.duration))
+      : 1;
     const minimalEffects = renderProfile.effectLevel === 'minimal';
     const reducedEffects = renderProfile.effectLevel !== 'full';
+    const hover = hoverRef.current;
+    const clearPreviewLines = draggedPiece && hover?.valid
+      ? getClearPreviewLines(grid, draggedPiece, hover.x, hover.y)
+      : { rows: [], cols: [] };
+    const clearPreviewRows = new Set(clearPreviewLines.rows);
+    const clearPreviewCols = new Set(clearPreviewLines.cols);
+    const clearPreviewKey = hover
+      ? `${hover.x},${hover.y}:${clearPreviewLines.rows.join('.')}:${clearPreviewLines.cols.join('.')}`
+      : '';
+    const clearColorAnimation = clearColorAnimationRef.current;
+    const clearColorProgress = clearColorAnimation?.key === clearPreviewKey
+      ? Math.max(0, Math.min(1, (performance.now() - clearColorAnimation.startedAt) / clearColorAnimation.duration))
+      : 1;
 
     roundRect(ctx, 0, 0, size, size, boardRadius);
     ctx.fillStyle = themeColors.gridBase;
@@ -420,7 +583,23 @@ const Grid2DComponent: React.FC<GridProps> = ({ grid }) => {
 
         const cell = grid[y]?.[x];
         if (cell?.filled && (!cell.id || (!movingIds?.has(cell.id) && !placedIds?.has(cell.id)))) {
-          drawBlock(ctx, px, py, metrics.cellSize, cell.color, cell.type, 1, cell.health);
+          const usesClearColor = clearPreviewRows.has(y) || clearPreviewCols.has(x);
+          const bodyColor = usesClearColor && draggedPiece
+            ? mixHexColors(getCellColor(cell.color, cell.type), draggedPiece.color, clearColorProgress)
+            : undefined;
+          drawBlock(
+            ctx,
+            px,
+            py,
+            metrics.cellSize,
+            cell.color,
+            cell.type,
+            1,
+            cell.health,
+            bodyColor,
+            usesClearColor && draggedPiece ? draggedPiece.color : undefined,
+            clearColorProgress
+          );
         }
       }
     }
@@ -766,7 +945,229 @@ const Grid2DComponent: React.FC<GridProps> = ({ grid }) => {
       });
     }
 
-    const hover = hoverRef.current;
+    if (pendingCorruption) {
+      pendingCorruption.plans.forEach(plan => {
+        const source = grid[plan.sourceY]?.[plan.sourceX];
+        const target = grid[plan.y]?.[plan.x];
+        if (source?.type !== CellType.FIRE || !target?.filled || target.type === CellType.FIRE) return;
+
+        const directionX = Math.sign(plan.x - plan.sourceX);
+        const directionY = Math.sign(plan.y - plan.sourceY);
+        const stage = Math.max(0, Math.min(2, 2 - pendingCorruption.turnsRemaining));
+        const sourceCenterX = metrics.padding + (plan.sourceX * metrics.stride) + (metrics.cellSize / 2);
+        const sourceCenterY = metrics.padding + (plan.sourceY * metrics.stride) + (metrics.cellSize / 2);
+        const offset = stage === 0 ? 0.17 : stage === 1 ? 0.29 : 0.4;
+        const budCenterX = sourceCenterX + (directionX * metrics.cellSize * offset);
+        const budCenterY = sourceCenterY + (directionY * metrics.cellSize * offset);
+
+        if (stage === 0) {
+          const nucleusSize = metrics.cellSize * 0.075;
+          ctx.fillStyle = 'rgba(15,23,42,0.9)';
+          ctx.fillRect(
+            budCenterX - (nucleusSize * 0.72),
+            budCenterY - (nucleusSize * 0.72),
+            nucleusSize * 1.44,
+            nucleusSize * 1.44
+          );
+          ctx.fillStyle = '#67e8f9';
+          ctx.fillRect(
+            budCenterX - (nucleusSize / 2),
+            budCenterY - (nucleusSize / 2),
+            nucleusSize,
+            nucleusSize
+          );
+        } else {
+          drawVirusSpriteAt(
+            ctx,
+            budCenterX,
+            budCenterY,
+            metrics.cellSize * (stage === 1 ? 0.42 : 0.5),
+            stage === 1 ? 0.72 : 0.9
+          );
+        }
+      });
+    }
+
+    if (fireFeedbackAnimation && fireFeedbackProgress < 1) {
+      fireFeedbackAnimation.cells.forEach((cell, index) => {
+        const px = metrics.padding + (cell.x * metrics.stride);
+        const py = metrics.padding + (cell.y * metrics.stride);
+        const centerX = px + (metrics.cellSize / 2);
+        const centerY = py + (metrics.cellSize / 2);
+        const delay = cell.kind === 'spread'
+          ? Math.min(0.16, index * 0.16)
+          : Math.min(0.22, index * 0.11);
+        const localProgress = Math.max(0, Math.min(1, (fireFeedbackProgress - delay) / (1 - delay)));
+        if (localProgress >= 1 || (localProgress <= 0 && cell.kind !== 'spread')) return;
+
+        const isDamage = cell.kind === 'damage';
+        const isSpread = cell.kind === 'spread';
+
+        if (isSpread && cell.sourceX !== undefined && cell.sourceY !== undefined) {
+          const sourceX = metrics.padding + (cell.sourceX * metrics.stride) + (metrics.cellSize / 2);
+          const sourceY = metrics.padding + (cell.sourceY * metrics.stride) + (metrics.cellSize / 2);
+          const directionX = Math.sign(cell.x - cell.sourceX);
+          const directionY = Math.sign(cell.y - cell.sourceY);
+          const launchProgress = Math.max(0, Math.min(1, (localProgress - 0.06) / 0.58));
+          const landingProgress = Math.max(0, Math.min(1, (localProgress - 0.62) / 0.38));
+          const startX = sourceX + (directionX * metrics.cellSize * 0.2);
+          const startY = sourceY + (directionY * metrics.cellSize * 0.2);
+          const perpendicularX = -directionY;
+          const perpendicularY = directionX;
+          const arcDirection = index % 2 === 0 ? 1 : -1;
+          const arcOffset = Math.sin(launchProgress * Math.PI) * metrics.cellSize * 0.18 * arcDirection;
+          const movingX = startX + ((centerX - startX) * launchProgress) + (perpendicularX * arcOffset);
+          const movingY = startY + ((centerY - startY) * launchProgress) + (perpendicularY * arcOffset);
+
+          // Hide the already-mutated target until the travelling virus reaches it.
+          drawBlock(ctx, px, py, metrics.cellSize, cell.color);
+
+          if (localProgress < 0.2) {
+            const squeeze = Math.sin((localProgress / 0.2) * Math.PI);
+            const nucleusSize = metrics.cellSize * (0.055 + (squeeze * 0.035));
+            ctx.fillStyle = '#67e8f9';
+            ctx.fillRect(
+              sourceX - (nucleusSize / 2),
+              sourceY - (nucleusSize / 2),
+              nucleusSize,
+              nucleusSize
+            );
+          }
+
+          if (landingProgress < 0.18) {
+            drawVirusSpriteAt(
+              ctx,
+              movingX,
+              movingY,
+              metrics.cellSize * (0.48 + (Math.sin(launchProgress * Math.PI) * 0.08)),
+              1 - (landingProgress / 0.18)
+            );
+          }
+
+          if (landingProgress > 0) {
+            const easedLanding = 1 - Math.pow(1 - landingProgress, 3);
+            drawVirusSpriteAt(
+              ctx,
+              centerX,
+              centerY,
+              metrics.cellSize * (0.34 + (easedLanding * 0.94)),
+              Math.min(1, landingProgress * 2.4)
+            );
+          }
+
+          return;
+        }
+
+        const targetProgress = isSpread
+          ? Math.max(0, Math.min(1, (localProgress - 0.36) / 0.64))
+          : localProgress;
+        const normalHold = minimalEffects ? 0.52 : 0.34;
+        const corruptionProgress = isSpread
+          ? Math.max(0, Math.min(1, (targetProgress - normalHold) / (1 - normalHold)))
+          : targetProgress;
+        const localPulse = Math.sin(corruptionProgress * Math.PI);
+        const strokeColor = isDamage ? '#c4b5fd' : isSpread ? '#67e8f9' : '#c084fc';
+        const fillColor = isDamage ? '#312e81' : '#7c3aed';
+
+        if (isSpread && cell.sourceX !== undefined && cell.sourceY !== undefined) {
+          const sourceX = metrics.padding + (cell.sourceX * metrics.stride) + (metrics.cellSize / 2);
+          const sourceY = metrics.padding + (cell.sourceY * metrics.stride) + (metrics.cellSize / 2);
+          const sourceProgress = Math.min(1, localProgress / 0.42);
+          const sourcePulse = Math.sin(sourceProgress * Math.PI);
+
+          ctx.save();
+          ctx.globalAlpha = sourcePulse * 0.76;
+          ctx.fillStyle = '#c084fc';
+          ctx.fillRect(
+            sourceX - (metrics.cellSize * 0.24),
+            sourceY - (metrics.cellSize * 0.24),
+            metrics.cellSize * (0.2 + (sourceProgress * 0.16)),
+            metrics.cellSize * 0.08
+          );
+          ctx.fillStyle = '#67e8f9';
+          ctx.fillRect(
+            sourceX + (metrics.cellSize * 0.05),
+            sourceY + (metrics.cellSize * 0.11),
+            metrics.cellSize * 0.16,
+            metrics.cellSize * 0.08
+          );
+          ctx.restore();
+
+        }
+
+        if (targetProgress <= 0) return;
+
+        if (isSpread && cell.sourceX !== undefined && cell.sourceY !== undefined) {
+          // The original block remains readable briefly while corruption enters from the source edge.
+          const originalAlpha = 1 - corruptionProgress;
+          if (originalAlpha > 0) {
+            drawBlock(ctx, px, py, metrics.cellSize, cell.color, undefined, originalAlpha);
+          }
+
+          const entryProgress = Math.max(0, Math.min(1, targetProgress / (normalHold + 0.28)));
+          const directionX = Math.sign(cell.x - cell.sourceX);
+          const directionY = Math.sign(cell.y - cell.sourceY);
+          const entryOffset = metrics.cellSize * (0.06 + (entryProgress * 0.53));
+          const pixelSize = metrics.cellSize * 0.07;
+
+          for (let pixel = 0; pixel < (reducedEffects ? 2 : 3); pixel++) {
+            const crossOffset = metrics.cellSize * ((pixel - 1) * 0.13);
+            const pixelX = directionX !== 0
+              ? centerX - (directionX * (metrics.cellSize * 0.42 - entryOffset))
+              : centerX + crossOffset;
+            const pixelY = directionY !== 0
+              ? centerY - (directionY * (metrics.cellSize * 0.42 - entryOffset))
+              : centerY + crossOffset;
+
+            ctx.save();
+            ctx.globalAlpha = Math.min(1, 0.55 + (entryProgress * 0.45));
+            ctx.fillStyle = pixel === 1 ? '#67e8f9' : '#c084fc';
+            ctx.fillRect(
+              pixelX - (pixelSize / 2),
+              pixelY - (pixelSize / 2),
+              pixelSize,
+              pixelSize
+            );
+            ctx.restore();
+          }
+        }
+
+        if (corruptionProgress <= 0) return;
+
+        ctx.save();
+        ctx.globalAlpha = localPulse * (isDamage ? 0.68 : 0.76);
+        roundRect(
+          ctx,
+          px + (metrics.cellSize * (0.08 - (corruptionProgress * 0.03))),
+          py + (metrics.cellSize * (0.08 - (corruptionProgress * 0.03))),
+          metrics.cellSize * (0.84 + (corruptionProgress * 0.06)),
+          metrics.cellSize * (0.84 + (corruptionProgress * 0.06)),
+          metrics.cellSize * 0.14
+        );
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = Math.max(1, metrics.cellSize * (isDamage ? 0.035 : 0.045) * (1 - (corruptionProgress * 0.35)));
+        ctx.stroke();
+
+        if (!minimalEffects) {
+          for (let pixel = 0; pixel < (reducedEffects ? 2 : 3); pixel++) {
+            const pixelSize = metrics.cellSize * (0.065 - (corruptionProgress * 0.015));
+            const offset = metrics.cellSize * (0.13 + (pixel * 0.14));
+            ctx.save();
+            ctx.globalAlpha = localPulse * (pixel === 1 ? 0.72 : 0.9);
+            ctx.fillStyle = pixel === 1 ? '#67e8f9' : fillColor;
+            ctx.fillRect(
+              centerX - offset,
+              centerY + ((pixel - 1) * metrics.cellSize * 0.11),
+              pixelSize,
+              pixelSize
+            );
+            ctx.restore();
+          }
+        }
+        ctx.restore();
+      });
+    }
+
     if (draggedPiece && hover && ghostBlockEnabled) {
       draggedPiece.shape.forEach((row, dy) => {
         row.forEach((filled, dx) => {
@@ -789,7 +1190,7 @@ const Grid2DComponent: React.FC<GridProps> = ({ grid }) => {
         });
       });
     }
-  }, [draggedPiece, ghostBlockEnabled, grid, renderProfile.effectLevel, renderProfile.pixelRatioCap, themeColors]);
+  }, [draggedPiece, ghostBlockEnabled, grid, pendingCorruption, renderProfile.effectLevel, renderProfile.pixelRatioCap, themeColors]);
 
   const scheduleDraw = useCallback(() => {
     if (document.hidden) return;
@@ -800,12 +1201,57 @@ const Grid2DComponent: React.FC<GridProps> = ({ grid }) => {
     });
   }, [draw]);
 
+  const stopClearColorTransition = useCallback((keepFinalColor = false) => {
+    if (clearColorFrameRef.current !== null) {
+      cancelAnimationFrame(clearColorFrameRef.current);
+      clearColorFrameRef.current = null;
+    }
+    lastClearColorDrawAtRef.current = 0;
+    if (!keepFinalColor) clearColorAnimationRef.current = null;
+  }, []);
+
+  const startClearColorTransition = useCallback((key: string) => {
+    if (clearColorAnimationRef.current?.key === key) return;
+    stopClearColorTransition();
+
+    clearColorAnimationRef.current = {
+      key,
+      startedAt: performance.now(),
+      duration: 80,
+    };
+
+    const animate = (currentTime: number) => {
+      const animation = clearColorAnimationRef.current;
+      if (!animation || document.hidden) {
+        clearColorFrameRef.current = null;
+        return;
+      }
+
+      if (shouldRenderAnimationFrame(lastClearColorDrawAtRef.current, currentTime, renderProfile.targetFps)) {
+        draw();
+        lastClearColorDrawAtRef.current = currentTime;
+      }
+
+      if (currentTime - animation.startedAt < animation.duration) {
+        clearColorFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
+
+      clearColorFrameRef.current = null;
+      lastClearColorDrawAtRef.current = 0;
+      draw();
+    };
+
+    clearColorFrameRef.current = requestAnimationFrame(animate);
+  }, [draw, renderProfile.targetFps, stopClearColorTransition]);
+
   const updateHover = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas || !draggedPiece) {
       const hadHover = hoverRef.current !== null;
       hoverRef.current = null;
       setSharedHoverCoord(null);
+      stopClearColorTransition();
       if (hadHover) scheduleDraw();
       return;
     }
@@ -832,6 +1278,17 @@ const Grid2DComponent: React.FC<GridProps> = ({ grid }) => {
     hoverRef.current = { ...position, valid };
     setSharedHoverCoord(position);
 
+    const previewLines = valid
+      ? getClearPreviewLines(grid, draggedPiece, position.x, position.y)
+      : { rows: [], cols: [] };
+    if (previewLines.rows.length > 0 || previewLines.cols.length > 0) {
+      startClearColorTransition(
+        `${position.x},${position.y}:${previewLines.rows.join('.')}:${previewLines.cols.join('.')}`
+      );
+    } else {
+      stopClearColorTransition();
+    }
+
     if (!previous || previous.x !== position.x || previous.y !== position.y) {
       const now = performance.now();
       if (now - lastHoverHapticRef.current >= 80) {
@@ -841,7 +1298,7 @@ const Grid2DComponent: React.FC<GridProps> = ({ grid }) => {
     }
 
     scheduleDraw();
-  }, [canPlacePiece, draggedPiece, grid, scheduleDraw]);
+  }, [canPlacePiece, draggedPiece, grid, scheduleDraw, startClearColorTransition, stopClearColorTransition]);
 
   useEffect(() => {
     if (!draggedPiece) return;
@@ -865,13 +1322,21 @@ const Grid2DComponent: React.FC<GridProps> = ({ grid }) => {
         if (drawFrameRef.current !== null) cancelAnimationFrame(drawFrameRef.current);
         if (gravityFrameRef.current !== null) cancelAnimationFrame(gravityFrameRef.current);
         if (placementFrameRef.current !== null) cancelAnimationFrame(placementFrameRef.current);
+        if (fireFeedbackFrameRef.current !== null) cancelAnimationFrame(fireFeedbackFrameRef.current);
+        if (clearColorFrameRef.current !== null) cancelAnimationFrame(clearColorFrameRef.current);
         drawFrameRef.current = null;
         gravityFrameRef.current = null;
         placementFrameRef.current = null;
+        fireFeedbackFrameRef.current = null;
+        clearColorFrameRef.current = null;
         gravityAnimationRef.current = null;
         placementAnimationRef.current = null;
         clearAnimationRef.current = null;
+        fireFeedbackAnimationRef.current = null;
+        clearColorAnimationRef.current = null;
         lastAnimationDrawAtRef.current = 0;
+        lastFireFeedbackDrawAtRef.current = 0;
+        lastClearColorDrawAtRef.current = 0;
         return;
       }
 
@@ -889,9 +1354,10 @@ const Grid2DComponent: React.FC<GridProps> = ({ grid }) => {
     } else {
       hoverRef.current = null;
       setSharedHoverCoord(null);
+      stopClearColorTransition();
       scheduleDraw();
     }
-  }, [draggedPiece, scheduleDraw, updateHover]);
+  }, [draggedPiece, scheduleDraw, stopClearColorTransition, updateHover]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -974,6 +1440,71 @@ const Grid2DComponent: React.FC<GridProps> = ({ grid }) => {
       placementAnimationRef.current = null;
     };
   }, [draw, lastAction, renderProfile.effectLevel]);
+
+  useEffect(() => {
+    if (lastAction === lastFireFeedbackActionRef.current || !lastAction) return;
+
+    const maxCells = renderProfile.effectLevel === 'full' ? 8 : 4;
+    const cells: FireFeedbackCell[] = [
+      ...(lastAction.fireSpawnedCells ?? []).map(cell => ({ ...cell, kind: 'spawn' as const })),
+      ...(lastAction.fireSpreadCells ?? []).map(cell => ({ ...cell, kind: 'spread' as const })),
+      ...(lastAction.damagedFireCells ?? []).map(cell => ({ ...cell, kind: 'damage' as const })),
+    ].slice(0, maxCells);
+
+    if (cells.length === 0) return;
+
+    lastFireFeedbackActionRef.current = lastAction;
+    fireFeedbackAnimationRef.current = {
+      cells,
+      startedAt: performance.now(),
+      duration: renderProfile.effectLevel === 'minimal' ? 220 : 420,
+    };
+
+    if (document.hidden) {
+      fireFeedbackAnimationRef.current = null;
+      return;
+    }
+
+    if (fireFeedbackFrameRef.current !== null) {
+      cancelAnimationFrame(fireFeedbackFrameRef.current);
+      fireFeedbackFrameRef.current = null;
+    }
+
+    lastFireFeedbackDrawAtRef.current = 0;
+    const animateFireFeedback = (currentTime: number) => {
+      if (document.hidden) {
+        fireFeedbackFrameRef.current = null;
+        fireFeedbackAnimationRef.current = null;
+        lastFireFeedbackDrawAtRef.current = 0;
+        return;
+      }
+
+      if (shouldRenderAnimationFrame(lastFireFeedbackDrawAtRef.current, currentTime, renderProfile.targetFps)) {
+        draw();
+        lastFireFeedbackDrawAtRef.current = currentTime;
+      }
+
+      const animation = fireFeedbackAnimationRef.current;
+      if (animation && currentTime - animation.startedAt < animation.duration) {
+        fireFeedbackFrameRef.current = requestAnimationFrame(animateFireFeedback);
+        return;
+      }
+
+      fireFeedbackAnimationRef.current = null;
+      fireFeedbackFrameRef.current = null;
+      lastFireFeedbackDrawAtRef.current = 0;
+      draw();
+    };
+
+    fireFeedbackFrameRef.current = requestAnimationFrame(animateFireFeedback);
+
+    return () => {
+      if (fireFeedbackFrameRef.current !== null) cancelAnimationFrame(fireFeedbackFrameRef.current);
+      fireFeedbackFrameRef.current = null;
+      fireFeedbackAnimationRef.current = null;
+      lastFireFeedbackDrawAtRef.current = 0;
+    };
+  }, [draw, lastAction, renderProfile.effectLevel, renderProfile.targetFps]);
 
   useEffect(() => {
     if (
@@ -1105,9 +1636,15 @@ const Grid2DComponent: React.FC<GridProps> = ({ grid }) => {
     if (drawFrameRef.current !== null) cancelAnimationFrame(drawFrameRef.current);
     if (gravityFrameRef.current !== null) cancelAnimationFrame(gravityFrameRef.current);
     if (placementFrameRef.current !== null) cancelAnimationFrame(placementFrameRef.current);
+    if (fireFeedbackFrameRef.current !== null) cancelAnimationFrame(fireFeedbackFrameRef.current);
+    if (clearColorFrameRef.current !== null) cancelAnimationFrame(clearColorFrameRef.current);
     placementAnimationRef.current = null;
     clearAnimationRef.current = null;
+    fireFeedbackAnimationRef.current = null;
+    clearColorAnimationRef.current = null;
     lastAnimationDrawAtRef.current = 0;
+    lastFireFeedbackDrawAtRef.current = 0;
+    lastClearColorDrawAtRef.current = 0;
     setSharedHoverCoord(null);
   }, []);
 

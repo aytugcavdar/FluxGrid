@@ -2,6 +2,8 @@ import React from 'react';
 import { GameMode } from '../types';
 import { useThemeStore } from '../store/themeStore';
 import { formatRelativeTime } from '../utils/trendDataAggregation';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 interface GameLog {
   id: string;
@@ -22,31 +24,36 @@ export interface RecentLogsTimelineProps {
   maxItems?: number;
 }
 
-const formatLogDuration = (seconds: number): string => {
+const formatLogDuration = (seconds: number, t: TFunction): string => {
   const safeSeconds = Math.max(0, Math.floor(seconds));
   const minutes = Math.floor(safeSeconds / 60);
   const remainder = safeSeconds % 60;
-  return minutes > 0 ? `${minutes}:${remainder.toString().padStart(2, '0')}` : `${remainder} sn`;
+  return minutes > 0
+    ? `${minutes}:${remainder.toString().padStart(2, '0')}`
+    : t('stats.secondsShort', { count: remainder });
 };
 
 export const RecentLogsTimeline: React.FC<RecentLogsTimelineProps> = ({
   logs,
   maxItems = 5,
 }) => {
+  const { t, i18n } = useTranslation();
   const { getThemeColors } = useThemeStore();
   const colors = getThemeColors();
+  const language = i18n.resolvedLanguage === 'tr' ? 'tr' : 'en';
+  const numberLocale = language === 'tr' ? 'tr-TR' : 'en-US';
   
   // Get mode-specific colors and icons
   const getModeConfig = (mode: GameMode) => {
     switch (mode) {
       case GameMode.ENDLESS:
-        return { color: '#a855f7', icon: '∞', label: 'Sonsuz' };
+        return { color: '#a855f7', icon: '∞', label: t('stats.endless') };
       case GameMode.TIMED:
-        return { color: '#f59e0b', icon: '⏱', label: 'Zamanlı' };
+        return { color: '#f59e0b', icon: '⏱', label: t('stats.timed') };
       case GameMode.DAILY_CHALLENGE:
-        return { color: '#10b981', icon: '📅', label: 'Günlük' };
+        return { color: '#10b981', icon: '📅', label: t('stats.daily') };
       default:
-        return { color: '#3b82f6', icon: '🎮', label: 'Oyun' };
+        return { color: '#3b82f6', icon: '🎮', label: t('stats.game') };
     }
   };
   
@@ -54,13 +61,13 @@ export const RecentLogsTimeline: React.FC<RecentLogsTimelineProps> = ({
   const getBadgeConfig = (badge?: string) => {
     switch (badge) {
       case 'new-record':
-        return { emoji: '🏆', label: 'YENİ REKOR', color: '#fbbf24' };
+        return { emoji: '🏆', label: t('stats.badges.newRecord'), color: '#fbbf24' };
       case 'perfect':
-        return { emoji: '✨', label: 'MÜKEMMEL', color: '#a855f7' };
+        return { emoji: '✨', label: t('stats.badges.perfect'), color: '#a855f7' };
       case 'comeback':
-        return { emoji: '🔥', label: 'DÖNÜŞ', color: '#ef4444' };
+        return { emoji: '🔥', label: t('stats.badges.comeback'), color: '#ef4444' };
       case 'speedrun':
-        return { emoji: '⚡', label: 'HIZLI', color: '#06b6d4' };
+        return { emoji: '⚡', label: t('stats.badges.speedrun'), color: '#06b6d4' };
       default:
         return null;
     }
@@ -84,13 +91,13 @@ export const RecentLogsTimeline: React.FC<RecentLogsTimelineProps> = ({
           className="text-sm font-medium"
           style={{ color: colors.textSecondary }}
         >
-          Henüz oyun oynamadın
+          {t('stats.noGamesYet')}
         </p>
         <p
           className="text-xs mt-1"
           style={{ color: colors.textSecondary }}
         >
-          İlk oyununu oyna ve burada gör!
+          {t('stats.playFirstGame')}
         </p>
       </div>
     );
@@ -148,7 +155,7 @@ export const RecentLogsTimeline: React.FC<RecentLogsTimelineProps> = ({
                     className="text-xs"
                     style={{ color: colors.textSecondary }}
                   >
-                    {formatRelativeTime(log.timestamp)}
+                    {formatRelativeTime(log.timestamp, language)}
                   </p>
                 </div>
                 
@@ -157,19 +164,19 @@ export const RecentLogsTimeline: React.FC<RecentLogsTimelineProps> = ({
                   className="text-lg font-bold mb-1"
                   style={{ color: colors.textPrimary }}
                 >
-                  {log.score.toLocaleString('tr-TR')}
+                  {log.score.toLocaleString(numberLocale)}
                 </p>
                 
                 {/* Stats */}
                 <div className="flex items-center gap-3 text-xs" style={{ color: colors.textSecondary }}>
                   {log.maxCombo !== undefined && log.maxCombo > 0 && (
-                    <span>⚡ {log.maxCombo}x kombo</span>
+                    <span>⚡ {t('stats.comboCount', { count: log.maxCombo })}</span>
                   )}
                   {log.metadata?.statsVersion === 2 && log.linesCleared !== undefined && log.linesCleared > 0 && (
-                    <span>📊 {log.linesCleared} satır</span>
+                    <span>📊 {t('stats.lineCount', { count: log.linesCleared })}</span>
                   )}
                   {log.duration !== undefined && log.duration > 0 && (
-                    <span>⏱ {formatLogDuration(log.duration)}</span>
+                    <span>⏱ {formatLogDuration(log.duration, t)}</span>
                   )}
                 </div>
                 

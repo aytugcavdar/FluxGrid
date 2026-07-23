@@ -4,6 +4,7 @@ import { X, RotateCcw } from 'lucide-react';
 import { GameMode } from '@shared/types';
 import { playClick } from '@utils/audio';
 import type { TimedScoreBreakdown } from '@features/game/store/helpers/scoreCalculator';
+import { useTranslation } from 'react-i18next';
 
 interface GameOverModalProps {
   isGameOver: boolean;
@@ -39,9 +40,10 @@ interface GameOverModalProps {
   onCloseIOSInstructions: () => void;
 }
 
-const CountUp: React.FC<{ target: number; duration?: number }> = ({
+const CountUp: React.FC<{ target: number; duration?: number; locale: string }> = ({
   target,
   duration = 1200,
+  locale,
 }) => {
   const [value, setValue] = useState(0);
 
@@ -69,7 +71,7 @@ const CountUp: React.FC<{ target: number; duration?: number }> = ({
     return () => cancelAnimationFrame(frameId);
   }, [duration, target]);
 
-  return <span>{value.toLocaleString('tr-TR')}</span>;
+  return <span>{value.toLocaleString(locale)}</span>;
 };
 
 export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
@@ -89,10 +91,12 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
   onClose,
   onPlayAgain,
 }) => {
+  const { t, i18n } = useTranslation();
   const modeIsTimed = gameMode === GameMode.TIMED;
   const modeIsEndless = gameMode === GameMode.ENDLESS;
   const accentColor = modeIsTimed ? '#f59e0b' : '#818cf8';
   const accentLight = modeIsTimed ? 'rgba(245,158,11,0.15)' : 'rgba(129,140,248,0.15)';
+  const numberLocale = i18n.resolvedLanguage === 'tr' ? 'tr-TR' : 'en-US';
 
   const personalBest = useMemo(() => {
     if (modeIsTimed) {
@@ -117,18 +121,18 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
     const bonus = Math.max(0, timedScoreBreakdown?.bonus || 0);
     const finalSprint = Math.max(0, timedScoreBreakdown?.finalSprint || finalSprintBonus || 0);
     return [
-      { label: 'Clear + yerlestirme', value: timedScoreBreakdown?.placementAndLines || 0, color: '#e2e8f0' },
-      { label: 'Combo', value: timedScoreBreakdown?.combo || 0, color: '#34d399' },
-      { label: 'Hedef/tempo/final bonusu', value: bonus, color: '#fbbf24' },
-      { label: 'Final sprint', value: finalSprint, color: '#f87171' },
+      { label: t('gameOver.placementAndClear'), value: timedScoreBreakdown?.placementAndLines || 0, color: '#e2e8f0' },
+      { label: t('gameOver.combo'), value: timedScoreBreakdown?.combo || 0, color: '#34d399' },
+      { label: t('gameOver.bonus'), value: bonus, color: '#fbbf24' },
+      { label: t('gameOver.finalSprint'), value: finalSprint, color: '#f87171' },
     ].filter(row => row.value > 0);
-  }, [finalSprintBonus, modeIsTimed, timedScoreBreakdown]);
+  }, [finalSprintBonus, modeIsTimed, t, timedScoreBreakdown]);
 
   const resultLine = useMemo(() => {
-    if (isNewRecord) return 'Yeni rekor. Bir tur daha.';
-    if (recordGap > 0) return `Rekora ${recordGap.toLocaleString('tr-TR')} puan kaldı.`;
-    return 'Bir tur daha.';
-  }, [isNewRecord, recordGap]);
+    if (isNewRecord) return t('gameOver.newRecordPrompt');
+    if (recordGap > 0) return t('gameOver.recordGap', { score: recordGap.toLocaleString(numberLocale) });
+    return t('gameOver.oneMoreRound');
+  }, [isNewRecord, numberLocale, recordGap, t]);
 
   if (!isGameOver) return null;
 
@@ -214,13 +218,13 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
                     lineHeight: 1,
                   }}
                 >
-                  OYUN BİTTİ
+                  {t('gameOver.title')}
                 </div>
                 <div
                   id="game-over-description"
                   style={{ fontSize: 11, fontWeight: 650, color: accentColor, lineHeight: 1.2 }}
                 >
-                  {modeIsTimed ? 'Zamanlı Mod' : modeIsEndless ? 'Sonsuz Mod' : 'Oyun'}
+                  {modeIsTimed ? t('gameOver.timedMode') : modeIsEndless ? t('gameOver.endlessMode') : t('gameOver.game')}
                 </div>
               </div>
             </div>
@@ -239,7 +243,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
                 cursor: 'pointer',
                 color: 'rgba(255,255,255,0.45)',
               }}
-              aria-label="Kapat"
+              aria-label={t('gameOver.close')}
             >
               <X size={14} />
             </button>
@@ -263,11 +267,11 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
                     border: '1px solid rgba(245,158,11,0.45)',
                   }}
                   role="status"
-                  aria-label="Yeni rekor"
+                  aria-label={t('gameOver.newRecord')}
                 >
                   <span style={{ fontSize: 13 }} aria-hidden="true">★</span>
                   <span style={{ fontSize: 11, fontWeight: 800, color: '#fbbf24', letterSpacing: '0.05em' }}>
-                    YENİ REKOR!
+                    {t('gameOver.newRecord')}
                   </span>
                 </motion.div>
               )}
@@ -291,26 +295,26 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
               }}
               role="heading"
               aria-level={1}
-              aria-label={`Final skor: ${displayScore}`}
+              aria-label={t('gameOver.finalScoreAria', { score: displayScore.toLocaleString(numberLocale) })}
             >
-              <CountUp target={displayScore} />
+              <CountUp target={displayScore} locale={numberLocale} />
             </motion.div>
 
             {personalBest > 0 && (
               <div
                 style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 7 }}
-                aria-label={`En iyi skor: ${personalBest.toLocaleString('tr-TR')}`}
+                aria-label={t('gameOver.bestScoreAria', { score: personalBest.toLocaleString(numberLocale) })}
               >
-                EN İYİ: {personalBest.toLocaleString('tr-TR')}
+                {t('gameOver.bestScore', { score: personalBest.toLocaleString(numberLocale) })}
               </div>
             )}
 
             {isNewRecord && recordDiff > 0 && (
               <div
                 style={{ fontSize: 12, color: '#fbbf24', marginTop: 7, fontWeight: 800 }}
-                aria-label={`Yeni rekor farkı: +${recordDiff.toLocaleString('tr-TR')}`}
+                aria-label={t('gameOver.recordDifferenceAria', { score: recordDiff.toLocaleString(numberLocale) })}
               >
-                +{recordDiff.toLocaleString('tr-TR')} yeni rekor farkı
+                {t('gameOver.recordDifference', { score: recordDiff.toLocaleString(numberLocale) })}
               </div>
             )}
 
@@ -331,7 +335,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
                 background: 'rgba(255,255,255,0.045)',
                 border: '1px solid rgba(245,158,11,0.16)',
               }}
-              aria-label="Zamanli mod ozeti"
+              aria-label={t('gameOver.timedSummaryAria')}
             >
               <div style={{
                 display: 'flex',
@@ -345,14 +349,14 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
                   color: '#fbbf24',
                   letterSpacing: '0.12em',
                 }}>
-                  ZAMANLI OZET
+                  {t('gameOver.timedSummary')}
                 </span>
                 <span style={{
                   fontSize: 10,
                   fontWeight: 800,
                   color: 'rgba(255,255,255,0.42)',
                 }}>
-                  MAX COMBO {Math.max(0, maxCombo || 0)}x
+                  {t('gameOver.maxCombo', { combo: Math.max(0, maxCombo || 0) })}
                 </span>
               </div>
 
@@ -380,7 +384,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
                       color: row.color,
                       fontVariantNumeric: 'tabular-nums',
                     }}>
-                      +{row.value.toLocaleString('tr-TR')}
+                      +{row.value.toLocaleString(numberLocale)}
                     </span>
                   </div>
                 )) : (
@@ -390,7 +394,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
                     color: 'rgba(255,255,255,0.45)',
                     textAlign: 'center',
                   }}>
-                    Bonus cikmadi. Hedef ve combo ile sureyi skora cevir.
+                    {t('gameOver.noBonus')}
                   </div>
                 )}
               </div>
@@ -422,10 +426,10 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
                 gap: 8,
                 letterSpacing: '0.02em',
               }}
-              aria-label="Tekrar oyna"
+              aria-label={t('gameOver.playAgain')}
             >
               <RotateCcw size={16} aria-hidden="true" />
-              {modeIsTimed ? 'Bir Tur Daha' : 'Tekrar Oyna'}
+              {modeIsTimed ? t('gameOver.oneMoreRound') : t('gameOver.playAgain')}
             </button>
 
             <button
@@ -441,9 +445,9 @@ export const GameOverModal: React.FC<GameOverModalProps> = React.memo(({
                 fontWeight: 700,
                 cursor: 'pointer',
               }}
-              aria-label="Ana menüye dön"
+              aria-label={t('gameOver.backToMenu')}
             >
-              Ana Menü
+              {t('gameOver.backToMenu')}
             </button>
           </motion.div>
         </div>

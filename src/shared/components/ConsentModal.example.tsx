@@ -45,7 +45,7 @@ export function AppWithConsent() {
       {showConsentForm && (
         <ConsentModal
           onConsent={handleConsent}
-          privacyPolicyUrl="https://fluxgrid.app/privacy"
+          privacyPolicyUrl="https://fluxgrid-d0ad3.web.app/privacy-policy.html"
         />
       )}
       
@@ -111,7 +111,7 @@ export function SettingsWithConsentManagement() {
       )}
 
       <a
-        href="https://fluxgrid.app/privacy"
+        href="https://fluxgrid-d0ad3.web.app/privacy-policy.html"
         target="_blank"
         rel="noopener noreferrer"
         className="text-blue-400 hover:text-blue-300 text-sm underline"
@@ -122,7 +122,7 @@ export function SettingsWithConsentManagement() {
       {showConsentForm && (
         <ConsentModal
           onConsent={handleConsent}
-          privacyPolicyUrl="https://fluxgrid.app/privacy"
+          privacyPolicyUrl="https://fluxgrid-d0ad3.web.app/privacy-policy.html"
         />
       )}
     </div>

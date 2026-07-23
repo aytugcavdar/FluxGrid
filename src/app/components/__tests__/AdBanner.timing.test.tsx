@@ -8,6 +8,7 @@ vi.mock('@core/services/ads/AdManager', () => ({
   AdManager: {
     showBanner: vi.fn(),
     hideBanner: vi.fn(),
+    canRequestAds: vi.fn(() => true),
     isNoAdsActive: vi.fn(() => false),
   },
 }));

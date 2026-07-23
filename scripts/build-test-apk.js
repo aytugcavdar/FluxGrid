@@ -14,7 +14,7 @@ console.log('🚀 Building Test APK...\n');
 try {
   // Step 1: Build web assets
   console.log('📦 Step 1/4: Building web assets...');
-  execSync('npm run build:android', { stdio: 'inherit' });
+  execSync('npm run build:android:debug', { stdio: 'inherit' });
   
   // Step 2: Sync Capacitor
   console.log('\n🔄 Step 2/4: Syncing Capacitor...');

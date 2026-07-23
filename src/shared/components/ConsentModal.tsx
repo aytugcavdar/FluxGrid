@@ -17,7 +17,7 @@ export interface ConsentModalProps {
 
 export function ConsentModal({
   onConsent,
-  privacyPolicyUrl = 'https://fluxgrid.app/privacy',
+  privacyPolicyUrl = 'https://fluxgrid-d0ad3.web.app/privacy-policy.html',
 }: ConsentModalProps) {
   const [selectedConsent, setSelectedConsent] = useState<ConsentType | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);

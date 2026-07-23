@@ -6,7 +6,21 @@
  * Integrates with Capacitor AdMob plugin for native ads.
  */
 
-import { AdMob, BannerAdOptions, BannerAdSize, BannerAdPosition, AdMobBannerSize, InterstitialAdPluginEvents, RewardAdPluginEvents, AdMobRewardItem } from '@capacitor-community/admob';
+import {
+  AdMob,
+  AdmobConsentDebugGeography,
+  AdmobConsentStatus,
+  BannerAdPluginEvents,
+  BannerAdOptions,
+  BannerAdPosition,
+  BannerAdSize,
+  InterstitialAdPluginEvents,
+  RewardAdPluginEvents,
+  type AdmobConsentInfo,
+  type AdmobConsentRequestOptions,
+  type AdMobError,
+  type AdMobRewardItem,
+} from '@capacitor-community/admob';
 import { getTodayISO } from '../../../shared/store/streakStore';
 import { fetchAndActivateAdConfig, getAdConfig as getFirebaseAdConfig, logAdEvent } from '../../../services/firebase/adConfig';
 import type { AdConfig } from '../../../services/firebase/adConfig';
@@ -27,6 +41,7 @@ export interface AdResult {
 interface AdMobConfig {
   appId: string;
   testMode: boolean;
+  testDeviceIds: string[];
   adUnits: {
     banner: string;
     interstitial: string;
@@ -55,7 +70,7 @@ const validateAdUnitId = (id: string, type: string): boolean => {
  * Falls back to test IDs if environment variables are not set
  */
 const getAdConfig = (): AdMobConfig => {
-  const isProduction = import.meta.env.PROD;
+  const isProductionAds = import.meta.env.VITE_ADMOB_BUILD_MODE === 'production';
   
   // Test IDs (Google's official test IDs)
   const TEST_IDS = {
@@ -70,9 +85,13 @@ const getAdConfig = (): AdMobConfig => {
   const envBannerId = import.meta.env.VITE_ADMOB_BANNER_ID;
   const envInterstitialId = import.meta.env.VITE_ADMOB_INTERSTITIAL_ID;
   const envRewardedId = import.meta.env.VITE_ADMOB_REWARDED_ID;
+  const testDeviceIds = (import.meta.env.VITE_ADMOB_TEST_DEVICE_IDS || '')
+    .split(',')
+    .map(id => id.trim())
+    .filter(Boolean);
   
   // Production mode warnings
-  if (isProduction) {
+  if (isProductionAds) {
     if (!envAppId) {
       console.error('[AdManager] PROD MODE: VITE_ADMOB_APP_ID is missing! Using test ID.');
     }
@@ -94,7 +113,7 @@ const getAdConfig = (): AdMobConfig => {
   const rewardedId = envRewardedId && validateAdUnitId(envRewardedId, 'Rewarded') ? envRewardedId : TEST_IDS.rewarded;
   
   // Log configuration in development
-  if (!isProduction) {
+  if (!isProductionAds) {
     console.log('[AdManager] Using Ad Unit IDs:', {
       appId: appId === TEST_IDS.appId ? 'TEST' : 'CUSTOM',
       banner: bannerId === TEST_IDS.banner ? 'TEST' : 'CUSTOM',
@@ -105,7 +124,8 @@ const getAdConfig = (): AdMobConfig => {
   
   return {
     appId,
-    testMode: !isProduction,
+    testMode: !isProductionAds || [bannerId, interstitialId, rewardedId].every(id => id.includes('3940256099942544')),
+    testDeviceIds,
     adUnits: {
       banner: bannerId,
       interstitial: interstitialId,
@@ -113,6 +133,11 @@ const getAdConfig = (): AdMobConfig => {
     }
   };
 };
+
+const usesOfficialGoogleTestAdUnits = (config: AdMobConfig): boolean =>
+  Object.values(config.adUnits).every(id =>
+    id.startsWith('ca-app-pub-3940256099942544/')
+  );
 
 export const AD_IDS = getAdConfig().adUnits;
 
@@ -125,21 +150,8 @@ const STORAGE_KEYS = {
   rewardedDaily: 'flux_ad_rewarded_daily',
   rewardedDate: 'flux_ad_rewarded_date',
   noAds: 'flux_no_ads',
-  gdprConsent: 'flux_gdpr_consent',
-  gdprConsentVersion: 'flux_gdpr_consent_version',
-  gdprConsentTimestamp: 'flux_gdpr_consent_timestamp',
   rewardedThemeTrialDate: 'flux_ad_rewarded_theme_trial_date',
 } as const;
-
-// GDPR Consent Version - increment when consent text changes
-const GDPR_CONSENT_VERSION = '1.0';
-
-// EEA language codes for GDPR detection
-const EEA_LANGUAGE_CODES = [
-  'de', 'fr', 'es', 'it', 'nl', 'pl', 'ro', 'el', 'pt', 
-  'cs', 'hu', 'sv', 'bg', 'da', 'fi', 'sk', 'hr', 'lt', 
-  'sl', 'lv', 'et', 'mt', 'en-GB', 'en-IE'
-];
 
 // ============================================================================
 // State (Module-level)
@@ -151,10 +163,31 @@ let dailyRewardedDate = '';
 let isInitialized = false;
 let isInitializing = false; // Prevent concurrent initialization
 let isShowing = false; // Prevent duplicate banner displays
+let bannerDesiredVisible = false;
+let bannerRequestInFlight = false;
+let bannerNativeViewExists = false;
+let bannerRetryAttempt = 0;
+let bannerRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let bannerLoadedListener: any = null;
+let bannerFailedToLoadListener: any = null;
 let visibilityChangeListener: (() => void) | null = null; // Banner visibility listener
 let rewardedAdListener: any = null; // Current rewarded ad listener handle
 let remoteAdConfig: AdConfig | null = null; // Firebase Remote Config for ads
 let isShowingRewardedAd = false; // Prevent concurrent rewarded ad displays
+let rewardedContinueInFlight: Promise<AdResult> | null = null;
+let adsRequestAllowed = false;
+let privacyOptionsRequired = false;
+let interstitialDisplayGuard: () => boolean = () => false;
+let isShowingInterstitialAd = false;
+let interstitialAttemptInFlight: Promise<AdResult> | null = null;
+let lastRewardedAdFinishedAt = 0;
+let interstitialAdListener: any = null;
+
+const REWARDED_LOAD_TIMEOUT_MS = 15000;
+const FULLSCREEN_AD_RESULT_TIMEOUT_MS = 120000;
+const REWARDED_DISMISS_FALLBACK_MS = 4000;
+const INTERSTITIAL_AFTER_REWARDED_COOLDOWN_MS = 30000;
+const BANNER_RETRY_DELAYS_MS = [15000, 30000, 60000, 120000];
 
 function getCurrentAdConfig(): AdConfig {
   return remoteAdConfig || getFirebaseAdConfig();
@@ -174,6 +207,103 @@ function removeAdListener(listener: any): void {
   }
 }
 
+function clearBannerRetry(): void {
+  if (bannerRetryTimer) {
+    clearTimeout(bannerRetryTimer);
+    bannerRetryTimer = null;
+  }
+}
+
+function scheduleBannerRetry(): void {
+  if (!bannerDesiredVisible || bannerRetryTimer) return;
+
+  const delay = BANNER_RETRY_DELAYS_MS[
+    Math.min(bannerRetryAttempt, BANNER_RETRY_DELAYS_MS.length - 1)
+  ];
+  bannerRetryAttempt = Math.min(
+    bannerRetryAttempt + 1,
+    BANNER_RETRY_DELAYS_MS.length - 1
+  );
+
+  console.log(`[AdManager] Retrying banner in ${delay}ms`);
+  bannerRetryTimer = setTimeout(() => {
+    bannerRetryTimer = null;
+    if (bannerDesiredVisible) {
+      void showBanner();
+    }
+  }, delay);
+}
+
+async function ensureBannerListeners(): Promise<void> {
+  if (!bannerLoadedListener) {
+    bannerLoadedListener = await AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
+      bannerNativeViewExists = true;
+      isShowing = true;
+      bannerRetryAttempt = 0;
+      clearBannerRetry();
+
+      if (!bannerDesiredVisible) return;
+
+      console.log('[AdManager] Banner loaded successfully');
+      window.dispatchEvent(new CustomEvent('fluxgrid-banner-shown', {
+        detail: { height: 50 },
+      }));
+    });
+  }
+
+  if (!bannerFailedToLoadListener) {
+    bannerFailedToLoadListener = await AdMob.addListener(
+      BannerAdPluginEvents.FailedToLoad,
+      (error: AdMobError) => {
+        // The Android plugin destroys the native banner view after any load
+        // failure, including an automatic refresh failure.
+        bannerNativeViewExists = false;
+        isShowing = false;
+        console.error('[AdManager] Banner failed to load:', {
+          code: error?.code,
+          message: error?.message,
+        });
+        window.dispatchEvent(new CustomEvent('fluxgrid-banner-hidden', {
+          detail: { height: 0, errorCode: error?.code },
+        }));
+        logAdEvent('ad_impression', {
+          ad_type: 'banner',
+          error_code: error?.code,
+          error: error?.message || 'Banner failed to load',
+          success: false,
+        });
+        scheduleBannerRetry();
+      }
+    );
+  }
+}
+
+function ensureBannerVisibilityListener(): void {
+  if (visibilityChangeListener) return;
+
+  visibilityChangeListener = () => {
+    if (document.hidden) {
+      void hideBanner(true);
+    } else {
+      void showBanner();
+    }
+  };
+  document.addEventListener('visibilitychange', visibilityChangeListener);
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 async function waitForRewardedAd(rewardType: 'continue' | 'shield' | 'theme_trial'): Promise<AdMobRewardItem> {
   if (rewardedAdListener) {
     console.log('[AdManager] Removing old listener');
@@ -182,56 +312,180 @@ async function waitForRewardedAd(rewardType: 'continue' | 'shield' | 'theme_tria
   }
 
   console.log('[AdManager] Loading rewarded ad...');
-  await AdMob.prepareRewardVideoAd({
-    adId: AD_IDS.rewarded,
-  });
+  await withTimeout(
+    AdMob.prepareRewardVideoAd({ adId: AD_IDS.rewarded }),
+    REWARDED_LOAD_TIMEOUT_MS,
+    'Rewarded ad load timed out'
+  );
 
   console.log('[AdManager] Rewarded ad loaded, showing...');
 
+  let isSettled = false;
+  let earnedReward: AdMobRewardItem | null = null;
+  let dismissListener: any = null;
+  let failedToShowListener: any = null;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  let dismissFallbackTimeout: ReturnType<typeof setTimeout> | null = null;
+  let resolveReward: (reward: AdMobRewardItem) => void = () => {};
+  let rejectRewardPromise: (error: Error) => void = () => {};
+
   const rewardPromise = new Promise<AdMobRewardItem>((resolve, reject) => {
-    let isResolved = false;
-    let dismissListener: any = null;
-    let timeout: ReturnType<typeof setTimeout>;
-
-    const cleanup = () => {
-      clearTimeout(timeout);
-      removeAdListener(rewardedAdListener);
-      rewardedAdListener = null;
-      removeAdListener(dismissListener);
-      dismissListener = null;
-    };
-
-    timeout = setTimeout(() => {
-      if (!isResolved) {
-        isResolved = true;
-        console.log(`[AdManager] Rewarded ad timeout (${rewardType})`);
-        cleanup();
-        reject(new Error('Rewarded ad timed out without reward'));
-      }
-    }, 30000);
-
-    rewardedAdListener = AdMob.addListener(RewardAdPluginEvents.Rewarded, (reward: AdMobRewardItem) => {
-      if (!isResolved) {
-        isResolved = true;
-        console.log('[AdManager] Rewarded event received:', reward);
-        cleanup();
-        resolve(reward);
-      }
-    });
-
-    dismissListener = AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
-      if (!isResolved) {
-        isResolved = true;
-        console.log(`[AdManager] Rewarded ad dismissed without reward (${rewardType})`);
-        cleanup();
-        reject(new Error('Rewarded ad dismissed without reward'));
-      }
-    });
+    resolveReward = resolve;
+    rejectRewardPromise = reject;
   });
 
-  await AdMob.showRewardVideoAd();
-  console.log('[AdManager] showRewardVideoAd() called, waiting for reward...');
+  const cleanup = () => {
+    if (timeout) clearTimeout(timeout);
+    timeout = null;
+    if (dismissFallbackTimeout) clearTimeout(dismissFallbackTimeout);
+    dismissFallbackTimeout = null;
+    removeAdListener(rewardedAdListener);
+    rewardedAdListener = null;
+    removeAdListener(dismissListener);
+    dismissListener = null;
+    removeAdListener(failedToShowListener);
+    failedToShowListener = null;
+  };
+
+  const rejectReward = (error: Error) => {
+    if (isSettled) return;
+    isSettled = true;
+    cleanup();
+    rejectRewardPromise(error);
+  };
+
+  try {
+    // Capacitor listener registration is asynchronous. Finish registration
+    // before showing the ad so fast native callbacks cannot be missed.
+    rewardedAdListener = await AdMob.addListener(
+      RewardAdPluginEvents.Rewarded,
+      (reward: AdMobRewardItem) => {
+        if (!isSettled) {
+          earnedReward = reward;
+          console.log('[AdManager] Rewarded event received:', reward);
+
+          // Some Android ad creatives earn the reward but fail to emit the
+          // dismissal callback. Never leave the game blocked after the SDK has
+          // confirmed that the reward was earned.
+          if (!dismissFallbackTimeout) {
+            dismissFallbackTimeout = setTimeout(() => {
+              if (isSettled || !earnedReward) return;
+
+              console.warn(
+                `[AdManager] Rewarded dismiss event missing; continuing after fallback (${rewardType})`
+              );
+              isSettled = true;
+              const confirmedReward = earnedReward;
+              cleanup();
+              resolveReward(confirmedReward);
+            }, REWARDED_DISMISS_FALLBACK_MS);
+          }
+        }
+      }
+    );
+
+    dismissListener = await AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
+      if (isSettled) return;
+
+      if (earnedReward) {
+        isSettled = true;
+        const reward = earnedReward;
+        cleanup();
+        resolveReward(reward);
+      } else {
+        console.log(`[AdManager] Rewarded ad dismissed without reward (${rewardType})`);
+        rejectReward(new Error('Rewarded ad dismissed without reward'));
+      }
+    });
+
+    failedToShowListener = await AdMob.addListener(
+      RewardAdPluginEvents.FailedToShow,
+      (error: unknown) => {
+        rejectReward(new Error(`Rewarded ad failed to show: ${String(error)}`));
+      }
+    );
+  } catch (error) {
+    rejectReward(error instanceof Error ? error : new Error(String(error)));
+    return rewardPromise;
+  }
+
+  timeout = setTimeout(() => {
+    if (!isSettled) {
+      console.log(`[AdManager] Rewarded ad timeout (${rewardType})`);
+      rejectReward(new Error('Rewarded ad timed out without reward'));
+    }
+  }, FULLSCREEN_AD_RESULT_TIMEOUT_MS);
+
+  AdMob.showRewardVideoAd().catch((error: unknown) => {
+    rejectReward(error instanceof Error ? error : new Error(String(error)));
+  });
+  console.log('[AdManager] showRewardVideoAd() called, waiting for reward and dismissal...');
+
   return rewardPromise;
+}
+
+async function waitForInterstitialDismissal(): Promise<void> {
+  removeAdListener(interstitialAdListener);
+  interstitialAdListener = null;
+
+  let isSettled = false;
+  let failedToShowListener: any = null;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  let resolveDismissal: () => void = () => {};
+  let rejectDismissal: (error: Error) => void = () => {};
+
+  const dismissalPromise = new Promise<void>((resolve, reject) => {
+    resolveDismissal = resolve;
+    rejectDismissal = reject;
+  });
+
+  const cleanup = () => {
+    if (timeout) clearTimeout(timeout);
+    timeout = null;
+    removeAdListener(interstitialAdListener);
+    interstitialAdListener = null;
+    removeAdListener(failedToShowListener);
+    failedToShowListener = null;
+  };
+
+  const fail = (error: Error) => {
+    if (isSettled) return;
+    isSettled = true;
+    cleanup();
+    rejectDismissal(error);
+  };
+
+  try {
+    interstitialAdListener = await AdMob.addListener(
+      InterstitialAdPluginEvents.Dismissed,
+      () => {
+        if (isSettled) return;
+        isSettled = true;
+        cleanup();
+        resolveDismissal();
+      }
+    );
+
+    failedToShowListener = await AdMob.addListener(
+      InterstitialAdPluginEvents.FailedToShow,
+      (error: unknown) => {
+        fail(new Error(`Interstitial ad failed to show: ${String(error)}`));
+      }
+    );
+  } catch (error) {
+    fail(error instanceof Error ? error : new Error(String(error)));
+    return dismissalPromise;
+  }
+
+  timeout = setTimeout(() => {
+    fail(new Error('Interstitial ad timed out before dismissal'));
+  }, FULLSCREEN_AD_RESULT_TIMEOUT_MS);
+
+  AdMob.showInterstitial().catch((error: unknown) => {
+    fail(error instanceof Error ? error : new Error(String(error)));
+  });
+
+  return dismissalPromise;
 }
 
 // ============================================================================
@@ -309,15 +563,6 @@ const isNative = (): boolean => {
 };
 
 /**
- * GDPR Consent Status Interface
- */
-export interface GDPRConsentStatus {
-  required: boolean;
-  obtained: boolean;
-  consentType: 'personalized' | 'non-personalized' | 'none';
-}
-
-/**
  * Ad Retry Configuration
  */
 interface AdRetryConfig {
@@ -326,157 +571,83 @@ interface AdRetryConfig {
   currentRetry: number;
 }
 
-/**
- * Detect if user is in EEA region based on browser language
- */
-function isEEARegion(): boolean {
+function getConsentRequestOptions(): AdmobConsentRequestOptions | undefined {
+  if (import.meta.env.VITE_ADMOB_CONSENT_DEBUG !== 'true') return undefined;
+
+  const geographyKey = String(import.meta.env.VITE_ADMOB_CONSENT_DEBUG_GEOGRAPHY || 'EEA').toUpperCase();
+  const geographyByName: Record<string, AdmobConsentDebugGeography> = {
+    EEA: AdmobConsentDebugGeography.EEA,
+    US: AdmobConsentDebugGeography.US,
+    OTHER: AdmobConsentDebugGeography.OTHER,
+  };
+  const testDeviceIdentifiers = (import.meta.env.VITE_ADMOB_CONSENT_TEST_DEVICE_IDS || '')
+    .split(',')
+    .map(id => id.trim())
+    .filter(Boolean);
+
+  return {
+    debugGeography: geographyByName[geographyKey] ?? AdmobConsentDebugGeography.EEA,
+    testDeviceIdentifiers,
+  };
+}
+
+function notifyConsentState(): void {
+  window.dispatchEvent(new CustomEvent('fluxgrid-ad-consent-updated', {
+    detail: { canRequestAds: adsRequestAllowed, privacyOptionsRequired },
+  }));
+}
+
+function updateConsentState(consentInfo: AdmobConsentInfo): void {
+  adsRequestAllowed = consentInfo.canRequestAds === true;
+  privacyOptionsRequired = consentInfo.privacyOptionsRequirementStatus === 'REQUIRED';
+  notifyConsentState();
+}
+
+async function requestUMPConsent(): Promise<void> {
+  let consentInfo = await AdMob.requestConsentInfo(getConsentRequestOptions());
+
+  if (
+    consentInfo.status === AdmobConsentStatus.REQUIRED &&
+    consentInfo.isConsentFormAvailable
+  ) {
+    consentInfo = await AdMob.showConsentForm();
+  }
+
+  updateConsentState(consentInfo);
+  console.log('[AdManager] UMP consent updated:', {
+    status: consentInfo.status,
+    canRequestAds: adsRequestAllowed,
+    privacyOptionsRequired,
+  });
+}
+
+export function canRequestAds(): boolean {
+  return !isNative() || (isInitialized && adsRequestAllowed);
+}
+
+export function isPrivacyOptionsRequired(): boolean {
+  return isNative() && privacyOptionsRequired;
+}
+
+export async function showPrivacyOptions(): Promise<boolean> {
+  if (!isNative() || !privacyOptionsRequired) return false;
+
   try {
-    const language = navigator.language.toLowerCase();
-    const isEEA = EEA_LANGUAGE_CODES.some(code => 
-      language.startsWith(code.toLowerCase())
-    );
-    
-    if (!import.meta.env.PROD) {
-      console.log('[AdManager] EEA detection:', { language, isEEA });
-    }
-    
-    return isEEA;
+    await AdMob.showPrivacyOptionsForm();
+    const consentInfo = await AdMob.requestConsentInfo(getConsentRequestOptions());
+    updateConsentState(consentInfo);
+    return true;
   } catch (error) {
-    console.error('[AdManager] Failed to detect EEA region:', error);
+    console.error('[AdManager] Failed to show privacy options:', error);
     return false;
   }
 }
 
-/**
- * Check GDPR consent using localStorage
- * 
- * Implements localStorage-based consent management for GDPR compliance
- */
-async function checkGDPRConsent(): Promise<GDPRConsentStatus> {
-  // In development mode, always return consent granted
-  if (!import.meta.env.PROD) {
-    console.log('[AdManager] GDPR consent check bypassed (development mode)');
-    return {
-      required: false,
-      obtained: true,
-      consentType: 'personalized'
-    };
-  }
-  
-  // On web platform, assume consent (no UMP SDK available)
-  if (!isNative()) {
-    return {
-      required: false,
-      obtained: true,
-      consentType: 'personalized'
-    };
-  }
-  
-  // Check if user is in EEA region
-  const required = isEEARegion();
-  
-  if (!required) {
-    // Not in EEA, consent not required
-    return {
-      required: false,
-      obtained: true,
-      consentType: 'personalized'
-    };
-  }
-  
-  // Check stored consent
-  try {
-    const storedConsent = localStorage.getItem(STORAGE_KEYS.gdprConsent);
-    const storedVersion = localStorage.getItem(STORAGE_KEYS.gdprConsentVersion);
-    const storedTimestamp = localStorage.getItem(STORAGE_KEYS.gdprConsentTimestamp);
-    
-    if (storedConsent && storedVersion === GDPR_CONSENT_VERSION) {
-      // Valid consent found
-      console.log('[AdManager] GDPR consent found:', {
-        consentType: storedConsent,
-        version: storedVersion,
-        timestamp: storedTimestamp
-      });
-      
-      return {
-        required: true,
-        obtained: true,
-        consentType: storedConsent as 'personalized' | 'non-personalized' | 'none'
-      };
-    }
-    
-    // No valid consent found
-    console.log('[AdManager] GDPR consent required but not obtained');
-    return {
-      required: true,
-      obtained: false,
-      consentType: 'none'
-    };
-  } catch (error) {
-    console.error('[AdManager] Failed to check GDPR consent:', error);
-    return {
-      required: true,
-      obtained: false,
-      consentType: 'none'
-    };
-  }
-}
-
-/**
- * Show GDPR consent form if required
- * Dispatches custom event for React modal to handle
- */
-async function showConsentForm(): Promise<boolean> {
-  console.log('[AdManager] Showing consent form');
-  
-  if (!isNative()) {
-    return true;
-  }
-  
-  return new Promise((resolve) => {
-    // Dispatch event for React modal
-    window.dispatchEvent(new CustomEvent('fluxgrid-show-consent'));
-    
-    // Listen for consent response
-    const handleConsentResponse = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const consentType = customEvent.detail?.consentType;
-      
-      if (consentType) {
-        // Store consent in localStorage
-        try {
-          localStorage.setItem(STORAGE_KEYS.gdprConsent, consentType);
-          localStorage.setItem(STORAGE_KEYS.gdprConsentVersion, GDPR_CONSENT_VERSION);
-          localStorage.setItem(STORAGE_KEYS.gdprConsentTimestamp, Date.now().toString());
-          
-          console.log('[AdManager] GDPR consent stored:', consentType);
-          
-          // Configure AdMob based on consent type
-          // Note: setRequestConfiguration is deprecated in newer versions
-          // AdMob automatically handles consent through UMP SDK
-          
-          resolve(true);
-        } catch (error) {
-          console.error('[AdManager] Failed to store consent:', error);
-          resolve(false);
-        }
-      } else {
-        resolve(false);
-      }
-      
-      // Remove listener
-      window.removeEventListener('fluxgrid-consent-response', handleConsentResponse);
-    };
-    
-    window.addEventListener('fluxgrid-consent-response', handleConsentResponse);
-    
-    // Timeout after 60 seconds
-    setTimeout(() => {
-      window.removeEventListener('fluxgrid-consent-response', handleConsentResponse);
-      console.warn('[AdManager] Consent form timeout');
-      resolve(false);
-    }, 60000);
-  });
+export function setInterstitialDisplayGuard(guard: () => boolean): () => void {
+  interstitialDisplayGuard = guard;
+  return () => {
+    if (interstitialDisplayGuard === guard) interstitialDisplayGuard = () => false;
+  };
 }
 
 /**
@@ -513,31 +684,36 @@ export async function initialize(): Promise<void> {
     
     // Initialize AdMob on native platform
     if (isNative()) {
+      const config = getAdConfig();
+      await AdMob.initialize({
+        testingDevices: config.testDeviceIds,
+        initializeForTesting: config.testDeviceIds.length > 0,
+      });
+      isInitialized = true;
+
       try {
-        // Check GDPR consent before initializing ads
-        const consentStatus = await checkGDPRConsent();
-        if (consentStatus.required && !consentStatus.obtained) {
-          console.log('[AdManager] GDPR consent required but not granted, showing consent form');
-          const consentGranted = await showConsentForm();
-          if (!consentGranted) {
-            console.log('[AdManager] GDPR consent not granted, skipping AdMob initialization');
-            isInitializing = false;
-            return;
-          }
-        }
-        
-        const config = getAdConfig();
-        await AdMob.initialize({
-          testingDevices: config.testMode ? ['YOUR_TEST_DEVICE_ID'] : [],
-          initializeForTesting: config.testMode,
-        });
-        isInitialized = true;
-        console.log('[AdManager] AdMob initialized successfully');
+        await requestUMPConsent();
       } catch (error) {
-        console.error('[AdManager] Failed to initialize AdMob:', error);
-        isInitializing = false;
-        throw error;
+        // Official Google test units cannot generate revenue. Keep local QA usable
+        // while still failing closed whenever real ad units are configured.
+        adsRequestAllowed = usesOfficialGoogleTestAdUnits(config);
+        privacyOptionsRequired = false;
+        notifyConsentState();
+        console.error(
+          adsRequestAllowed
+            ? '[AdManager] UMP consent update failed; official test ads remain enabled for QA:'
+            : '[AdManager] UMP consent update failed; real ads disabled for this session:',
+          error
+        );
       }
+
+      console.log('[AdManager] AdMob initialized successfully', {
+        testMode: config.testMode,
+        canRequestAds: adsRequestAllowed,
+      });
+    } else {
+      isInitialized = true;
+      adsRequestAllowed = true;
     }
     
     console.log('[AdManager] Initialized:', {
@@ -545,6 +721,7 @@ export async function initialize(): Promise<void> {
       dailyRewardedCount,
       dailyRewardedDate,
       isNative: isNative(),
+      canRequestAds: canRequestAds(),
       remoteConfig: remoteAdConfig,
     });
     
@@ -566,6 +743,11 @@ export async function showBanner(): Promise<void> {
     return;
   }
 
+  if (!canRequestAds()) {
+    console.log('[AdManager] Consent does not allow ad requests, skipping banner');
+    return;
+  }
+
   if (isNoAdsActive()) {
     console.log('[AdManager] No-ads active, skipping banner');
     return;
@@ -577,20 +759,43 @@ export async function showBanner(): Promise<void> {
     return;
   }
 
+  bannerDesiredVisible = true;
   console.log('[AdManager] Banner enabled, proceeding...');
   
   // Prevent duplicate banner display
-  if (isShowing) {
-    console.log('[AdManager] Banner already showing');
+  if (isShowing || bannerRequestInFlight) {
+    console.log('[AdManager] Banner already showing or loading');
     return;
   }
-  
+
+  clearBannerRetry();
+  bannerRequestInFlight = true;
+
   try {
     console.log('[AdManager] Waiting for Activity...');
+    await ensureBannerListeners();
+
     // Wait for Activity to be ready before showing banner
     // This prevents NullPointerException when ViewGroup is not yet available
     // Increased from 500ms to 2000ms to ensure full initialization
     await new Promise(resolve => setTimeout(resolve, 2000));
+
+    if (!bannerDesiredVisible || !canRequestAds() || isNoAdsActive()) {
+      console.log('[AdManager] Banner request cancelled before native display');
+      return;
+    }
+
+    if (bannerNativeViewExists) {
+      console.log('[AdManager] Resuming existing native banner...');
+      await AdMob.resumeBanner();
+      isShowing = true;
+      bannerRetryAttempt = 0;
+      window.dispatchEvent(new CustomEvent('fluxgrid-banner-shown', {
+        detail: { height: 50 },
+      }));
+      ensureBannerVisibilityListener();
+      return;
+    }
     
     console.log('[AdManager] Calling AdMob.showBanner()...');
     // Note: Safe area margin is handled by CSS env(safe-area-inset-bottom)
@@ -603,35 +808,24 @@ export async function showBanner(): Promise<void> {
       margin: 0,
     };
     
-    await AdMob.showBanner(options);
+    // Treat this as an in-flight display guard. FailedToLoad resets it so a
+    // later app resume can retry without creating a tight polling loop.
     isShowing = true;
+    await AdMob.showBanner(options);
+    bannerNativeViewExists = true;
     
-    console.log('[AdManager] Banner shown successfully!');
+    console.log('[AdManager] Banner request submitted');
     
     // Log analytics event
     logAdEvent('ad_impression', { ad_type: 'banner' });
     
-    // Add visibility change listener to hide banner when page is hidden
-    if (!visibilityChangeListener) {
-      visibilityChangeListener = () => {
-        if (document.hidden) {
-          hideBanner();
-        } else {
-          showBanner();
-        }
-      };
-      document.addEventListener('visibilitychange', visibilityChangeListener);
-    }
+    ensureBannerVisibilityListener();
     
-    // Dispatch banner shown event
-    window.dispatchEvent(new CustomEvent('fluxgrid-banner-shown', { 
-      detail: { height: 50 } 
-    }));
-    
-    console.log('[AdManager] Banner ad shown successfully');
   } catch (error) {
     console.error('[AdManager] Failed to show banner:', error);
+    bannerNativeViewExists = false;
     isShowing = false;
+    scheduleBannerRetry();
     
     // Log analytics event for failure
     logAdEvent('ad_impression', { 
@@ -642,25 +836,35 @@ export async function showBanner(): Promise<void> {
     
     // Don't throw error - gracefully degrade if banner fails
     // This prevents app crash if AdMob has issues
+  } finally {
+    bannerRequestInFlight = false;
   }
 }
 
 /**
  * Hide banner advertisement
  */
-export async function hideBanner(): Promise<void> {
+export async function hideBanner(preserveDesiredState = false): Promise<void> {
   console.log('[AdManager] Hiding banner ad');
+
+  clearBannerRetry();
+  if (!preserveDesiredState) {
+    bannerDesiredVisible = false;
+    bannerRetryAttempt = 0;
+  }
+  isShowing = false;
   
   if (!isNative()) {
     return;
   }
   
   try {
-    await AdMob.hideBanner();
-    isShowing = false;
+    if (bannerNativeViewExists) {
+      await AdMob.hideBanner();
+    }
     
     // Remove visibility change listener
-    if (visibilityChangeListener) {
+    if (!preserveDesiredState && visibilityChangeListener) {
       document.removeEventListener('visibilitychange', visibilityChangeListener);
       visibilityChangeListener = null;
     }
@@ -700,10 +904,22 @@ export function recordGameEnd(): void {
 
   const frequency = Math.max(1, Math.floor(config.interstitial_frequency || 0));
   
-  // Show interstitial every N games (3, 6, 9, 12...)
-  if (gamesPlayedSinceInterstitial % frequency === 0) {
+  // Keep the threshold pending until an ad is actually shown. A rewarded-ad
+  // cooldown, no-fill, or a temporary lifecycle guard must not consume it.
+  if (gamesPlayedSinceInterstitial >= frequency && !interstitialAttemptInFlight) {
     console.log('[AdManager] Triggering interstitial (game:', gamesPlayedSinceInterstitial, ', frequency:', frequency, ')');
-    showInterstitial();
+    const attempt = showInterstitial();
+    interstitialAttemptInFlight = attempt;
+    void attempt.then(result => {
+      if (result.success) {
+        gamesPlayedSinceInterstitial = 0;
+        saveGameCount();
+      }
+    }).finally(() => {
+      if (interstitialAttemptInFlight === attempt) {
+        interstitialAttemptInFlight = null;
+      }
+    });
   }
 }
 
@@ -712,6 +928,8 @@ export function recordGameEnd(): void {
  * Implements exponential backoff: 1s, 2s, 4s, 8s (max)
  */
 async function loadInterstitialWithRetry(config: AdRetryConfig = { maxRetries: 3, backoffMs: [1000, 2000, 4000, 8000], currentRetry: 0 }): Promise<boolean> {
+  if (!interstitialDisplayGuard()) return false;
+
   try {
     await AdMob.prepareInterstitial({
       adId: AD_IDS.interstitial,
@@ -726,6 +944,8 @@ async function loadInterstitialWithRetry(config: AdRetryConfig = { maxRetries: 3
       console.log(`[AdManager] Retrying in ${delay}ms...`);
       
       await new Promise(resolve => setTimeout(resolve, delay));
+
+      if (!interstitialDisplayGuard()) return false;
       
       return loadInterstitialWithRetry({
         ...config,
@@ -744,6 +964,23 @@ async function loadInterstitialWithRetry(config: AdRetryConfig = { maxRetries: 3
  */
 export async function showInterstitial(): Promise<AdResult> {
   console.log('[AdManager] Showing interstitial ad');
+
+  if (!canRequestAds()) {
+    return { success: false, error: 'Ad requests not allowed by consent' };
+  }
+
+  if (!interstitialDisplayGuard()) {
+    return { success: false, error: 'Interstitial no longer at a natural pause' };
+  }
+
+  if (isShowingRewardedAd || isShowingInterstitialAd) {
+    return { success: false, error: 'Another fullscreen ad is active' };
+  }
+
+  if (Date.now() - lastRewardedAdFinishedAt < INTERSTITIAL_AFTER_REWARDED_COOLDOWN_MS) {
+    console.log('[AdManager] Interstitial skipped after rewarded ad');
+    return { success: false, error: 'Rewarded ad cooldown active' };
+  }
 
   if (isNoAdsActive()) {
     console.log('[AdManager] No-ads active, skipping interstitial');
@@ -766,6 +1003,8 @@ export async function showInterstitial(): Promise<AdResult> {
     });
   }
   
+  isShowingInterstitialAd = true;
+
   try {
     const loaded = await loadInterstitialWithRetry();
     
@@ -782,8 +1021,13 @@ export async function showInterstitial(): Promise<AdResult> {
         error: 'Failed to load interstitial after retries'
       };
     }
+
+    if (!interstitialDisplayGuard()) {
+      console.log('[AdManager] Interstitial cancelled because gameplay resumed');
+      return { success: false, error: 'Gameplay resumed before interstitial display' };
+    }
     
-    await AdMob.showInterstitial();
+    await waitForInterstitialDismissal();
     
     // Log analytics event for success
     logAdEvent('ad_interstitial_show', { 
@@ -808,6 +1052,10 @@ export async function showInterstitial(): Promise<AdResult> {
       success: false,
       error: String(error),
     };
+  } finally {
+    removeAdListener(interstitialAdListener);
+    interstitialAdListener = null;
+    isShowingInterstitialAd = false;
   }
 }
 
@@ -819,21 +1067,26 @@ export function canShowRewardedContinue(): boolean {
   const config = getCurrentAdConfig();
   const dailyLimit = Math.max(0, Math.floor(config.rewarded_daily_limit || 0));
   
-  const canShow = config.rewarded_enabled && dailyRewardedCount < dailyLimit;
+  const canShow =
+    canRequestAds() &&
+    config.rewarded_enabled &&
+    !isShowingRewardedAd &&
+    !isShowingInterstitialAd &&
+    dailyRewardedCount < dailyLimit;
   console.log('[AdManager] Can show rewarded continue:', canShow, `(${dailyRewardedCount}/${dailyLimit})`);
   return canShow;
 }
 
 export function getRewardedContinueRemaining(): number {
   const config = getCurrentAdConfig();
-  if (!config.rewarded_enabled) return 0;
+  if (!canRequestAds() || !config.rewarded_enabled) return 0;
   return Math.max(0, Math.floor(config.rewarded_daily_limit || 0) - dailyRewardedCount);
 }
 
 /**
  * Show rewarded ad for continue feature
  */
-export async function showRewardedContinue(): Promise<AdResult> {
+async function performRewardedContinue(): Promise<AdResult> {
   console.log('[AdManager] showRewardedContinue() called');
 
   if (!canShowRewardedContinue()) {
@@ -844,11 +1097,11 @@ export async function showRewardedContinue(): Promise<AdResult> {
   }
   
   // CRITICAL: Prevent concurrent ad displays
-  if (isShowingRewardedAd) {
-    console.log('[AdManager] Rewarded ad already showing, ignoring duplicate call');
+  if (isShowingRewardedAd || isShowingInterstitialAd) {
+    console.log('[AdManager] Another fullscreen ad is active, ignoring rewarded call');
     return {
       success: false,
-      error: 'Ad already showing'
+      error: 'Another fullscreen ad is active'
     };
   }
   
@@ -921,10 +1174,27 @@ export async function showRewardedContinue(): Promise<AdResult> {
       error: String(error),
     };
   } finally {
+    lastRewardedAdFinishedAt = Date.now();
     removeAdListener(rewardedAdListener);
     rewardedAdListener = null;
     isShowingRewardedAd = false;
   }
+}
+
+export function showRewardedContinue(): Promise<AdResult> {
+  if (rewardedContinueInFlight) {
+    console.log('[AdManager] Reusing active rewarded continue request');
+    return rewardedContinueInFlight;
+  }
+
+  const request = performRewardedContinue();
+  rewardedContinueInFlight = request;
+  void request.finally(() => {
+    if (rewardedContinueInFlight === request) {
+      rewardedContinueInFlight = null;
+    }
+  });
+  return request;
 }
 
 /**
@@ -932,6 +1202,10 @@ export async function showRewardedContinue(): Promise<AdResult> {
  */
 export async function showRewardedStreakShield(): Promise<AdResult> {
   console.log('[AdManager] Showing rewarded ad: streak shield');
+
+  if (!canRequestAds()) {
+    return { success: false, error: 'Ad requests not allowed by consent' };
+  }
 
   if (!getCurrentAdConfig().rewarded_enabled) {
     return {
@@ -941,11 +1215,11 @@ export async function showRewardedStreakShield(): Promise<AdResult> {
   }
 
   // CRITICAL: Prevent concurrent ad displays
-  if (isShowingRewardedAd) {
-    console.log('[AdManager] Rewarded ad already showing, ignoring duplicate call');
+  if (isShowingRewardedAd || isShowingInterstitialAd) {
+    console.log('[AdManager] Another fullscreen ad is active, ignoring rewarded call');
     return {
       success: false,
-      error: 'Ad already showing',
+      error: 'Another fullscreen ad is active',
     };
   }
 
@@ -1000,6 +1274,7 @@ export async function showRewardedStreakShield(): Promise<AdResult> {
       error: String(error),
     };
   } finally {
+    lastRewardedAdFinishedAt = Date.now();
     removeAdListener(rewardedAdListener);
     rewardedAdListener = null;
     isShowingRewardedAd = false;
@@ -1007,6 +1282,7 @@ export async function showRewardedStreakShield(): Promise<AdResult> {
 }
 
 export function canShowRewardedThemeTrial(): boolean {
+  if (!canRequestAds()) return false;
   if (!getCurrentAdConfig().rewarded_enabled) return false;
 
   try {
@@ -1022,8 +1298,8 @@ export async function showRewardedThemeTrial(): Promise<AdResult> {
     return { success: false, error: 'Theme trial reward unavailable today' };
   }
 
-  if (isShowingRewardedAd) {
-    return { success: false, error: 'Ad already showing' };
+  if (isShowingRewardedAd || isShowingInterstitialAd) {
+    return { success: false, error: 'Another fullscreen ad is active' };
   }
 
   const completeReward = (): AdResult => {
@@ -1055,6 +1331,7 @@ export async function showRewardedThemeTrial(): Promise<AdResult> {
     });
     return { success: false, error: String(error) };
   } finally {
+    lastRewardedAdFinishedAt = Date.now();
     removeAdListener(rewardedAdListener);
     rewardedAdListener = null;
     isShowingRewardedAd = false;
@@ -1099,6 +1376,42 @@ export function activateNoAds(): void {
   }
 }
 
+function resetForTests(): void {
+  gamesPlayedSinceInterstitial = 0;
+  dailyRewardedCount = 0;
+  dailyRewardedDate = '';
+  isInitialized = false;
+  isInitializing = false;
+  isShowing = false;
+  bannerDesiredVisible = false;
+  bannerRequestInFlight = false;
+  bannerNativeViewExists = false;
+  bannerRetryAttempt = 0;
+  clearBannerRetry();
+  isShowingRewardedAd = false;
+  rewardedContinueInFlight = null;
+  isShowingInterstitialAd = false;
+  interstitialAttemptInFlight = null;
+  lastRewardedAdFinishedAt = 0;
+  adsRequestAllowed = false;
+  privacyOptionsRequired = false;
+  remoteAdConfig = null;
+  interstitialDisplayGuard = () => true;
+  removeAdListener(rewardedAdListener);
+  rewardedAdListener = null;
+  removeAdListener(interstitialAdListener);
+  interstitialAdListener = null;
+  removeAdListener(bannerLoadedListener);
+  bannerLoadedListener = null;
+  removeAdListener(bannerFailedToLoadListener);
+  bannerFailedToLoadListener = null;
+
+  if (visibilityChangeListener) {
+    document.removeEventListener('visibilitychange', visibilityChangeListener);
+    visibilityChangeListener = null;
+  }
+}
+
 // ============================================================================
 // Export for testing
 // ============================================================================
@@ -1115,7 +1428,12 @@ export const AdManager = {
   showRewardedStreakShield,
   canShowRewardedThemeTrial,
   showRewardedThemeTrial,
+  canRequestAds,
+  isPrivacyOptionsRequired,
+  showPrivacyOptions,
+  setInterstitialDisplayGuard,
   isNoAdsActive,
   activateNoAds,
   AD_IDS,
+  _resetForTests: resetForTests,
 };

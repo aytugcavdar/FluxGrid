@@ -79,7 +79,10 @@ async function buildAndroid(buildType = 'debug') {
   try {
     // Step 1: Build web assets
     logStep('1/4', 'Building web assets with Vite...');
-    await runCommand('npm', ['run', 'build:android']);
+    const webBuildScript = buildType === 'debug'
+      ? 'build:android:debug'
+      : 'build:android:release';
+    await runCommand('npm', ['run', webBuildScript]);
     logSuccess('Web assets built successfully');
 
     // Step 2: Sync with Capacitor

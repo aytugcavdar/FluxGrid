@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AdManager } from './AdManager';
 
 describe('AdManager', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     // Clear localStorage before each test
     localStorage.clear();
-    // Reset module state by reinitializing
-    AdManager.initialize();
+    AdManager._resetForTests();
+    await AdManager.initialize();
   });
 
   describe('initialize', () => {

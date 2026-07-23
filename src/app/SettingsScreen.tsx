@@ -4,15 +4,19 @@ import { useSettingsStore } from '@core/state/settingsStore';
 import { useThemeStore } from '../shared/store/themeStore';
 import { ToggleSwitch, SectionHeader } from '../shared/components';
 import { AdManager } from '../core/services/ads/AdManager';
+import { Capacitor } from '@capacitor/core';
+import {
+  getEngagementNotificationPreferences,
+  notificationScheduler,
+  setEngagementNotificationPreferences,
+} from '../services/notifications/pushNotificationService';
+import { requestNotificationPermission } from '../utils/native/notificationHelper';
 
-type SettingsLanguage = 'tr' | 'en' | 'de' | 'fr' | 'es';
+type SettingsLanguage = 'tr' | 'en';
 
 const LANGUAGE_OPTIONS: Array<{ code: SettingsLanguage; labelKey: string; shortLabel: string }> = [
   { code: 'tr', labelKey: 'turkish', shortLabel: 'TR' },
   { code: 'en', labelKey: 'english', shortLabel: 'EN' },
-  { code: 'de', labelKey: 'german', shortLabel: 'DE' },
-  { code: 'fr', labelKey: 'french', shortLabel: 'FR' },
-  { code: 'es', labelKey: 'spanish', shortLabel: 'ES' },
 ];
 
 export const SettingsScreen: React.FC = () => {
@@ -29,17 +33,17 @@ export const SettingsScreen: React.FC = () => {
     resetAllData,
   } = useSettingsStore();
 
-  const {
-    currentTheme,
-    getThemeColors,
-    setTheme,
-    activateThemeTrial,
-    getThemeTrialRemainingMs,
-  } = useThemeStore();
+  const { getThemeColors } = useThemeStore();
 
   const colors = getThemeColors();
-  const [themeRewardStatus, setThemeRewardStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [themeTrialRemainingMs, setThemeTrialRemainingMs] = useState(() => getThemeTrialRemainingMs('neon'));
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    () => getEngagementNotificationPreferences().enabled
+  );
+  const [notificationBusy, setNotificationBusy] = useState(false);
+  const [privacyOptionsAvailable, setPrivacyOptionsAvailable] = useState(
+    () => AdManager.isPrivacyOptionsRequired()
+  );
+  const [privacyOptionsBusy, setPrivacyOptionsBusy] = useState(false);
 
   const handleLanguageChange = (lang: SettingsLanguage) => {
     setLanguage(lang);
@@ -49,45 +53,65 @@ export const SettingsScreen: React.FC = () => {
     });
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     const confirmed = window.confirm(t('settingsScreen.resetConfirm'));
     if (!confirmed) return;
 
+    await notificationScheduler.cancelAllNotifications();
     resetAllData();
-    alert(t('settingsScreen.resetSuccess'));
   };
 
   useEffect(() => {
-    if (themeTrialRemainingMs <= 0) return;
+    const updateAvailability = () => {
+      setPrivacyOptionsAvailable(AdManager.isPrivacyOptionsRequired());
+    };
 
-    const intervalId = window.setInterval(() => {
-      const remaining = getThemeTrialRemainingMs('neon');
-      setThemeTrialRemainingMs(remaining);
-      if (remaining <= 0 && currentTheme === 'neon') setTheme('dark');
-    }, 60000);
+    updateAvailability();
+    window.addEventListener('fluxgrid-ad-consent-updated', updateAvailability);
+    return () => window.removeEventListener('fluxgrid-ad-consent-updated', updateAvailability);
+  }, []);
 
-    return () => window.clearInterval(intervalId);
-  }, [currentTheme, getThemeTrialRemainingMs, setTheme, themeTrialRemainingMs]);
+  const handleNotificationToggle = async (enabled: boolean) => {
+    if (notificationBusy || !Capacitor.isNativePlatform()) return;
+    setNotificationBusy(true);
 
-  const handleThemeTrialReward = async () => {
-    if (themeRewardStatus === 'loading') return;
-    setThemeRewardStatus('loading');
+    try {
+      if (!enabled) {
+        setEngagementNotificationPreferences({ enabled: false, streakReminder: false });
+        setNotificationsEnabled(false);
+        await notificationScheduler.cancelAllNotifications();
+        return;
+      }
 
-    const result = await AdManager.showRewardedThemeTrial();
-    if (!result.success) {
-      setThemeRewardStatus('error');
-      setTimeout(() => setThemeRewardStatus('idle'), 2500);
-      return;
+      const granted = await requestNotificationPermission();
+      if (!granted) {
+        setEngagementNotificationPreferences({ enabled: false, streakReminder: false });
+        setNotificationsEnabled(false);
+        return;
+      }
+
+      setEngagementNotificationPreferences({
+        enabled: true,
+        dailyReminder: true,
+        streakReminder: false,
+      });
+      setNotificationsEnabled(true);
+      await notificationScheduler.scheduleEngagementNotifications({}, { requestPermission: false });
+    } finally {
+      setNotificationBusy(false);
     }
-
-    const expiresAt = activateThemeTrial('neon', result.reward?.amount || 24);
-    setThemeTrialRemainingMs(Math.max(0, expiresAt - Date.now()));
-    setThemeRewardStatus('success');
-    setTimeout(() => setThemeRewardStatus('idle'), 2500);
   };
 
-  const themeTrialHours = Math.max(0, Math.ceil(themeTrialRemainingMs / (60 * 60 * 1000)));
-  const canWatchThemeReward = AdManager.canShowRewardedThemeTrial();
+  const handlePrivacyOptions = async () => {
+    if (privacyOptionsBusy) return;
+    setPrivacyOptionsBusy(true);
+    try {
+      await AdManager.showPrivacyOptions();
+      setPrivacyOptionsAvailable(AdManager.isPrivacyOptionsRequired());
+    } finally {
+      setPrivacyOptionsBusy(false);
+    }
+  };
 
   return (
     <div
@@ -138,6 +162,19 @@ export const SettingsScreen: React.FC = () => {
             </div>
           </div>
 
+          {Capacitor.isNativePlatform() && (
+            <div className="mb-8">
+              <SectionHeader title={t('settingsScreen.notifications')} />
+              <ToggleSwitch
+                label={t('settingsScreen.phoneNotifications')}
+                description={t('settingsScreen.phoneNotificationsDesc')}
+                value={notificationsEnabled}
+                onChange={handleNotificationToggle}
+                disabled={notificationBusy}
+              />
+            </div>
+          )}
+
           <div className="mb-8">
             <SectionHeader title={t('settingsScreen.language')} />
             <p className="text-xs mb-4" style={{ color: colors.textTertiary }}>
@@ -171,67 +208,28 @@ export const SettingsScreen: React.FC = () => {
             </div>
           </div>
 
-          <div className="mb-8">
-            <SectionHeader title={t('settingsScreen.rewards')} />
-            <div
-              className="p-5 rounded-2xl"
-              style={{
-                background: 'linear-gradient(135deg, rgba(232,121,249,0.12), rgba(34,211,238,0.07))',
-                border: '1px solid rgba(232,121,249,0.28)',
-              }}
-            >
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div>
-                  <p className="text-base font-black" style={{ color: colors.textPrimary }}>
-                    {t('settingsScreen.neonTrialTitle')}
-                  </p>
-                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                    {t('settingsScreen.neonTrialDesc')}
-                  </p>
-                </div>
-                <div
-                  className="w-12 h-12 rounded-xl flex-shrink-0"
-                  style={{
-                    background: 'linear-gradient(135deg, #e879f9, #22d3ee)',
-                    boxShadow: '0 0 18px rgba(232,121,249,0.25)',
-                  }}
-                />
-              </div>
-
-              {themeTrialRemainingMs > 0 ? (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setTheme(currentTheme === 'neon' ? 'dark' : 'neon')}
-                    className="flex-1 py-3 rounded-xl text-sm font-bold"
-                    style={{ background: 'rgba(232,121,249,0.18)', color: '#f5d0fe' }}
-                  >
-                    {currentTheme === 'neon' ? t('settingsScreen.switchToDark') : t('settingsScreen.useNeon')}
-                  </button>
-                  <div
-                    className="px-3 rounded-xl flex items-center text-xs font-bold"
-                    style={{ background: 'rgba(255,255,255,0.05)', color: colors.textSecondary }}
-                  >
-                    {t('settingsScreen.hoursLeft', { count: themeTrialHours })}
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={handleThemeTrialReward}
-                  disabled={!canWatchThemeReward || themeRewardStatus === 'loading'}
-                  className="w-full py-3 rounded-xl text-sm font-black disabled:opacity-50"
-                  style={{ background: 'linear-gradient(90deg, #a855f7, #0891b2)', color: '#ffffff' }}
-                >
-                  {themeRewardStatus === 'loading'
-                    ? t('settingsScreen.adLoading')
-                    : themeRewardStatus === 'error'
-                    ? t('settingsScreen.adFailed')
-                    : canWatchThemeReward
-                    ? t('settingsScreen.watchAdTrial')
-                    : t('settingsScreen.trialUsed')}
-                </button>
-              )}
+          {Capacitor.isNativePlatform() && privacyOptionsAvailable && (
+            <div className="mb-8">
+              <SectionHeader title={t('settingsScreen.privacy')} />
+              <button
+                onClick={handlePrivacyOptions}
+                disabled={privacyOptionsBusy}
+                className="w-full p-5 rounded-2xl text-left transition-all disabled:opacity-50"
+                style={{
+                  background: colors.cardBackgroundTransparent,
+                  border: `1px solid ${colors.cardBorderTransparent}`,
+                  color: colors.textPrimary,
+                }}
+              >
+                <p className="text-sm font-bold">{t('settingsScreen.adPrivacyOptions')}</p>
+                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                  {privacyOptionsBusy
+                    ? t('settingsScreen.adPrivacyOpening')
+                    : t('settingsScreen.adPrivacyOptionsDesc')}
+                </p>
+              </button>
             </div>
-          </div>
+          )}
 
           <div className="mb-8">
             <SectionHeader title={t('settingsScreen.dangerZone')} dividerColor="rgba(239,68,68,0.15)" />

@@ -33,6 +33,7 @@ vi.mock('../AdBanner', () => ({
 
 vi.mock('@core/services/ads/AdManager', () => ({
   AdManager: {
+    canRequestAds: () => true,
     isNoAdsActive: () => false,
   },
 }));

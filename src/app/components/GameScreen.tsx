@@ -189,6 +189,13 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
   const isNativeApp = typeof window !== 'undefined' &&
     !!(window as any).Capacitor?.isNativePlatform?.();
   const [showTimedIntro, setShowTimedIntro] = React.useState(false);
+  const [consentAllowsAds, setConsentAllowsAds] = React.useState(() => AdManager.canRequestAds());
+
+  React.useEffect(() => {
+    const handleConsentUpdate = () => setConsentAllowsAds(AdManager.canRequestAds());
+    window.addEventListener('fluxgrid-ad-consent-updated', handleConsentUpdate);
+    return () => window.removeEventListener('fluxgrid-ad-consent-updated', handleConsentUpdate);
+  }, []);
 
   React.useEffect(() => {
     if (gameMode !== GameMode.TIMED || isGameOver || isTutorialActive) return;
@@ -229,6 +236,7 @@ export const GameScreen: React.FC<GameScreenProps> = React.memo(({
   const shouldRenderBanner =
     typeof window !== 'undefined' &&
     !!(window as any).Capacitor?.isNativePlatform?.() &&
+    consentAllowsAds &&
     !isTutorialActive &&
     !showTimedIntro &&
     !isGameOver &&
